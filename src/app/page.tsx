@@ -8,6 +8,7 @@ import Footer from '../components/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, TrendingUp, BrainCircuit } from 'lucide-react';
+import Image from 'next/image';
 
 export default function Home() {
   const [selectedType] = useState('news');
@@ -186,7 +187,17 @@ export default function Home() {
       <section className="py-8 sm:py-10 md:py-12 bg-white">
         <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
           <h2 style={{ fontFamily: 'Noto Sans, sans-serif' }} className="text-2xl sm:text-3xl md:text-4xl font-medium pl-0 sm:pl-4 md:pl-8 text-left mb-6 sm:mb-8 md:mb-12">Why it is different?</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
+
+          <Image
+  src="/flowDesign.jpeg"
+  alt="flow design"
+  width={0}
+  height={0}
+  sizes="100vw"
+  className="w-full h-auto rounded-lg"
+/>
+
+          {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
             <div className="bg-[#1a1a1a] text-white p-4 sm:p-5 md:p-6 rounded-lg shadow-lg">
               <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">
                   Triggered Chain-of-Actions (TCA) Intelligence
@@ -251,7 +262,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
       </section>
 
