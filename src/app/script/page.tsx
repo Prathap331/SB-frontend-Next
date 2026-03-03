@@ -14,7 +14,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { ApiService, GenerationParams, GeneratedScriptData } from '@/services/api';
-import html2pdf from "html2pdf.js";
 
 // Format script text: *** becomes <hr/>, *word* becomes <strong>word</strong>
 function formatScript(text: string): React.ReactNode[] {
@@ -449,13 +448,16 @@ export default function ScriptPage() {
 
   /* ---------------- DOWNLOAD PDF ---------------- */
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const element = document.getElementById("script-content");
   
     if (!element) {
       alert("No script content found.");
       return;
     }
+  
+    // ✅ Dynamic import (only runs in browser)
+    const html2pdf = (await import("html2pdf.js")).default;
   
     const opt = {
       margin: 0.5,
