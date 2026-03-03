@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes for Vercel/Next.js
 
-const API_URL = process.env.API_URL || 'https://sb-u864.onrender.com';
+const API_URL = process.env.API_URL || 'https://storybit-backend.onrender.com';
 
 // Add GET method for health check
 export async function GET() {

@@ -91,7 +91,7 @@ export type GeneratedScriptData = {
 
 export class ApiService {
   // Use Next.js API routes in both development and production
-  private static readonly BASE_URL = '/api';
+  private static readonly BASE_URL = 'https://storybit-backend.onrender.com';
   
   // Check if we're in production and handle CORS issues
   private static isProduction = process.env.NODE_ENV === 'production';
@@ -420,7 +420,7 @@ export class ApiService {
 
   static async signUp(request: SignUpRequest): Promise<SignUpResponse> {
     const url = `https://xncfghdikiqknuruurfh.supabase.co/auth/v1/signup`;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhuY2ZnaGRpa2lxa251cnV1cmZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAyOTcwNTUsImV4cCI6MjA3NTg3MzA1NX0.9emUGvDrV8e8jYy6TMnPMiV7Hiw5qaCyeT6Vdc1yCAM" ;
 
     if (!anonKey) {
       throw new Error('Supabase anon key is not defined.');

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       // Forward to your backend for processing
       // The backend should verify the payment and update user's subscription
       try {
-        const backendUrl = 'https://sb-u864.onrender.com/payments/webhook';
+        const backendUrl = 'https://storybit-backend.onrender.com/payments/webhook';
         const response = await fetch(backendUrl, {
           method: 'POST',
           headers: {

@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes
 
-const API_URL = 'https://sb-u864.onrender.com/generate-script';
+const API_URL = 'https://storybit-backend.onrender.com/generate-script';
 
 export async function POST(request: NextRequest) {
   let controller: AbortController | null = null;

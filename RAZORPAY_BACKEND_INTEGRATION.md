@@ -24,7 +24,7 @@ The backend needs to implement the following components to make payments work en
 
 ## 1. Create Order Endpoint (Already Exists ✅)
 
-**Endpoint:** `POST https://sb-u864.onrender.com/payments/create-order`
+**Endpoint:** `POST https://storybit-backend.onrender.com/payments/create-order`
 
 **Current Implementation:** ✅ Working (confirmed by user)
 
@@ -63,7 +63,7 @@ Content-Type: application/json
 
 ## 2. Webhook Endpoint (Critical - Needs Implementation) ⚠️
 
-**Endpoint:** `POST https://sb-u864.onrender.com/payments/webhook`
+**Endpoint:** `POST https://storybit-backend.onrender.com/payments/webhook`
 
 This is the **most critical** endpoint that validates and processes payments securely.
 
@@ -304,7 +304,7 @@ DATABASE_URL=...
 2. Go to **Settings** → **Webhooks**
 3. Click **+ Add New Webhook**
 4. Configure:
-   - **URL**: `https://sb-u864.onrender.com/payments/webhook`
+   - **URL**: `https://storybit-backend.onrender.com/payments/webhook`
    - **Active Events**: 
      - ✅ `payment.captured`
      - ✅ `order.paid`

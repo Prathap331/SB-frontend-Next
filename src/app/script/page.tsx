@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { ApiService, GenerationParams, GeneratedScriptData } from '@/services/api';
+import html2pdf from "html2pdf.js";
 
 // Format script text: *** becomes <hr/>, *word* becomes <strong>word</strong>
 function formatScript(text: string): React.ReactNode[] {
@@ -219,7 +220,8 @@ export default function ScriptPage() {
   const [shouldRender, setShouldRender] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [pageTitle, setPageTitle] = useState('Generated Script');
-
+  const [isTranslating, setIsTranslating] = useState(false);
+  
   useEffect(() => {
     const token = localStorage.getItem('sb-xncfghdikiqknuruurfh-auth-token');
     if (!token) {
@@ -418,7 +420,6 @@ export default function ScriptPage() {
         setIsLoading(false);
       }
     };
-
     run();
   }, [router]);
 
@@ -444,6 +445,69 @@ export default function ScriptPage() {
       };
     }
   }, [showSourcesDialog]);
+
+
+  /* ---------------- DOWNLOAD PDF ---------------- */
+
+  const handleDownload = () => {
+    const element = document.getElementById("script-content");
+  
+    if (!element) {
+      alert("No script content found.");
+      return;
+    }
+  
+    const opt = {
+      margin: 0.5,
+      filename: `${data?.title || "script"}.pdf`,
+      image: { type: "jpeg" as const, quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: "in", format: "a4", orientation: "portrait" as const },
+    };
+  
+    html2pdf().set(opt).from(element).save();
+  };
+   /* ---------------- TRANSLATE ---------------- */
+
+   const handleTranslate = async () => {
+    if (!data) return;
+
+    setIsTranslating(true);
+
+    const res = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: data.script }),
+    });
+
+    const json = await res.json();
+
+    setData((prev) =>
+      prev ? { ...prev, script: json.translated } : prev
+    );
+
+    setIsTranslating(false);
+  };
+
+  /* ---------------- TELEPROMPTER ---------------- */
+
+  const handleTeleprompter = () => {
+    if (!data) return;
+    sessionStorage.setItem("teleprompter_script", data.script || "");
+    router.push("/teleprompter");
+  };
+
+  if (isLoading)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin w-8 h-8" />
+      </div>
+    );
+
+  if (error) return <div className="p-10 text-red-600">{error}</div>;
+  if (!data) return null;
+
+  const structure = data.structure ?? [];
 
   // Don't render anything if redirecting or not yet validated
   if (!shouldRender || isRedirecting) {
@@ -566,9 +630,9 @@ export default function ScriptPage() {
                 <CardDescription className="text-xs sm:text-sm">Visual representation of your script&apos;s flow and structure</CardDescription>
               </CardHeader>
               <CardContent className="p-4 sm:p-6 pt-0 flex-1 overflow-y-auto min-h-0">
-                {data.structure && data.structure.length > 0 ? (
+              {structure.length > 0 ? (
                   <div className="space-y-2 sm:space-y-3">
-                    {data.structure.map((section, index) => (
+                    {structure.map((section, index) => (
                       <div key={section.id ?? index} className="flex items-start">
                         <div className="flex flex-col items-center mr-2 sm:mr-3 flex-shrink-0">
                           <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gray-600 text-white flex items-center justify-center text-xs sm:text-sm font-medium">{index + 1}</div>
@@ -622,17 +686,17 @@ export default function ScriptPage() {
                       <span className="sm:hidden">View</span>
                     </Button>
 
-                    <Button size="sm" variant="outline" className="text-xs sm:text-sm">
+                    <Button onClick={handleTranslate} disabled={isTranslating} size="sm" variant="outline" className="text-xs sm:text-sm">
                       Translate
                     </Button>
 
-                    <Button size="sm" variant="outline" className="text-xs sm:text-sm" onClick={() => { /* teleprompter */ }}>
+                    <Button onClick={handleTeleprompter} size="sm" variant="outline" className="text-xs sm:text-sm" >
                       <Monitor className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                       <span className="hidden sm:inline">Teleprompter</span>
                       <span className="sm:hidden">Prompt</span>
                     </Button>
 
-                    <Button size="sm" variant="outline" className="text-xs sm:text-sm" onClick={() => { /* download */ }}>
+                    <Button onClick={handleDownload} size="sm" variant="outline" className="text-xs sm:text-sm" >
                       <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                       Download
                     </Button>
@@ -640,7 +704,7 @@ export default function ScriptPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-4 sm:p-6 pt-0 flex-1 overflow-y-auto min-h-0">
-                <div className="prose prose-sm max-w-none">
+                <div id='script-content' className="prose prose-sm max-w-none">
                   <div className="text-gray-700 leading-relaxed text-sm sm:text-base">
                     {formatScript(data.synopsis || data.script || 'No synopsis available.')}
                   </div>

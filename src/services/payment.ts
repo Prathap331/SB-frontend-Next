@@ -82,7 +82,7 @@ export async function checkServerHealth(
     }
 
     try {
-      const response = await fetch('https://sb-u864.onrender.com/', {
+      const response = await fetch('https://storybit-backend.onrender.com/', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -121,7 +121,7 @@ export async function createOrder(amount: number, targetTier: string): Promise<C
     throw new Error('User not authenticated. Please login first.');
   }
 
-  const response = await fetch('https://sb-u864.onrender.com/payments/create-order', {
+  const response = await fetch('https://storybit-backend.onrender.com/payments/create-order', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -62,21 +62,21 @@ async function testAllRoutes() {
   console.log('==================================');
   console.log('Make sure dev server is running: npm run dev\n');
   
-  const baseUrl = 'http://localhost:3000';
+  const baseUrl = 'https://storybit-backend.onrender.com/';
   
   // Test all routes simultaneously
   const tests = await Promise.all([
     // Process Topic API - GET (health check)
     testRoute(
       'Process Topic (GET)',
-      `${baseUrl}/api/process-topic`,
+      `${baseUrl}/process-topic`,
       'GET'
     ),
     
     // Process Topic API - POST
     testRoute(
       'Process Topic (POST)',
-      `${baseUrl}/api/process-topic`,
+      `${baseUrl}/process-topic`,
       'POST',
       { topic: 'Flying Cars' }
     ),
@@ -84,7 +84,7 @@ async function testAllRoutes() {
     // Generate Script API - POST (requires authentication)
     testRoute(
       'Generate Script (POST)',
-      `${baseUrl}/api/generate-script`,
+      `${baseUrl}/generate-script`,
       'POST',
       {
         topic: 'Flying Cars',
