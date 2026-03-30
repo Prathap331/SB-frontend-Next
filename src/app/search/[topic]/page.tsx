@@ -347,7 +347,7 @@ export default function SearchTopicPage() {
   const [selectedIdea, setSelectedIdea] = useState<ScriptIdea | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState(topic);
-  const [activeTab, setActiveTab] = useState<'Trend strength score' | 'competitor' | 'meta'>('Trend strength score');
+  const [activeTab, setActiveTab] = useState<'Trend strength score' | 'Content Saturation index' | 'Content angle gap score'>('Trend strength score');
   const initialLoadStartRef = useRef<number | null>(null);
   type FilterButton = "category" | "status";
 const [activeButton, setActiveButton] = useState<FilterButton | null>("category");
@@ -599,8 +599,8 @@ useEffect(() => {
             <div className="flex flex-wrap items-center gap-2 mt-4">
               {[
                 { key: 'Trend strength score', label: 'Trend strength score' },
-                { key: 'competitor', label: 'Content saturation index' },
-                { key: 'meta', label: 'Content angle gap score' },
+                { key: 'Content Saturation index', label: 'Content saturation index' },
+                { key: 'Content angle gap score', label: 'Content angle gap score' },
               ].map((tab) => (
                 <Button
                   key={tab.key}
@@ -786,7 +786,7 @@ useEffect(() => {
             
             )}
 
-            {activeTab === 'competitor' && (
+            {activeTab === 'Content Saturation index' && (
               <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 h-full overflow-auto">
 
                 {/* ── LEFT COLUMN ── */}
@@ -966,97 +966,209 @@ useEffect(() => {
               </div>
             )}
 
-            {activeTab === 'meta' && (
-              <div className="flex h-full flex-col space-y-6 overflow-hidden">
-                <div className="grid flex-1 min-h-0 gap-6 md:grid-cols-2 md:grid-rows-2">
-                  <div className="rounded-2xl border border-gray-300 flex flex-col overflow-hidden min-h-0">
-                    <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto">
-                      <table className="min-w-full divide-y divide-gray-100">
-                        <thead className="bg-[#F5F7FB] text-xs sm:text-sm text-gray-500">
-                          <tr>
-                            <th className="px-4 sm:px-6 py-3 font-semibold text-left">Month</th>
-                            <th className="px-4 sm:px-6 py-3 font-semibold text-left">Revenue</th>
-                            <th className="px-4 sm:px-6 py-3 font-semibold text-left">Growth</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm sm:text-base text-gray-700">
-                          {metaReports.map((report) => (
-                            <tr key={report.month} className="bg-white hover:bg-[#F9FAFE] transition">
-                              <td className="px-4 sm:px-6 py-2 font-semibold text-gray-900">{report.month}</td>
-                              <td className="px-4 sm:px-6 py-2">{report.revenue}</td>
-                              <td className="px-4 sm:px-6 py-2 text-[#288B4A] font-semibold">{report.growth}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+            {activeTab === 'Content angle gap score' && (
+              <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 h-full overflow-auto">
+
+                {/* ── LEFT COLUMN ── */}
+                <div className="flex flex-col gap-4">
+
+                  {/* Content Angle Gap Score */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <span className="text-[9px] font-bold text-green-600">CONTENT LANDSCAPE</span>
+                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-2">Coverage distribution across 18 angles</p>
+                    <div className="flex items-end gap-2 mb-2">
+                      <span className="text-5xl font-bold text-green-600">18</span>
                     </div>
-                  </div>
-                  <div className="rounded-2xl border border-gray-300 flex flex-col overflow-hidden min-h-0">
-                    <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Content Angles</h3>
-                      <div className="space-y-3 text-sm sm:text-base">
-                      <table className="min-w-full divide-y divide-gray-100">
-                        <thead className="bg-[#F5F7FB] text-xs sm:text-sm text-gray-500">
-                          <tr>
-                            <th className="px-4 sm:px-6 py-3 font-semibold text-left">Authority</th>
-                            <th className="px-4 sm:px-6 py-3 font-semibold text-left">Category</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm sm:text-xs text-gray-700">
-                        
-  <tr className="bg-white hover:bg-[#F9FAFE] transition font-semibold">
-    <td className="px-4 sm:px-6 py-2">85%</td>
-    <td className="px-4 sm:px-6 py-2">25%</td>
-  </tr>
-
-
-                        </tbody>
-                      </table>
+                   
+                    <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-2">Coverage distribution · 18 angles</p>
+                    {[
+                      { label: 'Not covered', count: 7, total: 18, color: 'bg-green-500', textColor: 'text-green-600' },
+                      { label: 'Low quality', count: 6, total: 18, color: 'bg-amber-400', textColor: 'text-amber-600' },
+                      { label: 'Well covered', count: 5, total: 18, color: 'bg-gray-300', textColor: 'text-gray-500' },
+                    ].map(item => (
+                      <div key={item.label} className="flex items-center gap-2 mb-2">
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.color}`} />
+                        <span className="text-[10px] text-gray-500 w-20 flex-shrink-0">{item.label}</span>
+                        <div className="flex-1 h-1.5 rounded-full bg-gray-100">
+                          <div className={`h-full rounded-full ${item.color}`} style={{ width: `${(item.count / item.total) * 100}%` }} />
+                        </div>
+                        <span className={`text-[10px] font-medium ${item.textColor} w-14 text-right`}>{item.count} angles</span>
                       </div>
+                    ))}
+
+<span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[9px] px-2.5 py-0.5 rounded-full mb-3 font-medium">
+                      13 gap opportunities ranked below
+                    </span>
+                    
+                    <span className='flex items-start gap-1.5 '>
+                    <span className="w-3 h-1.5 rounded-full bg-green-500 mt-1" />
+                    <p className=" text-gray-500 text-[10px] mb-4 leading-relaxed">
+                     18 angles mapped — most remain uncovered or low quality. High CAGS = winnable + in-demand.
+                    </p>
+                    </span>
+                  </div>
+
+                  {/* Top Angle Anatomy */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
+                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-1">Top Angle Anatomy</p>
+                    <p className="text-[10px] text-gray-400 mb-3">6-step perspective breakdown for highest-ranked gaps</p>
+                    <div className="space-y-3">
+                      {[
+                        {
+                          rank: '#1', rankBg: 'bg-green-500', label: 'Rural Communities',
+                         covered: '0%',
+                          dims: [
+                            { key: 'WHO', val: 'Rural communities' },
+                            { key: 'WHAT', val: 'Economics · Sociology' },
+                            { key: 'WHEN', val: 'Present · National' },
+                            { key: 'HOOK', val: 'Cause → Effect' },
+                            { key: 'TENSION', val: 'Who gains / loses' },
+                            { key: 'POV', val: 'Hidden angle' },
+                          ],
+                        },
+                        {
+                          rank: '#2', rankBg: 'bg-green-600', label: 'Fashion Workers',
+                           covered: '0%',
+                          dims: [
+                            { key: 'WHO', val: 'Fashion workers' },
+                            { key: 'WHAT', val: 'Labour · Policy' },
+                            { key: 'WHEN', val: 'Present · Global' },
+                            { key: 'HOOK', val: 'Trade-off' },
+                            { key: 'TENSION', val: 'Corp. Influence' },
+                            { key: 'POV', val: 'Crisis' },
+                          ],
+                        },
+                        {
+                          rank: '#3', rankBg: 'bg-amber-400', label: 'Gen Z Consumers', covered: '33%',
+                          dims: [
+                            { key: 'WHO', val: 'Gen Z consumers' },
+                            { key: 'WHAT', val: 'Psychology · Sociology' },
+                            { key: 'WHEN', val: 'Present · Global' },
+                            { key: 'HOOK', val: '2nd-order effects' },
+                            { key: 'TENSION', val: 'Inequality' },
+                            { key: 'POV', val: 'Human story' },
+                          ],
+                        },
+                      ].map(angle => (
+                        <div key={angle.rank} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`text-[9px] text-white px-1.5 py-0.5 rounded font-bold ${angle.rankBg}`}>{angle.rank}</span>
+                            <span className="text-[10px] font-bold text-gray-900 uppercase tracking-wide">{angle.label}</span>
+                            <span className="ml-auto text-[9px] text-gray-400">{angle.covered} covered</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            {angle.dims.map(d => (
+                              <div key={d.key} className="bg-white border border-gray-200 rounded p-1.5">
+                                <p className="text-[7px] text-gray-400 uppercase mb-0.5">{d.key}</p>
+                                <p className="text-[9px] text-gray-700 font-medium leading-tight">{d.val}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-gray-300 flex flex-col overflow-hidden min-h-0">
-  <div className="flex-1 min-h-0 flex flex-col p-8 overflow-y-auto">
-    <h3 className="text-lg font-semibold text-gray-900 mb-4">Search Intent</h3>
+                </div>
 
-    <div className="w-full h-64">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={pieData}
-            dataKey="value"
-            nameKey="name"
-            innerRadius="0%"
-            outerRadius="100%"
-            paddingAngle={1}
-            label={renderLabel}
-            labelLine={false}
-          >
-            {pieData.map((entry, index) => (
-              <Cell key={index} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
+                {/* ── RIGHT COLUMN ── */}
+                <div className="flex flex-col gap-4 min-h-0">
 
-          <Tooltip />
-        </PieChart>
-      </ResponsiveContainer>
-       <div className="mt-4 text-gray-600 text-sm">Total Allocation Overview</div>
-    </div>
+                  {/* Gap Opportunities */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1 overflow-auto">
+                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-0.5">Gap Opportunities</p>
+                    <p className="text-[10px] text-gray-400 mb-4">All angles ranked by CAGS score — higher = more winnable, more demanded</p>
 
-  </div>
-</div>
+                    {/* Table header */}
+                    <div className="grid grid-cols-[32px_56px_1fr_110px] gap-3 px-3 mb-2">
+                      <span className="text-[9px] text-gray-400 uppercase tracking-widest">#</span>
+                      <span className="text-[9px] text-gray-400 uppercase tracking-widest">CAGS</span>
+                      <span className="text-[9px] text-gray-400 uppercase tracking-widest">Angle · Suggested Title</span>
+                      <span className="text-[9px] text-gray-400 uppercase tracking-widest text-right">Social Demand</span>
+                    </div>
 
-                  <div className="rounded-2xl border border-gray-300 flex flex-col overflow-hidden min-h-0">
-                    <div className="p-6 flex-1 min-h-0 overflow-y-auto">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Key Highlights</h3>
-                      <ul className="space-y-3 text-sm sm:text-base text-gray-600">
-                        {monthlyHighlights.map((highlight) => (
-                          <li key={highlight} className="flex items-start gap-2 items-center">
-                            <span className="h-2.5 w-2.5 rounded-full bg-[#444444]" />
-                            <span>{highlight}</span>
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="space-y-2">
+                      {[
+                        {
+                          rank: 1, score: 91,
+                          scoreColor: 'text-green-600', scoreBorder: 'border-green-400',
+                          angle: 'Rural communities · economics & sociology · cause→effect of automation revealing cost-shifting by tech companies',
+                          title: 'The Towns Mob Wife Forgot: What Fast Fashion Is Really Doing to Rural America',
+                          tags: ['rural', 'economics', 'cause-effect', 'hidden angle'],
+                          socialThreads: 23, socialScore: 0.91, socialBar: 91, socialBarColor: 'bg-green-500',
+                        },
+                        {
+                          rank: 2, score: 84,
+                          scoreColor: 'text-green-600', scoreBorder: 'border-green-400',
+                          angle: 'Fashion industry workers · labour & policy · trade-off between fast fashion economics and sustainability',
+                          title: 'Who Really Pays For Mob Wife Aesthetic? The Workers No One Talks About',
+                          tags: ['workers', 'policy', 'trade-off'],
+                          socialThreads: 18, socialScore: 0.75, socialBar: 75, socialBarColor: 'bg-green-400',
+                        },
+                        {
+                          rank: 3, score: 73,
+                          scoreColor: 'text-amber-600', scoreBorder: 'border-amber-400',
+                          angle: 'Gen Z consumers · psychology & sociology · second-order effects of aesthetic identity cycles, manufactured nostalgia',
+                          title: 'Why Gen Z Keeps Reviving Dead Aesthetics: The Psychology Behind Mob Wife',
+                          tags: ['gen-z', 'psychology', '2nd-order'],
+                          socialThreads: 12, socialScore: 0.65, socialBar: 65, socialBarColor: 'bg-amber-500',
+                        },
+                        {
+                          rank: 4, score: 68,
+                          scoreColor: 'text-amber-600', scoreBorder: 'border-amber-400',
+                          angle: 'Independent designers · economics & entrepreneurship · feedback loop between viral aesthetics and small brand economics',
+                          title: 'How Small Designers Are Cashing In (and Burning Out) On the Mob Wife Trend',
+                          tags: ['designers', 'economics', 'feedback loop'],
+                          socialThreads: 8, socialScore: 0.54, socialBar: 54, socialBarColor: 'bg-amber-500',
+                        },
+                        {
+                          rank: 5, score: 61,
+                          scoreColor: 'text-orange-500', scoreBorder: 'border-orange-400',
+                          angle: 'Media critics · sociology & anthropology · risk scenario of aesthetic homogenisation via platform algorithm uniformity',
+                          title: 'Is TikTok Killing Fashion Diversity? The Mob Wife Effect on Culture',
+                          tags: ['critics', 'sociology', 'risk scenario'],
+                          socialThreads: 7, socialScore: 0.48, socialBar: 48, socialBarColor: 'bg-amber-400',
+                        },
+                        {
+                          rank: 6, score: 54,
+                          scoreColor: 'text-orange-500', scoreBorder: 'border-orange-400',
+                          angle: 'Brand marketers · business strategy · opportunity mapping for brands capitalising on the aesthetic cycle',
+                          title: 'How Brands Are Quietly Winning (and Losing) the Mob Wife Aesthetic Race',
+                          tags: ['brands', 'strategy', 'opportunity'],
+                          socialThreads: 5, socialScore: 0.39, socialBar: 39, socialBarColor: 'bg-amber-400',
+                        },
+                        {
+                          rank: 7, score: 47,
+                          scoreColor: 'text-gray-500', scoreBorder: 'border-gray-300',
+                          angle: 'Sustainability advocates · environment · lifecycle cost of fast fashion vs. thrifted aesthetics',
+                          title: 'The Dirty Secret Behind the Mob Wife Look: Fast Fashion\'s Environmental Cost',
+                          tags: ['sustainability', 'environment', 'lifecycle'],
+                          socialThreads: 3, socialScore: 0.28, socialBar: 28, socialBarColor: 'bg-gray-400',
+                        },
+                      ].map(item => (
+                        <div key={item.rank} className="grid grid-cols-[32px_56px_1fr_110px] gap-3 items-start p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+                          <span className="text-gray-400 text-sm font-bold pt-0.5">{item.rank}</span>
+                          <div className={`w-10 h-10 rounded-lg border-2 ${item.scoreBorder} flex items-center justify-center flex-shrink-0`}>
+                            <span className={`text-sm font-bold ${item.scoreColor}`}>{item.score}</span>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-gray-700 font-medium mb-1 leading-relaxed">{item.angle}</p>
+                            <p className="text-[10px] text-green-600 italic mb-2">&ldquo;{item.title}&rdquo;</p>
+                            <div className="flex flex-wrap gap-1">
+                              {item.tags.map(tag => (
+                                <span key={tag} className="text-[9px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">{tag}</span>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Social Demand */}
+                          <div className="flex flex-col gap-1.5 pt-0.5">
+                            <p className="text-[9px] text-gray-400 uppercase tracking-widest">Social demand</p>
+                            <div className="h-1 rounded-full bg-gray-200">
+                              <div className={`h-full rounded-full ${item.socialBarColor}`} style={{ width: `${item.socialBar}%` }} />
+                            </div>
+                            <p className="text-[9px] text-gray-500">{item.socialThreads} threads · <span className="font-medium text-gray-700">{item.socialScore}</span></p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>

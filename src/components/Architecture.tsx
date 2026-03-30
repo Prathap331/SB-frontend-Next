@@ -4,22 +4,22 @@ import { useEffect, useState } from "react";
 const nodes = [
   {
     id: "input",
-    label: "Input Agent for\nTopic Synthesis",
+    label: "Topic Synthesis Engine : Decodes your idea into a powerful and focused content blueprint, Converts raw inputs into high-impact content directions",
     image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=300&h=300&fit=crop&q=80",
   },
   {
     id: "engine",
-    label: "StoryBit Intelligence Engine for\nresearch and analysis on the\nhigh performing content for\nrevenue generation",
+    label: "StoryBit Intelligence Engine: Analyze top-performing content to uncover proven revenue-driving patterns. Break down winning content to reveal  opportunities",
     image: "https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=400&h=400&fit=crop&q=80",
   },
   {
     id: "data",
-    label: "SB's Data depository\nof News, History,\nBooks, science and\nmany other topics",
+    label: "StoryBit Knowledge Vault: Access deep insights across news, history, books and science,ower your content with rich, multi-domain knowledge intelligence",
     image: "https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=300&h=300&fit=crop&q=80",
   },
   {
     id: "script",
-    label: "Script Agent to write\nyour youtube Script",
+    label: "Script Agent: Convert intelligence into powerful, narrative-driven video scripts instantly. Creates structured, compelling scripts designed for audience retention",
     image: "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=300&h=300&fit=crop&q=80",
   },
 ];
