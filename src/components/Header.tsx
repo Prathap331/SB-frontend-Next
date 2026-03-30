@@ -3,94 +3,105 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Crown, User, Menu } from 'lucide-react';
+import { Crown, User, Menu, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('sb-xncfghdikiqknuruurfh-auth-token');
-    if (token) {
-      setIsLoggedIn(true);
-    }
+    if (token) setIsLoggedIn(true);
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   return (
-    <header className="bg-white backdrop-blur-md sticky top-0 z-50">
-      <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-16 py-3">
-        <div className="flex items-center justify-between">
-          {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
-            <Image
-              src="/Logo.png"
-              alt="Storybit"
-              width={192}
-              height={48}
-              className="h-8 sm:h-9 md:h-10 lg:h-12 w-auto max-w-full"
-              style={{ width: 'auto' }}
-              priority
-            />
+    <header
+      className={`sticky top-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? 'bg-white/80 backdrop-blur-2xl border-b border-gray-200/60 shadow-sm'
+          : 'bg-white/70 backdrop-blur-xl'
+      }`}
+    >
+      <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 h-14 flex items-center justify-between">
+        {/* Logo */}
+        <Link href="/" className="flex items-center hover:opacity-75 transition-opacity duration-200">
+          <Image
+            src="/Logo.png"
+            alt="Storybit"
+            width={140}
+            height={36}
+            className="h-8 w-auto"
+            style={{ width: 'auto' }}
+            priority
+          />
+        </Link>
+
+        {/* Desktop Nav */}
+        <nav className="hidden md:flex items-center gap-3">
+          <Link href="/pricing">
+            <button className="flex items-center gap-1.5 text-sm font-medium text-[#1d1d1f] px-4 py-1.5 rounded-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200">
+              <Crown className="w-3.5 h-3.5 text-amber-500" />
+              Upgrade
+            </button>
           </Link>
-
-          {/* Desktop Action Buttons */}
-          <div className="hidden md:flex items-center space-x-4">
-            <Link href="/pricing">
-              <Button variant="outline" className="flex items-center">
-                <Crown className="w-4 h-4 mr-1 text-yellow-500" />
-                Upgrade
-              </Button>
+          {!isLoggedIn && (
+            <Link href="/auth">
+              <button className="text-sm font-medium text-white bg-[#1d1d1f] px-4 py-1.5 rounded-full hover:bg-black transition-all duration-200">
+                Sign In
+              </button>
             </Link>
-            {!isLoggedIn && (
-              <Link href="/auth">
-                <Button variant="outline">
-                  Sign In
-                </Button>
-              </Link>
-            )}
-            {isLoggedIn && (
-              <Link href="/profile">
-                <Button variant="outline" size="icon">
-                  <User className="w-4 h-4" />
-                </Button>
-              </Link>
-            )}
-          </div>
+          )}
+          {isLoggedIn && (
+            <Link href="/profile">
+              <button className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all duration-200">
+                <User className="w-4 h-4 text-[#1d1d1f]" />
+              </button>
+            </Link>
+          )}
+        </nav>
 
-          {/* Mobile Menu Button */}
-          <div className="md:hidden">
-            <Button variant="outline" size="icon" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-              <Menu className="w-6 h-6" />
-            </Button>
-          </div>
-        </div>
+        {/* Mobile Toggle */}
+        <button
+          className="md:hidden w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
       </div>
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="md:hidden bg-white/80 backdrop-blur-md">
-          <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-16 py-4 flex flex-col space-y-4">
+        <div className="md:hidden bg-white/90 backdrop-blur-2xl border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-5 py-4 flex flex-col gap-2">
             <Link href="/pricing" onClick={() => setIsMenuOpen(false)}>
-              <Button variant="ghost" className="w-full justify-start flex items-center">
-                <Crown className="w-4 h-4 mr-2 text-yellow-500" />
+              <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
+                <Crown className="w-4 h-4 text-amber-500" />
                 Upgrade
-              </Button>
+              </button>
             </Link>
             {!isLoggedIn && (
               <Link href="/auth" onClick={() => setIsMenuOpen(false)}>
-                <Button variant="ghost" className="w-full justify-start">
-                  <User className="w-4 h-4 mr-2" />
+                <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
+                  <User className="w-4 h-4" />
                   Sign In
-                </Button>
+                </button>
               </Link>
             )}
             {isLoggedIn && (
               <Link href="/profile" onClick={() => setIsMenuOpen(false)}>
-                <Button variant="ghost" className="w-full justify-start flex items-center">
-                  <User className="w-4 h-4 mr-2" />
+                <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
+                  <User className="w-4 h-4" />
                   Profile
-                </Button>
+                </button>
               </Link>
             )}
           </div>

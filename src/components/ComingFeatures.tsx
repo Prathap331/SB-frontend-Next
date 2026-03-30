@@ -1,79 +1,107 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sparkles, Image, Video } from 'lucide-react';
+import { Sparkles, ImageIcon, VideoIcon } from 'lucide-react';
+
+const features = [
+  {
+    icon: ImageIcon,
+    title: 'AI Generated Images',
+    badge: 'Coming Soon',
+    description: 'Visuals that match your script\'s narrative and tone — generated automatically.',
+    points: [
+      {
+        heading: 'Custom Scene Generation',
+        body: 'Generate images that perfectly match your script\'s narrative and tone.',
+      },
+      {
+        heading: 'Character Visualization',
+        body: 'Bring your characters to life with AI-generated portraits and scenes.',
+      },
+    ],
+  },
+  {
+    icon: VideoIcon,
+    title: 'AI Generated Videos',
+    badge: 'Coming Soon',
+    description: 'Turn your finished script into a full video with a single click.',
+    points: [
+      {
+        heading: 'Auto Scene Assembly',
+        body: 'Automatically assemble video clips that align with each section of your script.',
+      },
+      {
+        heading: 'Voice & Music Sync',
+        body: 'AI-generated voiceover with background music that fits your content\'s mood.',
+      },
+    ],
+  },
+];
 
 const ComingFeatures = () => {
   return (
-    <section className="py-8 sm:py-12 md:py-16 bg-gradient-to-br bg-[#E9EBF0]/20">
-      <div className="container mx-auto px-4 sm:px-6">
-        <div className="text-left max-w-6xl mx-auto mb-8 sm:mb-10 md:mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4">
-            Coming{' '}
-            <br className="sm:hidden" />
-            <span className="bg-black text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-3xl md:text-4xl font-semibold">
-              Exciting Features
-            </span>
+    <section className="bg-[#f5f5f7] py-16 sm:py-10 px-5 sm:px-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-12">
+          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full mb-5 shadow-sm">
+            <Sparkles className="w-3 h-3 text-purple-500" />
+            What&apos;s next
+          </div>
+          <h2
+            className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-[#1d1d1f]"
+            style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+          >
+            Exciting features
+            <br />
+            <span className="text-[#6e6e73] font-light">on the horizon.</span>
           </h2>
-          <p className="text-sm sm:text-base md:text-lg text-gray-600">
-            Get ready for revolutionary AI capabilities that will transform your content creation experience
-          </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4 sm:gap-6 md:gap-8 max-w-6xl mx-auto">
-          {/* AI Generated Images */}
-          <Card className="shadow-xl bg-[#1a1a1a] backdrop-blur-sm border-0 flex flex-col justify-center items-center py-6 sm:py-8 md:py-12">
-            <CardHeader className="text-center px-4 sm:px-6">
-              <CardTitle className="text-2xl sm:text-2xl md:text-2xl lg:text-3xl xl:text-4xl text-white flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-0">
-                <Image className="w-12 h-12 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 sm:mr-4" />
-                <span className="text-center sm:text-left">AI Generated Images</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pl-4 sm:pl-8 md:pl-12 lg:pl-16 xl:pl-20 pr-4 sm:pr-6">
-              <div className="space-y-3">
-                <div className="flex items-start space-x-2 sm:space-x-3">
-                  <Sparkles className="text-white w-4 h-4 sm:w-5 sm:h-5 text-black-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-semibold text-base sm:text-lg md:text-xl text-white">Custom Scene Generation</h4>
-                    <p className="text-white text-sm sm:text-md md:text-base">Generate images that perfectly match your script&apos;s narrative and tone</p>
+        {/* Cards */}
+        <div className="grid md:grid-cols-2 gap-5">
+          {features.map((feature) => {
+            const Icon = feature.icon;
+            return (
+              <div
+                key={feature.title}
+                className="bg-[#1d1d1f] rounded-3xl p-8 sm:p-10 flex flex-col gap-6 group hover:scale-[1.01] transition-transform duration-300"
+              >
+                {/* Top row */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-6 h-6 text-white" />
                   </div>
+                  <span className="text-[11px] font-semibold text-[#6e6e73] bg-white/[0.07] border border-white/10 px-3 py-1 rounded-full tracking-wider uppercase">
+                    {feature.badge}
+                  </span>
                 </div>
-                <div className="flex items-start space-x-2 sm:space-x-3">
-                  <Sparkles className="text-white w-4 h-4 sm:w-5 sm:h-5 text-black-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-semibold text-base sm:text-lg md:text-xl text-white">Character Visualization</h4>
-                    <p className="text-sm sm:text-md md:text-base text-white">Bring your characters to life with AI-generated portraits and scenes</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* AI Generated Videos */}
-          <Card className="shadow-xl bg-[#1a1a1a] backdrop-blur-sm border-0 flex flex-col justify-center items-center py-6 sm:py-8 md:py-12">
-            <CardHeader className="text-center px-4 sm:px-6">
-              <CardTitle className="text-2xl sm:text-2xl md:text-2xl lg:text-3xl xl:text-4xl text-white flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-0">
-                <Video className="w-12 h-12 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 sm:mr-4" />
-                <span className="text-center sm:text-left">AI Generated Videos</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pl-4 sm:pl-8 md:pl-12 lg:pl-16 xl:pl-20 pr-4 sm:pr-6">
-              <div className="space-y-3">
-                <div className="flex items-start space-x-2 sm:space-x-3">
-                  <Sparkles className="text-white w-4 h-4 sm:w-5 sm:h-5 text-black-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-semibold text-base sm:text-lg md:text-xl text-white">Custom Scene Generation</h4>
-                    <p className="text-white text-sm sm:text-md md:text-base">Generate images that perfectly match your script&apos;s narrative and tone</p>
-                  </div>
+                {/* Title + description */}
+                <div>
+                  <h3
+                    className="text-xl sm:text-2xl font-semibold text-white mb-2"
+                    style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+                  >
+                    {feature.title}
+                  </h3>
+                  <p className="text-[#a1a1a6] text-sm leading-relaxed font-light">
+                    {feature.description}
+                  </p>
                 </div>
-                <div className="flex items-start space-x-2 sm:space-x-3">
-                  <Sparkles className="text-white w-4 h-4 sm:w-5 sm:h-5 text-black-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-semibold text-base sm:text-lg md:text-xl text-white">Character Visualization</h4>
-                    <p className="text-sm sm:text-md md:text-base text-white">Bring your characters to life with AI-generated portraits and scenes</p>
-                  </div>
+
+                {/* Feature points */}
+                <div className="space-y-4 border-t border-white/10 pt-6">
+                  {feature.points.map((point) => (
+                    <div key={point.heading} className="flex gap-3">
+                      <Sparkles className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-white text-sm font-medium mb-0.5">{point.heading}</p>
+                        <p className="text-[#6e6e73] text-sm leading-relaxed font-light">{point.body}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            );
+          })}
         </div>
       </div>
     </section>

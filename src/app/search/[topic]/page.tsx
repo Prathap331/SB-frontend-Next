@@ -9,9 +9,15 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertCircle, Clock, TrendingUp, TrendingDown, Search } from 'lucide-react';
+import { 
+  Youtube, 
+  User2, 
+  Newspaper, 
+} from 'lucide-react';
 import { ApiService } from '@/services/api';
 import { ScriptGenerationModal, ScriptGenerationParams } from '@/components/ScriptGenerationModal';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+
 
 const pieData = [
   { name: "Category A", value: 40 },
@@ -341,7 +347,7 @@ export default function SearchTopicPage() {
   const [selectedIdea, setSelectedIdea] = useState<ScriptIdea | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState(topic);
-  const [activeTab, setActiveTab] = useState<'Keyword analysis' | 'competitor' | 'meta'>('Keyword analysis');
+  const [activeTab, setActiveTab] = useState<'Trend strength score' | 'competitor' | 'meta'>('Trend strength score');
   const initialLoadStartRef = useRef<number | null>(null);
   type FilterButton = "category" | "status";
 const [activeButton, setActiveButton] = useState<FilterButton | null>("category");
@@ -588,16 +594,13 @@ useEffect(() => {
 
       {/* Dashboard Analytics Section */}
       <section className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-8">
-        <Card className="shadow-xl border border-gray-200 bg-white h-[800px] overflow-hidden flex flex-col">
+        <Card className="shadow-xl border border-gray-200 bg-white h-[820px] overflow-hidden flex flex-col">
           <CardHeader className="pb-3">
-            <div className="flex flex-col gap-2 mb-2">
-              <CardTitle className="text-xs sm:text-sm font-semibold text-gray-900 bg-gray-100 p-2 rounded-lg">Summary :</CardTitle>
-            </div>
             <div className="flex flex-wrap items-center gap-2 mt-4">
               {[
-                { key: 'Keyword analysis', label: 'Keyword analysis' },
-                { key: 'competitor', label: 'Competitor content analysis' },
-                { key: 'meta', label: 'Meta analysis' },
+                { key: 'Trend strength score', label: 'Trend strength score' },
+                { key: 'competitor', label: 'Content saturation index' },
+                { key: 'meta', label: 'Content angle gap score' },
               ].map((tab) => (
                 <Button
                   key={tab.key}
@@ -612,275 +615,350 @@ useEffect(() => {
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden pr-1 pb-6">
             <div className="flex h-full flex-col overflow-hidden">
-              {activeTab === 'Keyword analysis' && (
-              <div className="flex h-full flex-col space-y-6 overflow-hidden">
-                <div className="flex flex-wrap gap-3">
-                <Button
-  onClick={() => handleClick("category")}
-  className={`
-    rounded-3xl border text-black 
-     hover:bg-gray-200
-    ${activeButton === "category" 
-      ? "bg-gray-200 text-black" 
-      : "bg-white text-black "  }                          
-  `}
->
-  Filter by Category
-</Button>
+              {activeTab === 'Trend strength score' && (
+               <div className="grid grid-cols-1 lg:grid-cols-2  gap-4 overflow-auto">
+                
 
-<Button
-  onClick={() => handleClick("status")}
-  className={`
-    rounded-3xl border text-black 
-     hover:bg-gray-200
-    ${activeButton === "status" 
-      ? "bg-gray-200 text-black" 
-      : "bg-white text-black" }                          
-  `}
->
-  Filter by Status
-</Button>
+                
 
-                </div>
-                 <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr] flex-1 min-h-0">
-                   <div className="rounded-2xl border border-gray-300 flex flex-col overflow-hidden min-h-0">
-                     <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto">
-                      <table className="min-w-full divide-y divide-gray-100">
-                        <thead className="bg-[#F5F7FB]">
-                          <tr className="text-left text-xs sm:text-sm text-gray-500">
-                            <th className="px-4 sm:px-6 py-4 font-semibold">Keyword</th>
-                            <th className="px-4 sm:px-6 py-4 font-semibold">Volume</th>
-                            <th className="px-4 sm:px-6 py-4 font-semibold">Diffuculty</th>
-                            <th className="px-4 sm:px-6 py-4 font-semibold">Trend</th>
-                            <th className="px-4 sm:px-6 py-4 font-semibold">Velocity</th>
-                            <th className="px-4 sm:px-6 py-4 font-semibold">Intent</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm sm:text-base text-gray-700">
-  {KeywordanalysisProducts.map((item, index) => (
-    <tr key={index} className="bg-white hover:bg-[#F9FAFE] transition">
-      <td className="px-4 sm:px-6 py-4 font-semibold text-gray-900">
-        {item.id}
-      </td>
-      <td className="px-4 sm:px-6 py-4">{item.volume}</td>
-      <td className="px-4 sm:px-6 py-4">{item.difficulty}</td>
-      <td className="px-4 sm:px-6 py-4">{item.trend}</td>
+                  {/* Trend Strength Score */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
+                    <p className="text-[12px] font-bold tracking-widest text-black uppercase mb-2">Trend Strength Score</p>
+                    <div className="flex items-end gap-2 mb-2">
+                      <span className="text-5xl font-bold text-green-600">51</span>
+                      <span className="text-gray-400 text-sm mb-1">/100</span>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[10px] px-2.5 py-0.5 rounded-full mb-3 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Rising
+                    </span>
+                    <p className="text-gray-500 text-xs mb-4 leading-relaxed">
+                      <strong className="text-gray-900">Publish now.</strong> Active upswing — early movers capture the highest reach before this topic saturates.
+                    </p>
+                    {/* Phase bar */}
+                    <div className="flex gap-1 mb-4">
+                      {['Flat', 'Emerging', 'Rising', 'Peak', 'Saturating'].map(p => (
+                        <span key={p} className={`text-[9px] px-1.5 py-0.5 rounded flex-1 text-center font-medium ${p === 'Rising' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{p}</span>
+                      ))}
+                    </div>
+                    {/* Score composition */}
+                    <p className="text-[10px] text-black mb-2 uppercase tracking-widest">Score composition</p>
+                    {[
+                      { label: 'Base', display: '45', value: 45, max: 60, color: 'bg-green-500' },
+                      { label: 'Psych boost', display: '+6', value: 6, max: 20, color: 'bg-green-400' },
+                      { label: 'Reliability', display: '0.95', value: 0.95, max: 1, color: 'bg-blue-400' },
+                    ].map(bar => (
+                      <div key={bar.label} className="flex items-center gap-2 mb-2">
+                        <span className="text-[10px] text-gray-500 w-20 flex-shrink-0">{bar.label}</span>
+                        <div className="flex-1 h-1.5 rounded-full bg-gray-100">
+                          <div className={`h-full rounded-full ${bar.color}`} style={{ width: `${(bar.value / bar.max) * 100}%` }} />
+                        </div>
+                        <span className="text-[10px] text-gray-700 w-8 text-right font-medium">{bar.display}</span>
+                      </div>
+                    ))}
+                  </div>
 
-      {/* Velocity Badge */}
-      <td className="px-4 sm:px-6 py-4 ">
-      <span
-  className={`
-    flex items-center justify-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-center
-    ${
-      item.velocity === "Low"
-        ? "bg-red-600 text-white"
-        : item.velocity === "Very High"
-        ? "bg-green-700 text-white"
-        : item.velocity === "High"
-        ? "bg-green-500 text-white"
-        : "bg-yellow-400 text-white" // Medium
-    }
-  `}
->
-  {item.velocity === "Low" ? (
-    <TrendingDown className="w-3 h-3" />
-  ) : (
-    <TrendingUp className="w-3 h-3" />
-  )}
-
-  {item.velocity}
-</span>
-
-      </td>
-
-      {/* Intent Column */}
-      <td className="px-4 sm:px-6 py-4">
-        <div className="flex flex-col">
-          <span className="font-semibold">{item.intentType}</span>
-          <span className="text-gray-500 text-xs">{item.intentDesc}</span>
-        </div>
-      </td>
-    </tr>
-  ))}
-</tbody>
-
-                      </table>
+                  {/* Why It's Trending */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[12px] font-bold tracking-widest text-black uppercase">Why It&apos;s Trending</p>
+                      <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 text-[9px] px-2 py-0.5 rounded-full font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Creator surge
+                      </span>
+                    </div>
+                    <div className="flex gap-3 mb-3">
+                      <div className="space-y-1.5 flex-shrink-0">
+                        {[
+                          { label: 'Curiosity', active: false },
+                          { label: 'Social wave', active: false },
+                          { label: 'Creator surge', active: true },
+                          { label: 'Breaking event', active: false },
+                        ].map(f => (
+                          <div key={f.label} className={`text-[10px] flex items-center gap-1 ${f.active ? 'text-green-600 font-semibold' : 'text-gray-400'}`}>
+                            <span>{f.active ? '●' : '✦'}</span>{f.label}
+                          </div>
+                        ))}
+                      </div>
+                      <div>
+                        <p className="text-gray-900 text-sm font-bold mb-1">YouTube views doubled this week</p>
+                        <p className="text-gray-500 text-xs leading-relaxed">Algorithm is surfacing this topic. Creators who publish in the next 48 hours capture the peak window. Social hasn&apos;t taken the lead yet.</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {['YouTube video', 'TikTok / Reels', 'Publish now'].map((btn, i) => (
+                        <span key={btn} className={`text-[10px] px-3 py-1 rounded-full cursor-pointer ${i === 2 ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>{btn}</span>
+                      ))}
+                    </div>
+                    <p className="text-[9px] text-gray-400 mb-1.5 uppercase tracking-widest">Weights this scan · regime: creator surge</p>
+                    <div className="flex gap-1.5">
+                      {[
+                        { label: 'Search', pct: '20%', active: false },
+                        { label: 'Social', pct: '25%', active: false },
+                        { label: 'YouTube', pct: '40%', active: true },
+                        { label: 'News', pct: '15%', active: false },
+                      ].map(w => (
+                        <div key={w.label} className={`flex-1 rounded text-center px-1 py-1.5 ${w.active ? 'bg-blue-600' : 'bg-gray-100'}`}>
+                          <p className={`text-[9px] uppercase ${w.active ? 'text-blue-100' : 'text-gray-400'}`}>{w.label}</p>
+                          <p className={`text-xs font-bold ${w.active ? 'text-white' : 'text-gray-700'}`}>{w.pct}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <div className="rounded-2xl border flex flex-col min-h-0 ">
-                    <div className="p-4 sm:p-4 flex-1 overflow-y-auto min-h-0">
+                
 
-    {/* Header */}
-    <div className="flex items-center justify-between mb-4">
-      <h3 className="text-sm font-semibold text-gray-100 bg-gray-800 px-3 py-2.5 rounded">
-        Traffic by location
-      </h3>
+                
 
-    </div>
+                  {/* Platform Signals */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
+                    <p className="text-[12px] font-bold tracking-widest text-black uppercase mb-0.5">Platform Signals</p>
+                    <p className="text-[11px] text-gray-800 mb-4">Where this topic is gaining momentum · leading signal highlighted</p>
+                    <div className="space-y-4">
+                      {[
+                        { icon: Youtube, name: 'YouTube', sub: 'Video discovery', note: 'view accel 2.3× this week', tag: 'Leading', tagColor: 'bg-blue-600', score: 57, barW: 90, barColor: 'bg-blue-500' },
+                        { icon: User2, name: 'Social', sub: 'Reddit · X/Twitter', note: 'post velocity 1.0× normal', tag: 'Normal', tagColor: 'bg-gray-400', score: 25, barW: 35, barColor: 'bg-gray-400' },
+                        { icon: Search, name: 'Search', sub: 'Google Trends', note: 'search index 1.3× annual avg', tag: 'Mild', tagColor: 'bg-gray-400', score: 26, barW: 38, barColor: 'bg-gray-400' },
+                        { icon: Newspaper, name: 'News', sub: 'NewsAPI · GDELT', note: 'articles 1.2× 90 day avg', tag: 'Quiet', tagColor: 'bg-gray-300', score: 20, barW: 28, barColor: 'bg-gray-300' },
+                      ].map(signal => {
+                          const Icon = signal.icon;
 
-    {/* Table */}
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-black text-xs border-b border-gray-700 ">
-          <th className="py-2 text-left">Location</th>
-          <th className="py-2 text-left">Traffic</th>
-          <th className="py-2 text-left">Share</th>
-        </tr>
-      </thead>
+                          return(
 
-      <tbody>
-        {trafficByLocation.map((row, idx) => (
-          <tr key={row.country}>
-            <td className="py-3 flex items-center  gap-2 font-medium text-black">
-              <span className="text-lg">{row.flag}</span>
-              {row.country}
-            </td>
+                            <div key={signal.name} className="flex items-center gap-3">
 
-            <td className="py-3 text-black">
-              {row.traffic}
-              <span className="text-green-400 ml-1">{row.trafficGrowth}</span>
-            </td>
-
-            <td className="py-3 text-black">{row.share}</td>
-
-          </tr>
-        ))}
-      </tbody>
-    </table>
-
-    {/* Footer link */}
-    <div className="text-center text-black hover:text-gray-400 text-sm mt-4 cursor-pointer">
-      &gt; Compare top 5 on chart
-    </div>
-  </div>
+<div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-500 flex-shrink-0">
+  <Icon className="w-4 h-4" />
 </div>
+                            <div className="flex flex-col items-center gap-1 mb-1">
+                              <span className="text-gray-900 text-xs font-semibold">{signal.name}</span>
+                              <span className="text-[8px] text-gray-400 text-nowrap">{signal.sub}</span>
+                            </div>
+                          <div className="w-full flex flex-col gap-2 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className="w-full h-1 rounded-full bg-gray-100">
+                                <div className={`h-full rounded-full ${signal.barColor}`} style={{ width: `${signal.barW}%` }} />
+                              </div>
+                            </div>
+                            <div className='flex w-full justify-between'>
+                              <span className="text-[9px] text-gray-400 whitespace-nowrap">{signal.note}</span>
+                          <span className={`text-[9px] px-2 py-0.5 rounded ${signal.tagColor} text-white flex-shrink-0`}>{signal.tag}</span>
+                          </div>
+                          </div>
+                          <div className="text-right flex-shrink-0 w-10">
+                            <p className="text-gray-900 text-sm font-bold">{signal.score}</p>
+                            <p className="text-[9px] text-gray-400">score/100</p>
+                          </div>
+                        </div>
+                        )
+})}
+                    </div>
+                  </div>
 
+                  {/* Signal Confidence — 2×2 grid */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[12px] font-bold tracking-widest text-black uppercase">Signal Confidence</p>
+                      <span className="text-[9px] text-green-600 flex items-center gap-1 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />All sources live
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                      {[
+                        { label: 'Search', detail: 'Live · 52 wks' },
+                        { label: 'Social', detail: 'Live · 4 sources' },
+                        { label: 'YouTube', detail: 'Live · 10 videos' },
+                        { label: 'News', detail: 'Live · 90-day' },
+                      ].map(src => (
+                        <div key={src.label} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <span className="w-2 h-2 rounded-full bg-green-500 inline-block mb-1.5" />
+                          <p className="text-gray-900 text-sm font-bold">{src.label}</p>
+                          <p className="text-[10px] text-gray-400">{src.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-gray-400 mb-1.5">Reliability score</p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-1.5 rounded-full bg-gray-100">
+                        <div className="h-full rounded-full bg-green-500" style={{ width: '95%' }} />
+                      </div>
+                      <span className="text-xs text-gray-700 font-medium">0.95</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+            
             )}
 
             {activeTab === 'competitor' && (
-              <div className="flex h-full flex-col space-y-6 overflow-hidden">
-                <div className="grid flex-1 min-h-0 gap-6 md:grid-cols-2 md:grid-rows-2">
-                  <div className="rounded-2xl border border-gray-300 flex flex-col overflow-hidden min-h-0">
-                    <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto">
-                      <table className="min-w-full divide-y divide-gray-100">
-                        <thead className="bg-[#F5F7FB] text-xs sm:text-sm text-gray-500">
-                          <tr>
-                            <th className="px-4 sm:px-6 py-4 font-semibold text-left">Authority</th>
-                            <th className="px-4 sm:px-6 py-4 font-semibold text-left">Category</th>
-                            <th className="px-4 sm:px-6 py-4 font-semibold text-left">Views</th>
-                            <th className="px-4 sm:px-6 py-4 font-semibold text-left">Range</th>
-                            <th className="px-4 sm:px-6 py-4 font-semibold text-left">Engagement</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm sm:text-xs text-gray-700">
-                        {competitorVideos.map((video) => (
-  <tr key={video.id} className="bg-white hover:bg-[#F9FAFE] transition font-semibold">
+              <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 h-full overflow-auto">
 
-    {/* Authority Badge */}
-    <td className="px-4 sm:px-6 py-4 flex items-center justify-center">
-      <span
-        className={`
-          flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-center
-          ${
-            video.authority === "Low Authority"
-              ? "bg-red-600 text-white"
-              : video.authority === "High Authority"
-              ? "bg-green-600 text-white"
-              : "bg-yellow-400 text-white"
-          }
-        `}
-      >
-        {video.authority}
-      </span>
-    </td>
+                {/* ── LEFT COLUMN ── */}
+                <div className="flex flex-col gap-4">
 
-    <td className="px-4 sm:px-6 py-4">{video.category}</td>
-    <td className="px-4 sm:px-6 py-4">{video.views}</td>
-    <td className="px-4 sm:px-6 py-4">{video.range}</td>
-    <td className="px-4 sm:px-6 py-4">{video.engagement}</td>
-  </tr>
-))}
-
-                        </tbody>
-                      </table>
+                  {/* Content Saturation Index */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-2">Content Saturation Index</p>
+                    <div className="flex items-end gap-2 mb-2">
+                      <span className="text-5xl font-bold text-orange-500">38</span>
+                      <span className="text-gray-400 text-sm mb-1">/100</span>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-2.5 py-0.5 rounded-full mb-3 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />Competitive
+                    </span>
+                    <p className="text-gray-500 text-xs mb-4 leading-relaxed">
+                      <strong className="text-gray-900">Winnable with the right angle.</strong> Some dominant channels exist but no single lock-in. A well-executed video with an uncovered angle breaks through.
+                    </p>
+                    <div className="flex gap-1">
+                      {['Open', 'Competitive', 'Crowded', 'Saturated'].map(p => (
+                        <span key={p} className={`text-[9px] px-1 py-0.5 rounded flex-1 text-center font-medium ${p === 'Competitive' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{p}</span>
+                      ))}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-gray-300 flex flex-col overflow-hidden min-h-0">
-                    <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Content Angles</h3>
-                      <div className="space-y-3 text-sm sm:text-base">
-                      <table className="min-w-full divide-y divide-gray-100">
-                        <thead className="bg-[#F5F7FB] text-xs sm:text-sm text-gray-500">
-                          <tr>
-                            <th className="px-4 sm:px-6 py-3 font-semibold text-left">Authority</th>
-                            <th className="px-4 sm:px-6 py-3 font-semibold text-left">Category</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm sm:text-xs text-gray-700">
-                        
-  <tr className="bg-white hover:bg-[#F9FAFE] transition font-semibold">
-    <td className="px-4 sm:px-6 py-2">85%</td>
-    <td className="px-4 sm:px-6 py-2">25%</td>
-  </tr>
 
-
-                        </tbody>
-                      </table>
+                  {/* Breakout Indicator */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-[10px] tracking-widest text-black font-bold uppercase">Breakout Indicator</p>
+                      <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 border border-orange-200 text-[9px] px-2 py-0.5 rounded-full font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />Watch closely
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-full border-2 border-orange-400 flex flex-col items-center justify-center flex-shrink-0">
+                        <span className="text-orange-500 font-bold text-lg leading-none">2</span>
+                        <span className="text-[8px] text-gray-400">of 5</span>
+                      </div>
+                      <div className="space-y-2">
+                        {[
+                          { label: 'Search at 2.1× 90-day baseline', active: true },
+                          { label: 'YouTube views doubling WoW', active: true },
+                          { label: 'Upload surge (24h window)', active: false },
+                          { label: 'Engagement heat rising', active: false },
+                          { label: 'View spike in 24h cohort', active: false },
+                        ].map(item => (
+                          <div key={item.label} className={`text-[10px] flex items-center gap-1.5 ${item.active ? 'text-black font-medium' : 'text-gray-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.active ? 'bg-orange-500' : 'bg-gray-300'}`} />
+                            {item.label}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-gray-300 flex flex-col overflow-hidden min-h-0">
-                    <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Links</h3>
-                    <div className="flex gap-4 overflow-x-auto scrollbar-none py-2">
-      {videos.map((video, index) => (
-        <a
-          key={index}
-          href={video.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-[220px] rounded border border-gray-400 bg-white  shadow-md flex-shrink-0 hover:shadow-lg transition"
-        >
-          {/* Thumbnail */}
-          <img
-            src={video.thumbnail}
-            alt={video.title}
-            className="rounded w-full h-42 object-cover mb-1"
-          />
+                </div>
 
-          {/* Title */}
-          <p className="text-sm font-semibold text-gray-900 line-clamp-2 p-2">
-            {video.title}
-          </p>
-        </a>
-      ))}
-    </div>
+                {/* ── RIGHT COLUMN ── */}
+                <div className="flex flex-col gap-4 min-h-0">
 
+                  {/* Dimension Breakdown */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-0.5">Dimension Breakdown</p>
+                    <p className="text-[10px] text-gray-400 mb-3">What&apos;s driving the score — forces that open or close this topic</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        {
+                          name: 'Supply pressure', weight: '25% weight',
+                          effect: 'Closes', effectColor: 'bg-red-50 text-red-600 border border-red-200',
+                          score: 58, scoreColor: 'text-red-500', barColor: 'bg-red-400', barW: 72,
+                          status: 'Moderate', statusColor: 'bg-orange-100 text-orange-600',
+                          desc: 'Decent volume exists. Upload rate manageable — not flooded. Creator field spread across ~41 channels.',
+                        },
+                        {
+                          name: 'Audience demand', weight: '25% weight',
+                          effect: 'Opens', effectColor: 'bg-green-50 text-green-700 border border-green-200',
+                          score: 71, scoreColor: 'text-green-400', barColor: 'bg-green-400', barW: 88,
+                          status: 'Strong', statusColor: 'bg-green-100 text-green-700',
+                          desc: 'High search velocity from TSS. Daily views signal the algorithm is actively distributing this topic.',
+                        },
+                        {
+                          name: 'Upload freshness', weight: '15% weight',
+                          effect: 'Closes', effectColor: 'bg-red-50 text-red-600 border border-red-200',
+                          score: 44, scoreColor: 'text-amber-500', barColor: 'bg-amber-400', barW: 55,
+                          status: 'Mild flood', statusColor: 'bg-amber-100 text-amber-600',
+                          desc: "Some uploads in 48h but not a surge. Topic isn't aggressively flooded — entry window still usable.",
+                        },
+                        {
+                          name: 'Angle coverage', weight: '15% weight',
+                          effect: 'Opens', effectColor: 'bg-green-50 text-green-700 border border-green-200',
+                          score: 33, scoreColor: 'text-green-600', barColor: 'bg-green-600', barW: 40,
+                          status: 'Gap exists', statusColor: 'bg-green-100 text-green-600',
+                          desc: 'Corpus is semantically repetitive. A fresh perspective or sub-angle will stand out immediately.',
+                        },
+                        {
+                          name: 'Viral ceiling', weight: '10% weight',
+                          effect: 'Opens', effectColor: 'bg-green-50 text-green-700 border border-green-200',
+                          score: 62, scoreColor: 'text-blue-600', barColor: 'bg-blue-500', barW: 75,
+                          status: 'High ceiling', statusColor: 'bg-blue-100 text-blue-600',
+                          desc: 'Top 5% of videos earn vastly more VPD than median — algorithm can produce breakout videos here.',
+                        },
+                        {
+                          name: 'Quality gap', weight: '10% weight',
+                          effect: 'Opens', effectColor: 'bg-green-50 text-green-700 border border-green-200',
+                          score: 55, scoreColor: 'text-purple-600', barColor: 'bg-purple-400', barW: 68,
+                          status: 'Opportunity', statusColor: 'bg-gray-100 text-gray-600',
+                          desc: 'Incumbent videos underperform on engagement. Audiences served by age, not quality.',
+                        },
+                      ].map(dim => (
+                        <div key={dim.name} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-1 mb-1.5">
+                            <div>
+                              <p className="text-gray-900 text-xs font-bold">{dim.name}</p>
+                              <p className="text-[9px] text-gray-400">{dim.weight}</p>
+                            </div>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${dim.effectColor}`}>{dim.effect}</span>
+                          </div>
+                          <div className="h-1 rounded-full bg-gray-200 mb-2">
+                            <div className={`h-full rounded-full ${dim.barColor}`} style={{ width: `${dim.barW}%` }} />
+                          </div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className={`text-xl font-bold ${dim.scoreColor}`}>{dim.score}</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${dim.statusColor}`}>{dim.status}</span>
+                          </div>
+                          <p className="text-[9px] text-gray-400 leading-relaxed">{dim.desc}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-gray-300 flex flex-col overflow-hidden min-h-0">
-                    <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Comment Analysis</h3>
-                      <div className="space-y-3">
-                      {performanceKeywords.map((keyword) => (
-  <div key={keyword.keyword} className="space-y-2">
-    <div className="flex items-center justify-between text-sm text-gray-600">
-      <span>{keyword.keyword}</span>
-      <span className="font-medium text-gray-900">{keyword.value}%</span>
-    </div>
 
-    {/* Progress Bar */}
-    <div className="h-2 rounded-full bg-[#cccccc] overflow-hidden"> {/* Dark Gray */}
-      <div
-        className="h-full rounded-full bg-[#444444]"               /* Light Gray */
-        style={{ width: `${keyword.value}%` }}
-      />
-    </div>
-  </div>
-))}
-
+                  {/* Incumbent Health */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[10px] tracking-widest text-black font-bold uppercase">Incumbent Health</p>
+                      <p className="text-[10px] text-gray-400">Can a well-made video displace what&apos;s already ranking?</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-6">
+                      {/* Left: Engagement Gap + Creator Density */}
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">Engagement Gap</p>
+                          <p className="text-3xl font-bold text-purple-600 mb-0.5">55%</p>
+                          <p className="text-[10px] text-gray-500 mb-2">Incumbents underperform their tier benchmark</p>
+                          <div className="h-1.5 rounded-full bg-gray-100">
+                            <div className="h-full rounded-full bg-purple-600" style={{ width: '55%' }} />
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">Creator Density</p>
+                          <p className="text-3xl font-bold text-green-500 mb-0.5">0.55</p>
+                          <p className="text-[10px] text-gray-500 mb-2">41 unique channels across 75 videos</p>
+                          <div className="h-1.5 rounded-full bg-gray-100">
+                            <div className="h-full rounded-full bg-green-500" style={{ width: '55%' }} />
+                          </div>
+                        </div>
+                      </div>
+                      {/* Right: VPD Decay + Overall Verdict */}
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">VPD Decay</p>
+                          <p className="text-3xl font-bold text-orange-500 mb-0.5">48%</p>
+                          <p className="text-[10px] text-gray-500 mb-2">Top videos losing daily view momentum</p>
+                          <div className="h-1.5 rounded-full bg-gray-100">
+                            <div className="h-full rounded-full bg-orange-400" style={{ width: '48%' }} />
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">Overall Verdict</p>
+                          <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[10px] px-2.5 py-1 rounded-full mb-1.5 font-medium">
+                            ✓ Entry is viable
+                          </span>
+                          <p className="text-[10px] text-gray-500 leading-relaxed">Incumbents rely on age, not quality. A well-produced video has a clear displacement path.</p>
+                        </div>
                       </div>
                     </div>
                   </div>

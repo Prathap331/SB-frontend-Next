@@ -4,68 +4,98 @@ import Image from 'next/image';
 
 const Footer = () => {
   return (
-    <footer className="bg-[#1a1a1a] text-white py-12 mt-16">
-      <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
-        <div className="flex flex-col md:flex-row justify-around gap-12">
-          {/* Company Details */}
-          <div className="flex-1 min-w-[200px]">
-            <Link href="/" className="inline-block hover:opacity-90 transition-opacity">
+    <footer className="bg-[#1d1d1f] text-white">
+      {/* Main content */}
+      <div className="max-w-6xl mx-auto px-5 sm:px-8 pt-14 pb-10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 lg:gap-16">
+          {/* Brand */}
+          <div className="col-span-2 md:col-span-1">
+            <Link href="/" className="inline-block hover:opacity-80 transition-opacity mb-4">
               <Image
                 src="/White logo.png"
                 alt="Storybit"
-                width={128}
-                height={32}
-                className="mb-4 h-8 w-auto"
+                width={120}
+                height={30}
+                className="h-7 w-auto"
                 style={{ width: 'auto' }}
               />
             </Link>
-            <p className="text-gray-300 mb-4">
-              Revolutionary AI-powered scriptwriting platform for content creators worldwide.
+            <p className="text-[#6e6e73] text-sm leading-relaxed font-light">
+              AI-powered scriptwriting for content creators worldwide.
             </p>
-            <div className="text-gray-400 text-sm">
-              <p>© 2025 Morpho Technologies Pvt Ltd.<br /> All rights reserved.</p>
-            </div>
           </div>
 
           {/* Address */}
-          <div className="flex-1 min-w-[200px]">
-            <h4 className="text-lg font-semibold mb-4">Address</h4>
-            <div className="text-gray-300 space-y-2">
+          <div>
+            <h4 className="text-xs font-semibold text-[#a1a1a6] uppercase tracking-widest mb-4">
+              Address
+            </h4>
+            <address className="not-italic text-sm text-[#6e6e73] font-light space-y-1 leading-relaxed">
               <p>Plot no. MIG 891,</p>
               <p>KPHB Phase 3, Kukatpally,</p>
               <p>Hyderabad, Telangana,</p>
-              <p>India - 500072</p>
-            </div>
+              <p>India — 500072</p>
+            </address>
           </div>
 
-          {/* Contact Details */}
-          <div className="flex-1 min-w-[200px]">
-            <h4 className="text-lg font-semibold mb-4">Contact Us</h4>
+          {/* Contact */}
+          <div>
+            <h4 className="text-xs font-semibold text-[#a1a1a6] uppercase tracking-widest mb-4">
+              Contact
+            </h4>
             <div className="space-y-3">
-              <a href="mailto:support@storybit.tech" className="flex items-center space-x-2 text-gray-300 hover:text-white">
-                <Mail className="w-4 h-4" />
-                <span>support@storybit.tech</span>
+              <a
+                href="mailto:support@storybit.tech"
+                className="flex items-center gap-2 text-sm text-[#6e6e73] hover:text-white transition-colors font-light"
+              >
+                <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                support@storybit.tech
               </a>
-              <a href="tel:+919000449855" className="flex items-center space-x-2 text-gray-300 hover:text-white">
-                <Phone className="w-4 h-4" />
-                <span>+91 90004 49855</span>
+              <a
+                href="tel:+919000449855"
+                className="flex items-center gap-2 text-sm text-[#6e6e73] hover:text-white transition-colors font-light"
+              >
+                <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                +91 90004 49855
               </a>
-              {/* <div className="flex items-center space-x-2 text-gray-300">
-                <MessageCircle className="w-4 h-4" />
-                <span>+1 (555) 987-6543</span>
-              </div> */}
             </div>
           </div>
 
-          {/* Quick Links */}
-          <div className="flex-1 min-w-[200px]">
-            <h4 className="text-lg font-semibold mb-4">Quick Links</h4>
-            <div className="space-y-2">
-              <Link href="/terms-and-conditions" className="block text-gray-300 hover:text-white">Terms and conditions</Link>
-              <Link href="/privacy-policy" className="block text-gray-300 hover:text-white">Privacy policy</Link>
-              <Link href="/cancellation-and-refund-policy" className="block text-gray-300 hover:text-white">Cancellation & Refund policy</Link>
+          {/* Links */}
+          <div>
+            <h4 className="text-xs font-semibold text-[#a1a1a6] uppercase tracking-widest mb-4">
+              Legal
+            </h4>
+            <div className="space-y-3">
+              <Link
+                href="/terms-and-conditions"
+                className="block text-sm text-[#6e6e73] hover:text-white transition-colors font-light"
+              >
+                Terms &amp; Conditions
+              </Link>
+              <Link
+                href="/privacy-policy"
+                className="block text-sm text-[#6e6e73] hover:text-white transition-colors font-light"
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                href="/cancellation-and-refund-policy"
+                className="block text-sm text-[#6e6e73] hover:text-white transition-colors font-light"
+              >
+                Cancellation &amp; Refund
+              </Link>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Bottom bar */}
+      <div className="border-t border-white/10">
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-5">
+          <p className="text-xs text-[#6e6e73] font-light">
+            © 2025 Morpho Technologies Pvt Ltd. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>
