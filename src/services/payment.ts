@@ -71,7 +71,7 @@ function getAuthToken(): string | null {
 export async function checkServerHealth(
   maxRetries: number = 10,
   retryDelay: number = 2000,
-  timeout: number = 600000 // 10 minutes
+  timeout: number = 3000000 // 10 minutes
 ): Promise<void> {
   const startTime = Date.now();
   

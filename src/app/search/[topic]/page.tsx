@@ -14,7 +14,7 @@ import {
   User2, 
   Newspaper, 
 } from 'lucide-react';
-import { ApiService } from '@/services/api';
+import { ApiService, PipelineMetricsResponse } from '@/services/api';
 import { ScriptGenerationModal, ScriptGenerationParams } from '@/components/ScriptGenerationModal';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -348,6 +348,8 @@ export default function SearchTopicPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState(topic);
   const [activeTab, setActiveTab] = useState<'Trend strength score' | 'Content Saturation index' | 'Content angle gap score'>('Trend strength score');
+  const [pipelineMetrics, setPipelineMetrics] = useState<PipelineMetricsResponse | null>(null);
+  const [isPipelineLoading, setIsPipelineLoading] = useState(false);
   const initialLoadStartRef = useRef<number | null>(null);
   type FilterButton = "category" | "status";
 const [activeButton, setActiveButton] = useState<FilterButton | null>("category");
@@ -406,6 +408,16 @@ useEffect(() => {
   useEffect(() => {
     cleanupCache();
   }, []);
+
+  // Fetch pipeline metrics (TSS + CSI + CAGS) — fires immediately on topic change
+  useEffect(() => {
+    if (!topic) return;
+    setPipelineMetrics(null);
+    setIsPipelineLoading(true);
+    ApiService.pipelineMetrics(topic)
+      .then(data => { setPipelineMetrics(data); setIsPipelineLoading(false); })
+      .catch(err => { console.error('[pipeline-metrics]', err); setIsPipelineLoading(false); });
+  }, [topic]);
 
   useEffect(() => {
     setSearchQuery(topic);
@@ -615,37 +627,137 @@ useEffect(() => {
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden pr-1 pb-6">
             <div className="flex h-full flex-col overflow-hidden">
-              {activeTab === 'Trend strength score' && (
-               <div className="grid grid-cols-1 lg:grid-cols-2  gap-4 overflow-auto">
-                
 
-                
+              {/* ── Pipeline loading skeleton ── */}
+              {isPipelineLoading && (
+                <div className="flex h-full w-full gap-4 animate-pulse">
+                  {/* Left column skeleton */}
+                  <div className="flex flex-col gap-4 w-[260px] flex-shrink-0">
+                    <div className="bg-gray-100 rounded-xl p-4 flex flex-col gap-3">
+                      <div className="h-3 w-24 bg-gray-200 rounded" />
+                      <div className="h-10 w-16 bg-gray-200 rounded" />
+                      <div className="h-4 w-28 bg-gray-200 rounded-full" />
+                      <div className="h-2 w-full bg-gray-200 rounded" />
+                      <div className="h-2 w-4/5 bg-gray-200 rounded" />
+                      <div className="space-y-2 mt-2">
+                        {[1, 2, 3].map(i => (
+                          <div key={i} className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-gray-200 flex-shrink-0" />
+                            <div className="h-1.5 flex-1 bg-gray-200 rounded-full" />
+                            <div className="h-2 w-10 bg-gray-200 rounded" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="bg-gray-100 rounded-xl p-4 flex-1 flex flex-col gap-3">
+                      <div className="h-3 w-32 bg-gray-200 rounded" />
+                      <div className="h-2 w-full bg-gray-200 rounded" />
+                      {[1, 2, 3].map(i => (
+                        <div key={i} className="bg-gray-200 rounded-lg p-3 space-y-2">
+                          <div className="flex gap-2">
+                            <div className="h-4 w-6 bg-gray-300 rounded" />
+                            <div className="h-4 w-24 bg-gray-300 rounded" />
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            {[1,2,3,4,5,6].map(j => <div key={j} className="h-8 bg-gray-300 rounded" />)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right column skeleton */}
+                  <div className="flex-1 flex flex-col gap-4">
+                    <div className="bg-gray-100 rounded-xl p-4 flex-1 flex flex-col gap-3">
+                      <div className="h-3 w-36 bg-gray-200 rounded" />
+                      <div className="h-2 w-64 bg-gray-200 rounded" />
+                      {/* Header row */}
+                      <div className="flex gap-3 px-3">
+                        <div className="h-2 w-6 bg-gray-200 rounded" />
+                        <div className="h-2 w-12 bg-gray-200 rounded" />
+                        <div className="h-2 flex-1 bg-gray-200 rounded" />
+                        <div className="h-2 w-20 bg-gray-200 rounded" />
+                      </div>
+                      {/* Row skeletons */}
+                      {[1, 2, 3, 4, 5, 6].map(i => (
+                        <div key={i} className="grid grid-cols-[32px_56px_1fr_110px] gap-3 items-center p-3 bg-gray-200 rounded-lg">
+                          <div className="h-4 w-4 bg-gray-300 rounded" />
+                          <div className="w-10 h-10 bg-gray-300 rounded-lg" />
+                          <div className="space-y-1.5">
+                            <div className="h-2 w-full bg-gray-300 rounded" />
+                            <div className="h-2 w-3/4 bg-gray-300 rounded" />
+                            <div className="flex gap-1 mt-1">
+                              <div className="h-3 w-12 bg-gray-300 rounded-full" />
+                              <div className="h-3 w-10 bg-gray-300 rounded-full" />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="h-1.5 w-full bg-gray-300 rounded-full" />
+                            <div className="h-2 w-16 bg-gray-300 rounded" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!isPipelineLoading && pipelineMetrics && activeTab === 'Trend strength score' && (() => {
+                const tss = pipelineMetrics.trend_strength_score;
+                const phase = tss.phase;
+                const primaryDriver = tss.why_trending.primary_driver;
+                const drivers = [
+                  { label: 'Curiosity',      active: /curiosity/i.test(primaryDriver) },
+                  { label: 'Social wave',    active: /social/i.test(primaryDriver) },
+                  { label: 'Creator surge',  active: /creator/i.test(primaryDriver) },
+                  { label: 'Breaking event', active: /break/i.test(primaryDriver) },
+                ];
+                const activeDriver = drivers.find(d => d.active)?.label || primaryDriver;
+                const platformWeights = tss.why_trending.platform_weights;
+                const maxPct = Math.max(...platformWeights.map(w => parseInt(w.percentage)));
+                const PLATFORM_META: Record<string, { icon: typeof Youtube; sub: string }> = {
+                  YouTube: { icon: Youtube, sub: 'Video discovery' },
+                  Search:  { icon: Search,   sub: 'Google Trends' },
+                  Social:  { icon: User2,    sub: 'Reddit · X/Twitter' },
+                  News:    { icon: Newspaper,sub: 'NewsAPI · GDELT' },
+                };
+                const getSignalColors = (tag: string) => {
+                  if (tag === 'Leading') return { barColor: 'bg-blue-500', tagColor: 'bg-blue-600' };
+                  if (tag === 'Quiet')   return { barColor: 'bg-gray-300', tagColor: 'bg-gray-300' };
+                  return                        { barColor: 'bg-gray-400', tagColor: 'bg-gray-400' };
+                };
+                const signals = tss.platform_signals;
+                const sources = tss.confidence.sources;
+                const reliability = tss.confidence.reliability_score;
+                const comp = tss.composition;
+                return (
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-auto">
 
                   {/* Trend Strength Score */}
                   <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
                     <p className="text-[12px] font-bold tracking-widest text-black uppercase mb-2">Trend Strength Score</p>
                     <div className="flex items-end gap-2 mb-2">
-                      <span className="text-5xl font-bold text-green-600">51</span>
+                      <span className="text-5xl font-bold text-green-600">{tss.score}</span>
                       <span className="text-gray-400 text-sm mb-1">/100</span>
                     </div>
                     <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[10px] px-2.5 py-0.5 rounded-full mb-3 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Rising
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />{tss.status}
                     </span>
                     <p className="text-gray-500 text-xs mb-4 leading-relaxed">
-                      <strong className="text-gray-900">Publish now.</strong> Active upswing — early movers capture the highest reach before this topic saturates.
+                      <strong className="text-gray-900">{tss.verdict}</strong> {tss.description}
                     </p>
                     {/* Phase bar */}
                     <div className="flex gap-1 mb-4">
                       {['Flat', 'Emerging', 'Rising', 'Peak', 'Saturating'].map(p => (
-                        <span key={p} className={`text-[9px] px-1.5 py-0.5 rounded flex-1 text-center font-medium ${p === 'Rising' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{p}</span>
+                        <span key={p} className={`text-[9px] px-1.5 py-0.5 rounded flex-1 text-center font-medium ${p === phase ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{p}</span>
                       ))}
                     </div>
                     {/* Score composition */}
                     <p className="text-[10px] text-black mb-2 uppercase tracking-widest">Score composition</p>
                     {[
-                      { label: 'Base', display: '45', value: 45, max: 60, color: 'bg-green-500' },
-                      { label: 'Psych boost', display: '+6', value: 6, max: 20, color: 'bg-green-400' },
-                      { label: 'Reliability', display: '0.95', value: 0.95, max: 1, color: 'bg-blue-400' },
+                      { label: 'Base',       display: String(comp?.base ?? 45),                    value: comp?.base ?? 45,                    max: 60, color: 'bg-green-500' },
+                      { label: 'Psych boost',display: `+${comp?.psych_boost ?? 6}`,                value: comp?.psych_boost ?? 6,               max: 20, color: 'bg-green-400' },
+                      { label: 'Reliability',display: String(comp?.reliability ?? 0.95),           value: comp?.reliability ?? 0.95,            max: 1,  color: 'bg-blue-400' },
                     ].map(bar => (
                       <div key={bar.label} className="flex items-center gap-2 mb-2">
                         <span className="text-[10px] text-gray-500 w-20 flex-shrink-0">{bar.label}</span>
@@ -662,25 +774,20 @@ useEffect(() => {
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[12px] font-bold tracking-widest text-black uppercase">Why It&apos;s Trending</p>
                       <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 text-[9px] px-2 py-0.5 rounded-full font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Creator surge
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />{activeDriver}
                       </span>
                     </div>
                     <div className="flex gap-3 mb-3">
                       <div className="space-y-1.5 flex-shrink-0">
-                        {[
-                          { label: 'Curiosity', active: false },
-                          { label: 'Social wave', active: false },
-                          { label: 'Creator surge', active: true },
-                          { label: 'Breaking event', active: false },
-                        ].map(f => (
+                        {drivers.map(f => (
                           <div key={f.label} className={`text-[10px] flex items-center gap-1 ${f.active ? 'text-green-600 font-semibold' : 'text-gray-400'}`}>
                             <span>{f.active ? '●' : '✦'}</span>{f.label}
                           </div>
                         ))}
                       </div>
                       <div>
-                        <p className="text-gray-900 text-sm font-bold mb-1">YouTube views doubled this week</p>
-                        <p className="text-gray-500 text-xs leading-relaxed">Algorithm is surfacing this topic. Creators who publish in the next 48 hours capture the peak window. Social hasn&apos;t taken the lead yet.</p>
+                        <p className="text-gray-900 text-sm font-bold mb-1">{tss?.why_trending.headline ?? 'YouTube views doubled this week'}</p>
+                        <p className="text-gray-500 text-xs leading-relaxed">{tss?.why_trending.summary ?? "Algorithm is surfacing this topic. Creators who publish in the next 48 hours capture the peak window."}</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 mb-3">
@@ -688,71 +795,59 @@ useEffect(() => {
                         <span key={btn} className={`text-[10px] px-3 py-1 rounded-full cursor-pointer ${i === 2 ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>{btn}</span>
                       ))}
                     </div>
-                    <p className="text-[9px] text-gray-400 mb-1.5 uppercase tracking-widest">Weights this scan · regime: creator surge</p>
+                    <p className="text-[9px] text-gray-400 mb-1.5 uppercase tracking-widest">Weights this scan · regime: {activeDriver.toLowerCase()}</p>
                     <div className="flex gap-1.5">
-                      {[
-                        { label: 'Search', pct: '20%', active: false },
-                        { label: 'Social', pct: '25%', active: false },
-                        { label: 'YouTube', pct: '40%', active: true },
-                        { label: 'News', pct: '15%', active: false },
-                      ].map(w => (
-                        <div key={w.label} className={`flex-1 rounded text-center px-1 py-1.5 ${w.active ? 'bg-blue-600' : 'bg-gray-100'}`}>
-                          <p className={`text-[9px] uppercase ${w.active ? 'text-blue-100' : 'text-gray-400'}`}>{w.label}</p>
-                          <p className={`text-xs font-bold ${w.active ? 'text-white' : 'text-gray-700'}`}>{w.pct}</p>
-                        </div>
-                      ))}
+                      {platformWeights.map(w => {
+                        const pct = parseInt(w.percentage);
+                        const isActive = pct === maxPct;
+                        return (
+                          <div key={w.platform} className={`flex-1 rounded text-center px-1 py-1.5 ${isActive ? 'bg-blue-600' : 'bg-gray-100'}`}>
+                            <p className={`text-[9px] uppercase ${isActive ? 'text-blue-100' : 'text-gray-400'}`}>{w.platform}</p>
+                            <p className={`text-xs font-bold ${isActive ? 'text-white' : 'text-gray-700'}`}>{w.percentage}</p>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                
-
-                
 
                   {/* Platform Signals */}
                   <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
                     <p className="text-[12px] font-bold tracking-widest text-black uppercase mb-0.5">Platform Signals</p>
                     <p className="text-[11px] text-gray-800 mb-4">Where this topic is gaining momentum · leading signal highlighted</p>
                     <div className="space-y-4">
-                      {[
-                        { icon: Youtube, name: 'YouTube', sub: 'Video discovery', note: 'view accel 2.3× this week', tag: 'Leading', tagColor: 'bg-blue-600', score: 57, barW: 90, barColor: 'bg-blue-500' },
-                        { icon: User2, name: 'Social', sub: 'Reddit · X/Twitter', note: 'post velocity 1.0× normal', tag: 'Normal', tagColor: 'bg-gray-400', score: 25, barW: 35, barColor: 'bg-gray-400' },
-                        { icon: Search, name: 'Search', sub: 'Google Trends', note: 'search index 1.3× annual avg', tag: 'Mild', tagColor: 'bg-gray-400', score: 26, barW: 38, barColor: 'bg-gray-400' },
-                        { icon: Newspaper, name: 'News', sub: 'NewsAPI · GDELT', note: 'articles 1.2× 90 day avg', tag: 'Quiet', tagColor: 'bg-gray-300', score: 20, barW: 28, barColor: 'bg-gray-300' },
-                      ].map(signal => {
-                          const Icon = signal.icon;
-
-                          return(
-
-                            <div key={signal.name} className="flex items-center gap-3">
-
-<div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-500 flex-shrink-0">
-  <Icon className="w-4 h-4" />
-</div>
-                            <div className="flex flex-col items-center gap-1 mb-1">
-                              <span className="text-gray-900 text-xs font-semibold">{signal.name}</span>
-                              <span className="text-[8px] text-gray-400 text-nowrap">{signal.sub}</span>
+                      {signals.map(signal => {
+                        const meta = PLATFORM_META[signal.platform] ?? { icon: Search, sub: signal.platform };
+                        const Icon = meta.icon;
+                        const { barColor, tagColor } = getSignalColors(signal.tag);
+                        return (
+                          <div key={signal.platform} className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-500 flex-shrink-0">
+                              <Icon className="w-4 h-4" />
                             </div>
-                          <div className="w-full flex flex-col gap-2 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col items-center gap-1 mb-1">
+                              <span className="text-gray-900 text-xs font-semibold">{signal.platform}</span>
+                              <span className="text-[8px] text-gray-400 text-nowrap">{meta.sub}</span>
+                            </div>
+                            <div className="w-full flex flex-col gap-2 min-w-0">
                               <div className="w-full h-1 rounded-full bg-gray-100">
-                                <div className={`h-full rounded-full ${signal.barColor}`} style={{ width: `${signal.barW}%` }} />
+                                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${signal.barW}%` }} />
+                              </div>
+                              <div className="flex w-full justify-between">
+                                <span className="text-[9px] text-gray-400 whitespace-nowrap">{signal.note}</span>
+                                <span className={`text-[9px] px-2 py-0.5 rounded ${tagColor} text-white flex-shrink-0`}>{signal.tag}</span>
                               </div>
                             </div>
-                            <div className='flex w-full justify-between'>
-                              <span className="text-[9px] text-gray-400 whitespace-nowrap">{signal.note}</span>
-                          <span className={`text-[9px] px-2 py-0.5 rounded ${signal.tagColor} text-white flex-shrink-0`}>{signal.tag}</span>
+                            <div className="text-right flex-shrink-0 w-10">
+                              <p className="text-gray-900 text-sm font-bold">{signal.score}</p>
+                              <p className="text-[9px] text-gray-400">score/100</p>
+                            </div>
                           </div>
-                          </div>
-                          <div className="text-right flex-shrink-0 w-10">
-                            <p className="text-gray-900 text-sm font-bold">{signal.score}</p>
-                            <p className="text-[9px] text-gray-400">score/100</p>
-                          </div>
-                        </div>
-                        )
-})}
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* Signal Confidence — 2×2 grid */}
+                  {/* Signal Confidence */}
                   <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[12px] font-bold tracking-widest text-black uppercase">Signal Confidence</p>
@@ -761,15 +856,10 @@ useEffect(() => {
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 mb-4">
-                      {[
-                        { label: 'Search', detail: 'Live · 52 wks' },
-                        { label: 'Social', detail: 'Live · 4 sources' },
-                        { label: 'YouTube', detail: 'Live · 10 videos' },
-                        { label: 'News', detail: 'Live · 90-day' },
-                      ].map(src => (
-                        <div key={src.label} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      {sources.map(src => (
+                        <div key={src.name} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                           <span className="w-2 h-2 rounded-full bg-green-500 inline-block mb-1.5" />
-                          <p className="text-gray-900 text-sm font-bold">{src.label}</p>
+                          <p className="text-gray-900 text-sm font-bold">{src.name}</p>
                           <p className="text-[10px] text-gray-400">{src.detail}</p>
                         </div>
                       ))}
@@ -777,16 +867,76 @@ useEffect(() => {
                     <p className="text-[10px] text-gray-400 mb-1.5">Reliability score</p>
                     <div className="flex items-center gap-3">
                       <div className="flex-1 h-1.5 rounded-full bg-gray-100">
-                        <div className="h-full rounded-full bg-green-500" style={{ width: '95%' }} />
+                        <div className="h-full rounded-full bg-green-500" style={{ width: `${reliability * 100}%` }} />
                       </div>
-                      <span className="text-xs text-gray-700 font-medium">0.95</span>
+                      <span className="text-xs text-gray-700 font-medium">{reliability}</span>
                     </div>
                   </div>
                 </div>
-            
-            )}
+                );
+              })()}
 
-            {activeTab === 'Content Saturation index' && (
+            {!isPipelineLoading && activeTab === 'Content Saturation index' && (() => {
+                const csi = pipelineMetrics?.content_saturation_index;
+                const csiStatus = csi?.status ?? 'Competitive';
+                const breakout = csi?.breakout;
+                const ih = csi?.incumbent_health;
+
+                // Static per-dimension metadata (weights + descriptions)
+                const DIM_META: Record<string, { weight: string; desc: string }> = {
+                  'Supply pressure':  { weight: '25% weight', desc: 'Upload rate and channel volume in this topic.' },
+                  'Audience demand':  { weight: '25% weight', desc: 'Search velocity and view momentum driving this topic.' },
+                  'Upload freshness': { weight: '15% weight', desc: 'Recency of uploads in the past 48h window.' },
+                  'Angle coverage':   { weight: '15% weight', desc: 'Semantic diversity across existing corpus.' },
+                  'Viral ceiling':    { weight: '10% weight', desc: 'Top vs median VPD ratio — algorithm breakout potential.' },
+                  'Quality gap':      { weight: '10% weight', desc: 'Incumbent engagement vs tier benchmark.' },
+                };
+                const getEffectStyle  = (e: string) => e === 'Opens' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200';
+                const getBarColor     = (e: string, s: string) => {
+                  if (e === 'Closes') return s === 'Strong' ? 'bg-red-500' : 'bg-amber-400';
+                  if (s === 'Strong') return 'bg-green-400';
+                  if (s === 'Moderate') return 'bg-blue-500';
+                  return 'bg-purple-400';
+                };
+                const getScoreColor   = (e: string, s: string) => {
+                  if (e === 'Closes') return s === 'Strong' ? 'text-red-500' : 'text-amber-500';
+                  if (s === 'Strong') return 'text-green-600';
+                  if (s === 'Moderate') return 'text-blue-600';
+                  return 'text-purple-600';
+                };
+                const getStatusStyle  = (s: string) => {
+                  if (s === 'Strong' || s === 'Gap exists') return 'bg-green-100 text-green-700';
+                  if (s === 'Moderate' || s === 'Mild flood') return 'bg-amber-100 text-amber-600';
+                  if (s === 'High ceiling') return 'bg-blue-100 text-blue-600';
+                  return 'bg-gray-100 text-gray-600';
+                };
+
+                // Breakout: the backend gives active signals; pad to 5 standard ones
+                const ALL_BREAKOUT_SIGNALS = [
+                  'Search rising', 'YouTube growth detected',
+                  'Upload surge detected', 'Engagement heat rising', '24h view spike',
+                ];
+                const activeSignals = new Set(breakout?.signals ?? []);
+                const breakoutItems = ALL_BREAKOUT_SIGNALS.map(label => ({
+                  label,
+                  active: activeSignals.has(label) || [...activeSignals].some(s => label.toLowerCase().includes(s.toLowerCase())),
+                }));
+
+                // Incumbent health — backend returns raw numbers (0–1 or 0–100)
+                const engGap = ih ? Math.round(ih.engagement_gap > 1 ? ih.engagement_gap : ih.engagement_gap * 100) : 55;
+                const density = ih?.creator_density ?? 0.55;
+                const vpd = ih ? Math.round(ih.vpd_decay > 1 ? ih.vpd_decay : ih.vpd_decay * 100) : 48;
+
+                const dimensions = csi?.dimensions ?? [
+                  { name: 'Supply pressure',  score: 58, effect: 'Closes', status: 'Moderate' },
+                  { name: 'Audience demand',  score: 71, effect: 'Opens',  status: 'Strong' },
+                  { name: 'Upload freshness', score: 44, effect: 'Closes', status: 'Mild flood' },
+                  { name: 'Angle coverage',   score: 33, effect: 'Opens',  status: 'Gap exists' },
+                  { name: 'Viral ceiling',    score: 62, effect: 'Opens',  status: 'High ceiling' },
+                  { name: 'Quality gap',      score: 55, effect: 'Opens',  status: 'Opportunity' },
+                ];
+
+                return (
               <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 h-full overflow-auto">
 
                 {/* ── LEFT COLUMN ── */}
@@ -796,18 +946,18 @@ useEffect(() => {
                   <div className="bg-white border border-gray-200 rounded-xl p-4">
                     <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-2">Content Saturation Index</p>
                     <div className="flex items-end gap-2 mb-2">
-                      <span className="text-5xl font-bold text-orange-500">38</span>
+                      <span className="text-5xl font-bold text-orange-500">{csi?.score ?? 38}</span>
                       <span className="text-gray-400 text-sm mb-1">/100</span>
                     </div>
                     <span className="inline-flex items-center gap-1.5 bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-2.5 py-0.5 rounded-full mb-3 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />Competitive
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />{csiStatus}
                     </span>
                     <p className="text-gray-500 text-xs mb-4 leading-relaxed">
-                      <strong className="text-gray-900">Winnable with the right angle.</strong> Some dominant channels exist but no single lock-in. A well-executed video with an uncovered angle breaks through.
+                      <strong className="text-gray-900">{csi?.verdict ?? 'Winnable with the right angle.'}</strong> {csi?.description ?? 'Some dominant channels exist but no single lock-in.'}
                     </p>
                     <div className="flex gap-1">
                       {['Open', 'Competitive', 'Crowded', 'Saturated'].map(p => (
-                        <span key={p} className={`text-[9px] px-1 py-0.5 rounded flex-1 text-center font-medium ${p === 'Competitive' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{p}</span>
+                        <span key={p} className={`text-[9px] px-1 py-0.5 rounded flex-1 text-center font-medium ${p === csiStatus ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{p}</span>
                       ))}
                     </div>
                   </div>
@@ -817,22 +967,16 @@ useEffect(() => {
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-[10px] tracking-widest text-black font-bold uppercase">Breakout Indicator</p>
                       <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 border border-orange-200 text-[9px] px-2 py-0.5 rounded-full font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />Watch closely
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />{breakout?.label ?? 'Watch closely'}
                       </span>
                     </div>
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 rounded-full border-2 border-orange-400 flex flex-col items-center justify-center flex-shrink-0">
-                        <span className="text-orange-500 font-bold text-lg leading-none">2</span>
-                        <span className="text-[8px] text-gray-400">of 5</span>
+                        <span className="text-orange-500 font-bold text-lg leading-none">{breakout?.score ?? 2}</span>
+                        <span className="text-[8px] text-gray-400">of {breakout?.out_of ?? 5}</span>
                       </div>
                       <div className="space-y-2">
-                        {[
-                          { label: 'Search at 2.1× 90-day baseline', active: true },
-                          { label: 'YouTube views doubling WoW', active: true },
-                          { label: 'Upload surge (24h window)', active: false },
-                          { label: 'Engagement heat rising', active: false },
-                          { label: 'View spike in 24h cohort', active: false },
-                        ].map(item => (
+                        {breakoutItems.map(item => (
                           <div key={item.label} className={`text-[10px] flex items-center gap-1.5 ${item.active ? 'text-black font-medium' : 'text-gray-400'}`}>
                             <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.active ? 'bg-orange-500' : 'bg-gray-300'}`} />
                             {item.label}
@@ -851,68 +995,28 @@ useEffect(() => {
                     <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-0.5">Dimension Breakdown</p>
                     <p className="text-[10px] text-gray-400 mb-3">What&apos;s driving the score — forces that open or close this topic</p>
                     <div className="grid grid-cols-3 gap-3">
-                      {[
-                        {
-                          name: 'Supply pressure', weight: '25% weight',
-                          effect: 'Closes', effectColor: 'bg-red-50 text-red-600 border border-red-200',
-                          score: 58, scoreColor: 'text-red-500', barColor: 'bg-red-400', barW: 72,
-                          status: 'Moderate', statusColor: 'bg-orange-100 text-orange-600',
-                          desc: 'Decent volume exists. Upload rate manageable — not flooded. Creator field spread across ~41 channels.',
-                        },
-                        {
-                          name: 'Audience demand', weight: '25% weight',
-                          effect: 'Opens', effectColor: 'bg-green-50 text-green-700 border border-green-200',
-                          score: 71, scoreColor: 'text-green-400', barColor: 'bg-green-400', barW: 88,
-                          status: 'Strong', statusColor: 'bg-green-100 text-green-700',
-                          desc: 'High search velocity from TSS. Daily views signal the algorithm is actively distributing this topic.',
-                        },
-                        {
-                          name: 'Upload freshness', weight: '15% weight',
-                          effect: 'Closes', effectColor: 'bg-red-50 text-red-600 border border-red-200',
-                          score: 44, scoreColor: 'text-amber-500', barColor: 'bg-amber-400', barW: 55,
-                          status: 'Mild flood', statusColor: 'bg-amber-100 text-amber-600',
-                          desc: "Some uploads in 48h but not a surge. Topic isn't aggressively flooded — entry window still usable.",
-                        },
-                        {
-                          name: 'Angle coverage', weight: '15% weight',
-                          effect: 'Opens', effectColor: 'bg-green-50 text-green-700 border border-green-200',
-                          score: 33, scoreColor: 'text-green-600', barColor: 'bg-green-600', barW: 40,
-                          status: 'Gap exists', statusColor: 'bg-green-100 text-green-600',
-                          desc: 'Corpus is semantically repetitive. A fresh perspective or sub-angle will stand out immediately.',
-                        },
-                        {
-                          name: 'Viral ceiling', weight: '10% weight',
-                          effect: 'Opens', effectColor: 'bg-green-50 text-green-700 border border-green-200',
-                          score: 62, scoreColor: 'text-blue-600', barColor: 'bg-blue-500', barW: 75,
-                          status: 'High ceiling', statusColor: 'bg-blue-100 text-blue-600',
-                          desc: 'Top 5% of videos earn vastly more VPD than median — algorithm can produce breakout videos here.',
-                        },
-                        {
-                          name: 'Quality gap', weight: '10% weight',
-                          effect: 'Opens', effectColor: 'bg-green-50 text-green-700 border border-green-200',
-                          score: 55, scoreColor: 'text-purple-600', barColor: 'bg-purple-400', barW: 68,
-                          status: 'Opportunity', statusColor: 'bg-gray-100 text-gray-600',
-                          desc: 'Incumbent videos underperform on engagement. Audiences served by age, not quality.',
-                        },
-                      ].map(dim => (
-                        <div key={dim.name} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                          <div className="flex items-start justify-between gap-1 mb-1.5">
-                            <div>
-                              <p className="text-gray-900 text-xs font-bold">{dim.name}</p>
-                              <p className="text-[9px] text-gray-400">{dim.weight}</p>
+                      {dimensions.map(dim => {
+                        const meta = DIM_META[dim.name] ?? { weight: '', desc: '' };
+                        return (
+                          <div key={dim.name} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                            <div className="flex items-start justify-between gap-1 mb-1.5">
+                              <div>
+                                <p className="text-gray-900 text-xs font-bold">{dim.name}</p>
+                                <p className="text-[9px] text-gray-400">{meta.weight}</p>
+                              </div>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${getEffectStyle(dim.effect)}`}>{dim.effect}</span>
                             </div>
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${dim.effectColor}`}>{dim.effect}</span>
+                            <div className="h-1 rounded-full bg-gray-200 mb-2">
+                              <div className={`h-full rounded-full ${getBarColor(dim.effect, dim.status)}`} style={{ width: `${dim.score}%` }} />
+                            </div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className={`text-xl font-bold ${getScoreColor(dim.effect, dim.status)}`}>{dim.score}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${getStatusStyle(dim.status)}`}>{dim.status}</span>
+                            </div>
+                            <p className="text-[9px] text-gray-400 leading-relaxed">{meta.desc}</p>
                           </div>
-                          <div className="h-1 rounded-full bg-gray-200 mb-2">
-                            <div className={`h-full rounded-full ${dim.barColor}`} style={{ width: `${dim.barW}%` }} />
-                          </div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className={`text-xl font-bold ${dim.scoreColor}`}>{dim.score}</span>
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${dim.statusColor}`}>{dim.status}</span>
-                          </div>
-                          <p className="text-[9px] text-gray-400 leading-relaxed">{dim.desc}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -923,69 +1027,109 @@ useEffect(() => {
                       <p className="text-[10px] text-gray-400">Can a well-made video displace what&apos;s already ranking?</p>
                     </div>
                     <div className="grid grid-cols-2 gap-6">
-                      {/* Left: Engagement Gap + Creator Density */}
                       <div className="space-y-4">
                         <div>
                           <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">Engagement Gap</p>
-                          <p className="text-3xl font-bold text-purple-600 mb-0.5">55%</p>
+                          <p className="text-3xl font-bold text-purple-600 mb-0.5">{engGap}%</p>
                           <p className="text-[10px] text-gray-500 mb-2">Incumbents underperform their tier benchmark</p>
                           <div className="h-1.5 rounded-full bg-gray-100">
-                            <div className="h-full rounded-full bg-purple-600" style={{ width: '55%' }} />
+                            <div className="h-full rounded-full bg-purple-600" style={{ width: `${engGap}%` }} />
                           </div>
                         </div>
                         <div>
                           <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">Creator Density</p>
-                          <p className="text-3xl font-bold text-green-500 mb-0.5">0.55</p>
-                          <p className="text-[10px] text-gray-500 mb-2">41 unique channels across 75 videos</p>
+                          <p className="text-3xl font-bold text-green-500 mb-0.5">{density}</p>
+                          <p className="text-[10px] text-gray-500 mb-2">Unique channels ratio across corpus</p>
                           <div className="h-1.5 rounded-full bg-gray-100">
-                            <div className="h-full rounded-full bg-green-500" style={{ width: '55%' }} />
+                            <div className="h-full rounded-full bg-green-500" style={{ width: `${Math.min(density * 100, 100)}%` }} />
                           </div>
                         </div>
                       </div>
-                      {/* Right: VPD Decay + Overall Verdict */}
                       <div className="space-y-4">
                         <div>
                           <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">VPD Decay</p>
-                          <p className="text-3xl font-bold text-orange-500 mb-0.5">48%</p>
+                          <p className="text-3xl font-bold text-orange-500 mb-0.5">{vpd}%</p>
                           <p className="text-[10px] text-gray-500 mb-2">Top videos losing daily view momentum</p>
                           <div className="h-1.5 rounded-full bg-gray-100">
-                            <div className="h-full rounded-full bg-orange-400" style={{ width: '48%' }} />
+                            <div className="h-full rounded-full bg-orange-400" style={{ width: `${vpd}%` }} />
                           </div>
                         </div>
                         <div>
                           <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">Overall Verdict</p>
                           <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[10px] px-2.5 py-1 rounded-full mb-1.5 font-medium">
-                            ✓ Entry is viable
+                            ✓ {ih?.verdict ?? 'Entry is viable'}
                           </span>
-                          <p className="text-[10px] text-gray-500 leading-relaxed">Incumbents rely on age, not quality. A well-produced video has a clear displacement path.</p>
+                          <p className="text-[10px] text-gray-500 leading-relaxed">{csi?.description ?? 'Incumbents rely on age, not quality. A well-produced video has a clear displacement path.'}</p>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+                );
+              })()}
 
-            {activeTab === 'Content angle gap score' && (
-              <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 h-full overflow-auto">
+            {!isPipelineLoading && activeTab === 'Content angle gap score' && (() => {
+                const cags = pipelineMetrics?.content_angle_gap_score;
+                const totalAngles = cags?.total_angles ?? 18;
+
+                // Distribution with color mapping
+                const DIST_COLORS: Record<string, { color: string; textColor: string }> = {
+                  'Not covered': { color: 'bg-green-500', textColor: 'text-green-600' },
+                  'Low quality':  { color: 'bg-amber-400', textColor: 'text-amber-600' },
+                  'Well covered': { color: 'bg-gray-300',  textColor: 'text-gray-500' },
+                };
+                const distribution = (cags?.distribution ?? [
+                  { label: 'Not covered', count: 7 },
+                  { label: 'Low quality', count: 6 },
+                  { label: 'Well covered', count: 5 },
+                ]).map(d => ({ ...d, total: totalAngles, ...(DIST_COLORS[d.label] ?? { color: 'bg-gray-300', textColor: 'text-gray-500' }) }));
+
+                const gapCount = distribution.filter(d => d.label !== 'Well covered').reduce((s, d) => s + d.count, 0);
+
+                // Rank badge colors
+                const RANK_COLORS = ['bg-green-500', 'bg-green-600', 'bg-amber-400', 'bg-amber-500', 'bg-orange-400'];
+
+                // Top angles from backend
+                const topAngles = (cags?.top_angles ?? []).slice(0, 3).map((a, i) => ({
+                  rank: `#${a.rank}`,
+                  rankBg: RANK_COLORS[i] ?? 'bg-gray-400',
+                  label: a.who,
+                  covered: a.coverage === 'Not Covered' ? '0%' : a.coverage === 'Low quality' ? '<33%' : '>66%',
+                  dims: [
+                    { key: 'WHO',  val: a.who },
+                    { key: 'WHAT', val: a.what },
+                    { key: 'WHEN', val: a.when },
+                    { key: 'HOOK', val: a.frame },
+                    { key: 'COVERAGE', val: a.coverage },
+                    { key: 'TITLE', val: a.title.length > 30 ? a.title.slice(0, 30) + '…' : a.title },
+                  ],
+                }));
+
+                // Gap opportunities from backend
+                const getScoreStyle = (s: number) => {
+                  if (s >= 80) return { scoreColor: 'text-green-600', scoreBorder: 'border-green-400', socialBarColor: 'bg-green-500' };
+                  if (s >= 60) return { scoreColor: 'text-amber-600', scoreBorder: 'border-amber-400', socialBarColor: 'bg-amber-400' };
+                  if (s >= 40) return { scoreColor: 'text-orange-500', scoreBorder: 'border-orange-400', socialBarColor: 'bg-orange-400' };
+                  return           { scoreColor: 'text-gray-500',   scoreBorder: 'border-gray-300',   socialBarColor: 'bg-gray-400' };
+                };
+                const gapOpportunities = cags?.gap_opportunities ?? [];
+
+                return (
+              <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4 h-full overflow-auto">
 
                 {/* ── LEFT COLUMN ── */}
                 <div className="flex flex-col gap-4">
 
-                  {/* Content Angle Gap Score */}
+                  {/* Content Landscape */}
                   <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <span className="text-[9px] font-bold text-green-600">CONTENT LANDSCAPE</span>
-                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-2">Coverage distribution across 18 angles</p>
+                    <span className="text-[9px] font-bold text-green-600">CONTENT LANDSCAPE</span>
+                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-2">Coverage distribution across {totalAngles} angles</p>
                     <div className="flex items-end gap-2 mb-2">
-                      <span className="text-5xl font-bold text-green-600">18</span>
+                      <span className="text-5xl font-bold text-green-600">{totalAngles}</span>
                     </div>
-                   
-                    <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-2">Coverage distribution · 18 angles</p>
-                    {[
-                      { label: 'Not covered', count: 7, total: 18, color: 'bg-green-500', textColor: 'text-green-600' },
-                      { label: 'Low quality', count: 6, total: 18, color: 'bg-amber-400', textColor: 'text-amber-600' },
-                      { label: 'Well covered', count: 5, total: 18, color: 'bg-gray-300', textColor: 'text-gray-500' },
-                    ].map(item => (
+                    <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-2">Coverage distribution · {totalAngles} angles</p>
+                    {distribution.map(item => (
                       <div key={item.label} className="flex items-center gap-2 mb-2">
                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.color}`} />
                         <span className="text-[10px] text-gray-500 w-20 flex-shrink-0">{item.label}</span>
@@ -995,16 +1139,14 @@ useEffect(() => {
                         <span className={`text-[10px] font-medium ${item.textColor} w-14 text-right`}>{item.count} angles</span>
                       </div>
                     ))}
-
-<span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[9px] px-2.5 py-0.5 rounded-full mb-3 font-medium">
-                      13 gap opportunities ranked below
+                    <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[9px] px-2.5 py-0.5 rounded-full mb-3 font-medium">
+                      {gapCount} gap opportunities ranked below
                     </span>
-                    
-                    <span className='flex items-start gap-1.5 '>
-                    <span className="w-3 h-1.5 rounded-full bg-green-500 mt-1" />
-                    <p className=" text-gray-500 text-[10px] mb-4 leading-relaxed">
-                     18 angles mapped — most remain uncovered or low quality. High CAGS = winnable + in-demand.
-                    </p>
+                    <span className="flex items-start gap-1.5">
+                      <span className="w-3 h-1.5 rounded-full bg-green-500 mt-1 flex-shrink-0" />
+                      <p className="text-gray-500 text-[10px] mb-4 leading-relaxed">
+                        {totalAngles} angles mapped — most remain uncovered or low quality. High CAGS = winnable + in-demand.
+                      </p>
                     </span>
                   </div>
 
@@ -1013,48 +1155,12 @@ useEffect(() => {
                     <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-1">Top Angle Anatomy</p>
                     <p className="text-[10px] text-gray-400 mb-3">6-step perspective breakdown for highest-ranked gaps</p>
                     <div className="space-y-3">
-                      {[
-                        {
-                          rank: '#1', rankBg: 'bg-green-500', label: 'Rural Communities',
-                         covered: '0%',
-                          dims: [
-                            { key: 'WHO', val: 'Rural communities' },
-                            { key: 'WHAT', val: 'Economics · Sociology' },
-                            { key: 'WHEN', val: 'Present · National' },
-                            { key: 'HOOK', val: 'Cause → Effect' },
-                            { key: 'TENSION', val: 'Who gains / loses' },
-                            { key: 'POV', val: 'Hidden angle' },
-                          ],
-                        },
-                        {
-                          rank: '#2', rankBg: 'bg-green-600', label: 'Fashion Workers',
-                           covered: '0%',
-                          dims: [
-                            { key: 'WHO', val: 'Fashion workers' },
-                            { key: 'WHAT', val: 'Labour · Policy' },
-                            { key: 'WHEN', val: 'Present · Global' },
-                            { key: 'HOOK', val: 'Trade-off' },
-                            { key: 'TENSION', val: 'Corp. Influence' },
-                            { key: 'POV', val: 'Crisis' },
-                          ],
-                        },
-                        {
-                          rank: '#3', rankBg: 'bg-amber-400', label: 'Gen Z Consumers', covered: '33%',
-                          dims: [
-                            { key: 'WHO', val: 'Gen Z consumers' },
-                            { key: 'WHAT', val: 'Psychology · Sociology' },
-                            { key: 'WHEN', val: 'Present · Global' },
-                            { key: 'HOOK', val: '2nd-order effects' },
-                            { key: 'TENSION', val: 'Inequality' },
-                            { key: 'POV', val: 'Human story' },
-                          ],
-                        },
-                      ].map(angle => (
+                      {topAngles.map(angle => (
                         <div key={angle.rank} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                           <div className="flex items-center gap-2 mb-2">
                             <span className={`text-[9px] text-white px-1.5 py-0.5 rounded font-bold ${angle.rankBg}`}>{angle.rank}</span>
-                            <span className="text-[10px] font-bold text-gray-900 uppercase tracking-wide">{angle.label}</span>
-                            <span className="ml-auto text-[9px] text-gray-400">{angle.covered} covered</span>
+                            <span className="text-[10px] font-bold text-gray-900 uppercase tracking-wide truncate">{angle.label}</span>
+                            <span className="ml-auto text-[9px] text-gray-400 flex-shrink-0">{angle.covered} covered</span>
                           </div>
                           <div className="grid grid-cols-3 gap-1">
                             {angle.dims.map(d => (
@@ -1072,13 +1178,10 @@ useEffect(() => {
 
                 {/* ── RIGHT COLUMN ── */}
                 <div className="flex flex-col gap-4 min-h-0">
-
-                  {/* Gap Opportunities */}
                   <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1 overflow-auto">
                     <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-0.5">Gap Opportunities</p>
                     <p className="text-[10px] text-gray-400 mb-4">All angles ranked by CAGS score — higher = more winnable, more demanded</p>
 
-                    {/* Table header */}
                     <div className="grid grid-cols-[32px_56px_1fr_110px] gap-3 px-3 mb-2">
                       <span className="text-[9px] text-gray-400 uppercase tracking-widest">#</span>
                       <span className="text-[9px] text-gray-400 uppercase tracking-widest">CAGS</span>
@@ -1087,93 +1190,35 @@ useEffect(() => {
                     </div>
 
                     <div className="space-y-2">
-                      {[
-                        {
-                          rank: 1, score: 91,
-                          scoreColor: 'text-green-600', scoreBorder: 'border-green-400',
-                          angle: 'Rural communities · economics & sociology · cause→effect of automation revealing cost-shifting by tech companies',
-                          title: 'The Towns Mob Wife Forgot: What Fast Fashion Is Really Doing to Rural America',
-                          tags: ['rural', 'economics', 'cause-effect', 'hidden angle'],
-                          socialThreads: 23, socialScore: 0.91, socialBar: 91, socialBarColor: 'bg-green-500',
-                        },
-                        {
-                          rank: 2, score: 84,
-                          scoreColor: 'text-green-600', scoreBorder: 'border-green-400',
-                          angle: 'Fashion industry workers · labour & policy · trade-off between fast fashion economics and sustainability',
-                          title: 'Who Really Pays For Mob Wife Aesthetic? The Workers No One Talks About',
-                          tags: ['workers', 'policy', 'trade-off'],
-                          socialThreads: 18, socialScore: 0.75, socialBar: 75, socialBarColor: 'bg-green-400',
-                        },
-                        {
-                          rank: 3, score: 73,
-                          scoreColor: 'text-amber-600', scoreBorder: 'border-amber-400',
-                          angle: 'Gen Z consumers · psychology & sociology · second-order effects of aesthetic identity cycles, manufactured nostalgia',
-                          title: 'Why Gen Z Keeps Reviving Dead Aesthetics: The Psychology Behind Mob Wife',
-                          tags: ['gen-z', 'psychology', '2nd-order'],
-                          socialThreads: 12, socialScore: 0.65, socialBar: 65, socialBarColor: 'bg-amber-500',
-                        },
-                        {
-                          rank: 4, score: 68,
-                          scoreColor: 'text-amber-600', scoreBorder: 'border-amber-400',
-                          angle: 'Independent designers · economics & entrepreneurship · feedback loop between viral aesthetics and small brand economics',
-                          title: 'How Small Designers Are Cashing In (and Burning Out) On the Mob Wife Trend',
-                          tags: ['designers', 'economics', 'feedback loop'],
-                          socialThreads: 8, socialScore: 0.54, socialBar: 54, socialBarColor: 'bg-amber-500',
-                        },
-                        {
-                          rank: 5, score: 61,
-                          scoreColor: 'text-orange-500', scoreBorder: 'border-orange-400',
-                          angle: 'Media critics · sociology & anthropology · risk scenario of aesthetic homogenisation via platform algorithm uniformity',
-                          title: 'Is TikTok Killing Fashion Diversity? The Mob Wife Effect on Culture',
-                          tags: ['critics', 'sociology', 'risk scenario'],
-                          socialThreads: 7, socialScore: 0.48, socialBar: 48, socialBarColor: 'bg-amber-400',
-                        },
-                        {
-                          rank: 6, score: 54,
-                          scoreColor: 'text-orange-500', scoreBorder: 'border-orange-400',
-                          angle: 'Brand marketers · business strategy · opportunity mapping for brands capitalising on the aesthetic cycle',
-                          title: 'How Brands Are Quietly Winning (and Losing) the Mob Wife Aesthetic Race',
-                          tags: ['brands', 'strategy', 'opportunity'],
-                          socialThreads: 5, socialScore: 0.39, socialBar: 39, socialBarColor: 'bg-amber-400',
-                        },
-                        {
-                          rank: 7, score: 47,
-                          scoreColor: 'text-gray-500', scoreBorder: 'border-gray-300',
-                          angle: 'Sustainability advocates · environment · lifecycle cost of fast fashion vs. thrifted aesthetics',
-                          title: 'The Dirty Secret Behind the Mob Wife Look: Fast Fashion\'s Environmental Cost',
-                          tags: ['sustainability', 'environment', 'lifecycle'],
-                          socialThreads: 3, socialScore: 0.28, socialBar: 28, socialBarColor: 'bg-gray-400',
-                        },
-                      ].map(item => (
-                        <div key={item.rank} className="grid grid-cols-[32px_56px_1fr_110px] gap-3 items-start p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
-                          <span className="text-gray-400 text-sm font-bold pt-0.5">{item.rank}</span>
-                          <div className={`w-10 h-10 rounded-lg border-2 ${item.scoreBorder} flex items-center justify-center flex-shrink-0`}>
-                            <span className={`text-sm font-bold ${item.scoreColor}`}>{item.score}</span>
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[10px] text-gray-700 font-medium mb-1 leading-relaxed">{item.angle}</p>
-                            <p className="text-[10px] text-green-600 italic mb-2">&ldquo;{item.title}&rdquo;</p>
-                            <div className="flex flex-wrap gap-1">
-                              {item.tags.map(tag => (
-                                <span key={tag} className="text-[9px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">{tag}</span>
-                              ))}
+                      {gapOpportunities.map(item => {
+                        const style = getScoreStyle(item.score);
+                        const socialBar = Math.round(item.demand_score * 100);
+                        return (
+                          <div key={item.rank} className="grid grid-cols-[32px_56px_1fr_110px] gap-3 items-start p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+                            <span className="text-gray-400 text-sm font-bold pt-0.5">{item.rank}</span>
+                            <div className={`w-10 h-10 rounded-lg border-2 ${style.scoreBorder} flex items-center justify-center flex-shrink-0`}>
+                              <span className={`text-sm font-bold ${style.scoreColor}`}>{Math.round(item.score)}</span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[10px] text-gray-700 font-medium mb-1 leading-relaxed">{item.angle}</p>
+                              <p className="text-[10px] text-green-600 italic mb-2">&ldquo;{item.title}&rdquo;</p>
+                            </div>
+                            <div className="flex flex-col gap-1.5 pt-0.5">
+                              <p className="text-[9px] text-gray-400 uppercase tracking-widest">Social demand</p>
+                              <div className="h-1 rounded-full bg-gray-200">
+                                <div className={`h-full rounded-full ${style.socialBarColor}`} style={{ width: `${socialBar}%` }} />
+                              </div>
+                              <p className="text-[9px] text-gray-500"><span className="font-medium text-gray-700">{item.demand_score.toFixed(2)}</span></p>
                             </div>
                           </div>
-                          {/* Social Demand */}
-                          <div className="flex flex-col gap-1.5 pt-0.5">
-                            <p className="text-[9px] text-gray-400 uppercase tracking-widest">Social demand</p>
-                            <div className="h-1 rounded-full bg-gray-200">
-                              <div className={`h-full rounded-full ${item.socialBarColor}`} style={{ width: `${item.socialBar}%` }} />
-                            </div>
-                            <p className="text-[9px] text-gray-500">{item.socialThreads} threads · <span className="font-medium text-gray-700">{item.socialScore}</span></p>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+                );
+              })()}
             </div>
           </CardContent>
         </Card>

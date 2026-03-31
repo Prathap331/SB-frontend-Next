@@ -47,7 +47,7 @@ export default function Home() {
 
         <div className="relative max-w-4xl mx-auto text-center">
           {/* pill badge */}
-          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full mb-8 shadow-sm">
+          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-4 shadow-sm">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             AI-Powered Script Writing
           </div>
@@ -63,7 +63,7 @@ export default function Home() {
           </h1>
 
           <p
-            className="text-lg sm:text-xl text-[#6e6e73] mb-12 mx-auto leading-relaxed font-light"
+            className="text-lg sm:text-xl text-[#6e6e73] mb-8 mx-auto leading-relaxed font-light"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
           >
             AI that transforms your ideas into engaging, factual,

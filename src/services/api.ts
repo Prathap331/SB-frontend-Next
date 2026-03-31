@@ -4,6 +4,94 @@ export interface ProcessTopicRequest {
   topic: string;
 }
 
+// ── Pipeline Metrics ──────────────────────────────────────────────────────────
+
+export interface PlatformWeight {
+  platform: string;
+  percentage: string;
+}
+
+export interface PlatformSignal {
+  platform: string;
+  score: number;
+  barW: number;
+  tag: string;
+  note: string;
+}
+
+export interface ConfidenceSource {
+  name: string;
+  detail: string;
+}
+
+export interface CsiDimension {
+  name: string;
+  score: number;
+  effect: string;
+  status: string;
+}
+
+export interface TopAngle {
+  rank: number;
+  title: string;
+  who: string;
+  what: string;
+  when: string;
+  frame: string;
+  coverage: string;
+}
+
+export interface GapOpportunity {
+  rank: number;
+  score: number;
+  title: string;
+  angle: string;
+  demand_score: number;
+}
+
+export interface PipelineMetricsResponse {
+  topic: string;
+  timestamp: string;
+  trend_strength_score: {
+    score: number;
+    max: number;
+    status: string;
+    verdict: string;
+    description: string;
+    phase: string;
+    composition: { base: number; psych_boost: number; reliability: number };
+    why_trending: {
+      primary_driver: string;
+      headline: string;
+      summary: string;
+      platform_weights: PlatformWeight[];
+    };
+    platform_signals: PlatformSignal[];
+    confidence: { reliability_score: number; sources: ConfidenceSource[] };
+  };
+  content_saturation_index: {
+    score: number;
+    status: string;
+    verdict: string;
+    description: string;
+    dimensions: CsiDimension[];
+    breakout: { score: number; out_of: number; label: string; signals: string[] };
+    incumbent_health: {
+      engagement_gap: number;
+      creator_density: number;
+      vpd_decay: number;
+      verdict: string;
+    };
+  };
+  content_angle_gap_score: {
+    total_angles: number;
+    distribution: { label: string; count: number }[];
+    top_angles: TopAngle[];
+    gap_opportunities: GapOpportunity[];
+  };
+  final_verdict: { action: string; summary: string };
+}
+
 export interface ProcessTopicResponse {
   ideas: string[];
   descriptions: string[];
@@ -381,6 +469,49 @@ export class ApiService {
       }
       
       throw error;
+    }
+  }
+
+  static async pipelineMetrics(topic: string): Promise<PipelineMetricsResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+    const url = `${this.BASE_URL}/pipeline-metrics`;
+    console.log('[pipeline-metrics] → POST', url, { topic });
+    try {
+      const token = this.getAuthToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ topic }),
+        signal: controller.signal,
+        mode: 'cors',
+      });
+
+      console.log('[pipeline-metrics] ← status', response.status, response.statusText);
+
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        throw new Error('Unauthorized');
+      }
+      if (!response.ok) {
+        const body = await response.text().catch(() => '(no body)');
+        console.error('[pipeline-metrics] error body:', body);
+        throw new Error(`pipeline-metrics failed: ${response.status} ${response.statusText} — ${body}`);
+      }
+      const data = await response.json() as PipelineMetricsResponse;
+      console.log('[pipeline-metrics] ✓ received:', data);
+      return data;
+    } catch (err) {
+      console.error('[pipeline-metrics] caught error:', err);
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
