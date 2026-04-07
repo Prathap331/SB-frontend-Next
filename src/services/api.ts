@@ -1,4 +1,5 @@
 // API service for StoryBit AI backend integration
+import { supabase } from '@/lib/supabaseClient';
 
 export interface ProcessTopicRequest {
   topic: string;
@@ -184,31 +185,81 @@ export class ApiService {
   // Check if we're in production and handle CORS issues
   private static isProduction = process.env.NODE_ENV === 'production';
 
-  private static handleUnauthorized(): void {
+  /**
+   * Sign out and redirect to /auth.
+   * Uses supabase.auth.signOut() so the refresh token is also invalidated server-side.
+   */
+  private static async handleUnauthorized(): Promise<void> {
     if (typeof window !== 'undefined') {
-      // Clear authentication tokens from localStorage
-      localStorage.removeItem('sb-xncfghdikiqknuruurfh-auth-token');
-      
-      // Redirect to the authentication page
+      await supabase.auth.signOut();
       window.location.href = '/auth';
     }
   }
 
-  private static getAuthToken(): string | null {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-    const tokenData = localStorage.getItem('sb-xncfghdikiqknuruurfh-auth-token');
-    if (tokenData) {
-      try {
-        const parsedToken = JSON.parse(tokenData);
-        return parsedToken.access_token || null;
-      } catch (error) {
-        console.error('Failed to parse auth token:', error);
+  /**
+   * Returns a valid access token, refreshing the session automatically if needed.
+   * Supabase's getSession() will use the stored refresh token to obtain a new
+   * access token whenever the current one has expired — so we never send a stale JWT.
+   */
+  private static async getAuthToken(): Promise<string | null> {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.warn('[getAuthToken] getSession error:', error.message);
         return null;
       }
+      return session?.access_token ?? null;
+    } catch (err) {
+      console.warn('[getAuthToken] unexpected error:', err);
+      return null;
     }
-    return null;
+  }
+
+  /**
+   * A thin fetch wrapper that:
+   *  1. Attaches the current (possibly just-refreshed) Bearer token.
+   *  2. On a 401, tries supabase.auth.refreshSession() once and retries.
+   *  3. If the retry also fails with 401, signs the user out and redirects.
+   */
+  private static async authorizedFetch(
+    url: string,
+    init: Omit<RequestInit, 'headers'>,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    const buildHeaders = (token: string | null): Record<string, string> => ({
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    });
+
+    const token = await this.getAuthToken();
+    const response = await fetch(url, {
+      ...init,
+      headers: buildHeaders(token),
+      signal,
+      mode: 'cors',
+    });
+
+    // If unauthorized, attempt a token refresh and retry exactly once
+    if (response.status === 401) {
+      console.warn('[authorizedFetch] 401 received — attempting token refresh');
+      const { data, error } = await supabase.auth.refreshSession();
+      if (!error && data.session) {
+        console.info('[authorizedFetch] Token refreshed, retrying request');
+        return fetch(url, {
+          ...init,
+          headers: buildHeaders(data.session.access_token),
+          signal,
+          mode: 'cors',
+        });
+      }
+      // Refresh failed — session is truly expired
+      console.error('[authorizedFetch] Refresh failed, signing out');
+      await this.handleUnauthorized();
+      throw new Error('Session expired. Please sign in again.');
+    }
+
+    return response;
   }
 
   static async processTopic(topic: string, retryCount = 0): Promise<ProcessTopicResponse> {
@@ -229,36 +280,21 @@ export class ApiService {
       
       let response;
       try {
-        const token = this.getAuthToken();
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        };
-
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-
-        response = await fetch(apiUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ topic }),
-          signal: controller.signal,
-          mode: 'cors', // Explicitly set CORS mode
-        });
+        response = await this.authorizedFetch(
+          apiUrl,
+          { method: 'POST', body: JSON.stringify({ topic }) },
+          controller.signal,
+        );
       } catch (fetchError) {
-        // Handle CORS errors specifically
         if (this.isProduction && fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
           console.warn('CORS error detected in production, using fallback data');
           return this.getFallbackData(topic);
         }
         throw fetchError;
       } finally {
-        // Always clear timeout
         clearTimeout(timeoutId);
       }
       console.log('API Response status:', response.status);
-      console.log('API Response headers:', Object.fromEntries(response.headers.entries()));
 
       // Handle 502 Bad Gateway with retry
       if (response.status === 502 && retryCount < maxRetries) {
@@ -269,36 +305,14 @@ export class ApiService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('API Error Response:', errorText);
-        console.error('Full response:', response);
-        
-        // Special handling for different error types
-        if (response.status === 405) {
-          throw new Error('Method Not Allowed (405). The API endpoint may not support POST requests or the endpoint URL is incorrect. Please check your API configuration.');
-        }
-        
-        if (response.status === 502) {
-          throw new Error('Server temporarily unavailable (502 Bad Gateway). The API server may be starting up or overloaded. Please try again in a few minutes.');
-        }
-        
-        if (response.status === 404) {
-          throw new Error('API endpoint not found (404). Please check if the API URL is correct and the endpoint exists.');
-        }
-        
-        if (response.status === 500) {
-          throw new Error('Internal server error (500). The API server encountered an error processing your request.');
-        }
-
-        if (response.status === 401) {
-          this.handleUnauthorized();
-          throw new Error('Unauthorized');
-        }
-        
+        if (response.status === 405) throw new Error('Method Not Allowed (405).');
+        if (response.status === 502) throw new Error('Server temporarily unavailable (502 Bad Gateway).');
+        if (response.status === 404) throw new Error('API endpoint not found (404).');
+        if (response.status === 500) throw new Error('Internal server error (500).');
         throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorText}`);
       }
 
       const data = await response.json();
-      
-      // Return only the fields we need, excluding the unwanted ones
       return {
         ideas: data.ideas || [],
         descriptions: data.descriptions || [],
@@ -348,46 +362,21 @@ export class ApiService {
       
       let response;
       try {
-        const token = this.getAuthToken();
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        };
-
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-
-        response = await fetch(apiUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(params),
-          signal: controller.signal,
-          mode: 'cors', // Explicitly set CORS mode
-        });
+        response = await this.authorizedFetch(
+          apiUrl,
+          { method: 'POST', body: JSON.stringify(params) },
+          controller.signal,
+        );
       } catch (fetchError) {
-        // Handle CORS errors specifically
         if (this.isProduction && fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
           console.warn('CORS error detected in production, returning empty script');
-          return { 
-            script: 'Error generating script due to network issues.', 
-            estimated_word_count: 0, 
-            source_urls: [], 
-            analysis: {
-              examples_count: 0,
-              research_facts_count: 0,
-              proverbs_count: 0,
-              emotional_depth: 'N/A'
-            } 
-          };
+          return { script: 'Error generating script due to network issues.', estimated_word_count: 0, source_urls: [], analysis: { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: 'N/A' } };
         }
         throw fetchError;
       } finally {
-        // Always clear timeout
         clearTimeout(timeoutId);
       }
       console.log('API Response status:', response.status);
-      console.log('API Response headers:', Object.fromEntries(response.headers.entries()));
 
       // Handle 502 Bad Gateway with retry
       if (response.status === 502 && retryCount < maxRetries) {
@@ -398,30 +387,10 @@ export class ApiService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('API Error Response:', errorText);
-        console.error('Full response:', response);
-        
-        // Special handling for different error types
-        if (response.status === 405) {
-          throw new Error('Method Not Allowed (405). The API endpoint may not support POST requests or the endpoint URL is incorrect. Please check your API configuration.');
-        }
-        
-        if (response.status === 502) {
-          throw new Error('Server temporarily unavailable (502 Bad Gateway). The API server may be starting up or overloaded. Please try again in a few minutes.');
-        }
-        
-        if (response.status === 404) {
-          throw new Error('API endpoint not found (404). Please check if the API URL is correct and the endpoint exists.');
-        }
-        
-        if (response.status === 500) {
-          throw new Error('Internal server error (500). The API server encountered an error processing your request.');
-        }
-
-        if (response.status === 401) {
-          this.handleUnauthorized();
-          throw new Error('Unauthorized');
-        }
-        
+        if (response.status === 405) throw new Error('Method Not Allowed (405).');
+        if (response.status === 502) throw new Error('Server temporarily unavailable (502 Bad Gateway).');
+        if (response.status === 404) throw new Error('API endpoint not found (404).');
+        if (response.status === 500) throw new Error('Internal server error (500).');
         throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorText}`);
       }
 
@@ -478,27 +447,14 @@ export class ApiService {
     const url = `${this.BASE_URL}/pipeline-metrics`;
     console.log('[pipeline-metrics] → POST', url, { topic });
     try {
-      const token = this.getAuthToken();
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ topic }),
-        signal: controller.signal,
-        mode: 'cors',
-      });
+      const response = await this.authorizedFetch(
+        url,
+        { method: 'POST', body: JSON.stringify({ topic }) },
+        controller.signal,
+      );
 
       console.log('[pipeline-metrics] ← status', response.status, response.statusText);
 
-      if (response.status === 401) {
-        this.handleUnauthorized();
-        throw new Error('Unauthorized');
-      }
       if (!response.ok) {
         const body = await response.text().catch(() => '(no body)');
         console.error('[pipeline-metrics] error body:', body);

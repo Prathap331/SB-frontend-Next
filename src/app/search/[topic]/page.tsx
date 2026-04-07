@@ -8,11 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertCircle, Clock, TrendingUp, TrendingDown, Search } from 'lucide-react';
-import { 
-  Youtube, 
-  User2, 
-  Newspaper, 
+import { Loader2, AlertCircle, Clock, TrendingUp, TrendingDown, Search, Activity, Flame, Radio, Shield, Layers, Rocket, Target, BarChart3, Zap, Globe, Eye, Trophy } from 'lucide-react';
+import {
+  Youtube,
+  User2,
+  Newspaper,
 } from 'lucide-react';
 import { ApiService, PipelineMetricsResponse } from '@/services/api';
 import { ScriptGenerationModal, ScriptGenerationParams } from '@/components/ScriptGenerationModal';
@@ -608,21 +608,28 @@ useEffect(() => {
       <section className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-8">
         <Card className="shadow-xl border border-gray-200 bg-white h-[820px] overflow-hidden flex flex-col">
           <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-center gap-2 mt-4">
-              {[
-                { key: 'Trend strength score', label: 'Trend strength score' },
-                { key: 'Content Saturation index', label: 'Content saturation index' },
-                { key: 'Content angle gap score', label: 'Content angle gap score' },
-              ].map((tab) => (
-                <Button
-                  key={tab.key}
-                  variant={activeTab === tab.key ? 'default' : 'outline'}
-                  onClick={() => setActiveTab(tab.key as typeof activeTab)}                  
-                  size="lg"
-                >
-                  {tab.label}
-                </Button>
-              ))}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mt-4 w-fit">
+              {([
+                { key: 'Trend strength score',    label: 'Trend strength score',    icon: TrendingUp },
+                { key: 'Content Saturation index', label: 'Content saturation index', icon: BarChart3 },
+                { key: 'Content angle gap score',  label: 'Content angle gap score',  icon: Target },
+              ] as { key: typeof activeTab; label: string; icon: typeof TrendingUp }[]).map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      activeTab === tab.key
+                        ? 'bg-white text-[#1d1d1f] shadow-sm font-semibold'
+                        : 'text-gray-500 hover:text-[#1d1d1f]'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden pr-1 pb-6">
@@ -715,17 +722,51 @@ useEffect(() => {
                 const activeDriver = drivers.find(d => d.active)?.label || primaryDriver;
                 const platformWeights = tss.why_trending.platform_weights;
                 const maxPct = Math.max(...platformWeights.map(w => parseInt(w.percentage)));
-                const PLATFORM_META: Record<string, { icon: typeof Youtube; sub: string }> = {
-                  YouTube: { icon: Youtube, sub: 'Video discovery' },
-                  Search:  { icon: Search,   sub: 'Google Trends' },
-                  Social:  { icon: User2,    sub: 'Reddit · X/Twitter' },
-                  News:    { icon: Newspaper,sub: 'NewsAPI · GDELT' },
-                };
-                const getSignalColors = (tag: string) => {
-                  if (tag === 'Leading') return { barColor: 'bg-blue-500', tagColor: 'bg-blue-600' };
-                  if (tag === 'Quiet')   return { barColor: 'bg-gray-300', tagColor: 'bg-gray-300' };
-                  return                        { barColor: 'bg-gray-400', tagColor: 'bg-gray-400' };
-                };
+                const PLATFORM_META: Record<
+  string,
+  {
+    icon: typeof Youtube;
+    sub: string;
+    iconBg: string;
+    iconColor: string;
+    barColor: string;
+    tagColor: string;
+  }
+> = {
+  YouTube: {
+    icon: Youtube,
+    sub: 'Video discovery',
+    iconBg: 'bg-red-50',
+    iconColor: 'text-red-500',
+    barColor: 'bg-red-500',
+    tagColor: 'bg-red-600',
+  },
+  Search: {
+    icon: Search,
+    sub: 'Google Trends',
+    iconBg: 'bg-blue-50',
+    iconColor: 'text-blue-500',
+    barColor: 'bg-blue-500',
+    tagColor: 'bg-blue-600',
+  },
+  Social: {
+    icon: User2,
+    sub: 'Reddit · X/Twitter',
+    iconBg: 'bg-purple-50',
+    iconColor: 'text-purple-500',
+    barColor: 'bg-purple-500',
+    tagColor: 'bg-purple-600',
+  },
+  News: {
+    icon: Newspaper,
+    sub: 'NewsAPI · GDELT',
+    iconBg: 'bg-gray-100',
+    iconColor: 'text-gray-500',
+    barColor: 'bg-gray-500',
+    tagColor: 'bg-gray-500',
+  },
+};
+               
                 const signals = tss.platform_signals;
                 const sources = tss.confidence.sources;
                 const reliability = tss.confidence.reliability_score;
@@ -734,18 +775,27 @@ useEffect(() => {
                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-auto">
 
                   {/* Trend Strength Score */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
-                    <p className="text-[12px] font-bold tracking-widest text-black uppercase mb-2">Trend Strength Score</p>
-                    <div className="flex items-end gap-2 mb-2">
-                      <span className="text-5xl font-bold text-green-600">{tss.score}</span>
-                      <span className="text-gray-400 text-sm mb-1">/100</span>
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 flex-1 hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center gap-2.5 mb-5">
+                      <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <Activity className="w-4 h-4 text-green-600" />
+                      </div>
+                      <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Trend Strength Score</p>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[10px] px-2.5 py-0.5 rounded-full mb-3 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />{tss.status}
-                    </span>
-                    <p className="text-gray-500 text-xs mb-4 leading-relaxed">
-                      <strong className="text-gray-900">{tss.verdict}</strong> {tss.description}
-                    </p>
+                    <div className="flex items-center gap-4 mb-5">
+                      <div className="w-20 h-20 rounded-2xl bg-green-50 border-2 border-green-100 flex flex-col items-center justify-center flex-shrink-0">
+                        <span className="text-3xl font-black text-green-600 leading-none">{tss.score}</span>
+                        <span className="text-[9px] text-green-500 font-semibold mt-0.5">/100</span>
+                      </div>
+                      <div>
+                        <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[10px] px-2.5 py-0.5 rounded-full mb-2 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />{tss.status}
+                        </span>
+                        <p className="text-gray-500 text-xs leading-relaxed">
+                          <strong className="text-gray-900">{tss.verdict}</strong> {tss.description}
+                        </p>
+                      </div>
+                    </div>
                     {/* Phase bar */}
                     <div className="flex gap-1 mb-4">
                       {['Flat', 'Emerging', 'Rising', 'Peak', 'Saturating'].map(p => (
@@ -753,26 +803,33 @@ useEffect(() => {
                       ))}
                     </div>
                     {/* Score composition */}
-                    <p className="text-[10px] text-black mb-2 uppercase tracking-widest">Score composition</p>
-                    {[
-                      { label: 'Base',       display: String(comp?.base ?? 45),                    value: comp?.base ?? 45,                    max: 60, color: 'bg-green-500' },
-                      { label: 'Psych boost',display: `+${comp?.psych_boost ?? 6}`,                value: comp?.psych_boost ?? 6,               max: 20, color: 'bg-green-400' },
-                      { label: 'Reliability',display: String(comp?.reliability ?? 0.95),           value: comp?.reliability ?? 0.95,            max: 1,  color: 'bg-blue-400' },
-                    ].map(bar => (
-                      <div key={bar.label} className="flex items-center gap-2 mb-2">
-                        <span className="text-[10px] text-gray-500 w-20 flex-shrink-0">{bar.label}</span>
-                        <div className="flex-1 h-1.5 rounded-full bg-gray-100">
-                          <div className={`h-full rounded-full ${bar.color}`} style={{ width: `${(bar.value / bar.max) * 100}%` }} />
+                    <div className="border-t border-gray-100 pt-4 mt-1">
+                      <p className="text-[10px] text-gray-400 mb-3 uppercase tracking-widest font-medium">Score composition</p>
+                      {[
+                        { label: 'Base',        display: String(comp?.base ?? 45),       value: comp?.base ?? 45,       max: 100, color: 'bg-green-500' },
+                        { label: 'Psych boost', display: `+${comp?.psych_boost ?? 6}`,   value: comp?.psych_boost ?? 6,  max: 20,  color: 'bg-green-400' },
+                        { label: 'Reliability', display: String(comp?.reliability ?? 0.95), value: comp?.reliability ?? 0.95, max: 1, color: 'bg-blue-400' },
+                      ].map(bar => (
+                        <div key={bar.label} className="flex items-center gap-2.5 mb-2.5">
+                          <span className="text-[10px] text-gray-500 w-20 flex-shrink-0">{bar.label}</span>
+                          <div className="flex-1 h-2 rounded-full bg-gray-100">
+                            <div className={`h-full rounded-full ${bar.color}`} style={{ width: `${(bar.value / bar.max) * 100}%` }} />
+                          </div>
+                          <span className="text-[10px] text-gray-700 w-8 text-right font-bold">{bar.display}</span>
                         </div>
-                        <span className="text-[10px] text-gray-700 w-8 text-right font-medium">{bar.display}</span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
 
                   {/* Why It's Trending */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[12px] font-bold tracking-widest text-black uppercase">Why It&apos;s Trending</p>
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 flex-1 hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                          <Flame className="w-4 h-4 text-orange-500" />
+                        </div>
+                        <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Why It&apos;s Trending</p>
+                      </div>
                       <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 text-[9px] px-2 py-0.5 rounded-full font-semibold">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500" />{activeDriver}
                       </span>
@@ -795,51 +852,58 @@ useEffect(() => {
                         <span key={btn} className={`text-[10px] px-3 py-1 rounded-full cursor-pointer ${i === 2 ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>{btn}</span>
                       ))}
                     </div>
-                    <p className="text-[9px] text-gray-400 mb-1.5 uppercase tracking-widest">Weights this scan · regime: {activeDriver.toLowerCase()}</p>
-                    <div className="flex gap-1.5">
-                      {platformWeights.map(w => {
-                        const pct = parseInt(w.percentage);
-                        const isActive = pct === maxPct;
-                        return (
-                          <div key={w.platform} className={`flex-1 rounded text-center px-1 py-1.5 ${isActive ? 'bg-blue-600' : 'bg-gray-100'}`}>
-                            <p className={`text-[9px] uppercase ${isActive ? 'text-blue-100' : 'text-gray-400'}`}>{w.platform}</p>
-                            <p className={`text-xs font-bold ${isActive ? 'text-white' : 'text-gray-700'}`}>{w.percentage}</p>
-                          </div>
-                        );
-                      })}
+                    <div className="border-t border-gray-100 pt-3 mt-1">
+                      <p className="text-[9px] text-gray-400 mb-2 uppercase tracking-widest font-medium">Weights this scan · regime: {activeDriver.toLowerCase()}</p>
+                      <div className="flex gap-1.5">
+                        {platformWeights.map(w => {
+                          const pct = parseInt(w.percentage);
+                          const isActive = pct === maxPct;
+                          return (
+                            <div key={w.platform} className={`flex-1 rounded-xl text-center px-1.5 py-2 border transition-colors ${isActive ? 'bg-blue-600 border-blue-600 shadow-sm' : 'bg-gray-50 border-gray-100'}`}>
+                              <p className={`text-[9px] uppercase font-semibold tracking-wide ${isActive ? 'text-blue-200' : 'text-gray-400'}`}>{w.platform}</p>
+                              <p className={`text-xs font-black mt-0.5 ${isActive ? 'text-white' : 'text-gray-700'}`}>{w.percentage}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 
                   {/* Platform Signals */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
-                    <p className="text-[12px] font-bold tracking-widest text-black uppercase mb-0.5">Platform Signals</p>
-                    <p className="text-[11px] text-gray-800 mb-4">Where this topic is gaining momentum · leading signal highlighted</p>
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 flex-1 hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center gap-2.5 mb-1.5">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <Radio className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Platform Signals</p>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mb-4 pl-[42px]">Where this topic is gaining momentum · leading signal highlighted</p>
                     <div className="space-y-4">
                       {signals.map(signal => {
                         const meta = PLATFORM_META[signal.platform] ?? { icon: Search, sub: signal.platform };
                         const Icon = meta.icon;
-                        const { barColor, tagColor } = getSignalColors(signal.tag);
+                        const barColor = meta.barColor;
                         return (
                           <div key={signal.platform} className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-500 flex-shrink-0">
-                              <Icon className="w-4 h-4" />
+                            <div className={`w-9 h-9 rounded-xl ${meta.iconBg} flex items-center justify-center flex-shrink-0`}>
+                              <Icon className={`w-4 h-4 ${meta.iconColor}`} />
                             </div>
-                            <div className="flex flex-col items-center gap-1 mb-1">
+                            <div className="flex flex-col items-start gap-0.5 min-w-[56px] flex-shrink-0">
                               <span className="text-gray-900 text-xs font-semibold">{signal.platform}</span>
-                              <span className="text-[8px] text-gray-400 text-nowrap">{meta.sub}</span>
+                              <span className="text-[9px] text-gray-400 whitespace-nowrap">{meta.sub}</span>
                             </div>
-                            <div className="w-full flex flex-col gap-2 min-w-0">
-                              <div className="w-full h-1 rounded-full bg-gray-100">
+                            <div className="w-full flex flex-col gap-1.5 min-w-0">
+                              <div className="w-full h-2 rounded-full bg-gray-100">
                                 <div className={`h-full rounded-full ${barColor}`} style={{ width: `${signal.barW}%` }} />
                               </div>
                               <div className="flex w-full justify-between">
                                 <span className="text-[9px] text-gray-400 whitespace-nowrap">{signal.note}</span>
-                                <span className={`text-[9px] px-2 py-0.5 rounded ${tagColor} text-white flex-shrink-0`}>{signal.tag}</span>
+                                <span className={`text-[9px] px-2 py-0.5 rounded ${meta.tagColor} text-white flex-shrink-0`}>{signal.tag}</span>
                               </div>
                             </div>
-                            <div className="text-right flex-shrink-0 w-10">
-                              <p className="text-gray-900 text-sm font-bold">{signal.score}</p>
-                              <p className="text-[9px] text-gray-400">score/100</p>
+                            <div className="flex flex-col items-center justify-center w-12 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-100 py-1.5">
+                              <p className="text-gray-900 text-sm font-black leading-none">{signal.score}</p>
+                              <p className="text-[8px] text-gray-400 mt-0.5">/100</p>
                             </div>
                           </div>
                         );
@@ -848,28 +912,39 @@ useEffect(() => {
                   </div>
 
                   {/* Signal Confidence */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[12px] font-bold tracking-widest text-black uppercase">Signal Confidence</p>
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 flex-1 hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                          <Shield className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Signal Confidence</p>
+                      </div>
                       <span className="text-[9px] text-green-600 flex items-center gap-1 font-medium">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />All sources live
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 mb-4">
-                      {sources.map(src => (
-                        <div key={src.name} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                          <span className="w-2 h-2 rounded-full bg-green-500 inline-block mb-1.5" />
-                          <p className="text-gray-900 text-sm font-bold">{src.name}</p>
-                          <p className="text-[10px] text-gray-400">{src.detail}</p>
-                        </div>
-                      ))}
+                      {sources.map(src => {
+                        const srcMeta = PLATFORM_META[src.name] ?? { icon: Search, iconBg: 'bg-gray-100', iconColor: 'text-gray-500' };
+                        const SrcIcon = srcMeta.icon;
+                        return (
+                          <div key={src.name} className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+                            <div className={`w-7 h-7 rounded-lg ${srcMeta.iconBg} flex items-center justify-center mb-2`}>
+                              <SrcIcon className={`w-3.5 h-3.5 ${srcMeta.iconColor}`} />
+                            </div>
+                            <p className="text-gray-900 text-sm font-bold">{src.name}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{src.detail}</p>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <p className="text-[10px] text-gray-400 mb-1.5">Reliability score</p>
+                    <p className="text-[10px] text-gray-400 mb-1.5 font-medium uppercase tracking-widest">Reliability score</p>
                     <div className="flex items-center gap-3">
-                      <div className="flex-1 h-1.5 rounded-full bg-gray-100">
+                      <div className="flex-1 h-2 rounded-full bg-gray-100">
                         <div className="h-full rounded-full bg-green-500" style={{ width: `${reliability * 100}%` }} />
                       </div>
-                      <span className="text-xs text-gray-700 font-medium">{reliability}</span>
+                      <span className="text-xs text-gray-700 font-bold">{reliability}</span>
                     </div>
                   </div>
                 </div>
@@ -882,14 +957,14 @@ useEffect(() => {
                 const breakout = csi?.breakout;
                 const ih = csi?.incumbent_health;
 
-                // Static per-dimension metadata (weights + descriptions)
-                const DIM_META: Record<string, { weight: string; desc: string }> = {
-                  'Supply pressure':  { weight: '25% weight', desc: 'Upload rate and channel volume in this topic.' },
-                  'Audience demand':  { weight: '25% weight', desc: 'Search velocity and view momentum driving this topic.' },
-                  'Upload freshness': { weight: '15% weight', desc: 'Recency of uploads in the past 48h window.' },
-                  'Angle coverage':   { weight: '15% weight', desc: 'Semantic diversity across existing corpus.' },
-                  'Viral ceiling':    { weight: '10% weight', desc: 'Top vs median VPD ratio — algorithm breakout potential.' },
-                  'Quality gap':      { weight: '10% weight', desc: 'Incumbent engagement vs tier benchmark.' },
+                // Static per-dimension metadata (weights + descriptions + icons)
+                const DIM_META: Record<string, { weight: string; desc: string; icon: typeof TrendingUp; iconBg: string; iconColor: string }> = {
+                  'Supply pressure':  { weight: '25% weight', desc: 'Upload rate and channel volume in this topic.',          icon: Layers,     iconBg: 'bg-red-50',    iconColor: 'text-red-500' },
+                  'Audience demand':  { weight: '25% weight', desc: 'Search velocity and view momentum driving this topic.',  icon: TrendingUp, iconBg: 'bg-green-50',  iconColor: 'text-green-600' },
+                  'Upload freshness': { weight: '15% weight', desc: 'Recency of uploads in the past 48h window.',            icon: Zap,        iconBg: 'bg-amber-50',  iconColor: 'text-amber-500' },
+                  'Angle coverage':   { weight: '15% weight', desc: 'Semantic diversity across existing corpus.',             icon: Globe,      iconBg: 'bg-blue-50',   iconColor: 'text-blue-500' },
+                  'Viral ceiling':    { weight: '10% weight', desc: 'Top vs median VPD ratio — algorithm breakout potential.',icon: Rocket,     iconBg: 'bg-purple-50', iconColor: 'text-purple-500' },
+                  'Quality gap':      { weight: '10% weight', desc: 'Incumbent engagement vs tier benchmark.',                icon: Trophy,     iconBg: 'bg-orange-50', iconColor: 'text-orange-500' },
                 };
                 const getEffectStyle  = (e: string) => e === 'Opens' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200';
                 const getBarColor     = (e: string, s: string) => {
@@ -943,46 +1018,69 @@ useEffect(() => {
                 <div className="flex flex-col gap-4">
 
                   {/* Content Saturation Index */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4">
-                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-2">Content Saturation Index</p>
-                    <div className="flex items-end gap-2 mb-2">
-                      <span className="text-5xl font-bold text-orange-500">{csi?.score ?? 38}</span>
-                      <span className="text-gray-400 text-sm mb-1">/100</span>
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center gap-2.5 mb-5">
+                      <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                        <BarChart3 className="w-4 h-4 text-orange-500" />
+                      </div>
+                      <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Content Saturation Index</p>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-2.5 py-0.5 rounded-full mb-3 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />{csiStatus}
-                    </span>
-                    <p className="text-gray-500 text-xs mb-4 leading-relaxed">
-                      <strong className="text-gray-900">{csi?.verdict ?? 'Winnable with the right angle.'}</strong> {csi?.description ?? 'Some dominant channels exist but no single lock-in.'}
-                    </p>
+                    <div className="flex items-center gap-4 mb-5">
+                      <div className="w-20 h-20 rounded-2xl bg-orange-50 border-2 border-orange-100 flex flex-col items-center justify-center flex-shrink-0">
+                        <span className="text-3xl font-black text-orange-500 leading-none">{csi?.score ?? 38}</span>
+                        <span className="text-[9px] text-orange-400 font-semibold mt-0.5">/100</span>
+                      </div>
+                      <div>
+                        <span className="inline-flex items-center gap-1.5 bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-2.5 py-0.5 rounded-full mb-2 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />{csiStatus}
+                        </span>
+                        <p className="text-gray-500 text-xs leading-relaxed">
+                          <strong className="text-gray-900">{csi?.verdict ?? 'Winnable with the right angle.'}</strong> {csi?.description ?? 'Some dominant channels exist but no single lock-in.'}
+                        </p>
+                      </div>
+                    </div>
                     <div className="flex gap-1">
                       {['Open', 'Competitive', 'Crowded', 'Saturated'].map(p => (
-                        <span key={p} className={`text-[9px] px-1 py-0.5 rounded flex-1 text-center font-medium ${p === csiStatus ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{p}</span>
+                        <span key={p} className={`text-[9px] px-1 py-1 rounded-lg flex-1 text-center font-semibold transition-colors ${p === csiStatus ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{p}</span>
                       ))}
                     </div>
                   </div>
 
                   {/* Breakout Indicator */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
-                    <div className="flex items-center justify-between mb-4">
-                      <p className="text-[10px] tracking-widest text-black font-bold uppercase">Breakout Indicator</p>
-                      <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 border border-orange-200 text-[9px] px-2 py-0.5 rounded-full font-semibold">
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 flex-1 hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                        <Zap className="w-4 h-4 text-amber-500" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Breakout Indicator</p>
+                      </div>
+                      <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 border border-orange-200 text-[9px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />{breakout?.label ?? 'Watch closely'}
                       </span>
                     </div>
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full border-2 border-orange-400 flex flex-col items-center justify-center flex-shrink-0">
-                        <span className="text-orange-500 font-bold text-lg leading-none">{breakout?.score ?? 2}</span>
-                        <span className="text-[8px] text-gray-400">of {breakout?.out_of ?? 5}</span>
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="relative w-20 h-20">
+                        <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+                          <circle cx="40" cy="40" r="32" fill="none" stroke="#f3f4f6" strokeWidth="8" />
+                          <circle cx="40" cy="40" r="32" fill="none" stroke="#f97316" strokeWidth="8"
+                            strokeDasharray={`${((breakout?.score ?? 2) / (breakout?.out_of ?? 5)) * 201} 201`}
+                            strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-xl font-black text-orange-500 leading-none">{breakout?.score ?? 2}</span>
+                          <span className="text-[9px] text-gray-400 font-medium">of {breakout?.out_of ?? 5}</span>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        {breakoutItems.map(item => (
-                          <div key={item.label} className={`text-[10px] flex items-center gap-1.5 ${item.active ? 'text-black font-medium' : 'text-gray-400'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.active ? 'bg-orange-500' : 'bg-gray-300'}`} />
-                            {item.label}
-                          </div>
-                        ))}
-                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {breakoutItems.map(item => (
+                        <div key={item.label} className={`flex items-center gap-2.5 py-1.5 px-2 rounded-lg ${item.active ? 'bg-orange-50 border border-orange-100' : ''}`}>
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.active ? 'bg-orange-500' : 'bg-gray-200'}`} />
+                          <span className={`text-[11px] ${item.active ? 'text-orange-700 font-semibold' : 'text-gray-400'}`}>{item.label}</span>
+                          {item.active && <span className="ml-auto text-[9px] text-orange-500 font-bold">✓</span>}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -991,29 +1089,37 @@ useEffect(() => {
                 <div className="flex flex-col gap-4 min-h-0">
 
                   {/* Dimension Breakdown */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4">
-                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-0.5">Dimension Breakdown</p>
-                    <p className="text-[10px] text-gray-400 mb-3">What&apos;s driving the score — forces that open or close this topic</p>
-                    <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center gap-2.5 mb-1">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <Layers className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Dimension Breakdown</p>
+                        <p className="text-[10px] text-gray-400">Forces that open or close this topic</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 mt-4">
                       {dimensions.map(dim => {
-                        const meta = DIM_META[dim.name] ?? { weight: '', desc: '' };
+                        const meta = DIM_META[dim.name] ?? { weight: '', desc: '', icon: BarChart3, iconBg: 'bg-gray-100', iconColor: 'text-gray-500' };
+                        const DimIcon = meta.icon;
                         return (
-                          <div key={dim.name} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <div className="flex items-start justify-between gap-1 mb-1.5">
-                              <div>
-                                <p className="text-gray-900 text-xs font-bold">{dim.name}</p>
-                                <p className="text-[9px] text-gray-400">{meta.weight}</p>
+                          <div key={dim.name} className="bg-gray-50 border border-gray-100 rounded-xl p-3 hover:border-gray-200 transition-colors">
+                            <div className="flex items-start justify-between gap-1 mb-2">
+                              <div className={`w-7 h-7 rounded-lg ${meta.iconBg} flex items-center justify-center flex-shrink-0`}>
+                                <DimIcon className={`w-3.5 h-3.5 ${meta.iconColor}`} />
                               </div>
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${getEffectStyle(dim.effect)}`}>{dim.effect}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold flex-shrink-0 ${getEffectStyle(dim.effect)}`}>{dim.effect}</span>
                             </div>
-                            <div className="h-1 rounded-full bg-gray-200 mb-2">
+                            <p className="text-gray-900 text-xs font-bold mb-0.5">{dim.name}</p>
+                            <p className="text-[9px] text-gray-400 mb-2">{meta.weight}</p>
+                            <div className="h-2 rounded-full bg-gray-200 mb-2">
                               <div className={`h-full rounded-full ${getBarColor(dim.effect, dim.status)}`} style={{ width: `${dim.score}%` }} />
                             </div>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className={`text-xl font-bold ${getScoreColor(dim.effect, dim.status)}`}>{dim.score}</span>
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${getStatusStyle(dim.status)}`}>{dim.status}</span>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xl font-black ${getScoreColor(dim.effect, dim.status)}`}>{dim.score}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold ${getStatusStyle(dim.status)}`}>{dim.status}</span>
                             </div>
-                            <p className="text-[9px] text-gray-400 leading-relaxed">{meta.desc}</p>
                           </div>
                         );
                       })}
@@ -1021,46 +1127,56 @@ useEffect(() => {
                   </div>
 
                   {/* Incumbent Health */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[10px] tracking-widest text-black font-bold uppercase">Incumbent Health</p>
-                      <p className="text-[10px] text-gray-400">Can a well-made video displace what&apos;s already ranking?</p>
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 flex-1 hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                        <Eye className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Incumbent Health</p>
+                        <p className="text-[10px] text-gray-400">Can a well-made video displace what&apos;s already ranking?</p>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                        <div>
-                          <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">Engagement Gap</p>
-                          <p className="text-3xl font-bold text-purple-600 mb-0.5">{engGap}%</p>
-                          <p className="text-[10px] text-gray-500 mb-2">Incumbents underperform their tier benchmark</p>
-                          <div className="h-1.5 rounded-full bg-gray-100">
-                            <div className="h-full rounded-full bg-purple-600" style={{ width: `${engGap}%` }} />
-                          </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-2 h-2 rounded-full bg-purple-500" />
+                          <p className="text-[9px] tracking-widest text-purple-600 uppercase font-semibold">Engagement Gap</p>
                         </div>
-                        <div>
-                          <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">Creator Density</p>
-                          <p className="text-3xl font-bold text-green-500 mb-0.5">{density}</p>
-                          <p className="text-[10px] text-gray-500 mb-2">Unique channels ratio across corpus</p>
-                          <div className="h-1.5 rounded-full bg-gray-100">
-                            <div className="h-full rounded-full bg-green-500" style={{ width: `${Math.min(density * 100, 100)}%` }} />
-                          </div>
+                        <p className="text-2xl font-black text-purple-600 mb-1">{engGap}%</p>
+                        <p className="text-[9px] text-gray-500 mb-2">Incumbents underperform tier benchmark</p>
+                        <div className="h-2 rounded-full bg-purple-100">
+                          <div className="h-full rounded-full bg-purple-500" style={{ width: `${engGap}%` }} />
                         </div>
                       </div>
-                      <div className="space-y-4">
-                        <div>
-                          <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">VPD Decay</p>
-                          <p className="text-3xl font-bold text-orange-500 mb-0.5">{vpd}%</p>
-                          <p className="text-[10px] text-gray-500 mb-2">Top videos losing daily view momentum</p>
-                          <div className="h-1.5 rounded-full bg-gray-100">
-                            <div className="h-full rounded-full bg-orange-400" style={{ width: `${vpd}%` }} />
-                          </div>
+                      <div className="bg-green-50 border border-green-100 rounded-xl p-3">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-2 h-2 rounded-full bg-green-500" />
+                          <p className="text-[9px] tracking-widest text-green-600 uppercase font-semibold">Creator Density</p>
                         </div>
-                        <div>
-                          <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-1">Overall Verdict</p>
-                          <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[10px] px-2.5 py-1 rounded-full mb-1.5 font-medium">
-                            ✓ {ih?.verdict ?? 'Entry is viable'}
-                          </span>
-                          <p className="text-[10px] text-gray-500 leading-relaxed">{csi?.description ?? 'Incumbents rely on age, not quality. A well-produced video has a clear displacement path.'}</p>
+                        <p className="text-2xl font-black text-green-600 mb-1">{density}</p>
+                        <p className="text-[9px] text-gray-500 mb-2">Unique channels ratio across corpus</p>
+                        <div className="h-2 rounded-full bg-green-100">
+                          <div className="h-full rounded-full bg-green-500" style={{ width: `${Math.min(density * 100, 100)}%` }} />
                         </div>
+                      </div>
+                      <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-2 h-2 rounded-full bg-orange-500" />
+                          <p className="text-[9px] tracking-widest text-orange-600 uppercase font-semibold">VPD Decay</p>
+                        </div>
+                        <p className="text-2xl font-black text-orange-500 mb-1">{vpd}%</p>
+                        <p className="text-[9px] text-gray-500 mb-2">Top videos losing daily view momentum</p>
+                        <div className="h-2 rounded-full bg-orange-100">
+                          <div className="h-full rounded-full bg-orange-400" style={{ width: `${vpd}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-start gap-2 bg-green-50 border border-green-100 rounded-xl p-3">
+                      <span className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5">✓</span>
+                      <div>
+                        <p className="text-xs font-bold text-green-700">{ih?.verdict ?? 'Entry is viable'}</p>
+                        <p className="text-[10px] text-gray-500 leading-relaxed">{csi?.description ?? 'Incumbents rely on age, not quality. A well-produced video has a clear displacement path.'}</p>
                       </div>
                     </div>
                   </div>
@@ -1122,51 +1238,66 @@ useEffect(() => {
                 <div className="flex flex-col gap-4">
 
                   {/* Content Landscape */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4">
-                    <span className="text-[9px] font-bold text-green-600">CONTENT LANDSCAPE</span>
-                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-2">Coverage distribution across {totalAngles} angles</p>
-                    <div className="flex items-end gap-2 mb-2">
-                      <span className="text-5xl font-bold text-green-600">{totalAngles}</span>
-                    </div>
-                    <p className="text-[9px] tracking-widest text-gray-400 uppercase mb-2">Coverage distribution · {totalAngles} angles</p>
-                    {distribution.map(item => (
-                      <div key={item.label} className="flex items-center gap-2 mb-2">
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.color}`} />
-                        <span className="text-[10px] text-gray-500 w-20 flex-shrink-0">{item.label}</span>
-                        <div className="flex-1 h-1.5 rounded-full bg-gray-100">
-                          <div className={`h-full rounded-full ${item.color}`} style={{ width: `${(item.count / item.total) * 100}%` }} />
-                        </div>
-                        <span className={`text-[10px] font-medium ${item.textColor} w-14 text-right`}>{item.count} angles</span>
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center gap-2.5 mb-5">
+                      <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <Globe className="w-4 h-4 text-green-600" />
                       </div>
-                    ))}
-                    <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[9px] px-2.5 py-0.5 rounded-full mb-3 font-medium">
-                      {gapCount} gap opportunities ranked below
-                    </span>
-                    <span className="flex items-start gap-1.5">
-                      <span className="w-3 h-1.5 rounded-full bg-green-500 mt-1 flex-shrink-0" />
-                      <p className="text-gray-500 text-[10px] mb-4 leading-relaxed">
-                        {totalAngles} angles mapped — most remain uncovered or low quality. High CAGS = winnable + in-demand.
-                      </p>
-                    </span>
+                      <div>
+                        <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Content Landscape</p>
+                        <p className="text-[10px] text-gray-400">Coverage across {totalAngles} angles</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 mb-5">
+                      <div className="w-20 h-20 rounded-2xl bg-green-50 border-2 border-green-100 flex flex-col items-center justify-center flex-shrink-0">
+                        <span className="text-3xl font-black text-green-600 leading-none">{totalAngles}</span>
+                        <span className="text-[9px] text-green-500 font-semibold mt-0.5">angles</span>
+                      </div>
+                      <div>
+                        <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-[9px] px-2.5 py-0.5 rounded-full mb-2 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />{gapCount} gap opportunities
+                        </span>
+                        <p className="text-[10px] text-gray-500 leading-relaxed">Most angles remain uncovered or low quality. High CAGS = winnable + in-demand.</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {distribution.map(item => (
+                        <div key={item.label} className="flex items-center gap-2.5">
+                          <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${item.color}`} />
+                          <span className="text-[11px] text-gray-600 w-24 flex-shrink-0 font-medium">{item.label}</span>
+                          <div className="flex-1 h-2 rounded-full bg-gray-100">
+                            <div className={`h-full rounded-full ${item.color}`} style={{ width: `${(item.count / item.total) * 100}%` }} />
+                          </div>
+                          <span className={`text-[11px] font-bold ${item.textColor} w-16 text-right`}>{item.count} angles</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Top Angle Anatomy */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1">
-                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-1">Top Angle Anatomy</p>
-                    <p className="text-[10px] text-gray-400 mb-3">6-step perspective breakdown for highest-ranked gaps</p>
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 flex-1 hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                        <Target className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Top Angle Anatomy</p>
+                        <p className="text-[10px] text-gray-400">Perspective breakdown for highest-ranked gaps</p>
+                      </div>
+                    </div>
                     <div className="space-y-3">
                       {topAngles.map(angle => (
-                        <div key={angle.rank} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className={`text-[9px] text-white px-1.5 py-0.5 rounded font-bold ${angle.rankBg}`}>{angle.rank}</span>
-                            <span className="text-[10px] font-bold text-gray-900 uppercase tracking-wide truncate">{angle.label}</span>
-                            <span className="ml-auto text-[9px] text-gray-400 flex-shrink-0">{angle.covered} covered</span>
+                        <div key={angle.rank} className="bg-gray-50 border border-gray-100 rounded-xl p-3 hover:border-gray-200 transition-colors">
+                          <div className="flex items-center gap-2 mb-2.5">
+                            <span className={`text-[10px] text-white px-2 py-0.5 rounded-lg font-bold ${angle.rankBg}`}>{angle.rank}</span>
+                            <span className="text-[11px] font-bold text-gray-900 tracking-wide truncate">{angle.label}</span>
+                            <span className="ml-auto text-[9px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">{angle.covered} covered</span>
                           </div>
-                          <div className="grid grid-cols-3 gap-1">
+                          <div className="grid grid-cols-3 gap-1.5">
                             {angle.dims.map(d => (
-                              <div key={d.key} className="bg-white border border-gray-200 rounded p-1.5">
-                                <p className="text-[7px] text-gray-400 uppercase mb-0.5">{d.key}</p>
-                                <p className="text-[9px] text-gray-700 font-medium leading-tight">{d.val}</p>
+                              <div key={d.key} className="bg-white border border-gray-200 rounded-lg p-2">
+                                <p className="text-[8px] text-gray-400 uppercase font-bold mb-0.5 tracking-wider">{d.key}</p>
+                                <p className="text-[9px] text-gray-700 font-semibold leading-tight">{d.val}</p>
                               </div>
                             ))}
                           </div>
@@ -1178,37 +1309,44 @@ useEffect(() => {
 
                 {/* ── RIGHT COLUMN ── */}
                 <div className="flex flex-col gap-4 min-h-0">
-                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex-1 overflow-auto">
-                    <p className="text-[10px] tracking-widest text-black font-bold uppercase mb-0.5">Gap Opportunities</p>
-                    <p className="text-[10px] text-gray-400 mb-4">All angles ranked by CAGS score — higher = more winnable, more demanded</p>
-
-                    <div className="grid grid-cols-[32px_56px_1fr_110px] gap-3 px-3 mb-2">
-                      <span className="text-[9px] text-gray-400 uppercase tracking-widest">#</span>
-                      <span className="text-[9px] text-gray-400 uppercase tracking-widest">CAGS</span>
-                      <span className="text-[9px] text-gray-400 uppercase tracking-widest">Angle · Suggested Title</span>
-                      <span className="text-[9px] text-gray-400 uppercase tracking-widest text-right">Social Demand</span>
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 flex-1 overflow-auto hover:shadow-md transition-shadow duration-200">
+                    <div className="flex items-center gap-2.5 mb-1">
+                      <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <Rocket className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold tracking-widest text-[#1d1d1f] uppercase">Gap Opportunities</p>
+                        <p className="text-[10px] text-gray-400">Ranked by CAGS score — higher = more winnable, more demanded</p>
+                      </div>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-[28px_52px_1fr_120px] gap-3 px-3 py-2 mb-1 border-b border-gray-100">
+                      <span className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold">#</span>
+                      <span className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold">CAGS</span>
+                      <span className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold">Angle · Suggested Title</span>
+                      <span className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold text-right">Social Demand</span>
+                    </div>
+
+                    <div className="space-y-1.5 mt-2">
                       {gapOpportunities.map(item => {
                         const style = getScoreStyle(item.score);
                         const socialBar = Math.round(item.demand_score * 100);
                         return (
-                          <div key={item.rank} className="grid grid-cols-[32px_56px_1fr_110px] gap-3 items-start p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
-                            <span className="text-gray-400 text-sm font-bold pt-0.5">{item.rank}</span>
-                            <div className={`w-10 h-10 rounded-lg border-2 ${style.scoreBorder} flex items-center justify-center flex-shrink-0`}>
-                              <span className={`text-sm font-bold ${style.scoreColor}`}>{Math.round(item.score)}</span>
+                          <div key={item.rank} className="grid grid-cols-[28px_52px_1fr_120px] gap-3 items-center p-3 rounded-xl bg-gray-50 border border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm transition-all duration-150">
+                            <span className="text-gray-400 text-sm font-bold">{item.rank}</span>
+                            <div className={`w-10 h-10 rounded-xl border-2 ${style.scoreBorder} flex items-center justify-center flex-shrink-0 bg-white`}>
+                              <span className={`text-sm font-black ${style.scoreColor}`}>{Math.round(item.score)}</span>
                             </div>
                             <div className="min-w-0">
-                              <p className="text-[10px] text-gray-700 font-medium mb-1 leading-relaxed">{item.angle}</p>
-                              <p className="text-[10px] text-green-600 italic mb-2">&ldquo;{item.title}&rdquo;</p>
+                              <p className="text-[11px] text-gray-800 font-semibold mb-0.5 leading-tight">{item.angle}</p>
+                              <p className="text-[10px] text-green-600 italic">&ldquo;{item.title}&rdquo;</p>
                             </div>
-                            <div className="flex flex-col gap-1.5 pt-0.5">
-                              <p className="text-[9px] text-gray-400 uppercase tracking-widest">Social demand</p>
-                              <div className="h-1 rounded-full bg-gray-200">
+                            <div className="flex flex-col gap-1 items-end">
+                              <p className="text-[9px] text-gray-400 uppercase tracking-widest">demand</p>
+                              <div className="w-full h-2 rounded-full bg-gray-200">
                                 <div className={`h-full rounded-full ${style.socialBarColor}`} style={{ width: `${socialBar}%` }} />
                               </div>
-                              <p className="text-[9px] text-gray-500"><span className="font-medium text-gray-700">{item.demand_score.toFixed(2)}</span></p>
+                              <span className={`text-[10px] font-bold ${style.scoreColor}`}>{item.demand_score.toFixed(2)}</span>
                             </div>
                           </div>
                         );

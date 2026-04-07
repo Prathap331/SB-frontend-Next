@@ -4,13 +4,10 @@ import AuthForm from '@/components/AuthForm';
 
 export default function Auth() {
   return (
-    <div className="min-h-screen bg-[#1a1a1a]">
+    <div className="min-h-screen bg-[#f5f5f7]">
       <Header />
-      
-      <div className="container mx-auto px-4 py-4">
-        <div className="max-w-md mx-auto">
-          <AuthForm />
-        </div>
+      <div className="flex items-center justify-center px-5 py-16">
+        <AuthForm />
       </div>
     </div>
   );

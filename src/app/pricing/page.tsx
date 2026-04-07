@@ -1,45 +1,51 @@
 import Header from '../../components/Header';
-import ComingFeatures from '../../components/ComingFeatures';
 import Footer from '../../components/Footer';
 import PricingGrid from '@/components/PricingGrid';
 import ContactSalesButton from '@/components/ContactSalesButton';
+import ComingFeatures from '@/components/ComingFeatures';
 
 export default function Pricing() {
-
   return (
     <div className="min-h-screen bg-white">
       <Header />
-      
-      <div className="container mx-auto px-4 py-16">
-        {/* Header Section */}
-        <div className="text-left sm:text-center max-w-4xl mx-auto mb-16">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6 leading-tight">
-            Choose Your{' '}
-            <br className="sm:hidden" />
-            <span className="bg-black text-white px-2 py-1 rounded text-3xl md:text-4xl font-semibold">
-              Perfect Plan
-            </span>
-          </h1>
-          <p className="text-xl text-gray-600 leading-relaxed">
-            Select the plan that best fits your content creation needs. Upgrade or downgrade anytime.
-          </p>
+
+      {/* Hero */}
+      <section className="bg-[#f5f5f7] pt-16 pb-20 px-5 sm:px-8 text-center">
+        <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full mb-6 shadow-sm">
+          Simple, transparent pricing
         </div>
+        <h1
+          className="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-[#1d1d1f] mb-4 leading-tight"
+          style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+        >
+          Choose your plan.
+        </h1>
+        <p className="text-lg text-[#6e6e73] font-light max-w-xl mx-auto">
+          Start free, upgrade when you&apos;re ready. No hidden fees.
+        </p>
+      </section>
 
-        {/* Pricing Cards */}
-          <PricingGrid />        {/* FAQ or Additional Info */}
-        <div className="mt-16 text-center max-w-4xl mx-auto">
-          <h3 className="text-2xl font-bold mb-4">Need help choosing?</h3>
-          <p className="text-gray-600 mb-4">
-            Not sure which plan is right for you? Start with our free tier and upgrade when you&apos;re ready for more features.
-          </p>
-          <ContactSalesButton />
-        </div>
-      </div>
+      {/* Cards */}
+      <section className="bg-white py-16 px-5 sm:px-8">
+        <PricingGrid />
+      </section>
 
-      {/* Coming Features Section */}
-      <ComingFeatures />
+      {/* Help */}
+      <section className="bg-[#f5f5f7] py-16 px-5 sm:px-8 text-center">
+        <h2
+          className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] mb-3"
+          style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+        >
+          Not sure which plan fits?
+        </h2>
+        <p className="text-[#6e6e73] text-base font-light mb-6 max-w-md mx-auto">
+          Start with the free tier and upgrade anytime. Our team is happy to help you find the right fit.
+        </p>
+        <ContactSalesButton />
 
-      {/* Footer */}
+      </section>
+        <ComingFeatures />
+
       <Footer />
     </div>
   );
