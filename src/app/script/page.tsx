@@ -425,6 +425,7 @@ console.log("📦 Script API Response:", json);
   }, [router]);
 
   const [showSourcesDialog, setShowSourcesDialog] = useState(false);
+  const [contentTab, setContentTab] = useState<1|2|3|4|5>(1);
 
   // Prevent body scroll when side panel is open
   useEffect(() => {
@@ -583,6 +584,41 @@ console.log("📦 Script API Response:", json);
     { icon: Search,    label: 'Research Facts',  value: data.metrics?.researchFacts ?? data.analysis?.research_facts_count ?? 0 },
   ];
 
+  // ── Content Strategy Panel — derived from script data ────────────────────
+  const csBase = data.title || pageTitle;
+  const csKws  = data.metrics?.keywords ?? [];
+
+  const csTitleVariants = [
+    { type: 'CURIOSITY GAP', dotColor: 'bg-purple-500', typeColor: 'text-purple-700', borderActive: 'border-purple-200', bgActive: 'bg-purple-50',  title: csBase,                                desc: 'Self-recognition hook creates cognitive dissonance. Signals exclusive information — strong CTR on discovery feeds.', selected: true  },
+    { type: 'DATA-LED',      dotColor: 'bg-blue-500',   typeColor: 'text-blue-700',   borderActive: 'border-blue-200',   bgActive: 'bg-blue-50',    title: `The Research Behind: ${csBase}`,       desc: 'Statistic-first builds instant credibility. Appeals to evidence-seeking viewers who have already noticed the problem.', selected: false },
+    { type: 'HOW-TO',        dotColor: 'bg-green-500',  typeColor: 'text-green-700',  borderActive: 'border-green-200',  bgActive: 'bg-green-50',   title: `How ${csBase} Works — And What To Do`, desc: 'Mechanism + solution promise in one frame. Captures viewers actively seeking answers, not just understanding.', selected: false },
+    { type: 'NARRATIVE',     dotColor: 'bg-orange-500', typeColor: 'text-orange-700', borderActive: 'border-orange-200', bgActive: 'bg-orange-50',  title: `A Deep Dive Into ${csBase}`,           desc: '"Deep dive" signals premium content depth — correlates with strong watch-time retention on long-form viewers.', selected: false },
+  ].map(v => {
+    const c = v.title.length;
+    return { ...v, chars: c, verdict: c <= 60 ? 'within limit' : c <= 79 ? 'optimal' : 'trim needed', verdictColor: c <= 60 ? 'text-green-600' : c <= 79 ? 'text-green-500' : 'text-amber-500' };
+  });
+
+  const csPrimary    = csKws.slice(0, 2).length > 0 ? csKws.slice(0, 2) : [csBase.toLowerCase().split(' ').slice(0, 3).join(' '), csBase.toLowerCase().split(' ').slice(0, 2).join(' ') + ' explained'];
+  const csSecondary  = csKws.slice(2, 5).length > 0 ? csKws.slice(2, 5) : ['related topic', 'semantic variant', 'alternative angle'];
+  const csLongTail   = csKws.length > 0
+    ? [`why ${csKws[0]} explained`, `${csKws[0]} complete guide`, `how ${csKws[0]} works`, `${csKws[1] ?? csKws[0]} for beginners`]
+    : [`why ${csBase.toLowerCase()} explained`, `${csBase.toLowerCase()} complete guide`, `how ${csBase.toLowerCase()} works`, `${csBase.toLowerCase()} for beginners`];
+  const csQuestions  = [
+    `is ${csKws[0] ?? csBase.toLowerCase()} real?`,
+    `how to understand ${csKws[0] ?? csBase.toLowerCase()}`,
+    `why is ${csKws[0] ?? 'this'} happening?`,
+    `what causes ${csKws[1] ?? csBase.toLowerCase()}?`,
+  ];
+
+  const csSynopsisLines = (data.synopsis ?? data.script ?? '').split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 20);
+  const csHook       = csSynopsisLines.slice(0, 2).join('. ') + '.';
+  const csBody       = csSynopsisLines.slice(2, 7);
+  const csFirstKw    = csKws[0] ?? '';
+  const csEstablished = csKws.slice(0, 3).map(k => '#' + k.toLowerCase().replace(/\s+/g, ''));
+  const csExpansion   = csKws.slice(3, 5).length > 0
+    ? csKws.slice(3, 5).map(k => '#' + k.toLowerCase().replace(/\s+/g, ''))
+    : ['#' + csBase.toLowerCase().split(' ').slice(0, 2).join(''), '#' + (csKws[0] ?? 'learn').toLowerCase().replace(/\s+/g, '') + 'explained'];
+
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
       <Header />
@@ -617,6 +653,323 @@ console.log("📦 Script API Response:", json);
               <div className="text-[10px] text-[#6e6e73] font-light leading-tight">{label}</div>
             </div>
           ))}
+        </div>
+
+        {/* ── Content Strategy Panel ───────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm mb-5 overflow-hidden">
+
+          {/* Tab navigation */}
+          <div className="flex border-b border-gray-100 overflow-x-auto">
+            {([
+              [1, 'Title Workshop'],
+              [2, 'Keyword Strategy'],
+              [3, 'Thumbnail Concepts'],
+              [4, 'Description Builder'],
+              [5, 'Hashtag Strategy'],
+            ] as [number, string][]).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setContentTab(id as 1|2|3|4|5)}
+                className={`flex items-center gap-2 px-5 py-3.5 text-sm whitespace-nowrap font-medium border-b-2 -mb-px transition-colors ${
+                  contentTab === id
+                    ? 'border-[#1d1d1f] text-[#1d1d1f] font-semibold'
+                    : 'border-transparent text-[#6e6e73] hover:text-[#1d1d1f]'
+                }`}
+              >
+                <span className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                  contentTab === id ? 'border-orange-500 text-orange-500' : 'border-gray-300 text-gray-400'
+                }`}>{id}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="p-5">
+
+            {/* ── Tab 1: Title Workshop ── */}
+            {contentTab === 1 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {csTitleVariants.map((v, i) => (
+                  <div key={i} className={`rounded-xl border p-4 transition-all ${v.selected ? `${v.borderActive} ${v.bgActive}` : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/60'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${v.dotColor}`} />
+                        <span className={`text-[10px] font-bold tracking-widest uppercase ${v.typeColor}`}>{v.type}</span>
+                      </div>
+                      {v.selected && (
+                        <span className="w-5 h-5 rounded-full bg-[#1d1d1f] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">✓</span>
+                      )}
+                    </div>
+                    <p className="text-[#1d1d1f] font-bold text-sm leading-snug mb-2">{v.title}</p>
+                    <p className={`text-[11px] font-semibold mb-3 ${v.verdictColor}`}>{v.chars} chars · {v.verdict}</p>
+                    <p className="text-[11px] text-gray-500 leading-relaxed">{v.desc}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Tab 2: Keyword Strategy ── */}
+            {contentTab === 2 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* PRIMARY */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-amber-700">Primary</span>
+                    </div>
+                    <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">Use in title + first 30s</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mb-3 leading-relaxed">Use in title, spoken in first 30 seconds, and naturally 2–3× throughout the video.</p>
+                  <div className="space-y-2">
+                    {csPrimary.map((kw, i) => (
+                      <div key={i} className="bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-sm font-bold text-amber-900 text-center">{kw}</div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SECONDARY */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-purple-500" />
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-purple-700">Secondary</span>
+                    </div>
+                    <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">Weave into body</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mb-3 leading-relaxed">Semantic variants — distribute through script body and YouTube description.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {csSecondary.map((kw, i) => (
+                      <span key={i} className="bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#1d1d1f]">{kw}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* LONG-TAIL */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-green-700">Long-Tail</span>
+                    </div>
+                    <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">Low competition</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mb-3 leading-relaxed">High specificity phrases — strong for YouTube search ranking against low-quality incumbents.</p>
+                  <div className="space-y-1.5">
+                    {csLongTail.map((kw, i) => (
+                      <div key={i} className="bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#1d1d1f]">{kw}</div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* QUESTIONS */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-blue-700">Questions</span>
+                    </div>
+                    <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">PAA · Answer in script</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mb-3 leading-relaxed">Real questions from &apos;People Also Ask&apos; — answering these directly boosts search relevance.</p>
+                  <div className="space-y-1.5">
+                    {csQuestions.map((q, i) => (
+                      <div key={i} className="bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-900">{q}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Tab 3: Thumbnail Concepts ── */}
+            {contentTab === 3 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Concept 1: Curiosity Gap */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4 flex gap-4">
+                  <div
+                    className="w-44 h-full rounded-xl flex-shrink-0 flex items-center justify-center object-cover"
+                    
+                  >
+                   <img src="https://tse4.mm.bing.net/th/id/OIP.cLbYbv7UTbr2eAgrEEhkwwHaEK?pid=Api&P=0&h=180" alt="Thumbnail 1" className="w-full h-full rounded-xl" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-purple-500" />
+                        <span className="text-[10px] font-bold tracking-widest uppercase text-purple-700">Curiosity Gap</span>
+                      </div>
+                      <span className="text-[9px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-semibold">Warm</span>
+                    </div>
+                    <p className="text-sm font-bold text-[#1d1d1f] mb-1.5">Shocked expression + bold text overlay</p>
+                    <p className="text-[11px] text-gray-500 leading-relaxed mb-3">Face + emotional text creates immediate empathy. Warm palette mirrors topic energy — shock vs calm headline tension drives clicks.</p>
+                    <div className="bg-[#f5f5f7] border border-gray-200 rounded-lg px-3 py-2 mb-2.5">
+                      <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-0.5">Text Overlay</p>
+                      <p className="text-xs font-bold text-[#1d1d1f]">YOUR BRAIN ON FASHION</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 border border-green-200 text-[10px] px-2 py-0.5 rounded-full font-semibold">✓ Face recommended</span>
+                  </div>
+                </div>
+
+                {/* Concept 2: Data-Driven */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4 flex gap-4">
+                <div
+                    className="w-44 h-full rounded-xl flex-shrink-0 flex items-center justify-center object-cover"
+                    
+                  >
+                   <img src="https://tse4.mm.bing.net/th/id/OIP.cLbYbv7UTbr2eAgrEEhkwwHaEK?pid=Api&P=0&h=180" alt="Thumbnail 1" className="w-full h-full rounded-xl" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span className="text-[10px] font-bold tracking-widest uppercase text-blue-700">Data-Driven</span>
+                      </div>
+                      <span className="text-[9px] bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-full font-semibold">Cool</span>
+                    </div>
+                    <p className="text-sm font-bold text-[#1d1d1f] mb-1.5">Bold statistic on dark minimal background</p>
+                    <p className="text-[11px] text-gray-500 leading-relaxed mb-3">Number-first framing signals credibility and stops the scroll. Cool palette reads analytical — separates from oversaturated thumbnails.</p>
+                    <div className="bg-[#f5f5f7] border border-gray-200 rounded-lg px-3 py-2 mb-2.5">
+                      <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-0.5">Text Overlay</p>
+                      <p className="text-xs font-bold text-[#1d1d1f]">1 IN 3 ARE ADDICTED</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 border border-gray-200 text-[10px] px-2 py-0.5 rounded-full font-semibold">No face needed</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Tab 4: Description Builder ── */}
+            {contentTab === 4 && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* HOOK */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-amber-700">Hook</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] text-gray-400">keyword in first 10 words</span>
+                      <button
+                        className="text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
+                        onClick={() => navigator.clipboard.writeText(csHook)}
+                      >Copy</button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-[#1d1d1f] leading-relaxed">
+                    {csFirstKw && csHook.toLowerCase().includes(csFirstKw.toLowerCase())
+                      ? csHook.split(new RegExp(`(${csFirstKw})`, 'i')).map((part, i) =>
+                          part.toLowerCase() === csFirstKw.toLowerCase()
+                            ? <mark key={i} className="bg-amber-200 text-amber-900 rounded px-0.5 not-italic font-semibold">{part}</mark>
+                            : part
+                        )
+                      : csHook || 'No synopsis available.'}
+                  </p>
+                </div>
+
+                {/* BODY */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-green-700">Body</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] text-gray-400">3–5 content bullets</span>
+                      <button
+                        className="text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
+                        onClick={() => navigator.clipboard.writeText(csBody.map(b => `→ ${b}`).join('\n'))}
+                      >Copy</button>
+                    </div>
+                  </div>
+                  <ul className="space-y-2.5">
+                    {csBody.length > 0 ? csBody.map((bullet, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-green-500 font-bold mt-0.5 flex-shrink-0">→</span>
+                        <span className="text-sm text-[#1d1d1f] leading-snug font-medium">{bullet}</span>
+                      </li>
+                    )) : (
+                      <li className="text-sm text-gray-400">No body content available from synopsis.</li>
+                    )}
+                  </ul>
+                </div>
+
+                {/* OUTRO */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-purple-500" />
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-purple-700">Outro</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] text-gray-400">CTA + links</span>
+                      <button
+                        className="text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
+                        onClick={() => navigator.clipboard.writeText('If this changed how you see this topic, subscribe for more research-backed breakdowns every week. Drop your biggest takeaway in the comments — I read every one.')}
+                      >Copy</button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-[#1d1d1f] leading-relaxed mb-4 font-medium">
+                    If this changed how you see this topic, subscribe for more research-backed breakdowns every week. Drop your biggest takeaway in the comments — I read every one.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {['[SUBSCRIBE]', '[INSTAGRAM]', '[NEWSLETTER]'].map(link => (
+                      <span key={link} className="bg-gray-100 border border-gray-200 text-xs font-bold text-[#1d1d1f] px-2.5 py-1 rounded-lg">{link}</span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-gray-500">
+                    Sources &amp; reading: <span className="font-bold text-blue-600 cursor-pointer">[SOURCES LINK]</span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ── Tab 5: Hashtag Strategy ── */}
+            {contentTab === 5 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* ESTABLISHED */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-gray-500" />
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-gray-700">Established</span>
+                    </div>
+                    <span className="text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full font-semibold">Consistency</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">Already part of your channel&apos;s vocabulary. Use these to reinforce tag authority and keep content discoverable within your existing audience base.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(csEstablished.length > 0 ? csEstablished : ['#content', '#education', '#learning']).map((tag, i) => (
+                      <div key={i} className="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
+                        <span className="text-[10px] text-gray-400 font-bold">↺</span>
+                        <span className="text-xs font-bold text-[#1d1d1f]">{tag}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* EXPANSION */}
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      <span className="text-[10px] font-bold tracking-widests uppercase text-green-700">Expansion</span>
+                    </div>
+                    <span className="text-[9px] bg-green-100 border border-green-200 text-green-700 px-2 py-0.5 rounded-full font-semibold">New reach</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">New territory for your channel. Each expansion tag surfaces this video to audiences who don&apos;t follow you yet. Minimum 2 always required for reach growth.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(csExpansion.length > 0 ? csExpansion : ['#newcontent', '#trending']).map((tag, i) => (
+                      <div key={i} className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1.5">
+                        <span className="text-[10px] text-green-500 font-bold">↗</span>
+                        <span className="text-xs font-bold text-green-800">{tag}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
         </div>
 
         {/* Two-column layout */}

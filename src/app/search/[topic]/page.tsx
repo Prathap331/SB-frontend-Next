@@ -1366,9 +1366,9 @@ useEffect(() => {
       <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-            Script Ideas for:{" "}
+            Script Ideas for :{" "}
             <br className="sm:hidden" />
-            <span className="inline-block bg-black text-white px-2 py-1 rounded font-semibold mt-2 sm:mt-0">
+            <span className="inline-block bg-black text-white px-2 py-1 rounded font-semibold mt-2 sm:mt-0 text-[18px]">
               {topic}
             </span>
           </h1>
