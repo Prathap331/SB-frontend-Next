@@ -4,22 +4,26 @@ import { useEffect, useState } from "react";
 const nodes = [
   {
     id: "input",
-    label: "Topic Synthesis Engine : Decodes your idea into a powerful and focused content blueprint, Converts raw inputs into high-impact content directions",
+    heading: "Topic Synthesis Engine",
+    label: "Decodes your idea into a powerful and focused content blueprint, Converts raw inputs into high-impact content directions",
     image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=300&h=300&fit=crop&q=80",
   },
   {
     id: "engine",
-    label: "StoryBit Intelligence Engine: Analyze top-performing content to uncover proven revenue-driving patterns. Break down winning content to reveal  opportunities",
+    heading: "StoryBit Intelligence Engine",
+    label: "Analyze top-performing content to uncover proven revenue-driving patterns. Break down winning content to reveal  opportunities",
     image: "https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=400&h=400&fit=crop&q=80",
   },
   {
     id: "data",
-    label: "StoryBit Knowledge Vault: Access deep insights across news, history, books and science,ower your content with rich, multi-domain knowledge intelligence",
+    heading: "StoryBit Knowledge Vault",
+    label: "Access deep insights across news, history, books and science,ower your content with rich, multi-domain knowledge intelligence",
     image: "https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=300&h=300&fit=crop&q=80",
   },
   {
     id: "script",
-    label: "Script Agent: Convert intelligence into powerful, narrative-driven video scripts instantly. Creates structured, compelling scripts designed for audience retention",
+    heading: "Script Agent",
+    label: "Convert intelligence into powerful, narrative-driven video scripts instantly. Creates structured, compelling scripts designed for audience retention",
     image: "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=300&h=300&fit=crop&q=80",
   },
 ];
@@ -116,12 +120,13 @@ function Circle({
   );
 }
 
-function Label({ text, className = "" }: { text: string; className?: string }) {
+function Label({ heading, text, className = "" }: { heading: string; text: string; className?: string }) {
   return (
     <p
-      className={`text-[11px] leading-[1.6] text-[#6e6e73] whitespace-pre-wrap font-light ${className}`}
-      style={{ fontFamily: "'Lora', Georgia, serif", maxWidth: 195 }}
+      className={`text-[11px] leading-[1.6] text-[#6e6e73] text-center whitespace-pre-wrap font-light ${className}`}
+      style={{  maxWidth: 195 }}
     >
+      <span className="flex items-center w-full justify-center  gap-1.5 text-[11px] font-medium text-white bg-[#1d1d1f] hover:bg-black px-3 py-1.5 rounded-lg transition-colors">{heading}</span>
       {text}
     </p>
   );
@@ -169,7 +174,7 @@ export default function StoryBitPipeline() {
         {/* N1 — top-aligned vertically (circle center at ~70px from top) */}
         <div className="flex flex-col items-center pt-[60px]">
           <Circle node={nodes[0]} size={140} visible={visible} delay={0} />
-          <Label text={nodes[0].label} className="text-center mt-3" />
+          <Label heading={nodes[0].heading} text={nodes[0].label} className="text-center mt-3" />
         </div>
 
         {/* Arrow N1→N2: vertically centered on N1's circle */}
@@ -180,7 +185,8 @@ export default function StoryBitPipeline() {
         {/* N2 */}
         <div className="flex flex-col items-center">
           <Circle node={nodes[1]} size={260} visible={visible} delay={0.2} />
-          <Label text={nodes[1].label} className="text-center mt-3" />
+
+          <Label heading={nodes[1].heading} text={nodes[1].label} className="text-center mt-3" />
         </div>
 
 
@@ -231,7 +237,7 @@ export default function StoryBitPipeline() {
                 className="w-full h-full object-cover grayscale hover:grayscale-0 hover:scale-105 transition-all duration-500"
               />
             </div>
-            <Label text={nodes[2].label} className="text-left" />
+            <Label heading={nodes[2].heading} text={nodes[2].label} className="text-left" />
           </div>
 
           {/* VArrow: aligned to center of N3 circle (85px from left) */}
@@ -282,7 +288,7 @@ export default function StoryBitPipeline() {
                 className="w-full h-full object-cover grayscale hover:grayscale-0 hover:scale-105 transition-all duration-500"
                 />
             </div>
-            <Label text={nodes[3].label} className="text-left" />
+            <Label heading={nodes[3].heading} text={nodes[3].label} className="text-left" />
           </div>
                 </div>
 
@@ -317,7 +323,7 @@ export default function StoryBitPipeline() {
           >
             <img src={nodes[0].image} alt="input" className="w-full h-full object-cover grayscale" />
           </div>
-          <Label text={nodes[0].label} className="text-right" />
+          <Label heading={nodes[0].heading} text={nodes[0].label} className="text-right" />
         </div>
 
         {/* VArrow — centered */}
@@ -345,7 +351,7 @@ export default function StoryBitPipeline() {
           >
             <img src={nodes[1].image} alt="engine" className="w-full h-full object-cover grayscale" />
           </div>
-          <Label text={nodes[1].label} className="text-center mt-3" />
+          <Label heading={nodes[1].heading} text={nodes[1].label} className="text-center mt-3" />
         </div>
 
         {/* VArrow — centered */}
@@ -375,7 +381,7 @@ export default function StoryBitPipeline() {
           >
             <img src={nodes[2].image} alt="data" className="w-full h-full object-cover grayscale" />
           </div>
-          <Label text={nodes[2].label} className="text-left" />
+          <Label heading={nodes[2].heading} text={nodes[2].label} className="text-left" />
         </div>
 
         {/* VArrow — centered */}
@@ -402,7 +408,7 @@ export default function StoryBitPipeline() {
           >
             <img src={nodes[3].image} alt="script" className="w-full h-full object-cover grayscale" />
           </div>
-          <Label text={nodes[3].label} className="text-right" />
+          <Label heading={nodes[3].heading} text={nodes[3].label} className="text-right" />
         </div>
 
       </div>

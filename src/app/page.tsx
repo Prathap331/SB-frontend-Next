@@ -63,7 +63,7 @@ export default function Home() {
           </h1>
 
           <p
-            className="text-lg sm:text-xl text-[#6e6e73] mb-8 mx-auto leading-relaxed font-light"
+            className="text-lg sm:text-xl text-gray-800 mb-8 mx-auto leading-relaxed font-light"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
           >
             AI that transforms your ideas into engaging, factual,
@@ -72,7 +72,7 @@ export default function Home() {
 
           {/* Search bar */}
           <div className="max-w-2xl mx-auto">
-            <div className="relative flex items-center bg-white rounded-2xl shadow-lg shadow-black/[0.08] border border-gray-200/80 overflow-hidden transition-shadow hover:shadow-xl hover:shadow-black/[0.10] focus-within:shadow-xl focus-within:shadow-black/[0.12] focus-within:border-gray-300">
+            <div className="relative flex items-center bg-white rounded-full shadow-lg shadow-black/[0.08] border border-gray-200/80 overflow-hidden transition-shadow hover:shadow-xl hover:shadow-black/[0.10] focus-within:shadow-xl focus-within:shadow-black/[0.12] focus-within:border-gray-300">
               <Search className="absolute left-5 w-5 h-5 text-[#6e6e73] pointer-events-none flex-shrink-0" />
               <input
                 type="text"
@@ -86,7 +86,7 @@ export default function Home() {
               <div className="pr-2">
                 <button
                   onClick={() => handleSearch(searchQuery)}
-                  className="bg-[#1d1d1f] hover:bg-black text-white text-[13px] font-medium px-5 py-2.5 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                  className="bg-[#1d1d1f] hover:bg-black text-white text-[13px] font-medium px-5 py-2.5 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
                   style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
                 >
                   Generate

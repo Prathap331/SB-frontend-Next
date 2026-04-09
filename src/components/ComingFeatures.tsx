@@ -69,7 +69,7 @@ const ComingFeatures = () => {
                   <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center flex-shrink-0">
                     <Icon className="w-6 h-6 text-white" />
                   </div>
-                  <span className="text-[11px] font-semibold text-[#6e6e73] bg-white/[0.07] border border-white/10 px-3 py-1 rounded-full tracking-wider uppercase">
+                  <span className="text-[11px] font-semibold text-white bg-white/[0.07] border border-white/10 px-3 py-1 rounded-full tracking-wider uppercase">
                     {feature.badge}
                   </span>
                 </div>

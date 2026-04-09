@@ -656,10 +656,10 @@ console.log("📦 Script API Response:", json);
         </div>
 
         {/* ── Content Strategy Panel ───────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm mb-5 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm mb-5 overflow-hidden ">
 
           {/* Tab navigation */}
-          <div className="flex border-b border-gray-100 overflow-x-auto">
+          <div className="flex border-b border-gray-100">
             {([
               [1, 'Title Workshop'],
               [2, 'Keyword Strategy'],
@@ -684,11 +684,11 @@ console.log("📦 Script API Response:", json);
             ))}
           </div>
 
-          <div className="p-5">
+          <div className="p-5 overflow-y-scroll h-[300px]">
 
             {/* ── Tab 1: Title Workshop ── */}
             {contentTab === 1 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 ">
                 {csTitleVariants.map((v, i) => (
                   <div key={i} className={`rounded-xl border p-4 transition-all ${v.selected ? `${v.borderActive} ${v.bgActive}` : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/60'}`}>
                     <div className="flex items-center justify-between mb-3">
@@ -976,8 +976,8 @@ console.log("📦 Script API Response:", json);
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
 
           {/* Sidebar — Structure */}
-          <div className="lg:col-span-1 order-2 lg:order-1">
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm h-[calc(100vh-14rem)] flex flex-col overflow-hidden">
+          <div className="lg:col-span-1 order-2 lg:order-1 ">
+            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm h-[calc(100vh-10rem)] flex flex-col overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 flex-shrink-0">
                 <h2 className="text-sm font-semibold text-[#1d1d1f]">Script Structure</h2>
                 <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Flow & section breakdown</p>
@@ -1009,13 +1009,13 @@ console.log("📦 Script API Response:", json);
           </div>
 
           {/* Main — Script */}
-          <div className="lg:col-span-3 order-1 lg:order-2">
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm h-[calc(100vh-14rem)] flex flex-col overflow-hidden">
+          <div className="lg:col-span-3 order-1 lg:order-2 ">
+            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm h-[calc(140vh-10rem)] flex flex-col overflow-hidden">
 
               {/* Toolbar */}
-              <div className="px-5 py-3.5 border-b border-gray-100 flex-shrink-0 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="px-5 py-3.5 border-b border-gray-100 flex-shrink-0 flex flex-col sm:flex-row sm:items-center gap-3 ">
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-sm font-semibold text-[#1d1d1f]">Script</h2>
+                  <h2 className="text-lg font-semibold text-[#1d1d1f]">Script</h2>
                   <p className="text-[11px] text-[#6e6e73] font-light">Full script with research &amp; structure</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1052,7 +1052,7 @@ console.log("📦 Script API Response:", json);
               </div>
 
               {/* Script content */}
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto ">
                 <div id="script-content" className="px-6 sm:px-8 py-6">
                   <div
                     className="text-[#1d1d1f] leading-[1.9] text-[15px] sm:text-base max-w-3xl mx-auto"

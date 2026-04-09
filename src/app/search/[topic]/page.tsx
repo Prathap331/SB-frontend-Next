@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertCircle, Clock, TrendingUp, TrendingDown, Search, Activity, Flame, Radio, Shield, Layers, Rocket, Target, BarChart3, Zap, Globe, Eye, Trophy } from 'lucide-react';
+import { Loader2, AlertCircle, Clock, TrendingUp, TrendingDown, Search, Activity, Flame, Radio, Shield, Layers, Rocket, Target, BarChart3, Zap, Globe, Eye, Trophy, Lightbulb, Sparkles, ChevronRight, Filter } from 'lucide-react';
 import {
   Youtube,
   User2,
@@ -576,9 +576,9 @@ useEffect(() => {
       />
 
       {/* Search Section */}
-      <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-8">
-        <div className="w-full shadow-lg border border-gray-400 rounded-lg">
-          <div className="relative flex items-center">
+      <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-4">
+        <div className="w-full shadow-lg border border-gray-400 rounded-full">
+          <div className="relative flex items-center rounded-full">
                  <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 z-10" />
                  <Input
                    type="text"
@@ -591,11 +591,11 @@ useEffect(() => {
                        handleSearchSubmit();
                      }
                    }}
-                   className="pl-10 sm:pl-12 md:pl-14 pr-20 sm:pr-24 md:pr-32 py-4 sm:py-5 md:py-7 text-xs sm:text-sm md:text-lg rounded-lg border-0 bg-white text-black placeholder-gray-500 focus:bg-white focus:ring-2 focus:ring-gray-400 font-sans w-full"
+                   className="pl-10 sm:pl-12 md:pl-14 pr-20 sm:pr-24 md:pr-32 py-4 sm:py-5 md:py-7 text-xs sm:text-sm md:text-lg rounded-full border-0 bg-white text-black placeholder-gray-500 focus:bg-white focus:ring-2 focus:ring-gray-400 font-sans w-full"
                  />
                  <Button
                    onClick={handleSearchSubmit}
-                   className="absolute right-1.5 sm:right-2 top-1/2 transform -translate-y-1/2 rounded-lg bg-black text-white hover:bg-gray-800 hover:shadow-xl hover:scale-105 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 text-xs sm:text-sm md:text-lg font-medium font-sans transition-all duration-300 ease-in-out"
+                   className="absolute right-1.5 sm:right-2 top-1/2 transform -translate-y-1/2 rounded-full bg-black text-white hover:bg-gray-800 hover:shadow-xl hover:scale-105 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 text-xs sm:text-sm md:text-lg font-medium font-sans transition-all duration-300 ease-in-out"
                  >
                    <span className="hidden sm:inline">Generate Ideas</span>
                    <span className="sm:hidden">Generate</span>
@@ -605,7 +605,7 @@ useEffect(() => {
       </div>
 
       {/* Dashboard Analytics Section */}
-      <section className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-8">
+      <section className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-4">
         <Card className="shadow-xl border border-gray-200 bg-white h-[820px] overflow-hidden flex flex-col">
           <CardHeader className="pb-3">
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mt-4 w-fit">
@@ -847,19 +847,19 @@ useEffect(() => {
                         <p className="text-gray-500 text-xs leading-relaxed">{tss?.why_trending.summary ?? "Algorithm is surfacing this topic. Creators who publish in the next 48 hours capture the peak window."}</p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 mb-3">
+                    {/* <div className="flex flex-wrap gap-2 mb-3">
                       {['YouTube video', 'TikTok / Reels', 'Publish now'].map((btn, i) => (
                         <span key={btn} className={`text-[10px] px-3 py-1 rounded-full cursor-pointer ${i === 2 ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>{btn}</span>
                       ))}
-                    </div>
+                    </div> */}
                     <div className="border-t border-gray-100 pt-3 mt-1">
                       <p className="text-[9px] text-gray-400 mb-2 uppercase tracking-widest font-medium">Weights this scan · regime: {activeDriver.toLowerCase()}</p>
-                      <div className="flex gap-1.5">
+                      <div className="grid grid-cols-2 gap-2">
                         {platformWeights.map(w => {
                           const pct = parseInt(w.percentage);
                           const isActive = pct === maxPct;
                           return (
-                            <div key={w.platform} className={`flex-1 rounded-xl text-center px-1.5 py-2 border transition-colors ${isActive ? 'bg-blue-600 border-blue-600 shadow-sm' : 'bg-gray-50 border-gray-100'}`}>
+                            <div key={w.platform} className={`flex-1 rounded-xl text-center px-1.5 py-4 border transition-colors ${isActive ? 'bg-blue-600 border-blue-600 shadow-sm' : 'bg-gray-50 border-gray-100'}`}>
                               <p className={`text-[9px] uppercase font-semibold tracking-wide ${isActive ? 'text-blue-200' : 'text-gray-400'}`}>{w.platform}</p>
                               <p className={`text-xs font-black mt-0.5 ${isActive ? 'text-white' : 'text-gray-700'}`}>{w.percentage}</p>
                             </div>
@@ -1363,129 +1363,181 @@ useEffect(() => {
       </section>
 
 
-      <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-8">
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-            Script Ideas for :{" "}
-            <br className="sm:hidden" />
-            <span className="inline-block bg-black text-white px-2 py-1 rounded font-semibold mt-2 sm:mt-0 text-[18px]">
-              {topic}
-            </span>
-          </h1>
-          <p className="text-sm sm:text-base text-gray-600">Choose from various problem statements and perspectives for your YouTube script</p>
+      {/* ── Script Ideas Section ── */}
+      <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-8 sm:py-12">
+
+        {/* Header card */}
+        <div className="bg-white border border-gray-200/80 rounded-3xl shadow-sm px-6 sm:px-8 py-6 mb-8 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0">
+              <Lightbulb className="w-6 h-6 text-orange-500" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">AI-generated</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
+                Script Ideas
+                <span className="inline-flex items-center gap-1.5 bg-[#1d1d1f] text-white text-sm font-semibold px-3 py-0.5 rounded-full">
+                  <Sparkles className="w-3 h-3 text-orange-400" />
+                  {topic}
+                </span>
+              </h2>
+              <p className="text-sm text-[#6e6e73] mt-1">Choose a perspective and generate a full YouTube script in seconds</p>
+            </div>
+          </div>
+          {!isLoading && (
+            <div className="flex-shrink-0 self-start sm:self-center">
+              <span className="inline-flex items-center gap-1.5 bg-[#f5f5f7] text-[#6e6e73] text-xs font-medium px-3 py-1.5 rounded-full">
+                <Filter className="w-3 h-3" />
+                {filtered.length} idea{filtered.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="grid gap-6 lg:grid-cols-4">
+          {/* Sidebar */}
           <div className="lg:col-span-1">
-            <Card className="shadow-lg lg:sticky lg:top-24">
-              <CardContent className="space-y-6 pt-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-3 block">Category</label>
-                  <div className="space-y-2">
-                    {['all', 'Technology', 'Social Impact', 'Economic Analysis', 'Historical', 'Future Analysis'].map((category) => (
-                      <Button
-                        key={category}
-                        variant={selectedCategory === category ? 'default' : 'outline'}
-                        onClick={() => setSelectedCategory(category)}
-                        className="w-full justify-start"
-                        size="sm"
-                      >
-                        {category === 'all' ? 'All Categories' : category}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                <Button onClick={() => setSelectedCategory('all')} variant="outline" className="w-full">
-                  Reset Filters
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm p-5 lg:sticky lg:top-24">
+              <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-3">Filter by</p>
+              <div className="space-y-1.5">
+                {['all', 'Technology', 'Social Impact', 'Economic Analysis', 'Historical', 'Future Analysis'].map((category) => {
+                  const isActive = selectedCategory === category;
+                  return (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 flex items-center justify-between group ${
+                        isActive
+                          ? 'bg-[#1d1d1f] text-white'
+                          : 'text-[#1d1d1f] hover:bg-[#f5f5f7]'
+                      }`}
+                    >
+                      <span>{category === 'all' ? 'All Categories' : category}</span>
+                      {isActive && <ChevronRight className="w-3.5 h-3.5 opacity-60" />}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedCategory !== 'all' && (
+                <button
+                  onClick={() => setSelectedCategory('all')}
+                  className="mt-4 w-full text-center text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors py-1"
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
           </div>
 
+          {/* Cards grid */}
           <div className="lg:col-span-3">
-            <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <p className="text-sm sm:text-base text-gray-600">{isLoading ? 'Loading script ideas...' : `Found ${filtered.length} script ideas`}</p>
-            </div>
 
             {isLoading && (
-              <Card className="text-center py-12">
-                <CardContent>
-                  <div className="flex flex-col items-center space-y-4">
-                    <Loader2 className="w-8 h-8 animate-spin text-black" />
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Generating Script Ideas</h3>
-                      <p className="text-gray-600">Our AI is analyzing &quot;{topic}&quot; and creating personalized script ideas for you...</p>
-                      <p className="text-sm text-gray-500 mt-2">This may take up to 5 minutes</p>
-                    </div>
+              <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
                   </div>
-                </CardContent>
-              </Card>
+                  <div>
+                    <p className="text-base font-semibold text-[#1d1d1f] mb-1">Generating Script Ideas</p>
+                    <p className="text-sm text-[#6e6e73]">AI is analysing &quot;{topic}&quot; — this may take up to 5 minutes</p>
+                  </div>
+                </div>
+              </div>
             )}
 
             {error && (
-              <Card className="text-center py-8 border-black-200 bg-black-50 mb-6">
-                <CardContent>
-                  <div className="flex flex-col items-center space-y-4">
-                    <AlertCircle className="w-6 h-6 text-black" />
-                    <div>
-                      <h3 className="text-lg font-semibold text-black mb-2">API Temporarily Unavailable</h3>
-                      <p className="text-black mb-4">{error}</p>
-                      <Button onClick={() => window.location.reload()} variant="outline" className="border-black text-black hover:bg-gray-100">
-                        Try Again
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="bg-red-50 border border-red-100 rounded-2xl p-6 mb-6 flex items-start gap-4">
+                <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="w-4.5 h-4.5 text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-red-700 mb-1">API Temporarily Unavailable</p>
+                  <p className="text-sm text-red-600 mb-3">{error}</p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="text-xs font-semibold text-red-700 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-100 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </div>
             )}
 
             {!isLoading && (
-              <div className="space-y-6">
-                {filtered.map((statement) => (
-                  <Card key={statement.id} className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white/80 backdrop-blur-sm">
-                    <CardHeader>
-                      <div className="flex flex-col sm:flex-row items-start justify-between gap-3 mb-4">
-                        <div className="flex-1 w-full">
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
-                            <CardTitle className="text-lg sm:text-xl">
-                              {statement.title}
-                            </CardTitle>
-                            <Badge variant="secondary" className="bg-black text-white">
-                              <TrendingUp className="w-3 h-3 mr-1" />
+              <div className="space-y-4">
+                {filtered.map((statement, idx) => (
+                  <div
+                    key={statement.id}
+                    className="bg-white border border-gray-200/80 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+                  >
+                    {/* Card header strip */}
+                    <div className="px-6 pt-5 pb-4 border-b border-gray-100">
+                      <div className="flex items-start gap-4">
+                        {/* Number badge */}
+                        <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-black text-orange-500">{String(idx + 1).padStart(2, '0')}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span className="inline-flex items-center gap-1 bg-[#f5f5f7] text-[#6e6e73] text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full uppercase">
+                              {statement.category}
+                            </span>
+                            <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                              <TrendingUp className="w-2.5 h-2.5" />
                               Trending
-                            </Badge>
+                            </span>
                           </div>
-                          <CardDescription className="text-gray-600 leading-relaxed">{statement.description}</CardDescription>
+                          <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f] leading-snug">{statement.title}</h3>
                         </div>
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <Badge variant="secondary">{statement.category}</Badge>
+                      <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed pl-12">{statement.description}</p>
+                    </div>
 
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                          <div className="flex items-center space-x-2">
-                            <label className="text-sm font-medium text-gray-700">Length (min):</label>
-                            <Input type="number" placeholder="10" value={videoLengths[statement.id] || ''} onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)} className="w-20" min={1} max={60} />
-                          </div>
-                          <Button onClick={() => handleGenerateScript(statement)} className="bg-gradient-to-r from-gray-500 to-black hover:from-gray-600 hover:to-black text-white font-semibold w-full sm:w-auto" disabled={!videoLengths[statement.id]?.trim()} size="sm">
-                            <Clock className="w-4 h-4 mr-2" />
-                            Generate Script
-                          </Button>
-                        </div>
+                    {/* Card footer */}
+                    <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-[#fafafa]">
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Clock className="w-3.5 h-3.5 text-[#6e6e73]" />
+                        <label className="text-xs font-medium text-[#6e6e73]">Length (min)</label>
+                        <Input
+                          type="number"
+                          placeholder="10"
+                          value={videoLengths[statement.id] || ''}
+                          onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
+                          className="w-16 h-7 text-xs rounded-lg border-gray-200 bg-white text-center"
+                          min={1}
+                          max={60}
+                        />
                       </div>
-                    </CardContent>
-                  </Card>
+                      <div className="sm:ml-auto">
+                        <button
+                          onClick={() => handleGenerateScript(statement)}
+                          disabled={!videoLengths[statement.id]?.trim()}
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+                          Generate Script
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 ))}
 
                 {filtered.length === 0 && (
-                  <Card className="text-center py-12">
-                    <CardContent>
-                      <p className="text-gray-500 text-lg mb-4">No scripts match your current filters</p>
-                      <Button onClick={() => setSelectedCategory('all')} variant="outline">Reset Filters</Button>
-                    </CardContent>
-                  </Card>
+                  <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-[#f5f5f7] flex items-center justify-center">
+                        <Filter className="w-5 h-5 text-[#6e6e73]" />
+                      </div>
+                      <p className="text-sm text-[#6e6e73]">No ideas match this category</p>
+                      <button
+                        onClick={() => setSelectedCategory('all')}
+                        className="text-xs font-semibold text-[#1d1d1f] border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-[#f5f5f7] transition-colors"
+                      >
+                        Show all
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
