@@ -1,18 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import ComingFeatures from '../components/ComingFeatures';
 import Footer from '../components/Footer';
 import { Search, TrendingUp } from 'lucide-react';
 import StoryBitPipeline from '@/components/Architecture';
+import { ApiService } from '@/services/api';
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
 
-  const trendingTopics = [
+  const fallbackTrendingTopics = [
     'AI Revolution in Healthcare',
     'Climate Change Solutions',
     'Space Exploration Updates',
@@ -24,6 +25,27 @@ export default function Home() {
     'Mental Health Awareness',
     'Cybersecurity Threats',
   ];
+
+  const [trendingTopics, setTrendingTopics] = useState<string[]>(fallbackTrendingTopics.slice(0, 4));
+  const [isTrendingLoading, setIsTrendingLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        const topics = await ApiService.getTrendingTopics(4);
+        if (!mounted) return;
+        if (topics.length > 0) setTrendingTopics(topics);
+      } finally {
+        if (mounted) setIsTrendingLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleSearch = (topic: string) => {
     if (topic.trim()) {
@@ -105,7 +127,18 @@ export default function Home() {
               Trending
             </span>
 
-            {trendingTopics.map((topic, i) => (
+            {isTrendingLoading && trendingTopics.length === 0 ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <span
+                  key={i}
+                  className="text-[13px] font-medium text-grey-600 bg-[#ffffff] px-3.5 py-1.5 rounded-full opacity-60 animate-pulse"
+                  style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
+                >
+                  Loading…
+                </span>
+              ))
+            ) : (
+              trendingTopics.slice(0, 4).map((topic, i) => (
               <button
                 key={i}
                 onClick={() => handleSearch(topic)}
@@ -114,7 +147,8 @@ export default function Home() {
               >
                 {topic}
               </button>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </section>

@@ -1,0 +1,177 @@
+{
+  "_readme": "This file is the expected response contract for POST /generate-script. It documents exactly what the frontend Content Strategy Panel needs from the 'seo' object. Each tab in the panel maps to a specific section below.",
+
+  "title": "Stop Guessing How to Live: Why Philosophy is Your Hidden Operating System",
+  "synopsis": "A two-sentence summary of the video used as fallback for description hook and body if seo.description_template is absent.",
+  "script": "Full script text...",
+  "metrics": {
+    "keywords": ["philosophy", "operating system", "self-improvement", "stoicism", "decision making"],
+    "word_count": 2400,
+    "read_time": "18 min",
+    "sources": 7,
+    "score": 84,
+    "difficulty": "Medium"
+  },
+
+  "seo": {
+
+    "_tab1_title_workshop": "Exactly 4 items required. Frontend shows one card per type. 'selected: true' marks the recommended pick (shown with a ✓ badge). Types must be exactly: curiosity_gap, data_led, how_to, narrative.",
+    "recommended_titles": [
+      {
+        "type": "curiosity_gap",
+        "title": "Stop Guessing How to Live: Why Philosophy is Your Hidden Operating System",
+        "desc": "Self-recognition hook creates cognitive dissonance. Signals exclusive information — strong CTR on discovery feeds.",
+        "selected": true
+      },
+      {
+        "type": "data_led",
+        "title": "The Research Behind Philosophy as a Decision-Making Framework",
+        "desc": "Statistic-first builds instant credibility. Appeals to evidence-seeking viewers who have already noticed the problem.",
+        "selected": false
+      },
+      {
+        "type": "how_to",
+        "title": "Unlock Your Hidden Operating System with Philosophy",
+        "desc": "Mechanism + solution promise in one frame. Captures viewers actively seeking answers, not just understanding.",
+        "selected": false
+      },
+      {
+        "type": "narrative",
+        "title": "A Deep Dive Into Philosophy as a Life Operating System",
+        "desc": "'Deep dive' signals premium content depth — correlates with strong watch-time retention on long-form viewers.",
+        "selected": false
+      }
+    ],
+
+    "_tab2_keyword_strategy": "Each array powers one keyword card. primary: 2 items (shown as bold chips). secondary: 3 items (shown as grey tags). longtail: 4 items (list rows). question_based: 4 items (blue question rows). Empty arrays cause the frontend to fall back to auto-generated placeholders.",
+    "keyword_clusters": {
+      "primary": [
+        "philosophy",
+        "operating system for life"
+      ],
+      "secondary": [
+        "operating system",
+        "self-improvement",
+        "stoic philosophy"
+      ],
+      "longtail": [
+        "apply philosophy to life",
+        "philosophy for daily decisions",
+        "operating system for success",
+        "philosophy explained simply"
+      ],
+      "question_based": [
+        "is philosophy useful in real life?",
+        "how to apply stoicism daily",
+        "why do philosophers make better decisions?",
+        "what is a mental operating system?"
+      ]
+    },
+
+    "_tab3_thumbnail_concepts": "Array of exactly 2 thumbnail concept objects. Frontend renders each as a side-by-side card with a preview image, type badge, style badge, headline, text_overlay box, description, and face_recommended tag. type must be: curiosity_gap | data_driven. style must be: warm | cool.",
+    "thumbnail_brief": [
+      {
+        "type": "curiosity_gap",
+        "style": "warm",
+        "headline": "Shocked expression + bold text overlay",
+        "text_overlay": "YOUR HIDDEN OS",
+        "face_recommended": true,
+        "description": "Face + emotional text creates immediate empathy. Warm palette mirrors topic energy — shock vs calm headline tension drives clicks.",
+        "preview_image_url": ""
+      },
+      {
+        "type": "data_driven",
+        "style": "cool",
+        "headline": "Bold quote on dark minimal background",
+        "text_overlay": "99% LIVE WITHOUT THIS",
+        "face_recommended": false,
+        "description": "Statement-first framing signals credibility and stops the scroll. Cool palette reads analytical — separates from oversaturated thumbnails.",
+        "preview_image_url": ""
+      }
+    ],
+
+    "_tab4_description_builder": "Three fields power the three description cards. hook: 1-2 sentences with the primary keyword in the first 10 words — rendered with keyword highlighted in amber. body_bullets: 3-5 short bullet strings shown as → items. outro: CTA paragraph shown verbatim in the Outro card.",
+    "description_template": {
+      "hook": "Philosophy is the hidden operating system running your decisions — most people never install it consciously.",
+      "body_bullets": [
+        "Discover how ancient philosophical frameworks apply directly to modern daily decisions.",
+        "Learn the three core principles stoic philosophers used to eliminate mental noise.",
+        "See how reframing your mental model leads to measurable improvements in focus and clarity.",
+        "Understand why top performers study philosophy — and the simple habit to start today.",
+        "Get a step-by-step framework for building your own life operating system."
+      ],
+      "outro": "If this changed how you see philosophy, subscribe for more research-backed breakdowns every week. Drop your biggest takeaway in the comments — I read every one."
+    },
+
+    "_tab5_hashtag_strategy": "Array of hashtag objects. strategy must be either 'established' (shown in grey Established card) or 'expansion' (shown in green Expansion card). Include at least 3 of each. hashtag string must include the # prefix.",
+    "hashtags": [
+      {
+        "hashtag": "#philosophy",
+        "strategy": "established"
+      },
+      {
+        "hashtag": "#selfdevelopment",
+        "strategy": "established"
+      },
+      {
+        "hashtag": "#mindset",
+        "strategy": "established"
+      },
+      {
+        "hashtag": "#stoicism",
+        "strategy": "expansion"
+      },
+      {
+        "hashtag": "#operatingsystem",
+        "strategy": "expansion"
+      },
+      {
+        "hashtag": "#decisionmaking",
+        "strategy": "expansion"
+      }
+    ],
+
+    "_metadata": "These fields are not rendered in a dedicated tab but may be used for header/metadata display and chapter structure in the Script Structure sidebar.",
+    "search_intent_type": "educational",
+    "recommended_structure": "problem_solution",
+    "ctr_potential": "Medium",
+    "ctr_signal_degraded": false,
+    "ctr_score": 0.5,
+    "justification": "The title satisfies curiosity about philosophy as a life framework while signalling educational depth. Concise and recall-friendly.",
+    "angle": "Stop Guessing How to Live: Why Philosophy is Your Hidden Operating System (And How to Use It)",
+    "angle_id": "299",
+    "key_questions_to_answer": [
+      "What is a mental operating system?",
+      "How did ancient philosophers make decisions?",
+      "Can stoicism be applied to modern productivity?"
+    ],
+    "chapter_structure": [
+      {
+        "index": 1,
+        "title": "Hook",
+        "covers": "Open with the central tension",
+        "section_pct": 0.18
+      },
+      {
+        "index": 2,
+        "title": "Context",
+        "covers": "Set background and stakeholders",
+        "section_pct": 0.24
+      },
+      {
+        "index": 3,
+        "title": "Analysis",
+        "covers": "Break down evidence and dynamics",
+        "section_pct": 0.34
+      },
+      {
+        "index": 4,
+        "title": "Takeaway",
+        "covers": "Close with implications and CTA",
+        "section_pct": 0.24
+      }
+    ],
+
+    "channel_context_unavailable": false
+  }
+}

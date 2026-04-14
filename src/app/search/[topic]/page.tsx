@@ -1366,8 +1366,10 @@ useEffect(() => {
       {/* ── Script Ideas Section ── */}
       <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-8 sm:py-12">
 
+        <div className='bg-gray-100 rounded-3xl'>
+
         {/* Header card */}
-        <div className="bg-white border border-gray-200/80 rounded-3xl shadow-sm px-6 sm:px-8 py-6 mb-8 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-6 sm:px-8 py-6 mb-8 flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0">
               <Lightbulb className="w-6 h-6 text-orange-500" />
@@ -1397,7 +1399,7 @@ useEffect(() => {
         <div className="grid gap-6 lg:grid-cols-4">
           {/* Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm p-5 lg:sticky lg:top-24">
+            <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm p-5 lg:sticky lg:top-52">
               <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-3">Filter by</p>
               <div className="space-y-1.5">
                 {['all', 'Technology', 'Social Impact', 'Economic Analysis', 'Historical', 'Future Analysis'].map((category) => {
@@ -1542,6 +1544,7 @@ useEffect(() => {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
 

@@ -522,7 +522,8 @@ console.log("📦 Script API Response:", json);
   );
   if (!data) return null;
 
-  const structure = data.structure ?? [];
+  // Flatten structure segments from new backend format: structure[].segments[].{ name, percentage }
+  const structureSegments = (data.structure ?? []).flatMap(s => s.segments ?? []);
 
   // Don't render anything if redirecting or not yet validated
   if (!shouldRender || isRedirecting) {
@@ -584,40 +585,69 @@ console.log("📦 Script API Response:", json);
     { icon: Search,    label: 'Research Facts',  value: data.metrics?.researchFacts ?? data.analysis?.research_facts_count ?? 0 },
   ];
 
-  // ── Content Strategy Panel — derived from script data ────────────────────
-  const csBase = data.title || pageTitle;
-  const csKws  = data.metrics?.keywords ?? [];
+  // ── Content Strategy Panel — driven by seo data from backend ────────────
+  const csBase   = data.title || pageTitle;
+  // Backend double-nests as seo.seo — resolve the inner object first, fall back to outer
+  const seoInner = data.seo?.seo ?? data.seo;
 
-  const csTitleVariants = [
-    { type: 'CURIOSITY GAP', dotColor: 'bg-purple-500', typeColor: 'text-purple-700', borderActive: 'border-purple-200', bgActive: 'bg-purple-50',  title: csBase,                                desc: 'Self-recognition hook creates cognitive dissonance. Signals exclusive information — strong CTR on discovery feeds.', selected: true  },
-    { type: 'DATA-LED',      dotColor: 'bg-blue-500',   typeColor: 'text-blue-700',   borderActive: 'border-blue-200',   bgActive: 'bg-blue-50',    title: `The Research Behind: ${csBase}`,       desc: 'Statistic-first builds instant credibility. Appeals to evidence-seeking viewers who have already noticed the problem.', selected: false },
-    { type: 'HOW-TO',        dotColor: 'bg-green-500',  typeColor: 'text-green-700',  borderActive: 'border-green-200',  bgActive: 'bg-green-50',   title: `How ${csBase} Works — And What To Do`, desc: 'Mechanism + solution promise in one frame. Captures viewers actively seeking answers, not just understanding.', selected: false },
-    { type: 'NARRATIVE',     dotColor: 'bg-orange-500', typeColor: 'text-orange-700', borderActive: 'border-orange-200', bgActive: 'bg-orange-50',  title: `A Deep Dive Into ${csBase}`,           desc: '"Deep dive" signals premium content depth — correlates with strong watch-time retention on long-form viewers.', selected: false },
-  ].map(v => {
+  // ── Tab 1: Title Workshop ─────────────────────────────────────────────────
+  const TYPE_META: Record<string, { label: string; dotColor: string; typeColor: string; borderActive: string; bgActive: string }> = {
+    curiosity_gap: { label: 'CURIOSITY GAP', dotColor: 'bg-purple-500', typeColor: 'text-purple-700', borderActive: 'border-purple-200', bgActive: 'bg-purple-50' },
+    data_led:      { label: 'DATA-LED',      dotColor: 'bg-blue-500',   typeColor: 'text-blue-700',   borderActive: 'border-blue-200',   bgActive: 'bg-blue-50'   },
+    how_to:        { label: 'HOW-TO',        dotColor: 'bg-green-500',  typeColor: 'text-green-700',  borderActive: 'border-green-200',  bgActive: 'bg-green-50'  },
+    narrative:     { label: 'NARRATIVE',     dotColor: 'bg-orange-500', typeColor: 'text-orange-700', borderActive: 'border-orange-200', bgActive: 'bg-orange-50' },
+  };
+  const backendTitles = (seoInner as { recommended_titles?: Array<{ type: string; title: string; desc: string; selected?: boolean }> } | undefined)?.recommended_titles;
+  const csTitleVariants = (
+    backendTitles && backendTitles.length > 0
+      ? backendTitles.map(t => ({
+          type:         (TYPE_META[t.type]?.label   ?? t.type.replace(/_/g, ' ').toUpperCase()),
+          dotColor:     (TYPE_META[t.type]?.dotColor ?? 'bg-gray-500'),
+          typeColor:    (TYPE_META[t.type]?.typeColor ?? 'text-gray-700'),
+          borderActive: (TYPE_META[t.type]?.borderActive ?? 'border-gray-200'),
+          bgActive:     (TYPE_META[t.type]?.bgActive ?? 'bg-gray-50'),
+          title:        t.title,
+          desc:         t.desc,
+          selected:     t.selected ?? false,
+        }))
+      : [
+          { type: 'CURIOSITY GAP', dotColor: 'bg-purple-500', typeColor: 'text-purple-700', borderActive: 'border-purple-200', bgActive: 'bg-purple-50',  title: csBase,                                desc: 'Self-recognition hook creates cognitive dissonance. Signals exclusive information — strong CTR on discovery feeds.', selected: true  },
+          { type: 'DATA-LED',      dotColor: 'bg-blue-500',   typeColor: 'text-blue-700',   borderActive: 'border-blue-200',   bgActive: 'bg-blue-50',    title: `The Research Behind: ${csBase}`,       desc: 'Statistic-first builds instant credibility. Appeals to evidence-seeking viewers who have already noticed the problem.', selected: false },
+          { type: 'HOW-TO',        dotColor: 'bg-green-500',  typeColor: 'text-green-700',  borderActive: 'border-green-200',  bgActive: 'bg-green-50',   title: `How ${csBase} Works — And What To Do`, desc: 'Mechanism + solution promise in one frame. Captures viewers actively seeking answers, not just understanding.', selected: false },
+          { type: 'NARRATIVE',     dotColor: 'bg-orange-500', typeColor: 'text-orange-700', borderActive: 'border-orange-200', bgActive: 'bg-orange-50',  title: `A Deep Dive Into ${csBase}`,           desc: '"Deep dive" signals premium content depth — correlates with strong watch-time retention on long-form viewers.', selected: false },
+        ]
+  ).map(v => {
     const c = v.title.length;
     return { ...v, chars: c, verdict: c <= 60 ? 'within limit' : c <= 79 ? 'optimal' : 'trim needed', verdictColor: c <= 60 ? 'text-green-600' : c <= 79 ? 'text-green-500' : 'text-amber-500' };
   });
 
-  const csPrimary    = csKws.slice(0, 2).length > 0 ? csKws.slice(0, 2) : [csBase.toLowerCase().split(' ').slice(0, 3).join(' '), csBase.toLowerCase().split(' ').slice(0, 2).join(' ') + ' explained'];
-  const csSecondary  = csKws.slice(2, 5).length > 0 ? csKws.slice(2, 5) : ['related topic', 'semantic variant', 'alternative angle'];
-  const csLongTail   = csKws.length > 0
-    ? [`why ${csKws[0]} explained`, `${csKws[0]} complete guide`, `how ${csKws[0]} works`, `${csKws[1] ?? csKws[0]} for beginners`]
-    : [`why ${csBase.toLowerCase()} explained`, `${csBase.toLowerCase()} complete guide`, `how ${csBase.toLowerCase()} works`, `${csBase.toLowerCase()} for beginners`];
-  const csQuestions  = [
-    `is ${csKws[0] ?? csBase.toLowerCase()} real?`,
-    `how to understand ${csKws[0] ?? csBase.toLowerCase()}`,
-    `why is ${csKws[0] ?? 'this'} happening?`,
-    `what causes ${csKws[1] ?? csBase.toLowerCase()}?`,
-  ];
+  // ── Tab 2: Keyword Strategy ───────────────────────────────────────────────
+  const kc       = (seoInner as { keyword_clusters?: { primary: string[]; secondary: string[]; longtail: string[]; question_based: string[] } } | undefined)?.keyword_clusters;
+  const csKws    = data.metrics?.keywords ?? [];
+  const csPrimary    = (kc?.primary   ?? []).length > 0 ? (kc?.primary ?? [])   : csKws.slice(0, 2).length > 0 ? csKws.slice(0, 2) : [csBase.toLowerCase().split(' ').slice(0, 3).join(' '), csBase.toLowerCase().split(' ').slice(0, 2).join(' ') + ' explained'];
+  const csSecondary  = (kc?.secondary ?? []).length > 0 ? (kc?.secondary ?? []) : csKws.slice(2, 5).length > 0 ? csKws.slice(2, 5) : ['related topic', 'semantic variant', 'alternative angle'];
+  const csLongTail   = (kc?.longtail  ?? []).length > 0 ? (kc?.longtail ?? [])  : csKws.length > 0 ? [`why ${csKws[0]} explained`, `${csKws[0]} complete guide`, `how ${csKws[0]} works`, `${csKws[1] ?? csKws[0]} for beginners`] : [`why ${csBase.toLowerCase()} explained`, `${csBase.toLowerCase()} complete guide`, `how ${csBase.toLowerCase()} works`, `${csBase.toLowerCase()} for beginners`];
+  const csQuestions  = (kc?.question_based ?? []).length > 0 ? (kc?.question_based ?? []) : [`is ${csKws[0] ?? csBase.toLowerCase()} real?`, `how to understand ${csKws[0] ?? csBase.toLowerCase()}`, `why is ${csKws[0] ?? 'this'} happening?`, `what causes ${csKws[1] ?? csBase.toLowerCase()}?`];
 
+  // ── Tab 4: Description Builder ────────────────────────────────────────────
+  const dt = (seoInner as { description_template?: { hook: string; body_bullets: string[]; outro: string } } | undefined)?.description_template;
   const csSynopsisLines = (data.synopsis ?? data.script ?? '').split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 20);
-  const csHook       = csSynopsisLines.slice(0, 2).join('. ') + '.';
-  const csBody       = csSynopsisLines.slice(2, 7);
-  const csFirstKw    = csKws[0] ?? '';
-  const csEstablished = csKws.slice(0, 3).map(k => '#' + k.toLowerCase().replace(/\s+/g, ''));
-  const csExpansion   = csKws.slice(3, 5).length > 0
-    ? csKws.slice(3, 5).map(k => '#' + k.toLowerCase().replace(/\s+/g, ''))
-    : ['#' + csBase.toLowerCase().split(' ').slice(0, 2).join(''), '#' + (csKws[0] ?? 'learn').toLowerCase().replace(/\s+/g, '') + 'explained'];
+  const csHook    = dt?.hook ?? (csSynopsisLines.slice(0, 2).join('. ') + '.');
+  const csBody    = (dt?.body_bullets ?? []).length > 0 ? (dt?.body_bullets ?? []) : csSynopsisLines.slice(2, 7);
+  const csOutro   = dt?.outro ?? 'If this changed how you see this topic, subscribe for more research-backed breakdowns every week. Drop your biggest takeaway in the comments — I read every one.';
+  const csFirstKw = csKws[0] ?? csPrimary[0] ?? '';
+
+  // ── Tab 5: Hashtag Strategy ───────────────────────────────────────────────
+  const seoHashtags = data.seo?.hashtags ?? [];
+  const csEstablished = seoHashtags.filter(h => h.strategy === 'established').map(h => h.hashtag).length > 0
+    ? seoHashtags.filter(h => h.strategy === 'established').map(h => h.hashtag)
+    : csKws.slice(0, 3).map(k => '#' + k.toLowerCase().replace(/\s+/g, ''));
+  const csExpansion   = seoHashtags.filter(h => h.strategy === 'expansion').map(h => h.hashtag).length > 0
+    ? seoHashtags.filter(h => h.strategy === 'expansion').map(h => h.hashtag)
+    : csKws.slice(3, 5).length > 0 ? csKws.slice(3, 5).map(k => '#' + k.toLowerCase().replace(/\s+/g, '')) : ['#' + csBase.toLowerCase().split(' ').slice(0, 2).join(''), '#' + (csKws[0] ?? 'learn').toLowerCase().replace(/\s+/g, '') + 'explained'];
+
+  // ── Tab 3: Thumbnail Concepts ─────────────────────────────────────────────
+  const csThumbnails = (seoInner as { thumbnail_brief?: Array<{ type: string; style: string; headline: string; text_overlay: string; face_recommended: boolean; description: string; preview_image_url?: string }> } | undefined)?.thumbnail_brief ?? [];
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
@@ -983,17 +1013,17 @@ console.log("📦 Script API Response:", json);
                 <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Flow & section breakdown</p>
               </div>
               <div className="flex-1 overflow-y-auto px-4 py-3">
-                {structure.length > 0 ? (
+                {structureSegments.length > 0 ? (
                   <div className="space-y-2">
-                    {structure.map((section, index) => (
-                      <div key={section.id ?? index} className="flex items-start gap-3">
+                    {structureSegments.map((seg, index) => (
+                      <div key={index} className="flex items-start gap-3">
                         <div className="flex flex-col items-center flex-shrink-0">
                           <div className="w-6 h-6 rounded-full bg-[#1d1d1f] text-white flex items-center justify-center text-[10px] font-semibold">{index + 1}</div>
-                          {index < data.structure!.length - 1 && <div className="w-px bg-gray-200 flex-1 mt-1 min-h-[10px]" />}
+                          {index < structureSegments.length - 1 && <div className="w-px bg-gray-200 flex-1 mt-1 min-h-[10px]" />}
                         </div>
                         <div className="flex-1 bg-[#f5f5f7] rounded-xl px-3 py-2 border border-gray-100 min-w-0 mb-2">
-                          <p className="font-medium text-xs text-[#1d1d1f] break-words">{section.title}</p>
-                          <p className="text-[10px] text-[#6e6e73] mt-0.5 font-light">{section.duration} · {section.words ?? '—'} words</p>
+                          <p className="font-medium text-xs text-[#1d1d1f] break-words">{seg.name}</p>
+                          <p className="text-[10px] text-[#6e6e73] mt-0.5 font-light">{seg.percentage}% of script</p>
                         </div>
                       </div>
                     ))}

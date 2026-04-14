@@ -170,13 +170,68 @@ export type GeneratedScriptData = {
     keywords: string[];
   };
   structure?: Array<{
-    id: string;
-    title: string;
-    duration: string;
-    words: number;
+    key: string;
+    segments: Array<{
+      name: string;
+      percentage: number;
+    }>;
   }>;
   synopsis?: string;
+  seo?: {
+    /** Backend sometimes double-nests the rich SEO data under seo.seo */
+    seo?: {
+      recommended_titles?: Array<{
+        type: string;
+        title: string;
+        desc: string;
+        selected?: boolean;
+      }>;
+      keyword_clusters?: {
+        primary: string[];
+        secondary: string[];
+        longtail: string[];
+        question_based: string[];
+      };
+      description_template?: {
+        hook: string;
+        body_bullets: string[];
+        outro: string;
+      };
+      thumbnail_brief?: Array<{
+        type: string;
+        style: string;
+        headline: string;
+        text_overlay: string;
+        face_recommended: boolean;
+        description: string;
+        preview_image_url?: string;
+      }>;
+      hashtags?: string[];
+    };
+    recommended_titles?: Array<{
+      type: string;
+      title: string;
+      desc: string;
+      selected?: boolean;
+    }>;
+    hashtags?: Array<{ hashtag: string; strategy: string }>;
+    chapter_structure?: Array<{
+      index: number;
+      title: string;
+      covers: string;
+      section_pct: number;
+    }>;
+    key_questions_to_answer?: string[];
+    angle?: string;
+    ctr_potential?: string;
+    ctr_score?: number;
+    search_intent_type?: string;
+  };
 };
+
+export type TrendingTopicItem =
+  | string
+  | { topic?: string; title?: string; tittle?: string; name?: string };
 
 export class ApiService {
   // Use Next.js API routes in both development and production
@@ -503,6 +558,61 @@ export class ApiService {
       ideas,
       descriptions
     };
+  }
+
+  static async getTrendingTopics(limit = 4): Promise<string[]> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const url = `${this.BASE_URL}/trending-data`;
+
+    const normalize = (items: TrendingTopicItem[]): string[] => {
+      const topics = items
+        .map((item) => {
+          if (typeof item === 'string') return item;
+          return item.topic ?? item.title ?? item.tittle ?? item.name ?? '';
+        })
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      // de-dupe while preserving order
+      return [...new Set(topics)].slice(0, limit);
+    };
+
+    try {
+      const response = await this.authorizedFetch(
+        url,
+        { method: 'GET' },
+        controller.signal,
+      );
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '(no body)');
+        throw new Error(`trending-data failed: ${response.status} ${response.statusText} — ${body}`);
+      }
+
+      const data = (await response.json()) as unknown;
+
+      // Support a few common backend shapes:
+      // - ["Topic 1", "Topic 2"]
+      // - { topics: [...] }
+      // - { message: [...] }
+      if (Array.isArray(data)) return normalize(data as TrendingTopicItem[]);
+
+      if (data && typeof data === 'object') {
+        const maybeTopics = (data as { topics?: unknown; message?: unknown }).topics
+          ?? (data as { topics?: unknown; message?: unknown }).message;
+
+        if (Array.isArray(maybeTopics)) return normalize(maybeTopics as TrendingTopicItem[]);
+      }
+
+      return [];
+    } catch (err) {
+      // Home page should never hard-fail because trending data couldn't load
+      console.warn('[getTrendingTopics] failed:', err);
+      return [];
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   static async signUp(request: SignUpRequest): Promise<SignUpResponse> {
