@@ -237,7 +237,13 @@ const monthlyHighlights = [
 
 // Cache both in memory and localStorage to persist between visits
 const resultsCache = new Map<string, { scriptIdeas: ScriptIdea[]; error: string | null; timestamp: number }>();
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours - topics don't change that often
+const pipelineCache = new Map<string, { data: PipelineMetricsResponse; timestamp: number }>();
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+// Shared-promise deduplicator: both Strict-Mode mounts share one fetch promise.
+// The second mount awaits the same promise, then reads from cache.
+const inFlightIdeas    = new Map<string, Promise<void>>();
+const inFlightPipeline = new Set<string>();
 
 interface CacheItem {
   scriptIdeas: ScriptIdea[];
@@ -245,14 +251,33 @@ interface CacheItem {
   timestamp: number;
 }
 
+interface PipelineCacheItem {
+  data: PipelineMetricsResponse;
+  timestamp: number;
+}
+
 const getFromLocalStorage = (topic: string): CacheItem | null => {
   try {
-    const item = localStorage.getItem(`topic_${topic}`);
+    const item = localStorage.getItem(`topic_ideas_${topic}`);
     if (!item) return null;
     const parsed = JSON.parse(item) as CacheItem;
-    const now = Date.now();
-    if (now - parsed.timestamp > CACHE_DURATION) {
-      localStorage.removeItem(`topic_${topic}`);
+    if (Date.now() - parsed.timestamp > CACHE_DURATION) {
+      localStorage.removeItem(`topic_ideas_${topic}`);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const getPipelineFromLocalStorage = (topic: string): PipelineCacheItem | null => {
+  try {
+    const item = localStorage.getItem(`topic_pipeline_${topic}`);
+    if (!item) return null;
+    const parsed = JSON.parse(item) as PipelineCacheItem;
+    if (Date.now() - parsed.timestamp > CACHE_DURATION) {
+      localStorage.removeItem(`topic_pipeline_${topic}`);
       return null;
     }
     return parsed;
@@ -277,42 +302,47 @@ const fetchVideoMeta = async (url: string) => {
 
 
 const saveToCache = (topic: string, data: CacheItem) => {
-  // Save to memory cache
   resultsCache.set(topic, data);
-  // Save to localStorage
   try {
-    localStorage.setItem(`topic_${topic}`, JSON.stringify(data));
+    localStorage.setItem(`topic_ideas_${topic}`, JSON.stringify(data));
   } catch {
-    // If localStorage is full, clean up old items
-    const keys = Object.keys(localStorage);
-    const topicKeys = keys.filter(k => k.startsWith('topic_'));
-    if (topicKeys.length > 0) {
-      localStorage.removeItem(topicKeys[0]); // Remove oldest
-      try {
-        localStorage.setItem(`topic_${topic}`, JSON.stringify(data));
-      } catch {
-        console.warn('Failed to save to localStorage after cleanup');
-      }
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('topic_ideas_'));
+    if (keys.length > 0) {
+      localStorage.removeItem(keys[0]);
+      try { localStorage.setItem(`topic_ideas_${topic}`, JSON.stringify(data)); } catch { /* ignore */ }
+    }
+  }
+};
+
+const savePipelineToCache = (topic: string, data: PipelineMetricsResponse) => {
+  const item: PipelineCacheItem = { data, timestamp: Date.now() };
+  pipelineCache.set(topic, item);
+  try {
+    localStorage.setItem(`topic_pipeline_${topic}`, JSON.stringify(item));
+  } catch {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('topic_pipeline_'));
+    if (keys.length > 0) {
+      localStorage.removeItem(keys[0]);
+      try { localStorage.setItem(`topic_pipeline_${topic}`, JSON.stringify(item)); } catch { /* ignore */ }
     }
   }
 };
 
 const cleanupCache = () => {
   const now = Date.now();
-  // Clean memory cache
   for (const [key, value] of resultsCache.entries()) {
-    if (now - value.timestamp > CACHE_DURATION) {
-      resultsCache.delete(key);
-    }
+    if (now - value.timestamp > CACHE_DURATION) resultsCache.delete(key);
   }
-  // Clean localStorage
+  for (const [key, value] of pipelineCache.entries()) {
+    if (now - value.timestamp > CACHE_DURATION) pipelineCache.delete(key);
+  }
   try {
     const keys = Object.keys(localStorage);
-    const topicKeys = keys.filter(k => k.startsWith('topic_'));
+    const topicKeys = keys.filter(k => k.startsWith('topic_ideas_') || k.startsWith('topic_pipeline_'));
     topicKeys.forEach(key => {
       const item = localStorage.getItem(key);
       if (item) {
-        const parsed = JSON.parse(item) as CacheItem;
+        const parsed = JSON.parse(item) as { timestamp: number };
         if (now - parsed.timestamp > CACHE_DURATION) {
           localStorage.removeItem(key);
         }
@@ -409,14 +439,48 @@ useEffect(() => {
     cleanupCache();
   }, []);
 
-  // Fetch pipeline metrics (TSS + CSI + CAGS) — fires immediately on topic change
+  // Fetch pipeline metrics (TSS + CSI + CAGS) — cached in localStorage per topic
   useEffect(() => {
     if (!topic) return;
-    setPipelineMetrics(null);
+
+    // 1. Check memory cache
+    const memCached = pipelineCache.get(topic);
+    if (memCached && Date.now() - memCached.timestamp < CACHE_DURATION) {
+      console.log('[pipeline-metrics] Loaded from memory cache for:', topic, memCached.data);
+      setPipelineMetrics(memCached.data);
+      return;
+    }
+
+    // 2. Check localStorage cache
+    const lsCached = getPipelineFromLocalStorage(topic);
+    if (lsCached) {
+      console.log('[pipeline-metrics] Loaded from localStorage for:', topic, lsCached.data);
+      pipelineCache.set(topic, lsCached);
+      setPipelineMetrics(lsCached.data);
+      return;
+    }
+
+    // 3. Guard against double-fetch (React Strict Mode mounts effects twice)
+    if (inFlightPipeline.has(topic)) return;
+    inFlightPipeline.add(topic);
+
     setIsPipelineLoading(true);
+    setPipelineMetrics(null);
+
     ApiService.pipelineMetrics(topic)
-      .then(data => { setPipelineMetrics(data); setIsPipelineLoading(false); })
-      .catch(err => { console.error('[pipeline-metrics]', err); setIsPipelineLoading(false); });
+      .then(data => {
+        console.log('[pipeline-metrics] API response for:', topic, data);
+        savePipelineToCache(topic, data);
+        setPipelineMetrics(data);
+        setIsPipelineLoading(false);
+      })
+      .catch(err => {
+        console.error('[pipeline-metrics] Error:', err);
+        setIsPipelineLoading(false);
+      })
+      .finally(() => {
+        inFlightPipeline.delete(topic);
+      });
   }, [topic]);
 
   useEffect(() => {
@@ -430,58 +494,83 @@ useEffect(() => {
   };
 
   useEffect(() => {
-    let isCancelled = false;
+    let cancelled = false;
 
     const run = async () => {
       if (!topic) return;
 
-      // Try localStorage first
-      const localData = getFromLocalStorage(topic);
-      if (localData) {
-        setScriptIdeas(localData.scriptIdeas);
-        setError(localData.error);
+      // 1. Memory cache hit
+      const memCached = resultsCache.get(topic);
+      if (memCached && Date.now() - memCached.timestamp < CACHE_DURATION) {
+        console.log('[script-ideas] memory cache hit:', topic);
+        setScriptIdeas(memCached.scriptIdeas);
+        setError(memCached.error);
         setIsLoading(false);
-        // Also update memory cache
-        resultsCache.set(topic, localData);
         return;
       }
 
-      // Try memory cache next
-      const cached = resultsCache.get(topic);
-      const now = Date.now();
-      if (cached && now - cached.timestamp < CACHE_DURATION) {
-        setScriptIdeas(cached.scriptIdeas);
-        setError(cached.error);
+      // 2. localStorage cache hit
+      const lsCached = getFromLocalStorage(topic);
+      if (lsCached) {
+        console.log('[script-ideas] localStorage cache hit:', topic);
+        resultsCache.set(topic, lsCached);
+        setScriptIdeas(lsCached.scriptIdeas);
+        setError(lsCached.error);
         setIsLoading(false);
-        // Update localStorage while we have the data
-        saveToCache(topic, cached);
         return;
       }
+
+      // 3. Another mount is already fetching — await its promise then read from cache.
+      //    This is how React Strict Mode's second mount safely shares the first mount's request.
+      if (inFlightIdeas.has(topic)) {
+        await inFlightIdeas.get(topic);
+        if (cancelled) return;
+        const result = resultsCache.get(topic) ?? getFromLocalStorage(topic);
+        if (result) {
+          setScriptIdeas(result.scriptIdeas);
+          setError(result.error);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // 4. This mount owns the fetch. Create a shared promise other mounts can await.
+      let settleFetch!: () => void;
+      inFlightIdeas.set(topic, new Promise<void>(res => { settleFetch = res; }));
 
       initialLoadStartRef.current = Date.now();
       setIsLoading(true);
       setError(null);
       setScriptIdeas([]);
 
-      const maxWaitMs = 300000; // 5 minutes
+      const maxWaitMs = 300000;
       const retryDelayMs = 5000;
 
-      while (!isCancelled) {
+      const applyResult = (ideas: ScriptIdea[], err: string | null) => {
+        const cacheData = { scriptIdeas: ideas, error: err, timestamp: Date.now() };
+        saveToCache(topic, cacheData);
+        inFlightIdeas.delete(topic);
+        settleFetch(); // unblock any waiting mount
+        // Always update state — in Strict Mode the component is still mounted;
+        // in prod this only runs once.
+        setScriptIdeas(ideas);
+        setError(err);
+        setIsLoading(false);
+      };
+
+      while (true) {
         try {
           const response = await ApiService.processTopic(topic);
-          if (isCancelled) return;
+          console.log('[script-ideas] API response for:', topic, response);
 
-          const ideas: ScriptIdea[] = response.ideas.map((idea, idx) => ({
+          const ideas: ScriptIdea[] = (response.ideas ?? []).map((idea, idx) => ({
             id: idx + 1,
             title: idea,
-            description: response.descriptions[idx] || 'No description available.',
+            description: (response.descriptions ?? [])[idx] || 'No description available.',
             category: getCategoryFromIndex(idx),
           }));
 
-          const cacheData = { scriptIdeas: ideas, error: null, timestamp: Date.now() };
-          saveToCache(topic, cacheData);
-          setScriptIdeas(ideas);
-          setIsLoading(false);
+          applyResult(ideas, null);
           return;
         } catch (err) {
           const elapsed = Date.now() - (initialLoadStartRef.current ?? Date.now());
@@ -489,57 +578,30 @@ useEffect(() => {
 
           const isRetryable = message.includes('502') || message.toLowerCase().includes('temporarily unavailable');
           if (isRetryable && elapsed + retryDelayMs < maxWaitMs) {
-            await new Promise((r) => setTimeout(r, retryDelayMs));
+            await new Promise(r => setTimeout(r, retryDelayMs));
             continue;
           }
 
-          if (elapsed > 300000 && !isCancelled) { // 5 minutes timeout
-            setError("The server is taking a long time to respond. You can wait or try refreshing the page.");
-          }
-
-          // fallback sample data
           const fallbackIdeas: ScriptIdea[] = [
-            {
-              id: 1,
-              title: `Understanding ${topic}: A Comprehensive Analysis`,
-              description: `Dive deep into the world of ${topic} and explore its various aspects, implications, and real-world applications.`,
-              category: 'Technology',
-            },
-            {
-              id: 2,
-              title: `The Impact of ${topic} on Modern Society`,
-              description: `Explore how ${topic} is shaping our world today and what it means for the future.`,
-              category: 'Social Impact',
-            },
-            {
-              id: 3,
-              title: `Future Trends: Where ${topic} is Heading`,
-              description: `Get a glimpse into the future of ${topic} and discover what experts predict will happen next.`,
-              category: 'Future Analysis',
-            },
+            { id: 1, title: `Understanding ${topic}: A Comprehensive Analysis`, description: `Dive deep into ${topic} and explore its aspects, implications, and real-world applications.`, category: 'Technology' },
+            { id: 2, title: `The Impact of ${topic} on Modern Society`, description: `Explore how ${topic} is shaping our world today and what it means for the future.`, category: 'Social Impact' },
+            { id: 3, title: `Future Trends: Where ${topic} is Heading`, description: `Discover what experts predict will happen next with ${topic}.`, category: 'Future Analysis' },
           ];
 
           const errorMessage = message.includes('timeout')
-            ? 'API request timed out after waiting. Using sample data.'
+            ? 'API request timed out. Using sample data.'
             : message.includes('502')
-            ? 'API server returned 502 for an extended period. Using sample data.'
+            ? 'Server temporarily unavailable. Using sample data.'
             : 'API temporarily unavailable. Using sample data.';
 
-          const cacheData = { scriptIdeas: fallbackIdeas, error: errorMessage, timestamp: Date.now() };
-          saveToCache(topic, cacheData);
-          if (isCancelled) return;
-          setScriptIdeas(fallbackIdeas);
-          setError(errorMessage);
-          setIsLoading(false);
+          applyResult(fallbackIdeas, errorMessage);
           return;
         }
       }
     };
 
     run();
-    return () => {
-      isCancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [topic]);
 
   const getCategoryFromIndex = (index: number) => {
@@ -606,9 +668,10 @@ useEffect(() => {
 
       {/* Dashboard Analytics Section */}
       <section className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-4">
-        <Card className="shadow-xl border border-gray-200 bg-white h-[820px] overflow-hidden flex flex-col">
+        <Card className="shadow-xl border border-gray-200 bg-white min-h-[600px] sm:h-[820px] overflow-hidden flex flex-col">
           <CardHeader className="pb-3">
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mt-4 w-fit">
+            <div className="overflow-x-auto scrollbar-none">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mt-4 w-fit min-w-max">
               {([
                 { key: 'Trend strength score',    label: 'Trend strength score',    icon: TrendingUp },
                 { key: 'Content Saturation index', label: 'Content saturation index', icon: BarChart3 },
@@ -619,7 +682,7 @@ useEffect(() => {
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
                       activeTab === tab.key
                         ? 'bg-white text-[#1d1d1f] shadow-sm font-semibold'
                         : 'text-gray-500 hover:text-[#1d1d1f]'
@@ -630,6 +693,7 @@ useEffect(() => {
                   </button>
                 );
               })}
+            </div>
             </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden pr-1 pb-6">
@@ -1309,7 +1373,7 @@ useEffect(() => {
 
                 {/* ── RIGHT COLUMN ── */}
                 <div className="flex flex-col gap-4 min-h-0">
-                  <div className="bg-white border border-gray-200 rounded-xl p-5 flex-1 overflow-auto hover:shadow-md transition-shadow duration-200">
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 flex-1 hover:shadow-md transition-shadow duration-200">
                     <div className="flex items-center gap-2.5 mb-1">
                       <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
                         <Rocket className="w-4 h-4 text-green-600" />
@@ -1493,7 +1557,7 @@ useEffect(() => {
                           <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f] leading-snug">{statement.title}</h3>
                         </div>
                       </div>
-                      <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed pl-12">{statement.description}</p>
+                      <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed pl-12 line-clamp-2 sm:line-clamp-6">{statement.description}</p>
                     </div>
 
                     {/* Card footer */}

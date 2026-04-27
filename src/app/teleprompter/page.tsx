@@ -42,11 +42,11 @@ export default function Teleprompter() {
 
         <div
           ref={containerRef}
-          className="absolute w-full px-8 sm:px-16 md:px-32 lg:px-48 text-center"
+          className="absolute w-full px-5 sm:px-12 md:px-24 lg:px-36 text-center"
           style={{ transform: `translateY(calc(45vh - ${position}px))` }}
         >
           <p
-            className="text-2xl sm:text-3xl md:text-4xl leading-[1.8] font-light tracking-wide whitespace-pre-wrap"
+            className="text-xl sm:text-2xl md:text-3xl lg:text-4xl leading-[1.8] font-light tracking-wide whitespace-pre-wrap"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
           >
             {script || "No script loaded. Go back and generate a script first."}
@@ -55,8 +55,8 @@ export default function Teleprompter() {
       </div>
 
       {/* Controls bar */}
-      <div className="flex-shrink-0 bg-white/5 backdrop-blur-xl border-t border-white/10 px-6 py-4">
-        <div className="max-w-lg mx-auto flex items-center gap-4">
+      <div className="flex-shrink-0 bg-white/5 backdrop-blur-xl border-t border-white/10 px-4 sm:px-6 py-3 sm:py-4" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+        <div className="max-w-xs sm:max-w-lg mx-auto flex items-center gap-3 sm:gap-4">
 
           {/* Reset */}
           <button

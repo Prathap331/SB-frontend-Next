@@ -689,7 +689,7 @@ console.log("📦 Script API Response:", json);
         <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm mb-5 overflow-hidden ">
 
           {/* Tab navigation */}
-          <div className="flex border-b border-gray-100">
+          <div className="flex overflow-auto border-b border-gray-100">
             {([
               [1, 'Title Workshop'],
               [2, 'Keyword Strategy'],
@@ -700,7 +700,7 @@ console.log("📦 Script API Response:", json);
               <button
                 key={id}
                 onClick={() => setContentTab(id as 1|2|3|4|5)}
-                className={`flex items-center gap-2 px-5 py-3.5 text-sm whitespace-nowrap font-medium border-b-2 -mb-px transition-colors ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm whitespace-nowrap font-medium border-b-2 -mb-px transition-colors flex-shrink-0 ${
                   contentTab === id
                     ? 'border-[#1d1d1f] text-[#1d1d1f] font-semibold'
                     : 'border-transparent text-[#6e6e73] hover:text-[#1d1d1f]'
@@ -817,7 +817,7 @@ console.log("📦 Script API Response:", json);
                 {/* Concept 1: Curiosity Gap */}
                 <div className="bg-white border border-gray-200 rounded-xl p-4 flex gap-4">
                   <div
-                    className="w-44 h-full rounded-xl flex-shrink-0 flex items-center justify-center object-cover"
+                    className=" w-28 sm:w-44 h-full rounded-xl flex-shrink-0 flex items-center justify-center object-cover"
                     
                   >
                    <img src="https://tse4.mm.bing.net/th/id/OIP.cLbYbv7UTbr2eAgrEEhkwwHaEK?pid=Api&P=0&h=180" alt="Thumbnail 1" className="w-full h-full rounded-xl" />
@@ -843,7 +843,7 @@ console.log("📦 Script API Response:", json);
                 {/* Concept 2: Data-Driven */}
                 <div className="bg-white border border-gray-200 rounded-xl p-4 flex gap-4">
                 <div
-                    className="w-44 h-full rounded-xl flex-shrink-0 flex items-center justify-center object-cover"
+                    className="w-28 sm:w-44 h-full rounded-xl flex-shrink-0 flex items-center justify-center object-cover"
                     
                   >
                    <img src="https://tse4.mm.bing.net/th/id/OIP.cLbYbv7UTbr2eAgrEEhkwwHaEK?pid=Api&P=0&h=180" alt="Thumbnail 1" className="w-full h-full rounded-xl" />
@@ -1006,8 +1006,8 @@ console.log("📦 Script API Response:", json);
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
 
           {/* Sidebar — Structure */}
-          <div className="lg:col-span-1 order-2 lg:order-1 ">
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm h-[calc(100vh-10rem)] flex flex-col overflow-hidden">
+          <div className="lg:col-span-1 order-1 lg:order-1 ">
+            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm h-[60vh] lg:h-[calc(100vh-10rem)] flex flex-col overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 flex-shrink-0">
                 <h2 className="text-sm font-semibold text-[#1d1d1f]">Script Structure</h2>
                 <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Flow & section breakdown</p>
@@ -1039,8 +1039,8 @@ console.log("📦 Script API Response:", json);
           </div>
 
           {/* Main — Script */}
-          <div className="lg:col-span-3 order-1 lg:order-2 ">
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm h-[calc(140vh-10rem)] flex flex-col overflow-hidden">
+          <div className="lg:col-span-3 order-2 lg:order-2 ">
+            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm h-[80vh] lg:h-[calc(140vh-10rem)] flex flex-col overflow-hidden">
 
               {/* Toolbar */}
               <div className="px-5 py-3.5 border-b border-gray-100 flex-shrink-0 flex flex-col sm:flex-row sm:items-center gap-3 ">

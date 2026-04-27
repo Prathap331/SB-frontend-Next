@@ -6,10 +6,10 @@ const Footer = () => {
   return (
     <footer className="bg-[#1d1d1f] text-white">
       {/* Main content */}
-      <div className="max-w-6xl mx-auto px-5 sm:px-8 pt-14 pb-10">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 lg:gap-16">
+      <div className="max-w-6xl mx-auto px-5 sm:px-8 pt-10 sm:pt-14 pb-8 sm:pb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-10 lg:gap-16">
           {/* Brand */}
-          <div className="col-span-2 md:col-span-1">
+          <div className="sm:col-span-2 md:col-span-1">
             <Link href="/" className="inline-block hover:opacity-80 transition-opacity mb-4">
               <Image
                 src="/White logo.png"

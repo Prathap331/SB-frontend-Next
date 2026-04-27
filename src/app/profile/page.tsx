@@ -90,7 +90,7 @@ export default function Profile() {
 
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-10 py-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-[#1d1d1f] mb-1"
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] mb-1"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}>
             My Profile
           </h1>
@@ -108,7 +108,7 @@ export default function Profile() {
         {isMobileNavOpen && (
           <>
             <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={() => setIsMobileNavOpen(false)} />
-            <div className="fixed top-0 left-0 bottom-0 z-50 w-72 bg-[#f5f5f7] shadow-2xl p-4 flex flex-col gap-4 overflow-y-auto">
+            <div className="fixed top-0 left-0 bottom-0 z-50 w-[min(288px,85vw)] bg-[#f5f5f7] shadow-2xl p-4 flex flex-col gap-4 overflow-y-auto">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-[#1d1d1f]">Menu</h2>
                 <button onClick={() => setIsMobileNavOpen(false)} className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
@@ -150,7 +150,7 @@ export default function Profile() {
                   )}
                 </div>
                 <div className="px-6 py-5 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {profileFields.map(f => (
                       <div key={f.id}>
                         <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">{f.label}</label>
@@ -213,7 +213,7 @@ export default function Profile() {
                   <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Manage your subscription and usage</p>
                 </div>
                 <div className="px-6 py-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
                     <div className="space-y-4">
                       <div>
                         <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Current Plan</p>
@@ -267,10 +267,10 @@ export default function Profile() {
                           <p className="text-[11px] text-[#6e6e73] font-light">{bill.date}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <span className="text-sm font-semibold text-[#1d1d1f]">{bill.amount}</span>
                         <span className="text-[10px] font-semibold bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full">{bill.status}</span>
-                        <button onClick={() => downloadInvoice(bill.id)} className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors">
+                        <button onClick={() => downloadInvoice(bill.id)} className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-3 py-2 rounded-lg transition-colors min-h-[36px]">
                           <Download className="w-3.5 h-3.5" />Invoice
                         </button>
                       </div>

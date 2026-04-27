@@ -26,6 +26,8 @@ interface ScriptGenerationModalProps {
 
 export interface ScriptGenerationParams {
   topic: string;
+  selected_idea_id: string;
+  selected_angle_id: string;
   emotional_tone: string;
   creator_type: string;
   audience_description: string;
@@ -81,6 +83,8 @@ export function ScriptGenerationModal({
   // `isGenerating` is controlled by parent (page). Modal delegates generation to parent via onGenerate.
   const [formData, setFormData] = useState<ScriptGenerationParams>({
     topic: '',
+    selected_idea_id: "",
+    selected_angle_id: "",
     emotional_tone: "",
     creator_type: "",
     audience_description: "",
@@ -88,6 +92,7 @@ export function ScriptGenerationModal({
     duration_minutes: 0,
     script_structure: "",
   });
+  
 
   // Update formData when props change
   useEffect(() => {
@@ -100,9 +105,32 @@ export function ScriptGenerationModal({
     }
   }, [isOpen, topic, initialDuration]);
 
+  const getRandomTwoDigit = () => Math.floor(10 + Math.random() * 90);
+
   const handleSubmit = async () => {
     try {
-      await onGenerate(formData);
+      const payload = {
+        topic: formData.topic,
+        context: {
+          topic: formData.topic,
+          selected_idea_id: String(getRandomTwoDigit()),
+          selected_angle_id: String(getRandomTwoDigit()),
+          selected_idea: {},           // mock empty object
+        gap_context: {},             // mock empty object
+        pipeline_assembled_at: new Date().toISOString(), // timestamp
+        },
+        emotional_tone: formData.emotional_tone.toLowerCase(),
+        creator_type: formData.creator_type,
+        audience_description: formData.audience_description,
+        accent: formData.accent.toLowerCase(),
+        duration_minutes: formData.duration_minutes,
+        script_structure: formData.script_structure,
+
+      };
+  
+      console.log("FINAL PAYLOAD:", payload);
+  
+      await onGenerate(payload as any);
     } catch (error) {
       console.error("Error generating script:", error);
     }

@@ -349,7 +349,7 @@ export class ApiService {
       } finally {
         clearTimeout(timeoutId);
       }
-      console.log('API Response status:', response.status);
+      console.log('Process topic status', response.status);
 
       // Handle 502 Bad Gateway with retry
       if (response.status === 502 && retryCount < maxRetries) {
@@ -560,11 +560,31 @@ export class ApiService {
     };
   }
 
-  static async getTrendingTopics(limit = 4): Promise<string[]> {
+  static async getTrendingTopics(limit = 12): Promise<string[]> {
+    const CACHE_KEY = 'storybit_trending_topics';
+    const CACHE_TIME_KEY = 'storybit_trending_topics_time';
+    const CACHE_DURATION = 12 * 60 * 60 * 1000; // 12 hours
+  
+    // ✅ 1. Try cache first
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem(CACHE_KEY);
+      const cachedTime = localStorage.getItem(CACHE_TIME_KEY);
+  
+      if (cached && cachedTime) {
+        const isExpired = Date.now() - Number(cachedTime) > CACHE_DURATION;
+  
+        if (!isExpired) {
+          console.log('[Trending] Using cached data');
+          return JSON.parse(cached).slice(0, limit);
+        }
+      }
+    }
+  
+    // ✅ 2. Fetch from API if no cache or expired
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
     const url = `${this.BASE_URL}/trending-data`;
-
+  
     const normalize = (items: TrendingTopicItem[]): string[] => {
       const topics = items
         .map((item) => {
@@ -573,42 +593,60 @@ export class ApiService {
         })
         .map((t) => t.trim())
         .filter(Boolean);
-
-      // de-dupe while preserving order
-      return [...new Set(topics)].slice(0, limit);
+  
+      // ✅ Ensure uniqueness but DON'T cut early
+      return [...new Set(topics)];
     };
-
+  
     try {
       const response = await this.authorizedFetch(
         url,
         { method: 'GET' },
         controller.signal,
       );
-
+  
       if (!response.ok) {
-        const body = await response.text().catch(() => '(no body)');
-        throw new Error(`trending-data failed: ${response.status} ${response.statusText} — ${body}`);
+        throw new Error(`trending-data failed: ${response.status}`);
       }
-
-      const data = (await response.json()) as unknown;
-
-      // Support a few common backend shapes:
-      // - ["Topic 1", "Topic 2"]
-      // - { topics: [...] }
-      // - { message: [...] }
-      if (Array.isArray(data)) return normalize(data as TrendingTopicItem[]);
-
-      if (data && typeof data === 'object') {
-        const maybeTopics = (data as { topics?: unknown; message?: unknown }).topics
-          ?? (data as { topics?: unknown; message?: unknown }).message;
-
-        if (Array.isArray(maybeTopics)) return normalize(maybeTopics as TrendingTopicItem[]);
+  
+      const data = await response.json();
+  
+      let topics: string[] = [];
+  
+      if (Array.isArray(data)) {
+        topics = normalize(data);
+      } else if (data && typeof data === 'object') {
+        const maybeTopics =
+          (data as any).topics ?? (data as any).message;
+  
+        if (Array.isArray(maybeTopics)) {
+          topics = normalize(maybeTopics);
+        }
       }
-
-      return [];
+  
+      // ❗ If backend gives less than 8, DON'T silently fail
+      if (topics.length < limit) {
+        console.warn('[Trending] Less topics from API:', topics.length);
+      }
+  
+      // ✅ 3. Store in cache
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(topics));
+        localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+      }
+  
+      return topics.slice(0, limit);
     } catch (err) {
-      // Home page should never hard-fail because trending data couldn't load
-      console.warn('[getTrendingTopics] failed:', err);
+      console.warn('[Trending] API failed, fallback to cache if exists');
+  
+      // ✅ 4. Fallback to stale cache if API fails
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          return JSON.parse(cached).slice(0, limit);
+        }
+      }
+  
       return [];
     } finally {
       clearTimeout(timeoutId);

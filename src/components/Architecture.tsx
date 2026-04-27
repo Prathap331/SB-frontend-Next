@@ -114,7 +114,7 @@ function Circle({
       <img
         src={node.image}
         alt={node.id}
-        className="w-full h-full object-cover grayscale hover:grayscale-0 hover:scale-105 transition-all duration-500"
+        className="w-full h-full object-cover grayscale hover:scale-105 transition-all duration-500"
       />
     </div>
   );
@@ -234,7 +234,7 @@ export default function StoryBitPipeline() {
               <img
                 src={nodes[2].image}
                 alt="data"
-                className="w-full h-full object-cover grayscale hover:grayscale-0 hover:scale-105 transition-all duration-500"
+                className="w-full h-full object-cover grayscale  hover:scale-105 transition-all duration-500"
               />
             </div>
             <Label heading={nodes[2].heading} text={nodes[2].label} className="text-left" />
@@ -259,7 +259,7 @@ export default function StoryBitPipeline() {
               <img
                 src={nodes[3].image}
                 alt="script"
-                className="w-full h-full object-cover grayscale hover:grayscale-0 hover:scale-105 transition-all duration-500"
+                className="w-full h-full object-cover grayscale  hover:scale-105 transition-all duration-500"
                 />
             </div>
             {/* <Label text={nodes[3].label} className="text-left" /> */}
@@ -285,7 +285,7 @@ export default function StoryBitPipeline() {
               <img
                 src={nodes[3].image}
                 alt="script"
-                className="w-full h-full object-cover grayscale hover:grayscale-0 hover:scale-105 transition-all duration-500"
+                className="w-full h-full object-cover grayscale hover:scale-105 transition-all duration-500"
                 />
             </div>
             <Label heading={nodes[3].heading} text={nodes[3].label} className="text-left" />
