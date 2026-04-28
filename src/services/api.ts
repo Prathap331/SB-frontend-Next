@@ -350,6 +350,7 @@ export class ApiService {
         clearTimeout(timeoutId);
       }
       console.log('Process topic status', response.status);
+      console.log('process topics response', )
 
       // Handle 502 Bad Gateway with retry
       if (response.status === 502 && retryCount < maxRetries) {

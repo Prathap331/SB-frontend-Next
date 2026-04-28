@@ -62,13 +62,13 @@ export default function CategorySlider() {
       key={i}
       className="flex flex-col items-center justify-center gap-3 w-[140px] h-[180px] flex-shrink-0 hover:bg-[#f5f5f7] transition"
     >
-      <div className="w-[58px] h-[58px] rounded-xl bg-[#ffffff] border border-[#e5e5e7] flex items-center justify-center hover:bg-[#f2f2f2] transition">
-        <svg viewBox="0 0 24 24" className="w-6 h-6 fill-[#1d1d1f]">
+      <div className="w-[120px] h-[120px] rounded-xl bg-[#ffffff] border border-[#e5e5e7] flex items-center justify-center hover:bg-[#f2f2f2] transition">
+        <svg viewBox="0 0 24 24" className="w-14 h-14 fill-[#1d1d1f]">
           <path d={c.path} />
         </svg>
       </div>
   
-      <span className="text-xs text-[#6e6e73] text-center max-w-[110px]">
+      <span className="text-sm text-[#6e6e73] text-center max-w-[110px] truncate">
         {c.label}
       </span>
     </div>

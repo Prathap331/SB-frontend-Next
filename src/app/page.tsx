@@ -27,22 +27,27 @@ export default function Home() {
     'Cybersecurity Threats',
   ];
 
-  const [trendingTopics, setTrendingTopics] = useState<string[]>(fallbackTrendingTopics.slice(0, 12));
+  const [trendingTopics, setTrendingTopics] = useState<string[]>([]);
   const [isTrendingLoading, setIsTrendingLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
-
+  
     (async () => {
       try {
         const topics = await ApiService.getTrendingTopics(12);
+  
         if (!mounted) return;
-        if (topics.length > 0) setTrendingTopics(topics);
+  
+        setTrendingTopics(topics); // ✅ no fallback merge
+      } catch (err) {
+        console.error('Trending fetch failed:', err);
+        // ❌ DO NOTHING (no fallback)
       } finally {
         if (mounted) setIsTrendingLoading(false);
       }
     })();
-
+  
     return () => {
       mounted = false;
     };
@@ -171,7 +176,7 @@ export default function Home() {
 
 
       {/* ── Why it's different ── */}
-      <section className="bg-white pt-10 sm:pt-14 md:pt-16 px-5 sm:px-8">
+      <section className="bg-white py-10 sm:py-14 md:py-16 px-5 sm:px-8  ">
         <div className="max-w-6xl mx-auto">
           <div className="mb-10">
             <h2
