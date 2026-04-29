@@ -155,6 +155,7 @@ export type GeneratedScriptData = {
     research_facts_count: number;
     proverbs_count: number;
     emotional_depth: string;
+    history: number;
   };
   title?: string;
   metrics?: {
@@ -162,9 +163,9 @@ export type GeneratedScriptData = {
     videoLength: number;
     emotionalDepth: number;
     generalExamples: number;
-    proverbs: number;
+    proverbs_count: number;
     historicalExamples: number;
-    historicalFacts: number;
+    history: number;
     researchFacts: number;
     lawsIncluded: number;
     keywords: string[];
@@ -239,6 +240,14 @@ export class ApiService {
   
   // Check if we're in production and handle CORS issues
   private static isProduction = process.env.NODE_ENV === 'production';
+
+
+  private static sanitizeTopic(input: string): string {
+    return input
+      .replace(/'/g, '')        // remove apostrophes
+      .replace(/[^\w\s]/g, '')  // remove special chars
+      .trim();
+  }
 
   /**
    * Sign out and redirect to /auth.
@@ -324,7 +333,11 @@ export class ApiService {
     try {
       const apiUrl = `${this.BASE_URL}/process-topic`;
       console.log('Making API request to:', apiUrl);
-      console.log('Request payload:', { topic });
+      const safeTopic = this.sanitizeTopic(topic);
+
+console.log('Original topic:', topic);
+console.log('Sanitized topic:', safeTopic);
+console.log('Request payload:', { topic: safeTopic });
       
       // Create AbortController for timeout (5 minutes = 300000ms)
       const controller = new AbortController();
@@ -337,7 +350,7 @@ export class ApiService {
       try {
         response = await this.authorizedFetch(
           apiUrl,
-          { method: 'POST', body: JSON.stringify({ topic }) },
+          { method: 'POST', body: JSON.stringify({ topic: safeTopic }) },
           controller.signal,
         );
       } catch (fetchError) {
@@ -426,7 +439,7 @@ export class ApiService {
       } catch (fetchError) {
         if (this.isProduction && fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
           console.warn('CORS error detected in production, returning empty script');
-          return { script: 'Error generating script due to network issues.', estimated_word_count: 0, source_urls: [], analysis: { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: 'N/A' } };
+          return { script: 'Error generating script due to network issues.', estimated_word_count: 0, source_urls: [], analysis: { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: 'N/A', history: 0 } };
         }
         throw fetchError;
       } finally {
@@ -468,7 +481,8 @@ export class ApiService {
               examples_count: 0,
               research_facts_count: 0,
               proverbs_count: 0,
-              emotional_depth: 'N/A'
+              emotional_depth: 'N/A',
+              history: 0,
             } 
           };
         }
@@ -486,7 +500,8 @@ export class ApiService {
               examples_count: 0,
               research_facts_count: 0,
               proverbs_count: 0,
-              emotional_depth: 'N/A'
+              emotional_depth: 'N/A',
+              history: 0
             } 
           };
         }

@@ -15,6 +15,12 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { ApiService, GenerationParams, GeneratedScriptData } from '@/services/api';
 
+
+type HashtagItem = {
+  hashtag: string;
+  strategy: 'expansion' | 'established';
+};
+
 // Format script text: *** becomes <hr/>, *word* becomes <strong>word</strong>
 function formatScript(text: string): React.ReactNode[] {
   if (!text) return [];
@@ -220,8 +226,12 @@ export default function ScriptPage() {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [pageTitle, setPageTitle] = useState('Generated Script');
   const [isTranslating, setIsTranslating] = useState(false);
+  const hasCalledRef = React.useRef(false);
   
   useEffect(() => {
+    if (hasCalledRef.current) return; // ✅ prevents double call
+    hasCalledRef.current = true;
+
     const token = localStorage.getItem('sb-xncfghdikiqknuruurfh-auth-token');
     if (!token) {
       setIsRedirecting(true);
@@ -334,12 +344,31 @@ export default function ScriptPage() {
           };
           // show summary immediately
           try {
-            const json = await ApiService.generateScript(payload);
+            let json;
+            try {
+              json = await ApiService.generateScript(payload);
+            } catch (error: any) {
+              if (error.message?.includes('timeout')) {
+                console.warn('Timeout ignored (URL params)');
+                return; // ✅ ignore timeout
+              }
+              throw error;
+            }
 console.log("📦 Script API Response (URL params):", json);
-            const scriptTitle = json.title || topic || 'Generated Script';
-            // Save to localStorage for future reloads
-            saveScriptToStorage(payload.topic, payload.ideaTitle, json as GeneratedScriptData, payload, scriptTitle);
-            setData(json as GeneratedScriptData);
+
+const normalized: GeneratedScriptData = {
+  ...json,
+  script:
+    typeof json === "string"
+      ? JSON.parse(json).script
+      : json?.script ?? "",
+};
+
+const scriptTitle = normalized.title || topic || 'Generated Script';
+
+saveScriptToStorage(payload.topic, payload.ideaTitle, normalized, payload, scriptTitle);
+
+setData(normalized);
             setPageTitle(scriptTitle);
             setIsLoading(false);
             return;
@@ -388,13 +417,36 @@ console.log("📦 Script API Response (URL params):", json);
       }
 
       try {
-        const json = await ApiService.generateScript(params);
+        let json;
+try {
+  json = await ApiService.generateScript(params);
+} catch (error: any) {
+  if (error.message?.includes('timeout')) {
+    console.warn('Timeout ignored (main call)');
+    return; // ✅ ignore timeout
+  }
+  throw error;
+}
 console.log("📦 Script API Response:", json);
         // Use the title from response if available, otherwise use ideaTitle or topic
-        const scriptTitle = json.title || params.ideaTitle || params.topic || 'Generated Script';
-        // Save to localStorage for future reloads
-        saveScriptToStorage(params.topic, params.ideaTitle, json as GeneratedScriptData, params, scriptTitle);
-        setData(json as GeneratedScriptData);
+
+        const normalized: GeneratedScriptData = {
+          ...json,
+          script:
+            typeof json === "string"
+              ? JSON.parse(json).script
+              : json?.script ?? "",
+        };
+        
+
+        const scriptTitle =
+  normalized.title || params.ideaTitle || params.topic || "Generated Script";
+
+// ✅ store normalized
+saveScriptToStorage(params.topic, params.ideaTitle, normalized, params, scriptTitle);
+
+// ✅ set normalized
+setData(normalized);
         setPageTitle(scriptTitle);
         // optionally clear params so reload won't re-run (but we keep localStorage for reloads)
         try {
@@ -580,8 +632,8 @@ console.log("📦 Script API Response:", json);
     { icon: FileText,  label: 'Total Words',     value: data.metrics?.totalWords ?? data.estimated_word_count ?? 0 },
     { icon: Heart,     label: 'Emotional Depth', value: data.metrics?.emotionalDepth ?? data.analysis?.emotional_depth ?? '—' },
     { icon: Lightbulb, label: 'Examples',        value: data.metrics?.generalExamples ?? data.analysis?.examples_count ?? 0 },
-    { icon: BookOpen,  label: 'Proverbs',        value: data.metrics?.proverbs ?? 0 },
-    { icon: History,   label: 'Hist. Facts',     value: data.metrics?.historicalFacts ?? 0 },
+    { icon: BookOpen,  label: 'Proverbs',        value: data.analysis?.proverbs_count },
+    { icon: History,   label: 'Hist. Facts',     value: data.analysis?.history   },
     { icon: Search,    label: 'Research Facts',  value: data.metrics?.researchFacts ?? data.analysis?.research_facts_count ?? 0 },
   ];
 
@@ -638,13 +690,24 @@ console.log("📦 Script API Response:", json);
   const csFirstKw = csKws[0] ?? csPrimary[0] ?? '';
 
   // ── Tab 5: Hashtag Strategy ───────────────────────────────────────────────
-  const seoHashtags = data.seo?.hashtags ?? [];
-  const csEstablished = seoHashtags.filter(h => h.strategy === 'established').map(h => h.hashtag).length > 0
-    ? seoHashtags.filter(h => h.strategy === 'established').map(h => h.hashtag)
-    : csKws.slice(0, 3).map(k => '#' + k.toLowerCase().replace(/\s+/g, ''));
-  const csExpansion   = seoHashtags.filter(h => h.strategy === 'expansion').map(h => h.hashtag).length > 0
-    ? seoHashtags.filter(h => h.strategy === 'expansion').map(h => h.hashtag)
-    : csKws.slice(3, 5).length > 0 ? csKws.slice(3, 5).map(k => '#' + k.toLowerCase().replace(/\s+/g, '')) : ['#' + csBase.toLowerCase().split(' ').slice(0, 2).join(''), '#' + (csKws[0] ?? 'learn').toLowerCase().replace(/\s+/g, '') + 'explained'];
+  const seoHashtags: HashtagItem[] = (seoInner?.hashtags ?? []) as HashtagItem[];
+  const establishedTags = seoHashtags
+  .filter(h => h.strategy === 'established')
+  .map(h => h.hashtag);
+
+const expansionTags = seoHashtags
+  .filter(h => h.strategy === 'expansion')
+  .map(h => h.hashtag);
+
+const csEstablished =
+  establishedTags.length > 0
+    ? establishedTags
+    : ['#content', '#education', '#learning'];
+
+const csExpansion =
+  expansionTags.length > 0
+    ? expansionTags
+    : ['#newcontent', '#trending'];
 
   // ── Tab 3: Thumbnail Concepts ─────────────────────────────────────────────
   const csThumbnails = (seoInner as { thumbnail_brief?: Array<{ type: string; style: string; headline: string; text_overlay: string; face_recommended: boolean; description: string; preview_image_url?: string }> } | undefined)?.thumbnail_brief ?? [];
@@ -940,7 +1003,7 @@ console.log("📦 Script API Response:", json);
                     </div>
                   </div>
                   <p className="text-sm text-[#1d1d1f] leading-relaxed mb-4 font-medium">
-                    If this changed how you see this topic, subscribe for more research-backed breakdowns every week. Drop your biggest takeaway in the comments — I read every one.
+                    {csOutro}
                   </p>
                   <div className="flex flex-wrap gap-2 mb-3">
                     {['[SUBSCRIBE]', '[INSTAGRAM]', '[NEWSLETTER]'].map(link => (
@@ -1088,7 +1151,7 @@ console.log("📦 Script API Response:", json);
                     className="text-[#1d1d1f] leading-[1.9] text-[15px] sm:text-base max-w-3xl mx-auto"
                     style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
                   >
-                    {formatScript(data.synopsis || data.script || 'No synopsis available.')}
+                   {formatScript(data.script || 'No script available.')}
                   </div>
                 </div>
               </div>
