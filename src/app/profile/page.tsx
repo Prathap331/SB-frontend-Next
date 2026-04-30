@@ -1,10 +1,16 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { User, Edit, Save, FileText, CreditCard, Crown, Calendar, DollarSign, Download, ExternalLink, LogOut, Menu, X } from 'lucide-react';
+import { User, Edit, Save, FileText, CreditCard, Crown, Calendar, DollarSign, Download, ExternalLink, LogOut, Menu, X, Video, Upload, CheckCircle2, AlertCircle, Loader2, FileIcon, Info } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function Profile() {
   const router = useRouter();
@@ -18,6 +24,77 @@ export default function Profile() {
   });
   const [editData, setEditData] = useState(profileData);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+
+  // Channel PDF upload state
+  const [channelFile, setChannelFile] = useState<File | null>(null);
+  const [channelFileError, setChannelFileError] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_PDF_SIZE = 10 * 1024 * 1024; // 10 MB
+
+  const validateAndSetFile = (file: File) => {
+    setChannelFileError(null);
+    setUploadStatus('idle');
+    setUploadError(null);
+    if (file.type !== 'application/pdf') {
+      setChannelFileError('Only PDF files are accepted.');
+      setChannelFile(null);
+      return;
+    }
+    if (file.size > MAX_PDF_SIZE) {
+      setChannelFileError('File exceeds the 10 MB limit.');
+      setChannelFile(null);
+      return;
+    }
+    setChannelFile(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) validateAndSetFile(file);
+    e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) validateAndSetFile(file);
+  };
+
+  const handleUpload = async () => {
+    if (!channelFile) return;
+    setUploadStatus('uploading');
+    setUploadError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+
+      const formData = new FormData();
+      formData.append('file', channelFile);
+
+      const res = await fetch('https://storybit-backend.onrender.com/upload', {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const msg = await res.text().catch(() => `HTTP ${res.status}`);
+        throw new Error(msg || `Upload failed (${res.status})`);
+      }
+
+      setUploadStatus('success');
+    } catch (err: any) {
+      setUploadStatus('error');
+      setUploadError(err?.message || 'Upload failed. Please try again.');
+    }
+  };
 
   const handleSave = () => { setProfileData(editData); setIsEditing(false); };
   const handleCancel = () => { setEditData(profileData); setIsEditing(false); };
@@ -52,6 +129,7 @@ export default function Profile() {
     { id: 'scripts', label: 'My Scripts', icon: FileText },
     { id: 'subscription', label: 'Subscription', icon: Crown },
     { id: 'billing', label: 'Billing', icon: CreditCard },
+    { id: 'channel', label: 'Channel', icon: Video },
   ];
 
   const nav = (
@@ -243,6 +321,161 @@ export default function Profile() {
                   <div className="flex flex-col sm:flex-row gap-2">
                     <button onClick={() => router.push('/pricing')} className="text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-5 py-2.5 rounded-xl transition-colors">Upgrade Plan</button>
                     <button className="text-sm font-medium text-red-500 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl transition-colors">Cancel Subscription</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Channel */}
+            {activeTab === 'channel' && (
+              <div className="space-y-4">
+                {/* Header card */}
+                <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+                  <div className="px-6 py-5 border-b border-gray-100">
+                    <h2 className="text-sm font-semibold text-[#1d1d1f]">Creator Profile</h2>
+                    <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Upload your channel style guide so AI writes scripts that sound like you</p>
+                  </div>
+
+                  {/* What to include */}
+                  <div className="px-6 py-5">
+                    <div className="bg-[#f5f5f7] rounded-2xl p-4 mb-6 flex gap-3">
+                      <Info className="w-4 h-4 text-[#6e6e73] flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold text-[#1d1d1f] mb-2">What to include in your PDF</p>
+                        <ul className="space-y-1">
+                          {[
+                            'Your speaking tone — casual, formal, storytelling, educational',
+                            'Signature phrases, catchphrases, or intros you always use',
+                            'Vocabulary style — simple, technical, regional expressions',
+                            'Target audience — age group, interests, background',
+                            'Content approach — data-driven, narrative, opinion-led',
+                            'Topics or niches you cover most',
+                          ].map((item, i) => (
+                            <li key={i} className="flex items-start gap-2 text-[11px] text-[#6e6e73]">
+                              <span className="w-1 h-1 rounded-full bg-[#6e6e73] flex-shrink-0 mt-1.5" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* Drop zone */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+
+                    {uploadStatus !== 'success' && (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+                        onDragLeave={() => setIsDragOver(false)}
+                        onDrop={handleDrop}
+                        className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
+                          isDragOver
+                            ? 'border-[#1d1d1f] bg-gray-50'
+                            : channelFile
+                            ? 'border-green-300 bg-green-50/40'
+                            : channelFileError
+                            ? 'border-red-300 bg-red-50/30'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-[#f5f5f7]/60'
+                        }`}
+                      >
+                        {channelFile ? (
+                          /* File selected state */
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="w-12 h-12 rounded-2xl bg-green-100 border border-green-200 flex items-center justify-center">
+                              <FileIcon className="w-6 h-6 text-green-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-[#1d1d1f]">{channelFile.name}</p>
+                              <p className="text-[11px] text-[#6e6e73] mt-0.5">{(channelFile.size / 1024 / 1024).toFixed(2)} MB · PDF</p>
+                            </div>
+                            <button
+                              onClick={e => { e.stopPropagation(); setChannelFile(null); setUploadStatus('idle'); setUploadError(null); }}
+                              className="text-[11px] text-[#6e6e73] hover:text-red-500 underline transition-colors"
+                            >
+                              Remove file
+                            </button>
+                          </div>
+                        ) : (
+                          /* Empty state */
+                          <div className="flex flex-col items-center gap-3">
+                            <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center transition-colors ${isDragOver ? 'bg-[#1d1d1f] border-[#1d1d1f]' : 'bg-white border-gray-200'}`}>
+                              <Upload className={`w-5 h-5 transition-colors ${isDragOver ? 'text-white' : 'text-[#6e6e73]'}`} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-[#1d1d1f]">
+                                {isDragOver ? 'Drop it here' : 'Drop your PDF here'}
+                              </p>
+                              <p className="text-[11px] text-[#6e6e73] mt-0.5">or <span className="underline">click to browse</span> · PDF only · max 10 MB</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Validation error */}
+                    {channelFileError && (
+                      <div className="mt-3 flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        {channelFileError}
+                      </div>
+                    )}
+
+                    {/* Upload error */}
+                    {uploadStatus === 'error' && uploadError && (
+                      <div className="mt-3 flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        {uploadError}
+                      </div>
+                    )}
+
+                    {/* Success state */}
+                    {uploadStatus === 'success' && (
+                      <div className="mt-4 flex flex-col items-center gap-3 py-6">
+                        <div className="w-14 h-14 rounded-full bg-green-100 border border-green-200 flex items-center justify-center">
+                          <CheckCircle2 className="w-7 h-7 text-green-600" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-semibold text-[#1d1d1f]">Profile uploaded successfully</p>
+                          <p className="text-[11px] text-[#6e6e73] mt-0.5">Your channel style guide is now active. Future scripts will reflect your tone.</p>
+                        </div>
+                        <button
+                          onClick={() => { setChannelFile(null); setUploadStatus('idle'); setUploadError(null); }}
+                          className="text-[11px] text-[#6e6e73] hover:text-[#1d1d1f] underline transition-colors"
+                        >
+                          Upload a new file
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Upload button */}
+                    {channelFile && uploadStatus !== 'success' && (
+                      <div className="mt-4">
+                        <button
+                          onClick={handleUpload}
+                          disabled={uploadStatus === 'uploading'}
+                          className="w-full flex items-center justify-center gap-2 text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black disabled:opacity-60 px-5 py-3 rounded-xl transition-all"
+                        >
+                          {uploadStatus === 'uploading' ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Uploading…
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4" />
+                              Upload Profile PDF
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

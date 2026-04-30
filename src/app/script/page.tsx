@@ -21,101 +21,58 @@ type HashtagItem = {
   strategy: 'expansion' | 'established';
 };
 
-// Format script text: *** becomes <hr/>, *word* becomes <strong>word</strong>
+// Unwrap JSON envelope if backend returned {"script": "..."} as raw string
+function unwrapScriptJson(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{')) return trimmed;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed.script === 'string') return parsed.script;
+  } catch {
+    const m = trimmed.match(/"script"\s*:\s*"([\s\S]*)"/);
+    if (m) return m[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
+  }
+  return trimmed;
+}
+
+// Format script text: *** becomes <hr/>, *word* becomes <strong>word</strong>, \n\n becomes paragraphs
 function formatScript(text: string): React.ReactNode[] {
   if (!text) return [];
-  
+
+  const scriptText = unwrapScriptJson(text);
   const nodes: React.ReactNode[] = [];
-  
-  // First, split by triple asterisks (***) to create sections separated by <hr/>
-  const sections = text.split(/\*\*\*/);
-  
+
+  const sections = scriptText.split(/\*\*\*/);
+
   sections.forEach((section, sectionIndex) => {
-    if (!section) {
-      // Empty section, just add an hr (will happen between consecutive ***)
-      if (sectionIndex < sections.length - 1) {
-        nodes.push(<hr key={`hr-${sectionIndex}`} className="my-4 border-gray-300" />);
+    const paragraphs = section.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+
+    paragraphs.forEach((para, paraIndex) => {
+      const parts: React.ReactNode[] = [];
+      const boldRegex = /\*([^*\n]+?)\*/g;
+      let lastIndex = 0;
+      let keyCounter = 0;
+      let match: RegExpExecArray | null;
+
+      while ((match = boldRegex.exec(para)) !== null) {
+        if (match.index > lastIndex) parts.push(para.slice(lastIndex, match.index));
+        parts.push(<strong key={`b-${sectionIndex}-${paraIndex}-${keyCounter++}`}>{match[1]}</strong>);
+        lastIndex = match.index + match[0].length;
       }
-      return;
-    }
-    
-    // Process each section for single asterisk patterns (*word* -> <strong>word</strong>)
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let keyCounter = 0;
-    
-    // Match *word* pattern (but not *** since we already split on that)
-    // Pattern: * followed by one or more non-asterisk characters, followed by *
-    const singleAsteriskRegex = /\*([^*\n]+?)\*/g;
-    let match: RegExpExecArray | null;
-    
-    while ((match = singleAsteriskRegex.exec(section)) !== null) {
-      // Add text before the match
-      if (match.index > lastIndex) {
-        const beforeText = section.slice(lastIndex, match.index);
-        if (beforeText) {
-          // Preserve newlines in the text
-          const lines = beforeText.split('\n');
-          lines.forEach((line, lineIdx) => {
-            if (line) parts.push(line);
-            if (lineIdx < lines.length - 1) {
-              parts.push(<br key={`br-${sectionIndex}-${keyCounter++}`} />);
-            }
-          });
-        }
-      }
-      
-      // Add the bold text (content between single asterisks)
-      parts.push(
-        <strong key={`strong-${sectionIndex}-${keyCounter++}`}>
-          {match[1]}
-        </strong>
-      );
-      
-      lastIndex = match.index + match[0].length;
-    }
-    
-    // Add remaining text after last match
-    if (lastIndex < section.length) {
-      const afterText = section.slice(lastIndex);
-      if (afterText) {
-        // Preserve newlines
-        const lines = afterText.split('\n');
-        lines.forEach((line, lineIdx) => {
-          if (line) parts.push(line);
-          if (lineIdx < lines.length - 1) {
-            parts.push(<br key={`br-${sectionIndex}-${keyCounter++}`} />);
-          }
-        });
-      }
-    }
-    
-    // If no matches, add the whole section as-is (with preserved newlines)
-    if (parts.length === 0) {
-      const lines = section.split('\n');
-      lines.forEach((line, lineIdx) => {
-        if (line) parts.push(line);
-        if (lineIdx < lines.length - 1) {
-          parts.push(<br key={`br-${sectionIndex}-${keyCounter++}`} />);
-        }
-      });
-    }
-    
-    // Add this section's content
-    if (parts.length > 0) {
+      if (lastIndex < para.length) parts.push(para.slice(lastIndex));
+
       nodes.push(
-        <span key={`section-${sectionIndex}`} className="whitespace-pre-wrap">
-          {parts}
-        </span>
+        <p key={`p-${sectionIndex}-${paraIndex}`} className="mb-5">
+          {parts.length > 0 ? parts : para}
+        </p>
       );
-    }
-    
-    // Add <hr/> between sections (but not after the last section)
+    });
+
     if (sectionIndex < sections.length - 1) {
-      nodes.push(<hr key={`hr-${sectionIndex}`} className="my-4 border-gray-300" />);
+      nodes.push(<hr key={`hr-${sectionIndex}`} className="my-6 border-gray-200" />);
     }
   });
-  
+
   return nodes;
 }
 
@@ -356,12 +313,22 @@ export default function ScriptPage() {
             }
 console.log("📦 Script API Response (URL params):", json);
 
+function extractScript(raw: any): string {
+  if (!raw) return "";
+
+  if (typeof raw === "object") {
+    const s = raw.script || "";
+    return typeof s === "string" ? unwrapScriptJson(s) : "";
+  }
+
+  if (typeof raw === "string") return unwrapScriptJson(raw);
+
+  return "";
+}
+
 const normalized: GeneratedScriptData = {
   ...json,
-  script:
-    typeof json === "string"
-      ? JSON.parse(json).script
-      : json?.script ?? "",
+  script: extractScript(json),
 };
 
 const scriptTitle = normalized.title || topic || 'Generated Script';
@@ -430,23 +397,28 @@ try {
 console.log("📦 Script API Response:", json);
         // Use the title from response if available, otherwise use ideaTitle or topic
 
-        const normalized: GeneratedScriptData = {
-          ...json,
-          script:
-            typeof json === "string"
-              ? JSON.parse(json).script
-              : json?.script ?? "",
-        };
+        function extractScript(raw: any): string {
+          if (!raw) return "";
+          if (typeof raw === "object") {
+            const s = raw.script || "";
+            return typeof s === "string" ? unwrapScriptJson(s) : "";
+          }
+          if (typeof raw === "string") return unwrapScriptJson(raw);
+          return "";
+        }
         
 
+        const normalized: GeneratedScriptData = {
+          ...json,
+          script: extractScript(json),
+        };
+        
         const scriptTitle =
-  normalized.title || params.ideaTitle || params.topic || "Generated Script";
-
-// ✅ store normalized
-saveScriptToStorage(params.topic, params.ideaTitle, normalized, params, scriptTitle);
-
-// ✅ set normalized
-setData(normalized);
+          normalized.title || params.ideaTitle || params.topic || "Generated Script";
+        
+        saveScriptToStorage(params.topic, params.ideaTitle, normalized, params, scriptTitle);
+        
+        setData(normalized);
         setPageTitle(scriptTitle);
         // optionally clear params so reload won't re-run (but we keep localStorage for reloads)
         try {
