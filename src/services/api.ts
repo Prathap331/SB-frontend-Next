@@ -150,6 +150,7 @@ export interface GenerationParams {
   ideaTitle?: string;
   duration_minutes?: number;
   length?: number;
+  userId?: string;
 }
 
 export type GeneratedScriptData = {

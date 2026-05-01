@@ -201,6 +201,7 @@ export default function ScriptPage() {
       setShouldRender(true);
 
     const run = async () => {
+      const userId = session.user.id;
       setIsLoading(true);
       setError(null);
 
@@ -281,7 +282,8 @@ export default function ScriptPage() {
           const duration = urlParams.get('duration') || undefined;
           const payload: GenerationParams = {
             topic: topic,
-            duration_minutes: duration ? parseInt(duration) : undefined
+            duration_minutes: duration ? parseInt(duration) : undefined,
+            userId: session.user.id,
           };
           // show summary immediately
           try {
@@ -370,6 +372,7 @@ setData(normalized);
       try {
         let json;
 try {
+  params.userId = session.user.id;
   json = await ApiService.generateScript(params);
 } catch (error: any) {
   if (error.message?.includes('timeout')) {
