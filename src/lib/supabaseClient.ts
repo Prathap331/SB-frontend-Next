@@ -5,11 +5,8 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // Persist the session across page reloads via localStorage
-    persistSession: true,
-    // Automatically refresh the access token before it expires
-    autoRefreshToken: true,
-    // Detect session from URL hash (needed for OAuth + magic-link callbacks)
-    detectSessionInUrl: true,
+    persistSession: true,      // Store session (incl. refresh token) in localStorage
+    autoRefreshToken: true,    // Silently refresh the access token before it expires
+    detectSessionInUrl: true,  // Parse tokens from URL hash on OAuth callback
   },
 });

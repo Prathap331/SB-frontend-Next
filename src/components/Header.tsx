@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
 import { Crown, User, Menu, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -12,8 +12,17 @@ const Header = () => {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('sb-xncfghdikiqknuruurfh-auth-token');
-    if (token) setIsLoggedIn(true);
+    // Check current session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+    });
+
+    // React to login / logout events from anywhere in the app
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -52,14 +61,13 @@ const Header = () => {
               Upgrade
             </button>
           </Link>
-          {!isLoggedIn && (
+          {!isLoggedIn ? (
             <Link href="/auth">
               <button className="text-sm font-medium text-white bg-[#1d1d1f] px-4 py-1.5 rounded-full hover:bg-black transition-all duration-200">
                 Sign In
               </button>
             </Link>
-          )}
-          {isLoggedIn && (
+          ) : (
             <Link href="/profile">
               <button className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all duration-200">
                 <User className="w-4 h-4 text-[#1d1d1f]" />
@@ -88,15 +96,14 @@ const Header = () => {
                 Upgrade
               </button>
             </Link>
-            {!isLoggedIn && (
+            {!isLoggedIn ? (
               <Link href="/auth" onClick={() => setIsMenuOpen(false)}>
                 <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
                   <User className="w-4 h-4" />
                   Sign In
                 </button>
               </Link>
-            )}
-            {isLoggedIn && (
+            ) : (
               <Link href="/profile" onClick={() => setIsMenuOpen(false)}>
                 <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
                   <User className="w-4 h-4" />

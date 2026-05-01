@@ -1,29 +1,80 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { User, Edit, Save, FileText, CreditCard, Crown, Calendar, DollarSign, Download, ExternalLink, LogOut, Menu, X, Video, Upload, CheckCircle2, AlertCircle, Loader2, FileIcon, Info } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { User, Edit, Save, FileText, CreditCard, Crown, Calendar, DollarSign, Download, ExternalLink, LogOut, Menu, X, Video, Upload, CheckCircle2, AlertCircle, Loader2, FileIcon, Info, Lock, Eye, EyeOff } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+type ProfileData = {
+  name: string;
+  email: string;
+  phone: string;
+  youtubeLink: string;
+  instagramLink: string;
+  facebookLink: string;
+  twitterLink: string;
+  billingAddress: string;
+};
+
+const emptyProfile: ProfileData = {
+  name: '', email: '', phone: '',
+  youtubeLink: '', instagramLink: '',
+  facebookLink: '', twitterLink: '',
+  billingAddress: '',
+};
 
 export default function Profile() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
-  const [profileData, setProfileData] = useState({
-    name: 'John Doe', email: 'john.doe@example.com', phone: '+1 (555) 123-4567',
-    youtubeLink: 'https://youtube.com/@johndoe', instagramLink: 'https://instagram.com/johndoe',
-    facebookLink: 'https://facebook.com/johndoe', twitterLink: 'https://twitter.com/johndoe',
-    billingAddress: '123 Main St, New York, NY 10001'
-  });
-  const [editData, setEditData] = useState(profileData);
+  const [profileData, setProfileData] = useState<ProfileData>(emptyProfile);
+  const [editData, setEditData] = useState<ProfileData>(emptyProfile);
+  const [isFetchingProfile, setIsFetchingProfile] = useState(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+
+  // Fetch profile from Supabase on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      setIsFetchingProfile(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { router.push('/auth'); return; }
+
+        const user = session.user;
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('full_name, phone, youtube_link, instagram_link, facebook_link, twitter_link, billing_address')
+          .eq('id', user.id)
+          .single();
+
+        const fetched: ProfileData = {
+          name:           data?.full_name        ?? user.user_metadata?.full_name        ?? '',
+          email:          user.email             ?? '',
+          phone:          data?.phone            ?? user.user_metadata?.phone            ?? '',
+          youtubeLink:    data?.youtube_link     ?? user.user_metadata?.youtube_link     ?? '',
+          instagramLink:  data?.instagram_link   ?? user.user_metadata?.instagram_link   ?? '',
+          facebookLink:   data?.facebook_link    ?? user.user_metadata?.facebook_link    ?? '',
+          twitterLink:    data?.twitter_link     ?? user.user_metadata?.twitter_link     ?? '',
+          billingAddress: data?.billing_address  ?? user.user_metadata?.billing_address  ?? '',
+        };
+
+        // Log the error only if it's something other than "no rows found"
+        if (error && error.code !== 'PGRST116') {
+          console.warn('[profile fetch]', error.message);
+        }
+
+        setProfileData(fetched);
+        setEditData(fetched);
+      } finally {
+        setIsFetchingProfile(false);
+      }
+    };
+    fetchProfile();
+  }, [router]);
 
   // Channel PDF upload state
   const [channelFile, setChannelFile] = useState<File | null>(null);
@@ -67,38 +118,100 @@ export default function Profile() {
 
   const handleUpload = async () => {
     if (!channelFile) return;
+  
     setUploadStatus('uploading');
     setUploadError(null);
+  
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token ?? null;
-
+  
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+  
       const formData = new FormData();
       formData.append('file', channelFile);
-
+      formData.append('userId', session.user.id);
+  
+      // ✅ Log request data
+      console.log('Uploading Data:', {
+        userId: session.user.id,
+        fileName: channelFile.name,
+        fileType: channelFile.type,
+        fileSize: channelFile.size,
+      });
+  
       const res = await fetch('https://storybit-backend.onrender.com/upload', {
         method: 'POST',
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: formData,
       });
-
+  
+      // ✅ Log raw response
+      console.log('Upload Response Status:', res.status);
+  
+      const responseData = await res.json().catch(async () => {
+        const text = await res.text();
+        return text;
+      });
+  
+      // ✅ Log response body
+      console.log('Upload Response Data:', responseData);
+  
       if (!res.ok) {
-        const msg = await res.text().catch(() => `HTTP ${res.status}`);
-        throw new Error(msg || `Upload failed (${res.status})`);
+        throw new Error(
+          typeof responseData === 'string'
+            ? responseData
+            : responseData?.message || `Upload failed (${res.status})`
+        );
       }
-
+  
       setUploadStatus('success');
+  
     } catch (err: any) {
+      console.error('Upload Error:', err);
+  
       setUploadStatus('error');
       setUploadError(err?.message || 'Upload failed. Please try again.');
     }
   };
 
-  const handleSave = () => { setProfileData(editData); setIsEditing(false); };
-  const handleCancel = () => { setEditData(profileData); setIsEditing(false); };
-  const handleLogout = () => { localStorage.removeItem('sb-xncfghdikiqknuruurfh-auth-token'); router.push('/auth'); };
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id:               session.user.id,
+          full_name:        editData.name,
+          phone:            editData.phone,
+          youtube_link:     editData.youtubeLink,
+          instagram_link:   editData.instagramLink,
+          facebook_link:    editData.facebookLink,
+          twitter_link:     editData.twitterLink,
+          billing_address:  editData.billingAddress,
+          updated_at:       new Date().toISOString(),
+        }, { onConflict: 'id' });
+
+      if (error) throw error;
+
+      setProfileData(editData);
+      setIsEditing(false);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Failed to save. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => { setEditData(profileData); setIsEditing(false); setSaveError(null); };
+  const handleLogout = async () => { await supabase.auth.signOut(); router.push('/auth'); };
 
   const downloadInvoice = (invoiceId: string) => {
     const content = `Invoice #${invoiceId}\nDate: ${new Date().toLocaleDateString()}\nAmount: $29.99\nPlan: Pro Monthly`;
@@ -130,7 +243,43 @@ export default function Profile() {
     { id: 'subscription', label: 'Subscription', icon: Crown },
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'channel', label: 'Channel', icon: Video },
+    { id: 'password', label: 'Update Password', icon: Lock },
   ];
+
+  // ── Password update state ────────────────────────────────────────────────
+  const [pwData, setPwData] = useState({ current: '', next: '', confirm: '' });
+  const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwSuccess, setPwSuccess] = useState(false);
+
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwError(null);
+    setPwSuccess(false);
+    if (pwData.next.length < 6) { setPwError('New password must be at least 6 characters.'); return; }
+    if (pwData.next !== pwData.confirm) { setPwError('Passwords do not match.'); return; }
+    setPwSaving(true);
+    try {
+      // Re-authenticate with current password first
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: session.user.email!,
+        password: pwData.current,
+      });
+      if (signInError) throw new Error('Current password is incorrect.');
+      // Now update to the new password
+      const { error: updateError } = await supabase.auth.updateUser({ password: pwData.next });
+      if (updateError) throw updateError;
+      setPwSuccess(true);
+      setPwData({ current: '', next: '', confirm: '' });
+    } catch (err: any) {
+      setPwError(err?.message || 'Failed to update password.');
+    } finally {
+      setPwSaving(false);
+    }
+  };
 
   const nav = (
     <div className="space-y-2">
@@ -152,14 +301,15 @@ export default function Profile() {
     </div>
   );
 
-  const profileFields = [
-    { id: 'name', label: 'Full Name', type: 'text', key: 'name' as const },
-    { id: 'email', label: 'Email', type: 'email', key: 'email' as const },
-    { id: 'phone', label: 'Phone', type: 'text', key: 'phone' as const },
-    { id: 'youtube', label: 'YouTube Link', type: 'text', key: 'youtubeLink' as const },
-    { id: 'instagram', label: 'Instagram Link', type: 'text', key: 'instagramLink' as const },
-    { id: 'facebook', label: 'Facebook Link', type: 'text', key: 'facebookLink' as const },
-    { id: 'twitter', label: 'Twitter Link', type: 'text', key: 'twitterLink' as const },
+  const profileFields: { id: string; label: string; type: string; key: keyof ProfileData; readOnly?: boolean }[] = [
+    { id: 'name',           label: 'Full Name',       type: 'text',   key: 'name' },
+    { id: 'email',          label: 'Email',           type: 'email',  key: 'email',          readOnly: true },
+    { id: 'phone',          label: 'Phone',           type: 'text',   key: 'phone' },
+    { id: 'youtube',        label: 'YouTube Link',    type: 'url',    key: 'youtubeLink' },
+    { id: 'instagram',      label: 'Instagram Link',  type: 'url',    key: 'instagramLink' },
+    { id: 'facebook',       label: 'Facebook Link',   type: 'url',    key: 'facebookLink' },
+    { id: 'twitter',        label: 'Twitter Link',    type: 'url',    key: 'twitterLink' },
+    { id: 'billing',        label: 'Billing Address', type: 'text',   key: 'billingAddress' },
   ];
 
   return (
@@ -214,42 +364,73 @@ export default function Profile() {
                     <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Update your personal information and social links</p>
                   </div>
                   {!isEditing ? (
-                    <button onClick={() => { setIsEditing(true); setEditData(profileData); }}
-                      className="flex items-center gap-2 text-xs font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-4 py-2 rounded-xl transition-colors">
+                    <button
+                      onClick={() => { setIsEditing(true); setEditData(profileData); setSaveError(null); }}
+                      disabled={isFetchingProfile}
+                      className="flex items-center gap-2 text-xs font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
+                    >
                       <Edit className="w-3.5 h-3.5" />Edit
                     </button>
                   ) : (
                     <div className="flex gap-2">
-                      <button onClick={handleSave} className="flex items-center gap-1.5 text-xs font-medium text-white bg-[#1d1d1f] hover:bg-black px-4 py-2 rounded-xl transition-colors">
-                        <Save className="w-3.5 h-3.5" />Save
+                      <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="flex items-center gap-1.5 text-xs font-medium text-white bg-[#1d1d1f] hover:bg-black px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
+                      >
+                        {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                        {isSaving ? 'Saving…' : 'Save'}
                       </button>
-                      <button onClick={handleCancel} className="text-xs font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-4 py-2 rounded-xl transition-colors">Cancel</button>
+                      <button onClick={handleCancel} disabled={isSaving} className="text-xs font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-4 py-2 rounded-xl transition-colors disabled:opacity-50">Cancel</button>
                     </div>
                   )}
                 </div>
-                <div className="px-6 py-5 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {profileFields.map(f => (
-                      <div key={f.id}>
-                        <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">{f.label}</label>
-                        <input id={f.id} type={f.type}
-                          value={isEditing ? editData[f.key] : profileData[f.key]}
-                          onChange={e => setEditData({ ...editData, [f.key]: e.target.value })}
-                          disabled={!isEditing}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm placeholder-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f] disabled:text-[#6e6e73] transition-all"
-                        />
-                      </div>
-                    ))}
+
+                {/* Save error */}
+                {saveError && (
+                  <div className="mx-6 mt-4 flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />{saveError}
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">Billing Address</label>
-                    <input type="text"
-                      value={isEditing ? editData.billingAddress : profileData.billingAddress}
-                      onChange={e => setEditData({ ...editData, billingAddress: e.target.value })}
-                      disabled={!isEditing}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm placeholder-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f] disabled:text-[#6e6e73] transition-all"
-                    />
-                  </div>
+                )}
+
+                <div className="px-6 py-5">
+                  {isFetchingProfile ? (
+                    <div className="flex items-center justify-center py-12 gap-3 text-[#6e6e73]">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-sm font-light">Loading profile…</span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {profileFields.map(f => {
+                        const isLocked = f.readOnly || (!isEditing);
+                        const value = isEditing ? editData[f.key] : profileData[f.key];
+                        return (
+                          <div key={f.id} className={f.key === 'billingAddress' ? 'sm:col-span-2' : ''}>
+                            <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5 flex items-center gap-1.5">
+                              {f.label}
+                              {f.readOnly && (
+                                <span className="text-[9px] font-semibold bg-gray-100 text-[#6e6e73] px-1.5 py-0.5 rounded-md tracking-wide">LOCKED</span>
+                              )}
+                            </label>
+                            <input
+                              id={f.id}
+                              type={f.type}
+                              value={value}
+                              onChange={e => !f.readOnly && setEditData({ ...editData, [f.key]: e.target.value })}
+                              disabled={isLocked}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all
+                                ${f.readOnly
+                                  ? 'border-gray-100 bg-gray-50 text-[#6e6e73] cursor-not-allowed'
+                                  : isEditing
+                                  ? 'border-gray-200 bg-white text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f]'
+                                  : 'border-gray-200 bg-[#f5f5f7] text-[#1d1d1f]'
+                                }`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -512,6 +693,72 @@ export default function Profile() {
                 </div>
               </div>
             )}
+            {/* Password */}
+            {activeTab === 'password' && (
+              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+                <div className="px-6 py-5 border-b border-gray-100">
+                  <h2 className="text-sm font-semibold text-[#1d1d1f]">Update Password</h2>
+                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Change your account password</p>
+                </div>
+
+                <div className="px-6 py-6 max-w-md">
+                  {pwSuccess && (
+                    <div className="flex items-center gap-2.5 text-xs text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3 mb-5">
+                      <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                      Password updated successfully.
+                    </div>
+                  )}
+                  {pwError && (
+                    <div className="flex items-center gap-2.5 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-5">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      {pwError}
+                    </div>
+                  )}
+
+                  <form onSubmit={handlePasswordUpdate} className="space-y-4">
+                    {(
+                      [
+                        { key: 'current' as const, label: 'Current password',  show: showPw.current,  toggle: () => setShowPw(p => ({ ...p, current: !p.current })) },
+                        { key: 'next'    as const, label: 'New password',       show: showPw.next,     toggle: () => setShowPw(p => ({ ...p, next:    !p.next    })) },
+                        { key: 'confirm' as const, label: 'Confirm new password', show: showPw.confirm, toggle: () => setShowPw(p => ({ ...p, confirm: !p.confirm })) },
+                      ] as const
+                    ).map(({ key, label, show, toggle }) => (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">{label}</label>
+                        <div className="relative">
+                          <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6e6e73] w-4 h-4" />
+                          <input
+                            type={show ? 'text' : 'password'}
+                            placeholder="••••••••"
+                            value={pwData[key]}
+                            onChange={e => setPwData(p => ({ ...p, [key]: e.target.value }))}
+                            required
+                            disabled={pwSaving}
+                            className="w-full pl-10 pr-11 py-2.5 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm placeholder-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f] transition-all disabled:opacity-60"
+                          />
+                          <button
+                            type="button"
+                            onClick={toggle}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+                          >
+                            {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    <button
+                      type="submit"
+                      disabled={pwSaving}
+                      className="flex items-center gap-2 text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-6 py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 mt-1"
+                    >
+                      {pwSaving ? <><Loader2 className="w-4 h-4 animate-spin" />Updating…</> : 'Change password'}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       </div>

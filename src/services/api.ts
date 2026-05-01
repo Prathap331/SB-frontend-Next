@@ -102,6 +102,12 @@ export interface SignUpRequest {
   email: string;
   password: string;
   full_name: string;
+  phone?: string;
+  youtube_link?: string;
+  instagram_link?: string;
+  facebook_link?: string;
+  twitter_link?: string;
+  billing_address?: string;
 }
 
 export interface SignUpResponse {
@@ -669,36 +675,47 @@ console.log('Request payload:', { topic: safeTopic });
     }
   }
 
-  static async signUp(request: SignUpRequest): Promise<SignUpResponse> {
-    const url = `https://xncfghdikiqknuruurfh.supabase.co/auth/v1/signup`;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhuY2ZnaGRpa2lxa251cnV1cmZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAyOTcwNTUsImV4cCI6MjA3NTg3MzA1NX0.9emUGvDrV8e8jYy6TMnPMiV7Hiw5qaCyeT6Vdc1yCAM" ;
-
-    if (!anonKey) {
-      throw new Error('Supabase anon key is not defined.');
-    }
-
+  static async signUp(request: SignUpRequest) {
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': anonKey,
-        },
-        body: JSON.stringify({
-          email: request.email,
-          password: request.password,
+      // STEP 1: Create auth user
+      const { data, error } = await supabase.auth.signUp({
+        email: request.email,
+        password: request.password,
+        options: {
           data: {
             full_name: request.full_name,
           },
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error_description || 'Sign-up failed.');
+  
+      if (error) throw error;
+  
+      const user = data.user;
+  
+      if (!user) {
+        throw new Error('User creation failed');
       }
-
-      return await response.json();
+  
+      // STEP 2: Insert into profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: request.email,
+          full_name: request.full_name,
+          phone: request.phone,
+          youtube_link: request.youtube_link,
+          instagram_link: request.instagram_link,
+          facebook_link: request.facebook_link,
+          twitter_link: request.twitter_link,
+          billing_address: request.billing_address,
+        });
+  
+      if (profileError) {
+        throw profileError;
+      }
+  
+      return data;
     } catch (error) {
       console.error('Sign-up error:', error);
       throw error;

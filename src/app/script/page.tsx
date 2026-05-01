@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { ApiService, GenerationParams, GeneratedScriptData } from '@/services/api';
+import { supabase } from '@/lib/supabaseClient';
 
 
 type HashtagItem = {
@@ -189,32 +190,15 @@ export default function ScriptPage() {
     if (hasCalledRef.current) return; // ✅ prevents double call
     hasCalledRef.current = true;
 
-    const token = localStorage.getItem('sb-xncfghdikiqknuruurfh-auth-token');
-    if (!token) {
-      setIsRedirecting(true);
-      router.push('/auth');
-      return;
-    }
-    
-    // Validate token structure before proceeding
-    try {
-      const parsedToken = JSON.parse(token);
-      if (!parsedToken.access_token) {
-        // Invalid token structure, redirect immediately
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
         setIsRedirecting(true);
-        localStorage.removeItem('sb-xncfghdikiqknuruurfh-auth-token');
         router.push('/auth');
         return;
       }
-    } catch {
-      // Invalid token format, redirect immediately
-      setIsRedirecting(true);
-      localStorage.removeItem('sb-xncfghdikiqknuruurfh-auth-token');
-      router.push('/auth');
-      return;
-    }
 
-    setShouldRender(true);
+      setShouldRender(true);
 
     const run = async () => {
       setIsLoading(true);
@@ -344,7 +328,7 @@ setData(normalized);
             // Handle unauthorized errors immediately - redirect without showing error
             if (error.message.includes('Unauthorized') || error.message.includes('Not authenticated')) {
               setIsRedirecting(true);
-              localStorage.removeItem('sb-xncfghdikiqknuruurfh-auth-token');
+              supabase.auth.signOut();
               router.push('/auth');
               return;
             }
@@ -446,6 +430,7 @@ console.log("📦 Script API Response:", json);
       }
     };
     run();
+  })();
   }, [router]);
 
   const [showSourcesDialog, setShowSourcesDialog] = useState(false);
