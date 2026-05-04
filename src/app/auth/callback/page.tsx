@@ -224,14 +224,14 @@ export default function AuthCallback() {
                     )}
                   </button>
 
-                  <button
+                  {/* <button
                     type="button"
                     onClick={handleSkip}
                     disabled={isSaving}
                     className="w-full py-2 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors disabled:opacity-50"
                   >
                     Skip for now — I&apos;ll fill this in later
-                  </button>
+                  </button> */}
                 </div>
               </form>
             </div>

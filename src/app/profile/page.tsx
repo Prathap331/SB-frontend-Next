@@ -240,9 +240,9 @@ export default function Profile() {
   const menuItems = [
     { id: 'profile', label: 'Basic Details', icon: User },
     { id: 'scripts', label: 'My Scripts', icon: FileText },
+    { id: 'channel', label: 'Channel memory', icon: Video },
     { id: 'subscription', label: 'Subscription', icon: Crown },
     { id: 'billing', label: 'Billing', icon: CreditCard },
-    { id: 'channel', label: 'Channel', icon: Video },
     { id: 'password', label: 'Update Password', icon: Lock },
   ];
 
@@ -513,7 +513,7 @@ export default function Profile() {
                 {/* Header card */}
                 <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                   <div className="px-6 py-5 border-b border-gray-100">
-                    <h2 className="text-sm font-semibold text-[#1d1d1f]">Creator Profile</h2>
+                    <h2 className="text-sm font-semibold text-[#1d1d1f]">Channel memory</h2>
                     <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Upload your channel style guide so AI writes scripts that sound like you</p>
                   </div>
 

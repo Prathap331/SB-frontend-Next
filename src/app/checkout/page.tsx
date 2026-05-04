@@ -227,14 +227,14 @@ function CheckoutInner() {
         </div>
 
         {/* ── Payment method card ── */}
-        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+        {/* <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100">
             <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6e6e73]">Payment method</p>
           </div>
           <div className="px-6 py-4">
-            <div className="flex items-center gap-3 p-3.5 border border-[#1d1d1f] rounded-xl bg-[#f5f5f7]">
+            <div className="flex items-center gap-3 p-3.5 border border-[#1d1d1f] rounded-xl bg-[#f5f5f7]"> */}
               {/* Razorpay logo as SVG wordmark */}
-              <div className="flex items-center gap-2 flex-1">
+              {/* <div className="flex items-center gap-2 flex-1">
                 <div className="w-8 h-8 rounded-lg bg-[#072654] flex items-center justify-center flex-shrink-0">
                   <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
                     <path d="M22.368 8.175L19.07 2.5 9.847 8.175l3.298 5.677 9.223-5.677zM1.632 15.825L4.93 21.5l9.223-5.675-3.298-5.677-9.223 5.677z"/>
@@ -250,7 +250,7 @@ function CheckoutInner() {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* ── Summary card ── */}
         <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">

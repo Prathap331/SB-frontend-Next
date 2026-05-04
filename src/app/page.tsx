@@ -91,11 +91,11 @@ export default function Home() {
           </h1>
 
           <p
-            className="text-base sm:text-lg md:text-xl text-gray-800 mb-6 sm:mb-8 max-w-2xl mx-auto leading-relaxed font-light px-2 sm:px-0"
+            className="text-base sm:text-lg md:text-xl text-gray-800 mb-6 sm:mb-8 mx-auto leading-relaxed font-light px-2 sm:px-0"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
           >
             AI that transforms your ideas into engaging, factual,
-            research&#8209;backed YouTube scripts.
+            research-backed YouTube scripts.
           </p>
 
           {/* Search bar */}

@@ -68,9 +68,23 @@ export default function CategorySlider() {
         </svg>
       </div>
   
-      <span className="text-sm text-[#6e6e73] text-center max-w-[110px] truncate">
-        {c.label}
-      </span>
+      <span
+  ref={(el) => {
+    if (!el) return;
+
+    // delay to ensure layout is calculated
+    requestAnimationFrame(() => {
+      if (el.scrollWidth > el.clientWidth) {
+        el.classList.add('marquee-text');
+      }
+    });
+  }}
+  className="text-sm text-[#6e6e73] text-center max-w-[110px] whitespace-nowrap overflow-hidden block"
+>
+  <span className="inline-block marquee-inner">
+    {c.label}
+  </span>
+</span>
     </div>
   );
 
@@ -109,6 +123,20 @@ export default function CategorySlider() {
         .animate-marquee {
           animation: marquee 90s linear infinite;
         }
+
+      
+@keyframes text-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-100% + 110px));
+  }
+}
+
+.marquee-text:hover .marquee-inner {
+  animation: text-scroll 4s linear infinite;
+}
 
       `}</style>
     </section>

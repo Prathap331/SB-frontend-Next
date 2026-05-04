@@ -712,7 +712,7 @@ const csExpansion =
         <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm mb-5 overflow-hidden ">
 
           {/* Tab navigation */}
-          <div className="flex overflow-auto border-b border-gray-100">
+          <div className="flex overflow-x-auto border-b border-gray-100 scrollbar-none">
             {([
               [1, 'Title Workshop'],
               [2, 'Keyword Strategy'],
