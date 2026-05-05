@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc:*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(node -e ' *)",
+      "Bash(del \"c:\\\\Users\\\\chint\\\\OneDrive\\\\Desktop\\\\morpho-projects\\\\SB-frontend-Next\\\\src\\\\analytics-section.txt\")",
+      "Bash(find /c/Users/chint -name \"storybit_final.html\" 2>/dev/null | head -5)",
+      "Read(//c/Users/chint/**)"
     ]
   }
 }

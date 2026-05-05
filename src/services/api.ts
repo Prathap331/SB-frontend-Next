@@ -237,6 +237,193 @@ export type GeneratedScriptData = {
   };
 };
 
+// ── TSS response from /pipeline-metrics ──────────────────────────────────────
+export interface TSSResponse {
+  topic: string;
+
+  trends: {
+    score: number;
+    band: string;
+    status: string;
+    updated_at: string
+    searches_per_week: string;
+    vs_avg_week: string;
+    vs_normal_week: string;
+    week_on_week: string;
+    trend_direction: string;
+  };
+
+  youtube: {
+    score: number;
+    band: string;
+    status: string;
+    updated_at: string;
+
+    low_volume: boolean;
+
+    views_this_week: number;
+    views_last_week: number;
+
+    view_growth: string;   // ✅ "4.0×"
+    wow_ratio: number;
+
+    new_videos_7d: number;
+    videos_tracked: number;
+
+    distinct_channels: number;
+    creator_competition: string;
+
+    likes_total: number;
+    comments_total: number;
+
+    engagement_rate: string; // ✅ "1.8%"
+
+    all_new_videos: boolean;
+  };
+
+  social: {
+    score: number;
+    band: string;
+    status: string;
+    updated_at: string;
+    source: string;
+
+    posts_48h: number;
+    daily_avg: number;
+
+    communities: number;
+    avg_comments: number;
+
+    sentiment: string;
+    upvote_pct: number;
+  };
+
+  news_result: {
+    score: number;
+    band: string;
+    status: string;
+    updated_at: string;
+    source: string;
+
+    low_volume: boolean;
+
+    articles_7d: number;
+    avg_weekly_baseline: number | null;
+
+    publishers: number;
+
+    vs_normal_week: string;
+
+    coverage_tone: string;
+    tone_shift: number;
+
+    gdelt_available: boolean;
+  };
+}
+
+// ── ECI response from /eci ────────────────────────────────────────────────────
+export interface ECIResponse {
+  google_data?: {
+    demand_score?: number;
+    trend_direction?: string;
+    volatility?: number;
+    seasonality?: boolean;
+    breakout_signal?: boolean;
+
+    // ✅ ADD THESE (missing in your type)
+    index_now?: number;
+    avg_index_24m?: number;
+    stability?: number;
+    lifecycle?: string;
+    best_month?: string;
+
+    search_intent?: {
+      learning_pct?: number;
+      buying_pct?: number;
+      research_pct?: number;
+    };
+
+    top_geographies?: string[];
+  };
+
+  youtube_data?: {
+    avg_views?: number;
+    engagement_rate?: number;
+    competition_score?: number;
+    upload_frequency?: number;
+    authority_score?: number;
+    youtube_score?: number;
+
+    version_sensitivity?: number;
+    version_sensitivity_label?: string;
+    old_to_new_ratio?: number;
+    foundational_stability?: boolean;
+    incumbent_decay_pct?: number;
+
+    revenue_potential?: {
+      revenue_score?: number;
+      est_rpm?: number;
+      rpm_low?: number;
+      rpm_high?: number;
+      rpm_range?: string;
+      like_rate_pct?: number;
+      engagement_adj?: string;
+      eng_multiplier?: number;
+      ad_revenue_mo?: number;
+      brand_deal_est_mo?: number;
+      total_est_mo?: number;
+      views_basis?: string;
+      rpm_source?: string;
+    };
+
+    // ✅ ADD THIS
+    content_longevity?: {
+      longevity_score?: number;
+      shelf_life_label?: string;
+      version_sensitivity?: number;
+      version_sensitivity_label?: string;
+      old_to_new_ratio?: number;
+      foundational_stability?: boolean;
+      incumbent_decay_pct?: number;
+    };
+
+    // ✅ ADD THIS (ERROR 1)
+    audience_depth?: {
+      score?: number;
+      like_rate_pct?: number;
+      comment_rate_pct?: number;
+      avg_length_min?: number;
+      oldest_top_months?: number;
+      question_pct?: number;
+      complaint_pct?: number;
+      engagement_score?: number;
+      videos_analyzed?: number;
+    };
+
+    // ✅ ADD THIS (ERROR 2)
+    competition_density?: {
+      score?: number;
+      label?: string;
+      avg_channel_subs?: number;
+      view_gini?: number;
+      small_creator_share?: number;
+      total_videos_est?: number;
+      channels_analyzed?: number;
+    };
+
+    // ✅ ADD THIS (ERROR 3)
+    audience_profile?: {
+      score?: number;
+      primary_audience?: string;
+      dominant_emotion?: string;
+      experience_level?: string;
+      purchase_intent?: string;
+      shareability?: number;
+      data_sources?: string;
+    };
+  };
+}
+
 export type TrendingTopicItem =
   | string
   | { topic?: string; title?: string; tittle?: string; name?: string };
@@ -519,30 +706,50 @@ console.log('Request payload:', { topic: safeTopic });
     }
   }
 
-  static async pipelineMetrics(topic: string): Promise<PipelineMetricsResponse> {
+  static async pipelineMetrics(topic: string): Promise<TSSResponse> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 300000);
     const url = `${this.BASE_URL}/pipeline-metrics`;
-    console.log('[pipeline-metrics] → POST', url, { topic });
     try {
       const response = await this.authorizedFetch(
         url,
         { method: 'POST', body: JSON.stringify({ topic }) },
         controller.signal,
       );
-
-      console.log('[pipeline-metrics] ← status', response.status, response.statusText);
-
       if (!response.ok) {
         const body = await response.text().catch(() => '(no body)');
-        console.error('[pipeline-metrics] error body:', body);
-        throw new Error(`pipeline-metrics failed: ${response.status} ${response.statusText} — ${body}`);
+        throw new Error(`pipeline-metrics failed: ${response.status} — ${body}`);
       }
-      const data = await response.json() as PipelineMetricsResponse;
-      console.log('[pipeline-metrics] ✓ received:', data);
+      const data = await response.json() as TSSResponse;
+      console.log('[pipeline-metrics] ✓', data);
       return data;
     } catch (err) {
-      console.error('[pipeline-metrics] caught error:', err);
+      console.error('[pipeline-metrics] error:', err);
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  static async eci(topic: string): Promise<ECIResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+    const url = `${this.BASE_URL}/eci`;
+    try {
+      const response = await this.authorizedFetch(
+        url,
+        { method: 'POST', body: JSON.stringify({ topic }) },
+        controller.signal,
+      );
+      if (!response.ok) {
+        const body = await response.text().catch(() => '(no body)');
+        throw new Error(`eci failed: ${response.status} — ${body}`);
+      }
+      const data = await response.json() as ECIResponse;
+      console.log('[eci] ✓', data);
+      return data;
+    } catch (err) {
+      console.error('[eci] error:', err);
       throw err;
     } finally {
       clearTimeout(timeoutId);

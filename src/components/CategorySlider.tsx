@@ -68,23 +68,18 @@ export default function CategorySlider() {
         </svg>
       </div>
   
-      <span
-  ref={(el) => {
-    if (!el) return;
-
-    // delay to ensure layout is calculated
-    requestAnimationFrame(() => {
-      if (el.scrollWidth > el.clientWidth) {
-        el.classList.add('marquee-text');
-      }
-    });
-  }}
-  className="text-sm text-[#6e6e73] text-center max-w-[110px] whitespace-nowrap overflow-hidden block"
->
-  <span className="inline-block marquee-inner">
+      <div className="relative group">
+  <span className="text-sm text-[#6e6e73] text-center max-w-[110px] whitespace-nowrap overflow-hidden text-ellipsis block">
     {c.label}
   </span>
-</span>
+
+  {/* hover full text */}
+  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50">
+    <div className="bg-[#1d1d1f] text-white text-xs px-3 py-1.5 rounded-md shadow-lg whitespace-nowrap">
+      {c.label}
+    </div>
+  </div>
+</div>
     </div>
   );
 
@@ -123,20 +118,6 @@ export default function CategorySlider() {
         .animate-marquee {
           animation: marquee 90s linear infinite;
         }
-
-      
-@keyframes text-scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(calc(-100% + 110px));
-  }
-}
-
-.marquee-text:hover .marquee-inner {
-  animation: text-scroll 4s linear infinite;
-}
 
       `}</style>
     </section>
