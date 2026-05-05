@@ -142,7 +142,7 @@ export default function ECIExactReplica({ data }: Props) {
         </div>
 
         {/* 7 DIMENSIONS */}
-        <div className="grid grid-cols-7">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
           {DIMENSIONS.map((d) => (
             <div key={d.name} className="p-3 border-r last:border-r-0">
                <div

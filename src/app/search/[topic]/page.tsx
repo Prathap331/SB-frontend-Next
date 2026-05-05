@@ -426,6 +426,7 @@ const TSSCard: React.FC<TSSCardProps> = ({
             <p className="text-sm font-semibold text-[#1C1A17]">{title}</p>
 
             <p className="text-[11px] text-[#A8A49D]">
+              {title === "Search" && "Google Trends web · 52wk"}
               {title === "YouTube" && "YouTube Data API · top recent videos"}
               {title === "News" && source}
               {title === "Social" && source}
