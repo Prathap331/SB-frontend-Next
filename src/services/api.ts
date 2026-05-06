@@ -108,6 +108,7 @@ export interface SignUpRequest {
   facebook_link?: string;
   twitter_link?: string;
   billing_address?: string;
+  categories?: string[];
 }
 
 export interface SignUpResponse {
@@ -917,6 +918,7 @@ console.log('Request payload:', { topic: safeTopic });
           facebook_link: request.facebook_link,
           twitter_link: request.twitter_link,
           billing_address: request.billing_address,
+          categories: request.categories,
         });
   
       if (profileError) {

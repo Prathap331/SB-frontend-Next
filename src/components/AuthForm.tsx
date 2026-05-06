@@ -1,44 +1,70 @@
 'use client';
 
-import { useState, ChangeEvent, FormEvent } from 'react';
+import { useState, useRef, ChangeEvent, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Mail, Lock, User, Eye, EyeOff, Phone, Globe, MapPin, ChevronLeft,
+  Upload, FileText, Info, CheckCircle2, Loader2, AlertCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { ApiService } from '@/services/api';
 
-type Step = 1 | 2;
+type Step = 1 | 2 | 3 | 4;
 
 const inputClass =
   'w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm placeholder-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f] transition-all disabled:opacity-60';
+
+const MAX_PDF_SIZE = 10 * 1024 * 1024;
+
+const ALL_CATEGORIES = [
+  'Psychology', 'Philosophy', 'Knowledge', 'Explainer Videos', 'Historical',
+  'Science Facts', 'Tech Updates', 'Book Summaries', 'Business Cases', 'Business Lessons',
+  'Personal Finance', 'Leadership', 'Sales & Negotiation', 'Self Improvement', 'Relationships',
+  'Parenting', 'Persuasion & Influence', 'Health & Nutrition', 'Motivation', 'Religion & Stories',
+  'Manifestation', 'Mythology', 'Crime Stories', 'Conspiracy & Myths', 'Mental Health',
+  'Cultural Stories', 'Biographies', 'News', 'Geopolitics', 'Policy & Governance',
+  'Legal Breakdowns', 'Criminal Insights', 'Legal Rights', 'Future Tech', 'Science & Tech',
+];
+
+const STEP_LABELS: Record<Step, string> = { 1: 'Account', 2: 'Profile', 3: 'Categories', 4: 'Channel' };
 
 export default function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [step, setStep] = useState<Step>(1);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    phone: '',
-    youtubeLink: '',
-    instagramLink: '',
-    facebookLink: '',
-    twitterLink: '',
-    billingAddress: '',
+    name: '', email: '', password: '', confirmPassword: '',
+    phone: '', youtubeLink: '', instagramLink: '',
+    facebookLink: '', twitterLink: '', billingAddress: '',
   });
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+
+  // Channel memory
+  const [channelFile, setChannelFile] = useState<File | null>(null);
+  const [channelFileError, setChannelFileError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [existingSummary, setExistingSummary] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const router = useRouter();
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  // Step 1 → Step 2 validation
+  const toggleCategory = (cat: string) => {
+    setSelectedCategories(prev => {
+      if (prev.includes(cat)) return prev.filter(c => c !== cat);
+      if (prev.length >= 3) return prev;
+      return [...prev, cat];
+    });
+  };
+
   const handleStep1Continue = (e: FormEvent) => {
     e.preventDefault();
     setMessage({ text: '', type: '' });
@@ -53,13 +79,52 @@ export default function AuthForm() {
     setStep(2);
   };
 
-  // Final submit (step 2)
-  const handleStep2Submit = async (e: FormEvent) => {
+  const handleStep2Continue = (e: FormEvent) => {
     e.preventDefault();
+    setMessage({ text: '', type: '' });
+    setStep(3);
+  };
+
+  const handleStep3Continue = () => {
+    setMessage({ text: '', type: '' });
+    setStep(4);
+  };
+
+  const validateAndSetFile = (file: File) => {
+    setChannelFileError(null);
+    setUploadStatus('idle');
+    setUploadError(null);
+    if (file.type !== 'application/pdf') {
+      setChannelFileError('Only PDF files are accepted.');
+      setChannelFile(null);
+      return;
+    }
+    if (file.size > MAX_PDF_SIZE) {
+      setChannelFileError('File exceeds the 10 MB limit.');
+      setChannelFile(null);
+      return;
+    }
+    setChannelFile(file);
+  };
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) validateAndSetFile(file);
+    e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) validateAndSetFile(file);
+  };
+
+  const handleFinalSubmit = async (skipUpload = false) => {
     setIsLoading(true);
     setMessage({ text: '', type: '' });
     try {
-      await ApiService.signUp({
+      const data = await ApiService.signUp({
         email: formData.email,
         password: formData.password,
         full_name: formData.name,
@@ -69,7 +134,32 @@ export default function AuthForm() {
         facebook_link: formData.facebookLink || undefined,
         twitter_link: formData.twitterLink || undefined,
         billing_address: formData.billingAddress || undefined,
+        categories: selectedCategories.length > 0 ? selectedCategories : undefined,
       });
+
+      if (data.user) {
+        const { data: cpData } = await supabase
+          .from('Channel_Profile')
+          .select('summary')
+          .eq('user_id', data.user.id)
+          .maybeSingle();
+        setExistingSummary(cpData?.summary ?? null);
+      }
+
+      if (!skipUpload && channelFile && data.session) {
+        setUploadStatus('uploading');
+        const uploadForm = new FormData();
+        uploadForm.append('file', channelFile);
+        uploadForm.append('userId', data.user!.id);
+        const res = await fetch('https://storybit-backend.onrender.com/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${data.session.access_token}` },
+          body: uploadForm,
+        });
+        setUploadStatus(res.ok ? 'success' : 'error');
+        if (!res.ok) setUploadError('Upload failed. You can re-upload from your Profile later.');
+      }
+
       setMessage({ text: 'Account created! Check your email to confirm.', type: 'success' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
@@ -105,12 +195,10 @@ export default function AuthForm() {
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          // Request offline access so Google issues a refresh token
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });
       if (error) throw error;
-      // Browser will navigate away — no finally needed
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Google Sign-in failed.';
       setMessage({ text: msg, type: 'error' });
@@ -124,7 +212,7 @@ export default function AuthForm() {
     setMessage({ text: '', type: '' });
   };
 
-  // ── Sign-in form ─────────────────────────────────────────────────────────
+  // ── Sign-in ──────────────────────────────────────────────────────────────
   const signInForm = (
     <form onSubmit={handleSignIn} className="space-y-4">
       <div>
@@ -156,7 +244,7 @@ export default function AuthForm() {
     </form>
   );
 
-  // ── Sign-up step 1: account credentials ─────────────────────────────────
+  // ── Step 1: credentials ──────────────────────────────────────────────────
   const signUpStep1 = (
     <form onSubmit={handleStep1Continue} className="space-y-4">
       <div>
@@ -206,9 +294,18 @@ export default function AuthForm() {
     </form>
   );
 
-  // ── Sign-up step 2: profile details ──────────────────────────────────────
-  const profileFields: { name: keyof typeof formData; label: string; placeholder: string; type: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-    { name: 'phone',          label: 'Phone',           placeholder: '+1 (555) 000-0000',               type: 'tel',  Icon: Phone },
+  // ── Step 2: profile ──────────────────────────────────────────────────────
+  type ProfileField = {
+    name: keyof typeof formData;
+    label: string;
+    placeholder: string;
+    type: string;
+    Icon: React.ComponentType<{ className?: string }>;
+    required?: boolean;
+  };
+
+  const profileFields: ProfileField[] = [
+    { name: 'phone',          label: 'Phone',           placeholder: '+1 (555) 000-0000',               type: 'tel',  Icon: Phone,  required: true },
     { name: 'youtubeLink',    label: 'YouTube',         placeholder: 'https://youtube.com/@handle',     type: 'url',  Icon: Globe },
     { name: 'instagramLink',  label: 'Instagram',       placeholder: 'https://instagram.com/handle',    type: 'url',  Icon: Globe },
     { name: 'facebookLink',   label: 'Facebook',        placeholder: 'https://facebook.com/handle',     type: 'url',  Icon: Globe },
@@ -217,24 +314,220 @@ export default function AuthForm() {
   ];
 
   const signUpStep2 = (
-    <form onSubmit={handleStep2Submit} className="space-y-3">
-      {profileFields.map(({ name, label, placeholder, type, Icon }) => (
+    <form onSubmit={handleStep2Continue} className="space-y-3">
+      {profileFields.map(({ name, label, placeholder, type, Icon, required }) => (
         <div key={name}>
-          <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">{label}</label>
+          <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">
+            {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+          </label>
           <div className="relative">
             <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6e6e73] w-4 h-4" />
             <input name={name} type={type} placeholder={placeholder}
-              value={formData[name]} onChange={handleInputChange} disabled={isLoading}
+              value={formData[name]} onChange={handleInputChange}
+              disabled={isLoading} required={required}
               className={inputClass} />
           </div>
         </div>
       ))}
-      <p className="text-[11px] text-[#6e6e73] pt-1">All fields are optional — you can fill them in later from your profile.</p>
+      <p className="text-[11px] text-[#6e6e73] pt-1">Social links and address are optional — you can fill them in later from your profile.</p>
       <button type="submit" disabled={isLoading}
         className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 mt-1">
-        {isLoading ? 'Creating account…' : 'Create Account'}
+        Continue →
       </button>
     </form>
+  );
+
+  // ── Step 3: categories ───────────────────────────────────────────────────
+  const signUpStep3 = (
+    <div className="space-y-4">
+      <p className="text-[11px] text-[#6e6e73]">
+        Select up to <span className="font-semibold text-[#1d1d1f]">3 categories</span> that best describe your content niche.
+        {selectedCategories.length > 0 && (
+          <span className="ml-1 font-semibold text-[#1d1d1f]">{selectedCategories.length}/3 selected</span>
+        )}
+      </p>
+
+      <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto pr-1">
+        {ALL_CATEGORIES.map(cat => {
+          const selected = selectedCategories.includes(cat);
+          const disabled = !selected && selectedCategories.length >= 3;
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => !disabled && toggleCategory(cat)}
+              className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-150 ${
+                selected
+                  ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
+                  : disabled
+                  ? 'bg-white text-gray-300 border-gray-100 cursor-not-allowed'
+                  : 'bg-white text-[#1d1d1f] border-gray-200 hover:border-[#1d1d1f] hover:bg-[#f5f5f7]'
+              }`}
+            >
+              {cat}
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={handleStep3Continue}
+        disabled={isLoading}
+        className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+      >
+        Continue →
+      </button>
+
+      {selectedCategories.length === 0 && (
+        <button
+          type="button"
+          onClick={handleStep3Continue}
+          className="w-full py-1.5 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+        >
+          Skip for now
+        </button>
+      )}
+    </div>
+  );
+
+  // ── Step 4: channel memory ───────────────────────────────────────────────
+  const signUpStep4 = (
+    <div className="space-y-4">
+      <div className="bg-[#f5f5f7] rounded-2xl p-4 flex gap-3">
+        <Info className="w-4 h-4 text-[#6e6e73] flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-xs font-semibold text-[#1d1d1f] mb-2">What to include in your PDF</p>
+          <ul className="space-y-1">
+            {[
+              'Your speaking tone — casual, formal, storytelling, educational',
+              'Signature phrases, catchphrases, or intros you always use',
+              'Vocabulary style — simple, technical, regional expressions',
+              'Target audience — age group, interests, background',
+              'Content approach — data-driven, narrative, opinion-led',
+              'Topics or niches you cover most',
+            ].map((item, i) => (
+              <li key={i} className="flex items-start gap-2 text-[11px] text-[#6e6e73]">
+                <span className="w-1 h-1 rounded-full bg-[#6e6e73] flex-shrink-0 mt-1.5" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {existingSummary && uploadStatus !== 'success' && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            A channel profile is already on file — you can replace it below.
+          </div>
+          <div className="bg-[#f5f5f7] rounded-xl p-3">
+            <p className="text-[10px] font-semibold text-[#6e6e73] uppercase tracking-widest mb-1">Current summary</p>
+            <p className="text-xs text-[#1d1d1f] leading-relaxed whitespace-pre-wrap line-clamp-4">{existingSummary}</p>
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      {uploadStatus !== 'success' && (
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleDrop}
+          className={`relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-200 ${
+            isDragOver ? 'border-[#1d1d1f] bg-gray-50'
+              : channelFile ? 'border-green-300 bg-green-50/40'
+              : channelFileError ? 'border-red-300 bg-red-50/30'
+              : 'border-gray-200 hover:border-gray-300 hover:bg-[#f5f5f7]/60'
+          }`}
+        >
+          {channelFile ? (
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-10 h-10 rounded-2xl bg-green-100 border border-green-200 flex items-center justify-center">
+                <FileText className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-[#1d1d1f]">{channelFile.name}</p>
+                <p className="text-[11px] text-[#6e6e73] mt-0.5">{(channelFile.size / 1024 / 1024).toFixed(2)} MB · PDF</p>
+              </div>
+              <button
+                onClick={e => { e.stopPropagation(); setChannelFile(null); setUploadStatus('idle'); setUploadError(null); }}
+                className="text-[11px] text-[#6e6e73] hover:text-red-500 underline transition-colors"
+              >
+                Remove file
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center transition-colors ${isDragOver ? 'bg-[#1d1d1f] border-[#1d1d1f]' : 'bg-white border-gray-200'}`}>
+                <Upload className={`w-4 h-4 transition-colors ${isDragOver ? 'text-white' : 'text-[#6e6e73]'}`} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-[#1d1d1f]">{isDragOver ? 'Drop it here' : 'Drop your PDF here'}</p>
+                <p className="text-[11px] text-[#6e6e73] mt-0.5">or <span className="underline">click to browse</span> · PDF only · max 10 MB</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {channelFileError && (
+        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />{channelFileError}
+        </div>
+      )}
+
+      {uploadStatus === 'error' && uploadError && (
+        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />{uploadError}
+        </div>
+      )}
+
+      {uploadStatus === 'success' && (
+        <div className="flex flex-col items-center gap-3 py-3">
+          <div className="w-12 h-12 rounded-full bg-green-100 border border-green-200 flex items-center justify-center">
+            <CheckCircle2 className="w-6 h-6 text-green-600" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-[#1d1d1f]">Profile uploaded successfully</p>
+            <p className="text-[11px] text-[#6e6e73] mt-0.5">Your channel style guide is now active.</p>
+          </div>
+        </div>
+      )}
+
+      {uploadStatus !== 'success' && (
+        <button
+          type="button"
+          onClick={() => handleFinalSubmit(false)}
+          disabled={isLoading}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+        >
+          {isLoading
+            ? <><Loader2 className="w-4 h-4 animate-spin" />Creating account…</>
+            : 'Create Account'}
+        </button>
+      )}
+
+      {uploadStatus !== 'success' && (
+        <button
+          type="button"
+          onClick={() => handleFinalSubmit(true)}
+          disabled={isLoading}
+          className="w-full py-2 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+        >
+          I'll do it later (skip)
+        </button>
+      )}
+    </div>
   );
 
   return (
@@ -243,31 +536,30 @@ export default function AuthForm() {
 
         {/* Header */}
         <div className="px-8 pt-8 pb-6 border-b border-gray-100">
-          {/* Step back button (sign-up step 2 only) */}
-          {isSignUp && step === 2 && (
+          {isSignUp && step > 1 && (
             <button
               type="button"
-              onClick={() => { setStep(1); setMessage({ text: '', type: '' }); }}
+              onClick={() => { setStep((step - 1) as Step); setMessage({ text: '', type: '' }); }}
               className="flex items-center gap-1 text-xs text-[#6e6e73] hover:text-[#1d1d1f] mb-4 transition-colors"
             >
               <ChevronLeft className="w-3.5 h-3.5" /> Back
             </button>
           )}
 
-          {/* Step indicator (sign-up only) */}
+          {/* Step indicator */}
           {isSignUp && (
-            <div className="flex items-center gap-2 mb-4">
-              {([1, 2] as Step[]).map(s => (
-                <div key={s} className="flex items-center gap-2">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+            <div className="flex items-center gap-1.5 mb-4 overflow-x-auto">
+              {([1, 2, 3, 4] as Step[]).map((s, idx) => (
+                <div key={s} className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all ${
                     s === step ? 'bg-[#1d1d1f] text-white' : s < step ? 'bg-green-500 text-white' : 'bg-gray-100 text-[#6e6e73]'
                   }`}>
                     {s < step ? '✓' : s}
                   </div>
-                  <span className={`text-[11px] font-medium ${s === step ? 'text-[#1d1d1f]' : 'text-[#6e6e73]'}`}>
-                    {s === 1 ? 'Account' : 'Profile'}
+                  <span className={`text-[10px] font-medium ${s === step ? 'text-[#1d1d1f]' : 'text-[#6e6e73]'}`}>
+                    {STEP_LABELS[s]}
                   </span>
-                  {s < 2 && <div className="w-8 h-px bg-gray-200 mx-1" />}
+                  {idx < 3 && <div className="w-4 h-px bg-gray-200" />}
                 </div>
               ))}
             </div>
@@ -278,14 +570,18 @@ export default function AuthForm() {
               className="text-2xl font-semibold text-[#1d1d1f] mb-1 tracking-tight"
               style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
             >
-              {!isSignUp ? 'Welcome back' : step === 1 ? 'Create your account' : 'Your profile'}
+              {!isSignUp ? 'Welcome back'
+                : step === 1 ? 'Create your account'
+                : step === 2 ? 'Your profile'
+                : step === 3 ? 'Your content niche'
+                : 'Channel memory'}
             </h1>
             <p className="text-sm text-[#6e6e73] font-light">
-              {!isSignUp
-                ? 'Sign in to continue to Storybit'
-                : step === 1
-                ? 'Start creating research-backed YouTube scripts'
-                : 'Tell us a bit about you (optional)'}
+              {!isSignUp ? 'Sign in to continue to Storybit'
+                : step === 1 ? 'Start creating research-backed YouTube scripts'
+                : step === 2 ? 'Tell us a bit about you'
+                : step === 3 ? 'Select 3 categories that are included in your program'
+                : 'Upload your channel style guide so AI writes scripts that sound like you'}
             </p>
           </div>
         </div>
@@ -308,14 +604,9 @@ export default function AuthForm() {
                 </svg>
                 Continue with Google
               </button>
-
               <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-gray-100" />
-                </div>
-                <div className="relative flex justify-center">
-                  <span className="bg-white px-3 text-xs text-[#6e6e73]">or</span>
-                </div>
+                <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-100" /></div>
+                <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-[#6e6e73]">or</span></div>
               </div>
             </>
           )}
@@ -323,30 +614,23 @@ export default function AuthForm() {
           {/* Message */}
           {message.text && (
             <div className={`text-xs text-center px-4 py-2.5 rounded-xl ${
-              message.type === 'error'
-                ? 'bg-red-50 text-red-600 border border-red-100'
-                : 'bg-green-50 text-green-700 border border-green-100'
+              message.type === 'error' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'
             }`}>
               {message.text}
             </div>
           )}
 
-          {/* Active form */}
           {!isSignUp && signInForm}
           {isSignUp && step === 1 && signUpStep1}
           {isSignUp && step === 2 && signUpStep2}
+          {isSignUp && step === 3 && signUpStep3}
+          {isSignUp && step === 4 && signUpStep4}
 
           {/* Toggle + forgot */}
           <div className="text-center space-y-2">
             <p className="text-xs text-[#6e6e73]">
-              {isSignUp ? 'Already have an account?' : "Don't have an account?"}
-              {' '}
-              <button
-                type="button"
-                onClick={switchMode}
-                className="text-[#1d1d1f] font-medium hover:underline"
-                disabled={isLoading}
-              >
+              {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+              <button type="button" onClick={switchMode} className="text-[#1d1d1f] font-medium hover:underline" disabled={isLoading}>
                 {isSignUp ? 'Sign In' : 'Sign Up'}
               </button>
             </p>
