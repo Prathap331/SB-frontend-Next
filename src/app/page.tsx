@@ -9,6 +9,7 @@ import { Search, TrendingUp } from 'lucide-react';
 import StoryBitPipeline from '@/components/Architecture';
 import { ApiService } from '@/services/api';
 import CategorySlider from '@/components/CategorySlider';
+import SuggestedTopics from '@/components/SuggestedTopics';
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -161,15 +162,23 @@ export default function Home() {
       </section>
 
 
+      {/* ── Suggested Topics ── */}
+      <section className="bg-white pt-10 sm:pt-14 md:pt-16">
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 mb-6">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f] mb-1">
+            Suggested Topics
+          </h2>
+          <p className="text-sm text-[#6e6e73] font-light">Click any card to analyse the trend and generate script ideas</p>
+        </div>
+        <SuggestedTopics />
+      </section>
+
+      {/* ── Top Content Categories ── */}
       <section className="bg-white pt-10 sm:pt-14 md:pt-16 px-5 sm:px-8">
       <div className="max-w-6xl mx-auto">
-
-      <h2
-              className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f] mb-2"
-              // style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
-            >
-              Top Content Categories
-            </h2>
+      <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f] mb-2">
+        Top Content Categories
+      </h2>
       <CategorySlider />
       </div>
       </section>

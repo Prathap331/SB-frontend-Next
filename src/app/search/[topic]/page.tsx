@@ -18,6 +18,7 @@ import { ApiService, TSSResponse, ECIResponse } from '@/services/api';
 import { ScriptGenerationModal, ScriptGenerationParams } from '@/components/ScriptGenerationModal';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ECIExactReplica from '@/components/ECIExactReplica';
+import SuggestedTopicsSidebar from '@/components/SuggestedTopicsSidebar';
 
 interface VideoItem {
   url: string;
@@ -904,154 +905,154 @@ useEffect(() => {
 
       {/* ── Script Ideas Section ── */}
       <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-8 sm:py-12">
+        <div className="bg-gray-100 rounded-3xl">
 
-        <div className='bg-gray-100 rounded-3xl'>
-
-        {/* Header card */}
-        <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-6 sm:px-8 py-6 mb-8 flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
-            <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0">
-              <Lightbulb className="w-6 h-6 text-orange-500" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">AI-generated</p>
-              <h2 className="text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
-                Script Ideas
-                <span className="inline-flex items-center gap-1.5 bg-[#1d1d1f] text-white text-sm font-semibold px-3 py-0.5 rounded-full">
-                  <Sparkles className="w-3 h-3 text-orange-400" />
-                  {topic}
-                </span>
-              </h2>
-              <p className="text-sm text-[#6e6e73] mt-1">Choose a perspective and generate a full YouTube script in seconds</p>
-            </div>
-          </div>
-          {!isLoading && (
-            <div className="flex-shrink-0 self-start sm:self-center">
-              <span className="inline-flex items-center gap-1.5 bg-[#f5f5f7] text-[#6e6e73] text-xs font-medium px-3 py-1.5 rounded-full">
-                <Filter className="w-3 h-3" />
-                {scriptIdeas.length} idea{scriptIdeas.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="">
-         
-
-          {/* Cards grid */}
-          <div className="">
-
-            {isLoading && (
-              <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center">
-                    <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
-                  </div>
-                  <div>
-                    <p className="text-base font-semibold text-[#1d1d1f] mb-1">Generating Script Ideas</p>
-                    <p className="text-sm text-[#6e6e73]">AI is analysing &quot;{topic}&quot; — this may take up to 5 minutes</p>
-                  </div>
-                </div>
+          {/* Header — full width, sticky */}
+          <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-6 sm:px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0">
+                <Lightbulb className="w-6 h-6 text-orange-500" />
               </div>
-            )}
-
-            {error && (
-              <div className="bg-red-50 border border-red-100 rounded-2xl p-6 mb-6 flex items-start gap-4">
-                <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle className="w-4.5 h-4.5 text-red-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-red-700 mb-1">API Temporarily Unavailable</p>
-                  <p className="text-sm text-red-600 mb-3">{error}</p>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="text-xs font-semibold text-red-700 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-100 transition-colors"
-                  >
-                    Try Again
-                  </button>
-                </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">AI-generated</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
+                  Script Ideas
+                  <span className="inline-flex items-center gap-1.5 bg-[#1d1d1f] text-white text-sm font-semibold px-3 py-0.5 rounded-full">
+                    <Sparkles className="w-3 h-3 text-orange-400" />
+                    {topic}
+                  </span>
+                </h2>
+                <p className="text-sm text-[#6e6e73] mt-1">Choose a perspective and generate a full YouTube script in seconds</p>
               </div>
-            )}
-
+            </div>
             {!isLoading && (
-              <div className="space-y-4">
-                {scriptIdeas.map((statement, idx) => (
-                  <div
-                    key={statement.id}
-                    className="bg-white border border-gray-200/80 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
-                  >
-                    {/* Card header strip */}
-                    <div className="px-6 pt-5 pb-4 border-b border-gray-100">
-                      <div className="flex items-start gap-4">
-                        {/* Number badge */}
-                        <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <span className="text-xs font-black text-orange-500">{String(idx + 1).padStart(2, '0')}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                            <span className="inline-flex items-center gap-1 bg-[#f5f5f7] text-[#6e6e73] text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full uppercase">
-                              {statement.category}
-                            </span>
-                            <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                              <TrendingUp className="w-2.5 h-2.5" />
-                              Trending
-                            </span>
-                          </div>
-                          <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f] leading-snug">{statement.title}</h3>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed pl-12 line-clamp-2 sm:line-clamp-6">{statement.description}</p>
-                    </div>
+              <div className="flex-shrink-0 self-start sm:self-center">
+                <span className="inline-flex items-center gap-1.5 bg-[#f5f5f7] text-[#6e6e73] text-xs font-medium px-3 py-1.5 rounded-full">
+                  <Filter className="w-3 h-3" />
+                  {scriptIdeas.length} idea{scriptIdeas.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
+          </div>
 
-                    {/* Card footer */}
-                    <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-[#fafafa]">
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <Clock className="w-3.5 h-3.5 text-[#6e6e73]" />
-                        <label className="text-xs font-medium text-[#6e6e73]">Length (min)</label>
-                        <Input
-                          type="number"
-                          placeholder="10"
-                          value={videoLengths[statement.id] || ''}
-                          onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
-                          className="w-16 h-7 text-xs rounded-lg border-gray-200 bg-white text-center"
-                          min={1}
-                          max={60}
-                        />
+          {/* Two-column body */}
+          <div className="flex gap-5 px-4 sm:px-6 pb-8 items-start">
+
+            {/* ── Left: ideas list ── */}
+            <div className="flex-1 min-w-0">
+
+              {isLoading && (
+                <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold text-[#1d1d1f] mb-1">Generating Script Ideas</p>
+                      <p className="text-sm text-[#6e6e73]">AI is analysing &quot;{topic}&quot; — this may take up to 5 minutes</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="bg-red-50 border border-red-100 rounded-2xl p-6 mb-6 flex items-start gap-4">
+                  <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="w-4.5 h-4.5 text-red-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-red-700 mb-1">API Temporarily Unavailable</p>
+                    <p className="text-sm text-red-600 mb-3">{error}</p>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="text-xs font-semibold text-red-700 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-100 transition-colors"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!isLoading && (
+                <div className="space-y-4">
+                  {scriptIdeas.map((statement, idx) => (
+                    <div
+                      key={statement.id}
+                      className="bg-white border border-gray-200/80 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+                    >
+                      <div className="px-6 pt-5 pb-4 border-b border-gray-100">
+                        <div className="flex items-start gap-4">
+                          <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-xs font-black text-orange-500">{String(idx + 1).padStart(2, '0')}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                              <span className="inline-flex items-center gap-1 bg-[#f5f5f7] text-[#6e6e73] text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full uppercase">
+                                {statement.category}
+                              </span>
+                              <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                                <TrendingUp className="w-2.5 h-2.5" />
+                                Trending
+                              </span>
+                            </div>
+                            <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f] leading-snug">{statement.title}</h3>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed pl-12 line-clamp-2 sm:line-clamp-6">{statement.description}</p>
                       </div>
-                      <div className="sm:ml-auto">
-                        <button
-                          onClick={() => handleGenerateScript(statement)}
-                          disabled={!videoLengths[statement.id]?.trim()}
-                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
-                        >
-                          <Sparkles className="w-3.5 h-3.5 text-orange-400" />
-                          Generate Script
+                      <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-[#fafafa]">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Clock className="w-3.5 h-3.5 text-[#6e6e73]" />
+                          <label className="text-xs font-medium text-[#6e6e73]">Length (min)</label>
+                          <Input
+                            type="number"
+                            placeholder="10"
+                            value={videoLengths[statement.id] || ''}
+                            onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
+                            className="w-16 h-7 text-xs rounded-lg border-gray-200 bg-white text-center"
+                            min={1}
+                            max={60}
+                          />
+                        </div>
+                        <div className="sm:ml-auto">
+                          <button
+                            onClick={() => handleGenerateScript(statement)}
+                            disabled={!videoLengths[statement.id]?.trim()}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+                            Generate Script
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {scriptIdeas.length === 0 && (
+                    <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-[#f5f5f7] flex items-center justify-center">
+                          <Filter className="w-5 h-5 text-[#6e6e73]" />
+                        </div>
+                        <p className="text-sm text-[#6e6e73]">No ideas match this category</p>
+                        <button className="text-xs font-semibold text-[#1d1d1f] border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-[#f5f5f7] transition-colors">
+                          Show all
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )}
+                </div>
+              )}
+            </div>
 
-                {scriptIdeas.length === 0 && (
-                  <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-[#f5f5f7] flex items-center justify-center">
-                        <Filter className="w-5 h-5 text-[#6e6e73]" />
-                      </div>
-                      <p className="text-sm text-[#6e6e73]">No ideas match this category</p>
-                      <button
-                        // onClick={() => setSelectedCategory('all')}
-                        className="text-xs font-semibold text-[#1d1d1f] border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-[#f5f5f7] transition-colors"
-                      >
-                        Show all
-                      </button>
-                    </div>
-                  </div>
-                )}
+            {/* ── Right: suggested topics (sticky) — hidden on small screens ── */}
+            <div className="hidden lg:block w-52 flex-shrink-0">
+              <div className="sticky top-32">
+                <SuggestedTopicsSidebar />
               </div>
-            )}
+            </div>
+
           </div>
-        </div>
         </div>
       </div>
 
