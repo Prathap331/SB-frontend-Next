@@ -163,12 +163,12 @@ export default function Home() {
 
 
       {/* ── Suggested Topics ── */}
-      <section className="bg-white pt-10 sm:pt-14 md:pt-16">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 mb-6">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f] mb-1">
-            Suggested Topics
+      <section className="bg-white pt-10 sm:pt-14 md:pt-16 px-5 sm:px-8">
+        <div className="max-w-6xl mx-auto mb-6">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl mb-2 font-semibold tracking-tight text-[#1d1d1f] mb-1">
+            Suggested Scripts
           </h2>
-          <p className="text-sm text-[#6e6e73] font-light">Click any card to analyse the trend and generate script ideas</p>
+          <p className="text-sm text-[#6e6e73] font-light">Click any card to analyse the trend and generate script</p>
         </div>
         <SuggestedTopics />
       </section>

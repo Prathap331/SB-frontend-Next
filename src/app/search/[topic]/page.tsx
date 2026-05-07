@@ -424,7 +424,7 @@ const TSSCard: React.FC<TSSCardProps> = ({
           </div>
 
           <div>
-            <p className="text-sm font-semibold text-[#1C1A17]">{title}</p>
+            <p className="text-lg font-semibold text-[#1C1A17]">{title}</p>
 
             <p className="text-[11px] text-[#A8A49D]">
               {title === "Search" && "Google Trends web · 52wk"}
@@ -466,7 +466,7 @@ const TSSCard: React.FC<TSSCardProps> = ({
       </div>
 
       {/* METRICS */}
-      <div className="grid grid-cols-4 text-sm border-t border-[#EEECE7]">
+      <div className="grid grid-cols-2 md:grid-cols-4 text-sm border-t border-[#EEECE7]">
         {metrics.map((m: TSSMetric, i: number) => (
           <div
             key={i}
@@ -905,8 +905,7 @@ useEffect(() => {
 
       {/* ── Script Ideas Section ── */}
       <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-8 sm:py-12">
-        <div className="bg-gray-100 rounded-3xl">
-
+      <div className="bg-gray-100 rounded-3xl relative">
           {/* Header — full width, sticky */}
           <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-6 sm:px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -936,7 +935,7 @@ useEffect(() => {
           </div>
 
           {/* Two-column body */}
-          <div className="flex gap-5 px-4 sm:px-6 pb-8 items-start">
+          <div className="flex gap-5 sm:px-6 pb-8 items-start">
 
             {/* ── Left: ideas list ── */}
             <div className="flex-1 min-w-0">
@@ -981,7 +980,7 @@ useEffect(() => {
                       className="bg-white border border-gray-200/80 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
                     >
                       <div className="px-6 pt-5 pb-4 border-b border-gray-100">
-                        <div className="flex items-start gap-4">
+                        <div className="flex flex-col sm:flex-row items-start gap-4">
                           <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                             <span className="text-xs font-black text-orange-500">{String(idx + 1).padStart(2, '0')}</span>
                           </div>
@@ -998,7 +997,7 @@ useEffect(() => {
                             <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f] leading-snug">{statement.title}</h3>
                           </div>
                         </div>
-                        <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed pl-12 line-clamp-2 sm:line-clamp-6">{statement.description}</p>
+                        <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed sm:pl-12 line-clamp-2 sm:line-clamp-6">{statement.description}</p>
                       </div>
                       <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-[#fafafa]">
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -1046,8 +1045,8 @@ useEffect(() => {
             </div>
 
             {/* ── Right: suggested topics (sticky) — hidden on small screens ── */}
-            <div className="hidden lg:block w-52 flex-shrink-0">
-              <div className="sticky top-32">
+            <div className="hidden lg:block w-[35%] flex-shrink-0 self-start">
+              <div className="sticky top-24">
                 <SuggestedTopicsSidebar />
               </div>
             </div>

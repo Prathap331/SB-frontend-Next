@@ -118,7 +118,7 @@ export default function ECIExactReplica({ data }: Props) {
   ];
 
   return (
-    <div className="bg-[#F6F5F1] p-6 rounded-xl">
+    <div className="bg-[#F6F5F1] rounded-xl">
 
       {/* HERO */}
       <div className="bg-white border border-[#E2DED6] rounded-xl overflow-hidden mb-4">
@@ -237,7 +237,7 @@ export default function ECIExactReplica({ data }: Props) {
 
 
 {/* METRICS GRID */}
-<div className="grid grid-cols-4 text-sm">
+<div className="grid grid-cols-3 md:grid-cols-4 text-sm">
 
   {/* ROW 1 */}
   <div className="p-4 border-r border-b border-[#EEECE7]">
@@ -294,7 +294,7 @@ export default function ECIExactReplica({ data }: Props) {
 
 
       {/* GRID SECTION */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-4">
 
         {/* Audience Depth */}
         {/* ───────── AUDIENCE DEPTH ───────── */}
@@ -344,7 +344,7 @@ export default function ECIExactReplica({ data }: Props) {
 </div>
 
 {/* GRID */}
-<div className="grid grid-cols-3 text-sm">
+<div className="grid grid-cols-2 md:grid-cols-3 text-sm">
 
   <div className="p-4 border-r border-b border-[#EEECE7]">
     <p className="text-[10px] text-[#A8A49D] uppercase">Like rate</p>
@@ -467,7 +467,7 @@ export default function ECIExactReplica({ data }: Props) {
       </div>
 
 
-      <div className="grid grid-cols-2 gap-4 mt-4">
+      <div className="grid md:grid-cols-2 gap-4 mt-4">
 
 {/* ───────── REVENUE POTENTIAL ───────── */}
 <div className="bg-white border border-[#E2DED6] rounded-xl overflow-hidden">
@@ -708,7 +708,7 @@ export default function ECIExactReplica({ data }: Props) {
 </div>
 
 {/* METRICS GRID */}
-<div className="grid grid-cols-4 text-sm">
+<div className="grid grid-cols-2 md:grid-cols-4 text-sm">
 
   {/* VERSION SENSITIVITY */}
   <div className="p-4 border-r border-[#EEECE7]">

@@ -7,42 +7,42 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 const TOPICS = [
   {
     idea: 'Why Gen Z Is Rewriting the Rules of Work',
-    description: 'From quiet quitting to building side hustles at 22, explore how the youngest workforce is forcing companies to rethink everything about jobs.',
+    description: 'From quiet quitting to building side hustles at 22, explore how the youngest workforce is forcing companies to rethink everything about jobs.From quiet quitting to building side hustles at 22, explore how the youngest workforce is forcing companies to rethink everything about jobs.',
     tags: ['#GenZ', '#Culture', '#Business'],
   },
   {
     idea: "The Science Behind Why You Can't Stop Scrolling",
-    description: 'Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#Psychology', '#Technology', '#MentalHealth'],
+    description: 'Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
+    tags: ['#Psychology', '#Technology', ],
   },
   {
     idea: "How Ancient Rome's Fall Mirrors Modern America",
-    description: 'Debt spirals, political polarisation, over-expansion — historians are drawing uncomfortable parallels between the Roman Empire and today.',
+    description: 'Debt spirals, political polarisation, over-expansion — historians are drawing uncomfortable parallels between the Roman Empire and today.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#History', '#Politics', '#Society'],
   },
   {
     idea: 'AI Is Replacing Jobs — But Creating These New Ones',
-    description: 'While automation closes some doors, prompt engineers, AI trainers, and synthetic media specialists are among the fastest-growing roles of 2025.',
+    description: 'While automation closes some doors, prompt engineers, AI trainers, and synthetic media specialists are among the fastest-growing roles of 2025.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#AI', '#FutureTech', '#Career'],
   },
   {
     idea: 'The Hidden Cost of Being a People Pleaser',
-    description: 'People-pleasing feels like kindness, but research shows it quietly erodes self-esteem, fuels resentment, and wrecks relationships over time.',
-    tags: ['#Psychology', '#SelfImprovement', '#Relationships'],
+    description: 'People-pleasing feels like kindness, but research shows it quietly erodes self-esteem, fuels resentment, and wrecks relationships over time.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
+    tags: ['#Psychology', '#SelfImprovement'],
   },
   {
     idea: 'Why Every Major Sport Is Obsessed With Analytics Now',
-    description: 'From Moneyball to Brentford FC, data science has flipped how teams scout talent, design plays, and even manage player health.',
+    description: 'From Moneyball to Brentford FC, data science has flipped how teams scout talent, design plays, and even manage player health.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#Sports', '#DataScience', '#Strategy'],
   },
   {
     idea: "The Richest 1% Are Quietly Moving Their Money Here",
-    description: "Ultra-high-net-worth individuals are shifting assets into private credit, farmland, and tokenised real estate — and here's exactly why.",
+    description: "Ultra-high-net-worth individuals are shifting assets into private credit, farmland, and tokenised real estate — and here's exactly why.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.",
     tags: ['#Finance', '#Wealth', '#Investing'],
   },
   {
     idea: "Inside the Brains of the World's Best Decision Makers",
-    description: 'Naval Ravikant, Jeff Bezos, and Munger all use the same mental models. Breaking down the frameworks that separate great thinkers from the rest.',
+    description: 'Naval Ravikant, Jeff Bezos, and Munger all use the same mental models. Breaking down the frameworks that separate great thinkers from the rest.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#Leadership', '#Philosophy', '#Mindset'],
   },
 ];
@@ -87,7 +87,7 @@ export default function SuggestedTopics() {
   };
 
   return (
-    <div className="relative w-full">
+    <div className="max-w-6xl mx-auto relative">
       {/* Left arrow */}
       <button
         onClick={() => scroll('left')}
@@ -111,13 +111,13 @@ export default function SuggestedTopics() {
       </button>
 
       {/* Fade edges */}
-      <div className="pointer-events-none absolute left-0 top-0 h-full w-16 z-10 bg-gradient-to-r from-white to-transparent" />
-      <div className="pointer-events-none absolute right-0 top-0 h-full w-16 z-10 bg-gradient-to-l from-white to-transparent" />
+      {/* <div className="pointer-events-none absolute left-0 top-0 h-full w-16 z-10 bg-gradient-to-r from-white to-transparent" />
+      <div className="pointer-events-none absolute right-0 top-0 h-full w-16 z-10 bg-gradient-to-l from-white to-transparent" /> */}
 
       {/* Track */}
       <div
         ref={trackRef}
-        className="flex gap-4 px-8 pb-3 pt-1 overflow-x-auto snap-x snap-mandatory"
+        className="flex gap-4 pb-3 pt-1 overflow-x-auto snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {TOPICS.map((t, i) => (
@@ -129,7 +129,7 @@ export default function SuggestedTopics() {
             <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-2 group-hover:text-black">
               {t.idea}
             </p>
-            <p className="text-[11px] text-[#6e6e73] font-light leading-relaxed line-clamp-3 mb-4">
+            <p className="text-[11px] text-[#6e6e73] font-light leading-relaxed line-clamp-7 mb-4">
               {t.description}
             </p>
             <div className="flex flex-wrap gap-1.5">

@@ -7,42 +7,42 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 const TOPICS = [
   {
     idea: 'Why Gen Z Is Rewriting the Rules of Work',
-    description: 'From quiet quitting to side hustles at 22, the youngest workforce is forcing companies to rethink everything.',
+    description: 'From quiet quitting to side hustles at 22, the youngest workforce is forcing companies to rethink everything.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#GenZ', '#Culture', '#Business'],
   },
   {
     idea: "The Science Behind Why You Can't Stop Scrolling",
-    description: 'Dopamine loops, variable reward schedules, and the psychology app designers exploit to keep your eyes on screen.',
+    description: 'Dopamine loops, variable reward schedules, and the psychology app designers exploit to keep your eyes on screen.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#Psychology', '#Technology'],
   },
   {
     idea: "How Ancient Rome's Fall Mirrors Modern America",
-    description: 'Debt spirals, political polarisation, over-expansion — historians are drawing uncomfortable parallels.',
+    description: 'Debt spirals, political polarisation, over-expansion — historians are drawing uncomfortable parallels.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#History', '#Politics'],
   },
   {
     idea: 'AI Is Replacing Jobs — But Creating These New Ones',
-    description: 'Prompt engineers, AI trainers, and synthetic media specialists are among the fastest-growing roles of 2025.',
+    description: 'Prompt engineers, AI trainers, and synthetic media specialists are among the fastest-growing roles of 2025.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#AI', '#FutureTech', '#Career'],
   },
   {
     idea: 'The Hidden Cost of Being a People Pleaser',
-    description: 'People-pleasing quietly erodes self-esteem, fuels resentment, and wrecks relationships over time.',
+    description: 'People-pleasing quietly erodes self-esteem, fuels resentment, and wrecks relationships over time.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#Psychology', '#SelfImprovement'],
   },
   {
     idea: 'Why Every Major Sport Is Obsessed With Analytics Now',
-    description: 'From Moneyball to Brentford FC, data science flipped how teams scout talent, design plays and manage health.',
+    description: 'From Moneyball to Brentford FC, data science flipped how teams scout talent, design plays and manage health.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#Sports', '#DataScience'],
   },
   {
     idea: "The Richest 1% Are Quietly Moving Their Money Here",
-    description: 'Ultra-high-net-worth individuals are shifting into private credit, farmland, and tokenised real estate.',
+    description: 'Ultra-high-net-worth individuals are shifting into private credit, farmland, and tokenised real estate.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#Finance', '#Wealth', '#Investing'],
   },
   {
     idea: "Inside the Brains of the World's Best Decision Makers",
-    description: 'Ravikant, Bezos, and Munger all use the same mental models. Breaking down what separates great thinkers.',
+    description: 'Ravikant, Bezos, and Munger all use the same mental models. Breaking down what separates great thinkers.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
     tags: ['#Leadership', '#Philosophy'],
   },
 ];
@@ -80,10 +80,10 @@ export default function SuggestedTopicsSidebar() {
   };
 
   return (
-    <div className="flex flex-col gap-2 w-full">
+    <div className="flex flex-col gap-2 w-full ">
       {/* Label */}
       <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase px-0.5 mb-1">
-        Suggested Topics
+        Suggested Scripts
       </p>
 
       {/* Up arrow */}
@@ -109,15 +109,15 @@ export default function SuggestedTopicsSidebar() {
             onClick={() => handleClick(t.idea)}
             className="group w-full text-left bg-white border border-gray-200/80 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-150 flex-shrink-0"
           >
-            <p className="text-xs font-semibold text-[#1d1d1f] leading-snug mb-1.5 line-clamp-2 group-hover:text-black">
+            <p className="text-md font-semibold text-[#1d1d1f] leading-snug mb-1.5 line-clamp-2 group-hover:text-black">
               {t.idea}
             </p>
-            <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-2 mb-2">
+            <p className="text-[13px] text-[#6e6e73] font-light leading-relaxed line-clamp-6 mb-2">
               {t.description}
             </p>
             <div className="flex flex-wrap gap-1">
               {t.tags.map(tag => (
-                <span key={tag} className="text-[9px] font-medium text-[#6e6e73] bg-[#f5f5f7] px-1.5 py-0.5 rounded-full">
+                <span key={tag} className="text-[12px] font-medium text-[#6e6e73] bg-[#f5f5f7] px-1.5 py-0.5 rounded-full">
                   {tag}
                 </span>
               ))}
