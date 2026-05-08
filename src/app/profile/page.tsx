@@ -353,7 +353,7 @@ export default function Profile() {
     <div className="min-h-screen bg-[#f5f5f7]">
       <Header />
 
-      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-10 py-10">
+      <div className="max-w-screen-8xl mx-auto px-4 sm:px-6 lg:px-10 py-10">
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] mb-1"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}>

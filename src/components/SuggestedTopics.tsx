@@ -87,7 +87,7 @@ export default function SuggestedTopics() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto relative">
+    <div className="max-w-8xl mx-auto relative">
       {/* Left arrow */}
       <button
         onClick={() => scroll('left')}

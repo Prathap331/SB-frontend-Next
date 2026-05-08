@@ -169,7 +169,7 @@ export default function StoryBitPipeline() {
                              ▼
                           [N4 + label-right]
       ══════════════════════════════════════════════════════════ */}
-      <div className="hidden lg:flex items-start justify-center w-full max-w-[1080px]">
+      <div className="hidden lg:flex items-start justify-center w-full max-w-8xl">
 
         {/* N1 — top-aligned vertically (circle center at ~70px from top) */}
         <div className="flex flex-col items-center pt-[60px]">
@@ -327,12 +327,12 @@ export default function StoryBitPipeline() {
         </div>
 
         {/* VArrow — centered */}
-        <div className="self-center absolute pt-[70px] mr-[40px]">
-          <HArrow w={90} arrow="none"/>
+        <div className="self-center absolute pt-[70px] mr-[80px]">
+          <HArrow w={100} arrow="none"/>
         </div>
 
 
-        <div className="self-center absolute pt-[85px] mr-[125px]">
+        <div className="self-center absolute pt-[80px] mr-[175px]">
           <VArrow h={120} />
         </div>
 
@@ -347,7 +347,7 @@ export default function StoryBitPipeline() {
         >
           <div
             className="rounded-full border-2 border-neutral-900 overflow-hidden bg-white"
-            style={{ width: 240, height: 240 }}
+            style={{ width: 200, height: 200 }}
           >
             <img src={nodes[1].image} alt="engine" className="w-full h-full object-cover grayscale" />
           </div>
@@ -357,11 +357,11 @@ export default function StoryBitPipeline() {
         {/* VArrow — centered */}
 
 
-          <div className="absolute pt-[400px] ml-[230px]">
-          <HArrow w={50} arrow="none"/>
+          <div className="absolute pt-[400px] ml-[200px]">
+          <HArrow w={55} arrow="none"/>
           </div>
 
-        <div className="self-center absolute pt-[415px] ml-[220px]">
+        <div className="self-center absolute pt-[415px] ml-[200px] sm:ml-[130px]  ">
           <VArrow h={145} />
         </div>
 
@@ -385,11 +385,11 @@ export default function StoryBitPipeline() {
         </div>
 
         {/* VArrow — centered */}
-        <div className="absolute pt-[650px] ml-[80px]">
-          <HArrow w={120} arrow="none"/>
+        <div className="absolute pt-[725px] ml-[60px]">
+          <HArrow w={140} arrow="none"/>
         </div>
 
-        <div className="absolute pt-[665px] ml-[70px]">
+        <div className="absolute pt-[730px] ml-[50px]">
           <VArrow h={150} />
         </div>
 

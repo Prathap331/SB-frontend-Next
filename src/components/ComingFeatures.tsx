@@ -38,7 +38,7 @@ const features = [
 const ComingFeatures = () => {
   return (
     <section className="bg-[#f5f5f7] py-16 sm:py-10 px-5 sm:px-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-8xl mx-auto">
         {/* Header */}
         <div className="mb-12">
           <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full mb-5 shadow-sm">

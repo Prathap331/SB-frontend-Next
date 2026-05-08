@@ -163,8 +163,8 @@ export default function Home() {
 
 
       {/* ── Suggested Topics ── */}
-      <section className="bg-white pt-10 sm:pt-14 md:pt-16 px-5 sm:px-8">
-        <div className="max-w-6xl mx-auto mb-6">
+      <section className="bg-white pt-10 sm:pt-14 md:pt-16 px-8 ">
+        <div className="max-w-8xl mx-auto mb-6">
           <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl mb-2 font-semibold tracking-tight text-[#1d1d1f] mb-1">
             Suggested Scripts
           </h2>
@@ -174,8 +174,8 @@ export default function Home() {
       </section>
 
       {/* ── Top Content Categories ── */}
-      <section className="bg-white pt-10 sm:pt-14 md:pt-16 px-5 sm:px-8">
-      <div className="max-w-6xl mx-auto">
+      <section className="bg-white pt-10 sm:pt-14 md:pt-16 px-8">
+      <div className="max-w-8xl mx-auto">
       <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f] mb-2">
         Top Content Categories
       </h2>
@@ -185,8 +185,8 @@ export default function Home() {
 
 
       {/* ── Why it's different ── */}
-      <section className="bg-white py-10 sm:py-14 md:py-16 px-5 sm:px-8  ">
-        <div className="max-w-6xl mx-auto">
+      <section className="bg-white py-10 sm:py-14 md:py-16 px-8  ">
+        <div className="max-w-8xl mx-auto">
           <div className="mb-10">
             <h2
               className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f]"

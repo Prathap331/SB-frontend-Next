@@ -21,17 +21,27 @@ export const metadata: Metadata = {
   publisher: "Morpho Technologies Pvt Ltd",
   robots: "index, follow",
   openGraph: {
-    title: "Storybit",
-    description: "Revolutionary AI-powered scriptwriting platform for content creators worldwide.",
-    url: "https://storybit.tech",
-    siteName: "Storybit",
+    title: "StoryBit",
+    description: "AI-powered storytelling platform",
+    url: "https://www.storybit.tech",
+    siteName: "StoryBit",
+    images: [
+      {
+        url: "https://www.storybit.tech/Logo.png",
+        width: 1200,
+        height: 630,
+        alt: "StoryBit Logo",
+      },
+    ],
     locale: "en_US",
     type: "website",
   },
+
   twitter: {
     card: "summary_large_image",
-    title: "Storybit",
-    description: "Revolutionary AI-powered scriptwriting platform for content creators worldwide.",
+    title: "StoryBit",
+    description: "AI-powered storytelling platform",
+    images: ["https://www.storybit.tech/Logo.png"],
   },
   // Canonical URL to help search engines and avoid duplicate content
   alternates: {

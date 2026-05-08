@@ -18,7 +18,7 @@ import { ApiService, TSSResponse, ECIResponse } from '@/services/api';
 import { ScriptGenerationModal, ScriptGenerationParams } from '@/components/ScriptGenerationModal';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ECIExactReplica from '@/components/ECIExactReplica';
-import SuggestedTopicsSidebar from '@/components/SuggestedTopicsSidebar';
+import SuggestedTopicsSidebar, { SIDEBAR_TOPICS } from '@/components/SuggestedTopicsSidebar';
 
 interface VideoItem {
   url: string;
@@ -811,8 +811,17 @@ useEffect(() => {
         isGenerating={isGenerating}
       />
 
+      {/* ── Page-level flex: main content | desktop sidebar ── */}
+      <div className="flex items-start">
+
+        {/* ── Main content ── */}
+        <div className="flex-1 min-w-0">
+
+
+          <div className='grid lg:grid-cols-[80%_20%] gap-4  lg:px-8 min-w-0 overflow-x-hidden'>
+<div className=''>
       {/* Search Section */}
-      <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-4">
+      <div className="container mx-auto px-4 lg:px-0  py-6 sm:py-4">
         <div className="w-full shadow-lg border border-gray-400 rounded-full">
           <div className="relative flex items-center rounded-full">
                  <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 z-10" />
@@ -841,11 +850,11 @@ useEffect(() => {
       </div>
 
       {/* ── Analytics Section ── */}
-      <section className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-6 sm:py-4">
+      <section className="container mx-auto px-4 lg:px-0 py-6 sm:py-4">
         <Card className="shadow-xl border border-gray-200 bg-white overflow-hidden flex flex-col">
           <CardHeader className="pb-3">
             <div className="overflow-x-auto scrollbar-none">
-              <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mt-4 w-fit min-w-max">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mt-4 w-fit max-w-full flex-wrap sm:flex-nowrap">
                 {([
                   { key: 'tss' as const, label: 'Trend Strength Score',          icon: TrendingUp },
                   { key: 'eci' as const, label: 'Evergreen Content Intelligence', icon: Activity   },
@@ -901,13 +910,23 @@ useEffect(() => {
           </CardContent>
         </Card>
       </section>
+      </div>
+
+ {/* ── Desktop sidebar (hidden on mobile) ── */}
+ <div className="hidden lg:block w-64 flex-shrink-0 pt-6">
+          <div className="sticky top-20">
+            <SuggestedTopicsSidebar />
+          </div>
+        </div>
+
+</div>
 
 
       {/* ── Script Ideas Section ── */}
-      <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-8 sm:py-12">
+      <div className="px-4 py-8 sm:py-12">
       <div className="bg-gray-100 rounded-3xl relative">
           {/* Header — full width, sticky */}
-          <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-6 sm:px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex items-center gap-4 flex-1 min-w-0">
               <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0">
                 <Lightbulb className="w-6 h-6 text-orange-500" />
@@ -934,10 +953,8 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Two-column body */}
-          <div className="flex gap-5 sm:px-6 pb-8 items-start">
-
-            {/* ── Left: ideas list ── */}
+          {/* Ideas list */}
+          <div className="px-4 pb-8">
             <div className="flex-1 min-w-0">
 
               {isLoading && (
@@ -1044,18 +1061,50 @@ useEffect(() => {
               )}
             </div>
 
-            {/* ── Right: suggested topics (sticky) — hidden on small screens ── */}
-            <div className="hidden lg:block w-[35%] flex-shrink-0 self-start">
-              <div className="sticky top-24">
-                <SuggestedTopicsSidebar />
-              </div>
-            </div>
-
           </div>
         </div>
       </div>
 
-      <Footer />
+        {/* ── Mobile: horizontal suggested scripts slider (lg+ hidden) ── */}
+        <div className="lg:hidden px-4 sm:px-6 py-6 border-t border-gray-100">
+          <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase mb-3">
+            Suggested Scripts
+          </p>
+          <div
+            className="flex gap-3 overflow-x-auto pb-2"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {SIDEBAR_TOPICS.map((t, i) => (
+              <button
+                key={i}
+                onClick={() => router.push(`/search/${encodeURIComponent(t.idea.split(' ').slice(0, 6).join(' '))}`)}
+                className="group flex-shrink-0 w-52 text-left bg-white border border-gray-200/80 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-150"
+              >
+                <p className="text-xs font-semibold text-[#1d1d1f] leading-snug mb-1.5 line-clamp-2 group-hover:text-black">
+                  {t.idea}
+                </p>
+                <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-2 mb-2">
+                  {t.description}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {t.tags.map(tag => (
+                    <span key={tag} className="text-[9px] font-medium text-[#6e6e73] bg-[#f5f5f7] px-1.5 py-0.5 rounded-full">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Footer />
+
+        </div>{/* end main content */}
+
+       
+
+      </div>{/* end page-level flex */}
     </div>
   );
 }

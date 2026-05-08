@@ -39,7 +39,7 @@ const Header = () => {
           : 'bg-white/70 backdrop-blur-xl'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 h-14 flex items-center justify-between">
+      <div className="max-w-8xl mx-auto px-8   h-14 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center hover:opacity-75 transition-opacity duration-200">
           <Image

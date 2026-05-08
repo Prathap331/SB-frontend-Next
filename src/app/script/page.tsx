@@ -684,7 +684,7 @@ const csExpansion =
         />
       )}
 
-      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-10 py-6 transition-all duration-300 ${showSourcesDialog ? 'blur-sm' : ''}`}>
+      <main className={`max-w-screen-8xl mx-auto px-4 sm:px-6 lg:px-10 py-6 transition-all duration-300 ${showSourcesDialog ? 'blur-sm' : ''}`}>
 
         {/* Page title */}
         <div className="mb-5">

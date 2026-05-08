@@ -4,7 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 
-const TOPICS = [
+export const SIDEBAR_TOPICS = [
   {
     idea: 'Why Gen Z Is Rewriting the Rules of Work',
     description: 'From quiet quitting to side hustles at 22, the youngest workforce is forcing companies to rethink everything.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
@@ -101,9 +101,9 @@ export default function SuggestedTopicsSidebar() {
       <div
         ref={trackRef}
         className="flex flex-col gap-3 overflow-y-auto"
-        style={{ maxHeight: 'calc(100vh - 260px)', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        style={{ maxHeight: 'calc(100vh - 200px)', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {TOPICS.map((t, i) => (
+        {SIDEBAR_TOPICS.map((t, i) => (
           <button
             key={i}
             onClick={() => handleClick(t.idea)}
