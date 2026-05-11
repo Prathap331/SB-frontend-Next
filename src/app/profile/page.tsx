@@ -101,10 +101,10 @@ export default function Profile() {
         if (!session) return;
         const { data } = await supabase
           .from('Channel_Profile')
-          .select('summary')
-          .eq('user_id', session.user.id)
+          .select('Summary')
+          .eq('userId', session.user.id)
           .maybeSingle();
-        setChannelSummary(data?.summary ?? null);
+        setChannelSummary(data?.Summary ?? null);
       } finally {
         setIsLoadingChannel(false);
       }
@@ -201,10 +201,10 @@ export default function Profile() {
       if (s2) {
         const { data: cp } = await supabase
           .from('Channel_Profile')
-          .select('summary')
-          .eq('user_id', s2.user.id)
+          .select('Summary')
+          .eq('userId', s2.user.id)
           .maybeSingle();
-        setChannelSummary(cp?.summary ?? null);
+        setChannelSummary(cp?.Summary ?? null);
       }
 
     } catch (err: any) {
@@ -266,13 +266,59 @@ export default function Profile() {
     { id: 3, title: "Sustainable Energy Solutions for Modern Cities", createdAt: "2024-01-08", words: 1123, status: "Published" },
   ];
 
-  const subscriptionData = { plan: "Pro", status: "Active", nextBilling: "2024-02-15", scriptsGenerated: 15, scriptsLimit: 50 };
+  // ── Subscription / Billing state ──────────────────────────────────────────
+  type SubscriptionRow = {
+    id: number;
+    userId: string;
+    amount: number;
+    plan: string;
+    purchased_date: string;
+    validity: string;
+    credits: number;
+    payment_status: string;
+    rayzorpay_payment_id: string | null;
+    razorpay_order_id: string | null;
+  };
 
-  const billingHistory = [
-    { id: "INV-001", date: "2024-01-15", amount: "$29.99", plan: "Pro Monthly", status: "Paid" },
-    { id: "INV-002", date: "2023-12-15", amount: "$29.99", plan: "Pro Monthly", status: "Paid" },
-    { id: "INV-003", date: "2023-11-15", amount: "$29.99", plan: "Pro Monthly", status: "Paid" },
-  ];
+  const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
+  const [isLoadingSub, setIsLoadingSub] = useState(false);
+  const [subFetched, setSubFetched] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'subscription' && activeTab !== 'billing') return;
+    if (subFetched) return;
+    const fetchSubs = async () => {
+      setIsLoadingSub(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('*')
+          .eq('userId', session.user.id)
+          .order('purchased_date', { ascending: false });
+        if (!error && data) {
+          setSubscriptions(data as SubscriptionRow[]);
+          setSubFetched(true);
+        }
+      } finally {
+        setIsLoadingSub(false);
+      }
+    };
+    fetchSubs();
+  }, [activeTab, subFetched]);
+
+  // Derive display values from the latest (most recent) subscription row
+  const latestSub = subscriptions[0] ?? null;
+  const isSubActive = latestSub
+    ? new Date(latestSub.validity) > new Date() && latestSub.payment_status === 'paid'
+    : false;
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const fmtAmount = (n: number) =>
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 
   const menuItems = [
     { id: 'profile', label: 'Basic Details', icon: User },
@@ -509,37 +555,73 @@ export default function Profile() {
                   <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Manage your subscription and usage</p>
                 </div>
                 <div className="px-6 py-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Current Plan</p>
-                        <div className="flex items-center gap-2">
-                          <Crown className="w-5 h-5 text-amber-500" />
-                          <span className="text-lg font-semibold text-[#1d1d1f]">{subscriptionData.plan}</span>
-                          <span className="text-[10px] font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{subscriptionData.status}</span>
+                  {isLoadingSub ? (
+                    <div className="flex items-center gap-2 py-8 justify-center text-[#6e6e73]">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-xs font-light">Loading subscription…</span>
+                    </div>
+                  ) : !latestSub ? (
+                    <div className="py-10 text-center space-y-3">
+                      <Crown className="w-8 h-8 text-gray-200 mx-auto" />
+                      <p className="text-sm text-[#6e6e73]">No active subscription found.</p>
+                      <button onClick={() => router.push('/pricing')} className="text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-5 py-2.5 rounded-xl transition-colors">
+                        View Plans
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Current Plan</p>
+                            <div className="flex items-center gap-2">
+                              <Crown className="w-5 h-5 text-amber-500" />
+                              <span className="text-lg font-semibold text-[#1d1d1f] capitalize">{latestSub.plan}</span>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isSubActive ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                                {isSubActive ? 'Active' : 'Expired'}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Valid Until</p>
+                            <div className="flex items-center gap-2 text-sm text-[#1d1d1f]">
+                              <Calendar className="w-4 h-4 text-[#6e6e73]" />
+                              {fmtDate(latestSub.validity)}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Purchased On</p>
+                            <div className="flex items-center gap-2 text-sm text-[#1d1d1f]">
+                              <Calendar className="w-4 h-4 text-[#6e6e73]" />
+                              {fmtDate(latestSub.purchased_date)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Credits Remaining</p>
+                            <p className="text-3xl font-bold text-[#1d1d1f] mb-2">{latestSub.credits}<span className='text-xl text-gray-400'>/100</span></p>
+                            <div className="h-2 rounded-full bg-gray-100">
+                              <div className="h-full rounded-full bg-[#1d1d1f] transition-all" style={{ width: `${Math.min((latestSub.credits / 100) * 100, 100)}%` }} />
+                            </div>
+                            <p className="text-[10px] text-[#6e6e73] mt-1">script generation credits</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Amount Paid</p>
+                            <p className="text-sm font-semibold text-[#1d1d1f]">{fmtAmount(latestSub.amount)}</p>
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Next Billing Date</p>
-                        <div className="flex items-center gap-2 text-sm text-[#1d1d1f]">
-                          <Calendar className="w-4 h-4 text-[#6e6e73]" />{subscriptionData.nextBilling}
-                        </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button onClick={() => router.push('/pricing')} className="text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-5 py-2.5 rounded-xl transition-colors">
+                          Upgrade Plan
+                        </button>
+                        <button className="text-sm font-medium text-red-500 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl transition-colors">
+                          Cancel Subscription
+                        </button>
                       </div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Scripts Generated</p>
-                      <p className="text-3xl font-bold text-[#1d1d1f] mb-2">
-                        {subscriptionData.scriptsGenerated} <span className="text-base font-light text-[#6e6e73]">/ {subscriptionData.scriptsLimit}</span>
-                      </p>
-                      <div className="h-2 rounded-full bg-gray-100">
-                        <div className="h-full rounded-full bg-[#1d1d1f]" style={{ width: `${(subscriptionData.scriptsGenerated / subscriptionData.scriptsLimit) * 100}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <button onClick={() => router.push('/pricing')} className="text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-5 py-2.5 rounded-xl transition-colors">Upgrade Plan</button>
-                    <button className="text-sm font-medium text-red-500 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl transition-colors">Cancel Subscription</button>
-                  </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -752,30 +834,52 @@ export default function Profile() {
             {activeTab === 'billing' && (
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                 <div className="px-6 py-5 border-b border-gray-100">
-                  <h2 className="text-sm font-semibold text-[#1d1d1f]">Billing Details</h2>
-                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">View your billing history and download invoices</p>
+                  <h2 className="text-sm font-semibold text-[#1d1d1f]">Billing History</h2>
+                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">All your past payments and invoices</p>
                 </div>
                 <div className="px-6 py-4 space-y-3">
-                  {billingHistory.map(bill => (
-                    <div key={bill.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[#f5f5f7] rounded-2xl border border-gray-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
-                          <DollarSign className="w-4 h-4 text-[#1d1d1f]" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-[#1d1d1f]">{bill.plan}</p>
-                          <p className="text-[11px] text-[#6e6e73] font-light">{bill.date}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                        <span className="text-sm font-semibold text-[#1d1d1f]">{bill.amount}</span>
-                        <span className="text-[10px] font-semibold bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full">{bill.status}</span>
-                        <button onClick={() => downloadInvoice(bill.id)} className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-3 py-2 rounded-lg transition-colors min-h-[36px]">
-                          <Download className="w-3.5 h-3.5" />Invoice
-                        </button>
-                      </div>
+                  {isLoadingSub ? (
+                    <div className="flex items-center gap-2 py-8 justify-center text-[#6e6e73]">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-xs font-light">Loading billing history…</span>
                     </div>
-                  ))}
+                  ) : subscriptions.length === 0 ? (
+                    <div className="py-10 text-center">
+                      <p className="text-sm text-[#6e6e73]">No billing records found.</p>
+                    </div>
+                  ) : (
+                    subscriptions.map(bill => {
+                      const isPaid = bill.payment_status === 'paid';
+                      return (
+                        <div key={bill.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[#f5f5f7] rounded-2xl border border-gray-100">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                              <DollarSign className="w-4 h-4 text-[#1d1d1f]" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-[#1d1d1f] capitalize">{bill.plan} Plan</p>
+                              <p className="text-[11px] text-[#6e6e73] font-light">{fmtDate(bill.purchased_date)}</p>
+                              {bill.razorpay_order_id && (
+                                <p className="text-[10px] text-[#6e6e73] font-mono mt-0.5">Order: {bill.razorpay_order_id}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                            <span className="text-sm font-semibold text-[#1d1d1f]">{fmtAmount(bill.amount)}</span>
+                            <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${isPaid ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                              {isPaid ? 'Paid' : bill.payment_status}
+                            </span>
+                            <button
+                              onClick={() => downloadInvoice(String(bill.id))}
+                              className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-3 py-2 rounded-lg transition-colors min-h-[36px]"
+                            >
+                              <Download className="w-3.5 h-3.5" />Invoice
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}

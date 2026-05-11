@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "StoryBit",
     description: "AI-powered storytelling platform",
-    images: ["https://www.storybit.tech/Logo.png"],
+    images: ["https://www.storybit.tech/og-image.png"],
   },
   // Canonical URL to help search engines and avoid duplicate content
   alternates: {

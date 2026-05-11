@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Loader2, FileText, Lightbulb, Heart, BookOpen, History, 
-  Search, Link as LinkIcon, ExternalLink, 
-  Eye, Monitor, Download, X
+import {
+  Loader2, FileText, Lightbulb, Heart, BookOpen, History,
+  Search, Link as LinkIcon, ExternalLink,
+  Eye, Monitor, Download, X, Lock, Unlock, AlertCircle
 } from 'lucide-react';
 // Note: GeneratedScript component exists in the project but is not used in this detailed view
 import { Button } from '@/components/ui/button';
@@ -240,6 +240,7 @@ export default function ScriptPage() {
               // Verify the cached script matches the topic
               if (cached.params.topic === topic) {
                 setData(cached.data);
+                setScriptDuration(cached.params.duration_minutes);
                 if (cached.pageTitle) {
                   setPageTitle(cached.pageTitle);
                 }
@@ -259,6 +260,7 @@ export default function ScriptPage() {
               const now = Date.now();
               if (cached.timestamp && now - cached.timestamp < CACHE_DURATION) {
                 setData(cached.data);
+                setScriptDuration(cached.params?.duration_minutes);
                 if (cached.pageTitle) {
                   setPageTitle(cached.pageTitle);
                 }
@@ -322,6 +324,7 @@ const scriptTitle = normalized.title || topic || 'Generated Script';
 saveScriptToStorage(payload.topic, payload.ideaTitle, normalized, payload, scriptTitle);
 
 setData(normalized);
+            if (payload.duration_minutes) setScriptDuration(payload.duration_minutes);
             setPageTitle(scriptTitle);
             setIsLoading(false);
             return;
@@ -407,6 +410,8 @@ console.log("📦 Script API Response:", json);
         
         setData(normalized);
         setPageTitle(scriptTitle);
+        // Capture duration before clearing sessionStorage
+        if (params.duration_minutes) setScriptDuration(params.duration_minutes);
         // optionally clear params so reload won't re-run (but we keep localStorage for reloads)
         try {
           sessionStorage.removeItem('generate_params');
@@ -438,6 +443,44 @@ console.log("📦 Script API Response:", json);
 
   const [showSourcesDialog, setShowSourcesDialog] = useState(false);
   const [contentTab, setContentTab] = useState<1|2|3|4|5>(1);
+
+  // ── Unlock state ─────────────────────────────────────────────────────────
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [showInsufficientPopup, setShowInsufficientPopup] = useState(false);
+  const [scriptDuration, setScriptDuration] = useState<number | undefined>();
+
+  const handleUnlock = async () => {
+    setIsUnlocking(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.push('/auth'); return; }
+
+      // Use duration captured into state at script-load time
+      const duration = scriptDuration;
+
+      const res = await fetch('https://storybit-backend.onrender.com/unlock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ userId: session.user.id, duration }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (res.ok && json.status !== 'insufficient') {
+        setIsUnlocked(true);
+      } else {
+        setShowInsufficientPopup(true);
+      }
+    } catch (err) {
+      console.error('Unlock error:', err);
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
 
   // Prevent body scroll when side panel is open
   useEffect(() => {
@@ -1105,15 +1148,72 @@ const csExpansion =
               </div>
 
               {/* Script content */}
-              <div className="flex-1 overflow-y-auto ">
-                <div id="script-content" className="px-6 sm:px-8 py-6">
+              <div className={`relative ${isUnlocked ? 'flex-1 overflow-y-auto' : 'overflow-hidden'}`}
+                style={!isUnlocked ? { maxHeight: '82vh' } : {}}>
+
+                <div
+                  id="script-content"
+                  className={`px-6 sm:px-8 py-6 ${!isUnlocked ? 'select-none pointer-events-none' : ''}`}
+                >
                   <div
                     className="text-[#1d1d1f] leading-[1.9] text-[15px] sm:text-base max-w-3xl mx-auto"
                     style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
                   >
-                   {formatScript(data.script || 'No script available.')}
+                    {formatScript(data.script || 'No script available.')}
                   </div>
                 </div>
+
+                {/* ── Locked overlays ── */}
+                {!isUnlocked && (
+                  <>
+                    {/* Blur band 1: 10%–40% */}
+                    <div
+                      className="absolute left-0 right-0 pointer-events-none"
+                      style={{
+                        top: '10%', height: '30%',
+                        backdropFilter: 'blur(7px)',
+                        WebkitBackdropFilter: 'blur(7px)',
+                        background: 'rgba(255,255,255,0.25)',
+                      }}
+                    />
+
+                    {/* Clear band: 40%–50% — no overlay */}
+
+                    {/* Blur band 2: 50%–80% */}
+                    <div
+                      className="absolute left-0 right-0 pointer-events-none"
+                      style={{
+                        top: '50%', height: '30%',
+                        backdropFilter: 'blur(7px)',
+                        WebkitBackdropFilter: 'blur(7px)',
+                        background: 'rgba(255,255,255,0.25)',
+                      }}
+                    />
+
+                    {/* Bottom fade-to-white: 80%–100% */}
+                    <div
+                      className="absolute left-0 right-0 bottom-0 pointer-events-none"
+                      style={{
+                        height: '20%',
+                        background: 'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.97) 100%)',
+                      }}
+                    />
+
+                    {/* Unlock button — centered */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <button
+                        onClick={handleUnlock}
+                        disabled={isUnlocking}
+                        className="flex items-center gap-2.5 bg-[#1d1d1f] hover:bg-black text-white text-sm font-semibold px-7 py-3.5 rounded-2xl shadow-2xl shadow-black/20 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] disabled:opacity-60"
+                      >
+                        {isUnlocking
+                          ? <><Loader2 className="w-4 h-4 animate-spin" />Unlocking…</>
+                          : <><Unlock className="w-4 h-4" />Unlock Script</>
+                        }
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1174,6 +1274,35 @@ const csExpansion =
           </div>
         </ScrollArea>
       </div>
+
+      {/* ── Insufficient Credits Popup ── */}
+      {showInsufficientPopup && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl shadow-black/20 border border-gray-200/80 p-8 max-w-sm w-full text-center">
+            <div className="w-14 h-14 rounded-full bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-7 h-7 text-red-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-[#1d1d1f] mb-2">Not enough credits</h2>
+            <p className="text-sm text-[#6e6e73] font-light leading-relaxed mb-6">
+              You don&apos;t have enough credits to unlock this script. Upgrade your plan to keep generating content.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => { setShowInsufficientPopup(false); router.push('/pricing'); }}
+                className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all duration-200 hover:scale-[1.01]"
+              >
+                View Plans
+              </button>
+              <button
+                onClick={() => setShowInsufficientPopup(false)}
+                className="w-full py-2 rounded-xl text-sm text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -812,16 +812,15 @@ useEffect(() => {
       />
 
       {/* ── Page-level flex: main content | desktop sidebar ── */}
-      <div className="flex items-start">
+      <div className="flex items-start gap-0">
 
         {/* ── Main content ── */}
         <div className="flex-1 min-w-0">
 
 
-          <div className='grid lg:grid-cols-[80%_20%] gap-4  lg:px-8 min-w-0 overflow-x-hidden'>
-<div className=''>
+          
       {/* Search Section */}
-      <div className="container mx-auto px-4 lg:px-0  py-6 sm:py-4">
+      <div className="container mx-auto px-4 lg:px-8  py-6 sm:py-4">
         <div className="w-full shadow-lg border border-gray-400 rounded-full">
           <div className="relative flex items-center rounded-full">
                  <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 z-10" />
@@ -850,7 +849,7 @@ useEffect(() => {
       </div>
 
       {/* ── Analytics Section ── */}
-      <section className="container mx-auto px-4 lg:px-0 py-6 sm:py-4">
+      <section className="container mx-auto px-4 lg:px-8 py-6 sm:py-4">
         <Card className="shadow-xl border border-gray-200 bg-white overflow-hidden flex flex-col">
           <CardHeader className="pb-3">
             <div className="overflow-x-auto scrollbar-none">
@@ -910,16 +909,10 @@ useEffect(() => {
           </CardContent>
         </Card>
       </section>
-      </div>
+  
 
- {/* ── Desktop sidebar (hidden on mobile) ── */}
- <div className="hidden lg:block w-64 flex-shrink-0 pt-6">
-          <div className="sticky top-20">
-            <SuggestedTopicsSidebar />
-          </div>
-        </div>
 
-</div>
+
 
 
       {/* ── Script Ideas Section ── */}
@@ -989,6 +982,7 @@ useEffect(() => {
                 </div>
               )}
 
+    
               {!isLoading && (
                 <div className="space-y-4">
                   {scriptIdeas.map((statement, idx) => (
@@ -1061,9 +1055,15 @@ useEffect(() => {
               )}
             </div>
 
+            
+
+            
+
           </div>
         </div>
       </div>
+
+
 
         {/* ── Mobile: horizontal suggested scripts slider (lg+ hidden) ── */}
         <div className="lg:hidden px-4 sm:px-6 py-6 border-t border-gray-100">
@@ -1098,13 +1098,19 @@ useEffect(() => {
           </div>
         </div>
 
-        <Footer />
+        
+
 
         </div>{/* end main content */}
 
-       
+        {/* ── Desktop sidebar: sticky for the whole page ── */}
+        <aside className="hidden lg:block flex-shrink-0 w-80 self-start sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto pt-6 pr-4 pb-6"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <SuggestedTopicsSidebar />
+        </aside>
 
       </div>{/* end page-level flex */}
+        <Footer />
     </div>
   );
 }

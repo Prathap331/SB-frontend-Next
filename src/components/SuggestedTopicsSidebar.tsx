@@ -101,7 +101,7 @@ export default function SuggestedTopicsSidebar() {
       <div
         ref={trackRef}
         className="flex flex-col gap-3 overflow-y-auto"
-        style={{ maxHeight: 'calc(100vh - 200px)', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        style={{ maxHeight: 'calc(100vh - 220px)', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {SIDEBAR_TOPICS.map((t, i) => (
           <button
