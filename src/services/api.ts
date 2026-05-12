@@ -108,6 +108,7 @@ export interface SignUpRequest {
   facebook_link?: string;
   twitter_link?: string;
   billing_address?: string;
+  primary_language?: string;
   categories?: string[];
 }
 
@@ -918,6 +919,7 @@ console.log('Request payload:', { topic: safeTopic });
           facebook_link: request.facebook_link,
           twitter_link: request.twitter_link,
           billing_address: request.billing_address,
+          primary_language: request.primary_language,
           categories: request.categories,
         });
   

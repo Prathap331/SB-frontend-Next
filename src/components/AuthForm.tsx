@@ -158,6 +158,7 @@ export default function AuthForm() {
         facebook_link: formData.facebookLink || undefined,
         twitter_link: formData.twitterLink || undefined,
         billing_address: formData.billingAddress || undefined,
+        primary_language: selectedLanguage || undefined,
         categories: selectedCategories.length > 0 ? selectedCategories : undefined,
       });
 

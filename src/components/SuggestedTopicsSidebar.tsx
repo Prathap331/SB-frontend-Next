@@ -2,50 +2,16 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, FileText, Clock } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
-export const SIDEBAR_TOPICS = [
-  {
-    idea: 'Why Gen Z Is Rewriting the Rules of Work',
-    description: 'From quiet quitting to side hustles at 22, the youngest workforce is forcing companies to rethink everything.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#GenZ', '#Culture', '#Business'],
-  },
-  {
-    idea: "The Science Behind Why You Can't Stop Scrolling",
-    description: 'Dopamine loops, variable reward schedules, and the psychology app designers exploit to keep your eyes on screen.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#Psychology', '#Technology'],
-  },
-  {
-    idea: "How Ancient Rome's Fall Mirrors Modern America",
-    description: 'Debt spirals, political polarisation, over-expansion — historians are drawing uncomfortable parallels.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#History', '#Politics'],
-  },
-  {
-    idea: 'AI Is Replacing Jobs — But Creating These New Ones',
-    description: 'Prompt engineers, AI trainers, and synthetic media specialists are among the fastest-growing roles of 2025.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#AI', '#FutureTech', '#Career'],
-  },
-  {
-    idea: 'The Hidden Cost of Being a People Pleaser',
-    description: 'People-pleasing quietly erodes self-esteem, fuels resentment, and wrecks relationships over time.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#Psychology', '#SelfImprovement'],
-  },
-  {
-    idea: 'Why Every Major Sport Is Obsessed With Analytics Now',
-    description: 'From Moneyball to Brentford FC, data science flipped how teams scout talent, design plays and manage health.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#Sports', '#DataScience'],
-  },
-  {
-    idea: "The Richest 1% Are Quietly Moving Their Money Here",
-    description: 'Ultra-high-net-worth individuals are shifting into private credit, farmland, and tokenised real estate.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#Finance', '#Wealth', '#Investing'],
-  },
-  {
-    idea: "Inside the Brains of the World's Best Decision Makers",
-    description: 'Ravikant, Bezos, and Munger all use the same mental models. Breaking down what separates great thinkers.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#Leadership', '#Philosophy'],
-  },
-];
+type ScriptRow = {
+  id: string;
+  title: string | null;
+  script: string | null;
+  topic: string | null;
+  duration: number | null;
+};
 
 const SCROLL_STEP = 160;
 
@@ -54,6 +20,22 @@ export default function SuggestedTopicsSidebar() {
   const router = useRouter();
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(true);
+  const [scripts, setScripts] = useState<ScriptRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch scripts from Supabase
+  useEffect(() => {
+    const fetch = async () => {
+      const { data, error } = await supabase
+        .from('scripts')
+        .select('id, title, script, topic, duration')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (!error && data) setScripts(data as ScriptRow[]);
+      setLoading(false);
+    };
+    fetch();
+  }, []);
 
   const updateArrows = () => {
     const el = trackRef.current;
@@ -68,19 +50,18 @@ export default function SuggestedTopicsSidebar() {
     updateArrows();
     el.addEventListener('scroll', updateArrows, { passive: true });
     return () => el.removeEventListener('scroll', updateArrows);
-  }, []);
+  }, [scripts]);
 
   const scroll = (dir: 'up' | 'down') => {
     trackRef.current?.scrollBy({ top: dir === 'down' ? SCROLL_STEP : -SCROLL_STEP, behavior: 'smooth' });
   };
 
-  const handleClick = (idea: string) => {
-    const topic = idea.split(' ').slice(0, 6).join(' ');
-    router.push(`/search/${encodeURIComponent(topic)}`);
+  const handleClick = (id: string) => {
+    router.push(`/script?scriptId=${id}`);
   };
 
   return (
-    <div className="flex flex-col gap-2 w-full ">
+    <div className="flex flex-col gap-2 w-full">
       {/* Label */}
       <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase px-0.5 mb-1">
         Suggested Scripts
@@ -103,27 +84,42 @@ export default function SuggestedTopicsSidebar() {
         className="flex flex-col gap-3 overflow-y-auto"
         style={{ maxHeight: 'calc(100vh - 220px)', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {SIDEBAR_TOPICS.map((t, i) => (
-          <button
-            key={i}
-            onClick={() => handleClick(t.idea)}
-            className="group w-full text-left bg-white border border-gray-200/80 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-150 flex-shrink-0"
-          >
-            <p className="text-md font-semibold text-[#1d1d1f] leading-snug mb-1.5 line-clamp-2 group-hover:text-black">
-              {t.idea}
-            </p>
-            <p className="text-[13px] text-[#6e6e73] font-light leading-relaxed line-clamp-6 mb-2">
-              {t.description}
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {t.tags.map(tag => (
-                <span key={tag} className="text-[12px] font-medium text-[#6e6e73] bg-[#f5f5f7] px-1.5 py-0.5 rounded-full">
-                  {tag}
-                </span>
-              ))}
+        {loading ? (
+          /* Skeleton */
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="w-full bg-white border border-gray-200/80 rounded-xl p-3.5 animate-pulse">
+              <div className="h-3 bg-gray-100 rounded mb-2 w-4/5" />
+              <div className="h-2 bg-gray-100 rounded mb-1 w-full" />
+              <div className="h-2 bg-gray-100 rounded w-3/4" />
             </div>
-          </button>
-        ))}
+          ))
+        ) : scripts.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <FileText className="w-6 h-6 text-gray-200" />
+            <p className="text-[10px] text-[#6e6e73]">No scripts yet</p>
+          </div>
+        ) : (
+          scripts.map(s => (
+            <button
+              key={s.id}
+              onClick={() => handleClick(s.id)}
+              className="group w-full text-left bg-white border border-gray-200/80 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-150 flex-shrink-0"
+            >
+              <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-1.5 group-hover:text-black">
+                {s.title || s.topic || 'Untitled Script'}
+              </p>
+              <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-3 mb-2">
+                {s.script ? s.script.slice(0, 160).replace(/\*+/g, '').trim() + '…' : 'No preview available.'}
+              </p>
+              {s.duration && (
+                <span className="inline-flex gap-1 items-center text-[11px] font-semibold text-green-600 bg-green-100 border border-gray-200 px-2 py-1 rounded-full">
+<Clock className='w-4 h-4'/>
+                  {s.duration} min
+                </span>
+              )}
+            </button>
+          ))
+        )}
       </div>
 
       {/* Down arrow */}

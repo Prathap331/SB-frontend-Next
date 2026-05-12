@@ -17,7 +17,8 @@ import {
 import { ApiService, TSSResponse, ECIResponse } from '@/services/api';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ECIExactReplica from '@/components/ECIExactReplica';
-import SuggestedTopicsSidebar, { SIDEBAR_TOPICS } from '@/components/SuggestedTopicsSidebar';
+import SuggestedTopicsSidebar from '@/components/SuggestedTopicsSidebar';
+import { supabase as sbClient } from '@/lib/supabaseClient';
 
 interface VideoItem {
   url: string;
@@ -530,6 +531,13 @@ export default function SearchTopicPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
+
+  // Mobile suggested scripts from Supabase
+  const [mobileSuggested, setMobileSuggested] = useState<{ id: string; title: string | null; script: string | null; topic: string | null }[]>([]);
+  useEffect(() => {
+    sbClient.from('scripts').select('id, title, script, topic').order('created_at', { ascending: false }).limit(10)
+      .then(({ data }) => { if (data) setMobileSuggested(data); });
+  }, []);
   const [searchQuery, setSearchQuery] = useState(topic);
   const [activeTab, setActiveTab] = useState<'tss' | 'eci'>('tss');
   const [tssData, setTssData] = useState<TSSResponse | null>(null);
@@ -1085,25 +1093,18 @@ useEffect(() => {
             className="flex gap-3 overflow-x-auto pb-2"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {SIDEBAR_TOPICS.map((t, i) => (
+            {mobileSuggested.map(s => (
               <button
-                key={i}
-                onClick={() => router.push(`/search/${encodeURIComponent(t.idea.split(' ').slice(0, 6).join(' '))}`)}
+                key={s.id}
+                onClick={() => router.push(`/script?scriptId=${s.id}`)}
                 className="group flex-shrink-0 w-52 text-left bg-white border border-gray-200/80 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-150"
               >
                 <p className="text-xs font-semibold text-[#1d1d1f] leading-snug mb-1.5 line-clamp-2 group-hover:text-black">
-                  {t.idea}
+                  {s.title || s.topic || 'Untitled Script'}
                 </p>
-                <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-2 mb-2">
-                  {t.description}
+                <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-2">
+                  {s.script ? s.script.slice(0, 120).replace(/\*+/g, '').trim() + '…' : ''}
                 </p>
-                <div className="flex flex-wrap gap-1">
-                  {t.tags.map(tag => (
-                    <span key={tag} className="text-[9px] font-medium text-[#6e6e73] bg-[#f5f5f7] px-1.5 py-0.5 rounded-full">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
               </button>
             ))}
           </div>

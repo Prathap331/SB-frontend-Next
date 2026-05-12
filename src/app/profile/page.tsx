@@ -16,6 +16,8 @@ type ProfileData = {
   facebookLink: string;
   twitterLink: string;
   billingAddress: string;
+  primaryLanguage: string;
+  categories: string[];
 };
 
 const emptyProfile: ProfileData = {
@@ -23,7 +25,25 @@ const emptyProfile: ProfileData = {
   youtubeLink: '', instagramLink: '',
   facebookLink: '', twitterLink: '',
   billingAddress: '',
+  primaryLanguage: '',
+  categories: [],
 };
+
+const ALL_LANGUAGES = [
+  'English', 'Hindi', 'Bengali', 'Telugu', 'Marathi', 'Tamil', 'Urdu',
+  'Gujarati', 'Kannada', 'Odia', 'Malayalam', 'Punjabi', 'Assamese',
+  'Maithili', 'Sanskrit', 'Santali', 'Kashmiri', 'Nepali', 'Sindhi',
+  'Konkani', 'Manipuri', 'Bodo', 'Dogri',
+];
+
+const ALL_CATEGORIES = [
+  'Psychology', 'Philosophy', 'Knowledge', 'Explainer Videos', 'Historical',
+  'Science Facts', 'Tech Updates', 'Book Summaries', 'Business Cases', 'Business Lessons',
+  'Personal Finance', 'Leadership', 'Sales & Negotiation', 'Self Improvement', 'Relationships',
+  'Health & Fitness', 'Spirituality', 'Mythology', 'Politics & Society', 'Current Affairs',
+  'Geopolitics', 'Environmental Issues', 'Space & Universe', 'AI & Machine Learning',
+  'Legal Breakdowns', 'Criminal Insights', 'Legal Rights', 'Future Tech', 'Science & Tech',
+];
 
 export default function Profile() {
   const router = useRouter();
@@ -35,6 +55,18 @@ export default function Profile() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
+  const [langSearch, setLangSearch] = useState('');
+  const langRef = useRef<HTMLDivElement>(null);
+
+  // Close language dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) setLangOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Fetch profile from Supabase on mount
   useEffect(() => {
@@ -47,19 +79,26 @@ export default function Profile() {
         const user = session.user;
         const { data, error } = await supabase
           .from('profiles')
-          .select('full_name, phone, youtube_link, instagram_link, facebook_link, twitter_link, billing_address')
+          .select('full_name, phone, youtube_link, instagram_link, facebook_link, twitter_link, billing_address, primary_language, categories')
           .eq('id', user.id)
           .single();
 
         const fetched: ProfileData = {
-          name:           data?.full_name        ?? user.user_metadata?.full_name        ?? '',
-          email:          user.email             ?? '',
-          phone:          data?.phone            ?? user.user_metadata?.phone            ?? '',
-          youtubeLink:    data?.youtube_link     ?? user.user_metadata?.youtube_link     ?? '',
-          instagramLink:  data?.instagram_link   ?? user.user_metadata?.instagram_link   ?? '',
-          facebookLink:   data?.facebook_link    ?? user.user_metadata?.facebook_link    ?? '',
-          twitterLink:    data?.twitter_link     ?? user.user_metadata?.twitter_link     ?? '',
-          billingAddress: data?.billing_address  ?? user.user_metadata?.billing_address  ?? '',
+          name:            data?.full_name        ?? user.user_metadata?.full_name        ?? '',
+          email:           user.email             ?? '',
+          phone:           data?.phone            ?? user.user_metadata?.phone            ?? '',
+          youtubeLink:     data?.youtube_link     ?? user.user_metadata?.youtube_link     ?? '',
+          instagramLink:   data?.instagram_link   ?? user.user_metadata?.instagram_link   ?? '',
+          facebookLink:    data?.facebook_link    ?? user.user_metadata?.facebook_link    ?? '',
+          twitterLink:     data?.twitter_link     ?? user.user_metadata?.twitter_link     ?? '',
+          billingAddress:  data?.billing_address  ?? user.user_metadata?.billing_address  ?? '',
+          primaryLanguage: data?.primary_language ?? user.user_metadata?.primary_language ?? '',
+          categories:
+  Array.isArray(data?.categories)
+    ? data.categories
+    : typeof data?.categories === 'string'
+    ? JSON.parse(data.categories)
+    : [],
         };
 
         // Log the error only if it's something other than "no rows found"
@@ -233,6 +272,8 @@ export default function Profile() {
           facebook_link:    editData.facebookLink,
           twitter_link:     editData.twitterLink,
           billing_address:  editData.billingAddress,
+          primary_language: editData.primaryLanguage || null,
+          categories:       editData.categories.length > 0 ? editData.categories : null,
           updated_at:       new Date().toISOString(),
         }, { onConflict: 'id' });
 
@@ -260,11 +301,43 @@ export default function Profile() {
     document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
-  const myScripts = [
-    { id: 1, title: "The Hidden Impact of Climate Change on Global Economy", createdAt: "2024-01-15", words: 1247, status: "Published" },
-    { id: 2, title: "Future of Artificial Intelligence in Healthcare", createdAt: "2024-01-10", words: 1456, status: "Draft" },
-    { id: 3, title: "Sustainable Energy Solutions for Modern Cities", createdAt: "2024-01-08", words: 1123, status: "Published" },
-  ];
+  // ── My Scripts state ─────────────────────────────────────────────────────
+  type ScriptRow = {
+    id: string;
+    title: string | null;
+    topic: string | null;
+    estimated_word_count: number;
+    status: string;
+    created_at: string;
+    is_public: boolean;
+  };
+
+  const [myScripts, setMyScripts] = useState<ScriptRow[]>([]);
+  const [isLoadingScripts, setIsLoadingScripts] = useState(false);
+  const [scriptsFetched, setScriptsFetched] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'scripts' || scriptsFetched) return;
+    const fetchScripts = async () => {
+      setIsLoadingScripts(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const { data, error } = await supabase
+          .from('scripts')
+          .select('id, title, topic, estimated_word_count, status, created_at, is_public')
+          .eq('userId', session.user.id)
+          .order('created_at', { ascending: false });
+        if (!error && data) {
+          setMyScripts(data as ScriptRow[]);
+          setScriptsFetched(true);
+        }
+      } finally {
+        setIsLoadingScripts(false);
+      }
+    };
+    fetchScripts();
+  }, [activeTab, scriptsFetched]);
 
   // ── Subscription / Billing state ──────────────────────────────────────────
   type SubscriptionRow = {
@@ -498,7 +571,7 @@ export default function Profile() {
                             <input
                               id={f.id}
                               type={f.type}
-                              value={value}
+                              value={value as string}
                               onChange={e => !f.readOnly && setEditData({ ...editData, [f.key]: e.target.value })}
                               disabled={isLocked}
                               className={`w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all
@@ -512,6 +585,105 @@ export default function Profile() {
                           </div>
                         );
                       })}
+
+                      {/* Primary Language */}
+                      <div>
+                        <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">Primary Language</label>
+                        {isEditing ? (
+                          <div className="relative" ref={langRef}>
+                            <button
+                              type="button"
+                              onClick={() => setLangOpen(o => !o)}
+                              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f]"
+                            >
+                              <span className={editData.primaryLanguage ? 'text-[#1d1d1f]' : 'text-[#a1a1a6]'}>
+                                {editData.primaryLanguage || 'Select a language'}
+                              </span>
+                              <svg className={`w-4 h-4 text-[#6e6e73] transition-transform ${langOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            {langOpen && (
+                              <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                                <div className="p-2 border-b border-gray-100">
+                                  <input
+                                    type="text"
+                                    placeholder="Search language…"
+                                    value={langSearch}
+                                    onChange={e => setLangSearch(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#1d1d1f]/20"
+                                    autoFocus
+                                  />
+                                </div>
+                                <ul className="max-h-48 overflow-y-auto">
+                                  {ALL_LANGUAGES.filter(l => l.toLowerCase().includes(langSearch.toLowerCase())).map(lang => (
+                                    <li key={lang}>
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditData({ ...editData, primaryLanguage: lang }); setLangOpen(false); setLangSearch(''); }}
+                                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${editData.primaryLanguage === lang ? 'bg-[#1d1d1f] text-white' : 'text-[#1d1d1f] hover:bg-[#f5f5f7]'}`}
+                                      >
+                                        {lang}
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-[#f5f5f7] text-sm text-[#1d1d1f]">
+                            {profileData.primaryLanguage || <span className="text-[#a1a1a6]">Not set</span>}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Categories */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">
+                          Content Categories
+                          {isEditing && (
+                            <span className="ml-1.5 text-[#6e6e73] font-normal">({(isEditing ? editData : profileData).categories.length}/3 selected)</span>
+                          )}
+                        </label>
+                        {isEditing ? (
+                          <div className="flex flex-wrap gap-2">
+                            {ALL_CATEGORIES.map(cat => {
+                              const selected = editData.categories.includes(cat);
+                              const disabled = !selected && editData.categories.length >= 3;
+                              return (
+                                <button
+                                  key={cat}
+                                  type="button"
+                                  disabled={disabled}
+                                  onClick={() => {
+                                    const next = selected
+                                      ? editData.categories.filter(c => c !== cat)
+                                      : [...editData.categories, cat];
+                                    setEditData({ ...editData, categories: next });
+                                  }}
+                                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                    selected
+                                      ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
+                                      : disabled
+                                      ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                                      : 'bg-white text-[#1d1d1f] border-gray-200 hover:border-gray-400'
+                                  }`}
+                                >
+                                  {cat}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {profileData.categories.length > 0
+                              ? profileData.categories.map(cat => (
+                                  <span key={cat} className="px-3 py-1.5 rounded-full text-xs font-medium bg-[#f5f5f7] border border-gray-200 text-[#1d1d1f]">{cat}</span>
+                                ))
+                              : <span className="text-sm text-[#a1a1a6]">No categories set</span>
+                            }
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -521,28 +693,65 @@ export default function Profile() {
             {/* Scripts */}
             {activeTab === 'scripts' && (
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
-                <div className="px-6 py-5 border-b border-gray-100">
-                  <h2 className="text-sm font-semibold text-[#1d1d1f]">My Scripts</h2>
-                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">View and manage your generated scripts</p>
+                <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-[#1d1d1f]">My Scripts</h2>
+                    <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">View and manage your generated scripts</p>
+                  </div>
+                  {!isLoadingScripts && myScripts.length > 0 && (
+                    <span className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] px-2.5 py-1 rounded-full">
+                      {myScripts.length} script{myScripts.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
                 </div>
                 <div className="px-6 py-4 space-y-3">
-                  {myScripts.map(script => (
-                    <div key={script.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[#f5f5f7] rounded-2xl border border-gray-100">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[#1d1d1f] truncate">{script.title}</p>
-                        <div className="flex flex-wrap items-center gap-3 mt-1">
-                          <span className="text-[11px] text-[#6e6e73] font-light">{script.createdAt}</span>
-                          <span className="text-[11px] text-[#6e6e73] font-light">{script.words} words</span>
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${script.status === 'Published' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
-                            {script.status}
-                          </span>
-                        </div>
-                      </div>
-                      <button onClick={() => router.push('/script')} className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-4 py-2 rounded-xl transition-colors flex-shrink-0">
-                        <ExternalLink className="w-3.5 h-3.5" />View Script
-                      </button>
+                  {isLoadingScripts ? (
+                    <div className="flex items-center gap-2 py-8 justify-center text-[#6e6e73]">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-xs font-light">Loading scripts…</span>
                     </div>
-                  ))}
+                  ) : myScripts.length === 0 ? (
+                    <div className="py-10 text-center space-y-2">
+                      <FileText className="w-8 h-8 text-gray-200 mx-auto" />
+                      <p className="text-sm text-[#6e6e73]">No scripts generated yet.</p>
+                      <p className="text-[11px] text-[#6e6e73] font-light">Generate a script from a topic to see it here.</p>
+                    </div>
+                  ) : (
+                    myScripts.map(script => {
+                      const isPublished = script.status === 'published' || script.is_public;
+                      const dateStr = script.created_at
+                        ? new Date(script.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : '—';
+                      return (
+                        <div key={script.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[#f5f5f7] rounded-2xl border border-gray-100">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[#1d1d1f] truncate">
+                              {script.title || script.topic || 'Untitled Script'}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                              <span className="text-[11px] text-[#6e6e73] font-light">{dateStr}</span>
+                              {script.estimated_word_count > 0 && (
+                                <span className="text-[11px] text-[#6e6e73] font-light">
+                                  {script.estimated_word_count.toLocaleString()} words
+                                </span>
+                              )}
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                isPublished ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'
+                              }`}>
+                                {isPublished ? 'Published' : script.status ?? 'Draft'}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => router.push(`/script?scriptId=${script.id}`)}
+                            className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-4 py-2 rounded-xl transition-colors flex-shrink-0"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />View Script
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}
@@ -598,14 +807,47 @@ export default function Profile() {
                           </div>
                         </div>
                         <div className="space-y-4">
-                          <div>
-                            <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Credits Remaining</p>
-                            <p className="text-3xl font-bold text-[#1d1d1f] mb-2">{latestSub.credits}<span className='text-xl text-gray-400'>/100</span></p>
-                            <div className="h-2 rounded-full bg-gray-100">
-                              <div className="h-full rounded-full bg-[#1d1d1f] transition-all" style={{ width: `${Math.min((latestSub.credits / 100) * 100, 100)}%` }} />
-                            </div>
-                            <p className="text-[10px] text-[#6e6e73] mt-1">script generation credits</p>
-                          </div>
+                        <div>
+  <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">
+    Credits Remaining
+  </p>
+
+  {(() => {
+    const totalCredits =
+      latestSub.plan?.toLowerCase() === 'basic'
+        ? 100
+        : latestSub.plan?.toLowerCase() === 'pro'
+        ? 200
+        : 50;
+
+    return (
+      <>
+        <p className="text-3xl font-bold text-[#1d1d1f] mb-2">
+          {latestSub.credits}
+          <span className="text-xl text-gray-400">
+            /{totalCredits}
+          </span>
+        </p>
+
+        <div className="h-2 rounded-full bg-gray-100">
+          <div
+            className="h-full rounded-full bg-[#1d1d1f] transition-all"
+            style={{
+              width: `${Math.min(
+                ((100-latestSub.credits) / totalCredits) * 100,
+                100
+              )}%`,
+            }}
+          />
+        </div>
+
+        <p className="text-[10px] text-[#6e6e73] mt-1">
+          script generation credits
+        </p>
+      </>
+    );
+  })()}
+</div>
                           <div>
                             <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Amount Paid</p>
                             <p className="text-sm font-semibold text-[#1d1d1f]">{fmtAmount(latestSub.amount)}</p>

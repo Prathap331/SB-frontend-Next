@@ -241,6 +241,7 @@ export default function ScriptPage() {
               if (cached.params.topic === topic) {
                 setData(cached.data);
                 setScriptDuration(cached.params.duration_minutes);
+                setScriptTopic(cached.params.topic);
                 if (cached.pageTitle) setPageTitle(cached.pageTitle);
                 // Restore unlock state if previously unlocked
                 const cacheKey = getStorageKey(topic, undefined);
@@ -262,6 +263,7 @@ export default function ScriptPage() {
               if (cached.timestamp && now - cached.timestamp < CACHE_DURATION) {
                 setData(cached.data);
                 setScriptDuration(cached.params?.duration_minutes);
+                setScriptTopic(cached.params?.topic);
                 if (cached.pageTitle) setPageTitle(cached.pageTitle);
                 // Restore unlock state if previously unlocked
                 if (localStorage.getItem(`${latestKey}_unlocked`) === 'true') setIsUnlocked(true);
@@ -326,6 +328,7 @@ saveScriptToStorage(payload.topic, payload.ideaTitle, normalized, payload, scrip
 
 setData(normalized);
             if (payload.duration_minutes) setScriptDuration(payload.duration_minutes);
+            if (payload.topic) setScriptTopic(payload.topic);
             setPageTitle(scriptTitle);
             setIsLoading(false);
             return;
@@ -478,6 +481,8 @@ console.log("📦 Script API Response:", json);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [showInsufficientPopup, setShowInsufficientPopup] = useState(false);
   const [scriptDuration, setScriptDuration] = useState<number | undefined>();
+  const [scriptTopic, setScriptTopic] = useState<string | undefined>();
+  const [scriptSaved, setScriptSaved] = useState(false); // prevent duplicate saves
 
   const handleUnlock = async () => {
     setIsUnlocking(true);
@@ -501,11 +506,40 @@ console.log("📦 Script API Response:", json);
 
       if (res.ok && json.status !== 'insufficient') {
         setIsUnlocked(true);
+
         // Persist unlock so page refresh keeps the script visible
         try {
           const key = localStorage.getItem('script_latest_key');
           if (key) localStorage.setItem(`${key}_unlocked`, 'true');
         } catch {}
+
+        // Save script to Supabase scripts table (once only)
+        if (!scriptSaved && data) {
+          setScriptSaved(true);
+          const topic = scriptTopic
+            ?? new URLSearchParams(window.location.search).get('topic')
+            ?? pageTitle;
+          supabase.from('scripts').insert({
+            userId:               session.user.id,
+            title:                data.title || pageTitle || topic,
+            topic:                topic,
+            script:               data.script,
+            estimated_word_count: data.estimated_word_count ?? 0,
+            duration:             scriptDuration ?? null,
+            source_urls:          data.source_urls ?? [],
+            analysis:             data.analysis ?? {},
+            structure:            data.structure ?? [],
+            seo:                  data.seo ?? {},
+            status:               'published',
+            thumbnail_url:        null,
+            youtube_url:          null,
+            views:                0,
+            likes:                0,
+            is_public:            true,
+          }).then(({ error }) => {
+            if (error) console.error('[scripts save]', error.message);
+          });
+        }
       } else {
         setShowInsufficientPopup(true);
       }
@@ -1204,7 +1238,7 @@ const csExpansion =
                     <div
                       className="absolute left-0 right-0 pointer-events-none"
                       style={{
-                        top: '10%', height: '30%',
+                        top: '20%', height: '20%',
                         backdropFilter: 'blur(7px)',
                         WebkitBackdropFilter: 'blur(7px)',
                         background: 'rgba(255,255,255,0.25)',
@@ -1217,14 +1251,14 @@ const csExpansion =
                     <div
                       className="absolute left-0 right-0 pointer-events-none"
                       style={{
-                        top: '50%', height: '30%',
+                        top: '60%', height: '20%',
                         backdropFilter: 'blur(7px)',
                         WebkitBackdropFilter: 'blur(7px)',
                         background: 'rgba(255,255,255,0.25)',
                       }}
                     />
 
-                    {/* Bottom fade-to-white: 80%–100% */}
+                    Bottom fade-to-white: 80%–100%
                     <div
                       className="absolute left-0 right-0 bottom-0 pointer-events-none"
                       style={{
@@ -1248,13 +1282,9 @@ const csExpansion =
                     </div>
                   </>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
 
-      {/* ── Feedback Section ── */}
+
+                 {/* ── Feedback Section ── */}
       {isUnlocked && (
         <section className="max-w-3xl mx-auto px-6 sm:px-8 py-10">
           <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
@@ -1338,6 +1368,14 @@ const csExpansion =
           </div>
         </section>
       )}
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      </main>
+
+     
 
       <Footer />
 
