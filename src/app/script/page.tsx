@@ -241,9 +241,10 @@ export default function ScriptPage() {
               if (cached.params.topic === topic) {
                 setData(cached.data);
                 setScriptDuration(cached.params.duration_minutes);
-                if (cached.pageTitle) {
-                  setPageTitle(cached.pageTitle);
-                }
+                if (cached.pageTitle) setPageTitle(cached.pageTitle);
+                // Restore unlock state if previously unlocked
+                const cacheKey = getStorageKey(topic, undefined);
+                if (localStorage.getItem(`${cacheKey}_unlocked`) === 'true') setIsUnlocked(true);
                 setIsLoading(false);
                 return; // Successfully loaded from cache
               }
@@ -261,9 +262,9 @@ export default function ScriptPage() {
               if (cached.timestamp && now - cached.timestamp < CACHE_DURATION) {
                 setData(cached.data);
                 setScriptDuration(cached.params?.duration_minutes);
-                if (cached.pageTitle) {
-                  setPageTitle(cached.pageTitle);
-                }
+                if (cached.pageTitle) setPageTitle(cached.pageTitle);
+                // Restore unlock state if previously unlocked
+                if (localStorage.getItem(`${latestKey}_unlocked`) === 'true') setIsUnlocked(true);
                 setIsLoading(false);
                 return; // Successfully loaded latest script
               }
@@ -444,6 +445,34 @@ console.log("📦 Script API Response:", json);
   const [showSourcesDialog, setShowSourcesDialog] = useState(false);
   const [contentTab, setContentTab] = useState<1|2|3|4|5>(1);
 
+  // ── Feedback state ───────────────────────────────────────────────────────
+  const [feedbackRating, setFeedbackRating] = useState<string>('');
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
+
+  const handleFeedbackSubmit = async () => {
+    if (!feedbackRating) return;
+    setFeedbackSubmitting(true);
+    setFeedbackError('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { error } = await supabase.from('Feedback').insert({
+        Rating: feedbackRating,
+        Comments: feedbackComment.trim() || null,
+        Scripts: data?.script ?? null,
+        userId: session?.user.id ?? null,
+      });
+      if (error) throw error;
+      setFeedbackSubmitted(true);
+    } catch (err: any) {
+      setFeedbackError(err?.message || 'Failed to submit feedback. Please try again.');
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
+
   // ── Unlock state ─────────────────────────────────────────────────────────
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -472,6 +501,11 @@ console.log("📦 Script API Response:", json);
 
       if (res.ok && json.status !== 'insufficient') {
         setIsUnlocked(true);
+        // Persist unlock so page refresh keeps the script visible
+        try {
+          const key = localStorage.getItem('script_latest_key');
+          if (key) localStorage.setItem(`${key}_unlocked`, 'true');
+        } catch {}
       } else {
         setShowInsufficientPopup(true);
       }
@@ -1219,6 +1253,91 @@ const csExpansion =
           </div>
         </div>
       </main>
+
+      {/* ── Feedback Section ── */}
+      {isUnlocked && (
+        <section className="max-w-3xl mx-auto px-6 sm:px-8 py-10">
+          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-[#1d1d1f]">How was this script?</h3>
+              <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Your feedback helps us improve script quality</p>
+            </div>
+
+            {feedbackSubmitted ? (
+              <div className="flex flex-col items-center gap-3 py-10">
+                <div className="w-12 h-12 rounded-full bg-green-100 border border-green-200 flex items-center justify-center">
+                  <span className="text-xl">🎉</span>
+                </div>
+                <p className="text-sm font-semibold text-[#1d1d1f]">Thanks for your feedback!</p>
+                <p className="text-[11px] text-[#6e6e73] font-light">We&apos;ll use it to make scripts even better.</p>
+              </div>
+            ) : (
+              <div className="px-6 py-6 space-y-6">
+                {/* Rating row */}
+                <div>
+                  <p className="text-xs font-medium text-[#1d1d1f] mb-3">Rate this script</p>
+                  <div className="flex flex-wrap gap-3">
+                    {[
+                      { label: 'Bad',       emoji: '😞' },
+                      { label: 'Ok',        emoji: '😐' },
+                      { label: 'Good',      emoji: '😊' },
+                      { label: 'Very Good', emoji: '😄' },
+                      { label: 'Excellent', emoji: '🤩' },
+                    ].map(({ label, emoji }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setFeedbackRating(label)}
+                        className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-2xl border text-center transition-all duration-150 min-w-[72px] ${
+                          feedbackRating === label
+                            ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-md scale-[1.04]'
+                            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-[#f5f5f7]'
+                        }`}
+                      >
+                        <span className="text-2xl leading-none">{emoji}</span>
+                        <span className={`text-[10px] font-medium ${feedbackRating === label ? 'text-white' : 'text-[#6e6e73]'}`}>
+                          {label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Comment */}
+                <div>
+                  <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">
+                    Comment <span className="text-[#6e6e73] font-light">(optional)</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="What did you like or what could be improved?"
+                    value={feedbackComment}
+                    onChange={e => setFeedbackComment(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm placeholder-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f] transition-all resize-none"
+                  />
+                </div>
+
+                {feedbackError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
+                    {feedbackError}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleFeedbackSubmit}
+                  disabled={!feedbackRating || feedbackSubmitting}
+                  className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {feedbackSubmitting
+                    ? <><Loader2 className="w-4 h-4 animate-spin" />Submitting…</>
+                    : 'Submit Feedback'}
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       <Footer />
 

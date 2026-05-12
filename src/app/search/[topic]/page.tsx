@@ -15,7 +15,6 @@ import {
   Newspaper,
 } from 'lucide-react';
 import { ApiService, TSSResponse, ECIResponse } from '@/services/api';
-import { ScriptGenerationModal, ScriptGenerationParams } from '@/components/ScriptGenerationModal';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ECIExactReplica from '@/components/ECIExactReplica';
 import SuggestedTopicsSidebar, { SIDEBAR_TOPICS } from '@/components/SuggestedTopicsSidebar';
@@ -531,9 +530,6 @@ export default function SearchTopicPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedIdea, setSelectedIdea] = useState<ScriptIdea | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState(topic);
   const [activeTab, setActiveTab] = useState<'tss' | 'eci'>('tss');
   const [tssData, setTssData] = useState<TSSResponse | null>(null);
@@ -569,31 +565,7 @@ useEffect(() => {
 }, []);
 
 
-  const handleModalSubmit = async (params: ScriptGenerationParams) => {
-    // Save generation params and navigate to /script where the fetch will be performed
-    setIsGenerating(true);
-    try {
-      const payload = {
-        ...params,
-        ideaTitle: selectedIdea?.title,
-        ideaDescription: selectedIdea?.description,
-        length: videoLengths[selectedIdea?.id || 0] || '10',
-      };
 
-      // Use sessionStorage so it's short-lived and per-tab
-      try {
-        sessionStorage.setItem('generate_params', JSON.stringify(payload));
-      } catch {
-        console.warn('Failed to persist generate params to sessionStorage');
-      }
-
-      // Close modal and navigate to the script page which will perform the API call and show loader
-      setIsModalOpen(false);
-      router.push('/script');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   useEffect(() => {
     cleanupCache();
@@ -790,8 +762,54 @@ useEffect(() => {
       console.warn('No length specified for this script');
       return;
     }
-    setSelectedIdea(idea);
-    setIsModalOpen(true);
+  
+    const payload = {
+      topic: idea.title,
+      // userId: user?.id || "",
+  
+      duration_minutes: Number(videoLengths[idea.id] || 10),
+  
+      context: {
+        topic: idea.title,
+  
+        selected_idea_id: String(idea.id),
+  
+        selected_angle_id: String(idea.id),
+  
+        selected_idea: idea,
+  
+        gap_context: {},
+  
+        db_context: "",
+  
+        web_context: "",
+  
+        social_data: [],
+  
+        news_data: [],
+  
+        tss_scores: tssData || {},
+  
+        csi_scores: eciData || {},
+  
+        csi_quality: {},
+  
+        pipeline_assembled_at: new Date().toISOString(),
+  
+        seo_output: {},
+      },
+    };
+  
+    try {
+      sessionStorage.setItem(
+        "generate_params",
+        JSON.stringify(payload)
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  
+    router.push(`/script/${encodeURIComponent(idea.title)}`);
   };
 
   const handleVideoLengthChange = (id: number, value: string) => {
@@ -802,14 +820,7 @@ useEffect(() => {
     <div className="min-h-screen bg-[#E9EBF0]/20">
       <Header />
 
-      <ScriptGenerationModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        topic={selectedIdea?.title || ''}
-        initialDuration={videoLengths[selectedIdea?.id || 0] || '10'}
-        onGenerate={handleModalSubmit}
-        isGenerating={isGenerating}
-      />
+      
 
       {/* ── Page-level flex: main content | desktop sidebar ── */}
       <div className="flex items-start gap-0">
