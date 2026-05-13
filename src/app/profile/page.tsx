@@ -829,12 +829,12 @@ export default function Profile() {
           </span>
         </p>
 
-        <div className="h-2 rounded-full bg-gray-100">
+        <div className="h-2 rounded-full bg-[#1d1d1f]">
           <div
-            className="h-full rounded-full bg-[#1d1d1f] transition-all"
+            className="h-full rounded-full  bg-gray-100 transition-all"
             style={{
               width: `${Math.min(
-                ((100-latestSub.credits) / totalCredits) * 100,
+                ((totalCredits-latestSub.credits) / totalCredits) * 100,
                 100
               )}%`,
             }}

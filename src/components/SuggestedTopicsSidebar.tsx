@@ -27,7 +27,7 @@ export default function SuggestedTopicsSidebar() {
   useEffect(() => {
     const fetch = async () => {
       const { data, error } = await supabase
-        .from('scripts')
+        .from('universal_scripts')
         .select('id, title, script, topic, duration')
         .order('created_at', { ascending: false })
         .limit(20);

@@ -2,50 +2,16 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Clock } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
-const TOPICS = [
-  {
-    idea: 'Why Gen Z Is Rewriting the Rules of Work',
-    description: 'From quiet quitting to building side hustles at 22, explore how the youngest workforce is forcing companies to rethink everything about jobs.From quiet quitting to building side hustles at 22, explore how the youngest workforce is forcing companies to rethink everything about jobs.',
-    tags: ['#GenZ', '#Culture', '#Business'],
-  },
-  {
-    idea: "The Science Behind Why You Can't Stop Scrolling",
-    description: 'Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#Psychology', '#Technology', ],
-  },
-  {
-    idea: "How Ancient Rome's Fall Mirrors Modern America",
-    description: 'Debt spirals, political polarisation, over-expansion — historians are drawing uncomfortable parallels between the Roman Empire and today.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#History', '#Politics', '#Society'],
-  },
-  {
-    idea: 'AI Is Replacing Jobs — But Creating These New Ones',
-    description: 'While automation closes some doors, prompt engineers, AI trainers, and synthetic media specialists are among the fastest-growing roles of 2025.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#AI', '#FutureTech', '#Career'],
-  },
-  {
-    idea: 'The Hidden Cost of Being a People Pleaser',
-    description: 'People-pleasing feels like kindness, but research shows it quietly erodes self-esteem, fuels resentment, and wrecks relationships over time.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#Psychology', '#SelfImprovement'],
-  },
-  {
-    idea: 'Why Every Major Sport Is Obsessed With Analytics Now',
-    description: 'From Moneyball to Brentford FC, data science has flipped how teams scout talent, design plays, and even manage player health.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#Sports', '#DataScience', '#Strategy'],
-  },
-  {
-    idea: "The Richest 1% Are Quietly Moving Their Money Here",
-    description: "Ultra-high-net-worth individuals are shifting assets into private credit, farmland, and tokenised real estate — and here's exactly why.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.",
-    tags: ['#Finance', '#Wealth', '#Investing'],
-  },
-  {
-    idea: "Inside the Brains of the World's Best Decision Makers",
-    description: 'Naval Ravikant, Jeff Bezos, and Munger all use the same mental models. Breaking down the frameworks that separate great thinkers from the rest.Dopamine loops, variable reward schedules, and the psychology that app designers deliberately exploit to keep your eyes on the screen.',
-    tags: ['#Leadership', '#Philosophy', '#Mindset'],
-  },
-];
+type ScriptRow = {
+  id: string;
+  title: string | null;
+  topic: string | null;
+  script: string | null;
+  duration: number | null;
+};
 
 const CARD_GAP = 16;
 
@@ -54,6 +20,21 @@ export default function SuggestedTopics() {
   const router = useRouter();
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const [scripts, setScripts] = useState<ScriptRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data, error } = await supabase
+        .from('universal_scripts')
+        .select('id, title, topic, script, duration')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (!error && data) setScripts(data as ScriptRow[]);
+      setLoading(false);
+    };
+    load();
+  }, []);
 
   const updateArrows = () => {
     const el = trackRef.current;
@@ -72,7 +53,7 @@ export default function SuggestedTopics() {
       el.removeEventListener('scroll', updateArrows);
       window.removeEventListener('resize', updateArrows);
     };
-  }, []);
+  }, [scripts]);
 
   const scroll = (dir: 'left' | 'right') => {
     const el = trackRef.current;
@@ -81,10 +62,31 @@ export default function SuggestedTopics() {
     el.scrollBy({ left: dir === 'right' ? cardW + CARD_GAP : -(cardW + CARD_GAP), behavior: 'smooth' });
   };
 
-  const handleCardClick = (idea: string) => {
-    const topic = idea.split(' ').slice(0, 6).join(' ');
-    router.push(`/search/${encodeURIComponent(topic)}`);
-  };
+  if (loading) {
+    return (
+      <div className="max-w-8xl mx-auto relative">
+        <div className="flex gap-4 pb-3 pt-1 overflow-x-hidden">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex-shrink-0 w-64 sm:w-72 bg-white border border-gray-200/80 rounded-2xl p-5 animate-pulse">
+              <div className="h-4 bg-gray-100 rounded mb-3 w-4/5" />
+              <div className="h-2.5 bg-gray-100 rounded mb-2 w-full" />
+              <div className="h-2.5 bg-gray-100 rounded mb-2 w-5/6" />
+              <div className="h-2.5 bg-gray-100 rounded w-3/4" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (scripts.length === 0) {
+    return (
+      <div className="max-w-8xl mx-auto flex flex-col items-center gap-2 py-12 text-center">
+        <FileText className="w-8 h-8 text-gray-200" />
+        <p className="text-sm text-[#6e6e73]">No scripts yet — generate one to see it here.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-8xl mx-auto relative">
@@ -110,35 +112,30 @@ export default function SuggestedTopics() {
         <ChevronRight className="w-4 h-4 text-[#1d1d1f]" />
       </button>
 
-      {/* Fade edges */}
-      {/* <div className="pointer-events-none absolute left-0 top-0 h-full w-16 z-10 bg-gradient-to-r from-white to-transparent" />
-      <div className="pointer-events-none absolute right-0 top-0 h-full w-16 z-10 bg-gradient-to-l from-white to-transparent" /> */}
-
       {/* Track */}
       <div
         ref={trackRef}
         className="flex gap-4 pb-3 pt-1 overflow-x-auto snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {TOPICS.map((t, i) => (
+        {scripts.map(s => (
           <button
-            key={i}
-            onClick={() => handleCardClick(t.idea)}
+            key={s.id}
+            onClick={() => router.push(`/script?scriptId=${s.id}`)}
             className="group flex-shrink-0 snap-start w-64 sm:w-72 text-left bg-white border border-gray-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 hover:-translate-y-0.5 focus:outline-none"
           >
-            <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-2 group-hover:text-black">
-              {t.idea}
+            <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-2 group-hover:text-black line-clamp-2">
+              {s.title || s.topic || 'Untitled Script'}
             </p>
-            <p className="text-[11px] text-[#6e6e73] font-light leading-relaxed line-clamp-7 mb-4">
-              {t.description}
+            <p className="text-[11px] text-[#6e6e73] font-light leading-relaxed line-clamp-4 mb-3">
+              {s.script ? s.script.slice(0, 200).replace(/\*+/g, '').trim() + '…' : 'No preview available.'}
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {t.tags.map(tag => (
-                <span key={tag} className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] px-2 py-0.5 rounded-full">
-                  {tag}
-                </span>
-              ))}
-            </div>
+            {s.duration && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                <Clock className="w-3 h-3" />
+                {s.duration} min
+              </span>
+            )}
           </button>
         ))}
       </div>

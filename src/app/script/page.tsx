@@ -185,6 +185,17 @@ export default function ScriptPage() {
   const [pageTitle, setPageTitle] = useState('Generated Script');
   const [isTranslating, setIsTranslating] = useState(false);
   const hasCalledRef = React.useRef(false);
+
+  // Refs that stay current for use inside event handlers / cleanup
+  const dataRef           = React.useRef<GeneratedScriptData | null>(null);
+  const isUnlockedRef     = React.useRef(false);
+  const scriptSavedRef    = React.useRef(false);
+  const scriptDurationRef = React.useRef<number | undefined>(undefined);
+  const scriptTopicRef    = React.useRef<string | undefined>(undefined);
+  const pageTitleRef      = React.useRef('Generated Script');
+
+ 
+
   
   useEffect(() => {
     if (hasCalledRef.current) return; // ✅ prevents double call
@@ -411,7 +422,7 @@ console.log("📦 Script API Response:", json);
           normalized.title || params.ideaTitle || params.topic || "Generated Script";
         
         saveScriptToStorage(params.topic, params.ideaTitle, normalized, params, scriptTitle);
-        
+
         setData(normalized);
         setPageTitle(scriptTitle);
         // Capture duration before clearing sessionStorage
@@ -483,6 +494,78 @@ console.log("📦 Script API Response:", json);
   const [scriptDuration, setScriptDuration] = useState<number | undefined>();
   const [scriptTopic, setScriptTopic] = useState<string | undefined>();
   const [scriptSaved, setScriptSaved] = useState(false); // prevent duplicate saves
+
+  // Keep refs in sync with state so event handlers always see current values
+  useEffect(() => { dataRef.current        = data;          }, [data]);
+  useEffect(() => { isUnlockedRef.current  = isUnlocked;    }, [isUnlocked]);
+  useEffect(() => { scriptSavedRef.current = scriptSaved;   }, [scriptSaved]);
+  useEffect(() => { scriptDurationRef.current = scriptDuration; }, [scriptDuration]);
+  useEffect(() => { scriptTopicRef.current    = scriptTopic;    }, [scriptTopic]);
+  useEffect(() => { pageTitleRef.current      = pageTitle;      }, [pageTitle]);
+
+  async function generateHash(text: string) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  
+    return Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  // Helper: POST to universal_scripts using fetch keepalive (safe during page unload)
+  const saveToUniversalScripts = React.useCallback(async () => {
+    const d = dataRef.current;
+    const params = new URLSearchParams(window.location.search);
+
+if (params.get('from') === 'suggested') {
+  return;
+}
+    if (!d || isUnlockedRef.current || scriptSavedRef.current) return;
+    const topic = scriptTopicRef.current
+      ?? new URLSearchParams(window.location.search).get('topic')
+      ?? pageTitleRef.current;
+    const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+    const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+    const hash = await generateHash(d.script);
+    fetch(
+      `${supabaseUrl}/rest/v1/universal_scripts?on_conflict=script_hash`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          script_hash: hash,
+          title: d.title || pageTitleRef.current || topic,
+          topic: topic,
+          script: d.script,
+          estimated_word_count: d.estimated_word_count ?? 0,
+          duration: scriptDurationRef.current ?? null,
+          source_urls: d.source_urls ?? [],
+          analysis: d.analysis ?? {},
+          structure: d.structure ?? [],
+          seo: d.seo ?? {},
+        }),
+        keepalive: true,
+      }
+    ).catch(() => {});
+  }, []);
+
+  // Save on SPA navigation away (component unmount)
+  useEffect(() => {
+    return () => { saveToUniversalScripts(); };
+  }, [saveToUniversalScripts]);
+
+  // Save on tab close / browser refresh (keepalive fetch survives page unload)
+  useEffect(() => {
+    const handler = () => { saveToUniversalScripts(); };
+    window.addEventListener('pagehide', handler);
+    return () => window.removeEventListener('pagehide', handler);
+  }, [saveToUniversalScripts]);
 
   const handleUnlock = async () => {
     setIsUnlocking(true);
