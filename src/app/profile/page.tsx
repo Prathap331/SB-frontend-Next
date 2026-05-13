@@ -356,6 +356,7 @@ export default function Profile() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [isLoadingSub, setIsLoadingSub] = useState(false);
   const [subFetched, setSubFetched] = useState(false);
+  const [freeTier, setFreeTier] = useState<{ plan: string; credits_remaining: number } | null>(null);
 
   useEffect(() => {
     if (activeTab !== 'subscription' && activeTab !== 'billing') return;
@@ -370,10 +371,23 @@ export default function Profile() {
           .select('*')
           .eq('userId', session.user.id)
           .order('purchased_date', { ascending: false });
-        if (!error && data) {
+        if (!error && data && data.length > 0) {
           setSubscriptions(data as SubscriptionRow[]);
-          setSubFetched(true);
+        } else {
+          // No subscription row — fall back to profiles table for free-tier info
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('user_tier, credits_remaining')
+            .eq('id', session.user.id)
+            .single();
+          if (profile) {
+            setFreeTier({
+              plan:              profile.user_tier       ?? 'Free',
+              credits_remaining: profile.credits_remaining ?? 0,
+            });
+          }
         }
+        setSubFetched(true);
       } finally {
         setIsLoadingSub(false);
       }
@@ -770,13 +784,59 @@ export default function Profile() {
                       <span className="text-xs font-light">Loading subscription…</span>
                     </div>
                   ) : !latestSub ? (
-                    <div className="py-10 text-center space-y-3">
-                      <Crown className="w-8 h-8 text-gray-200 mx-auto" />
-                      <p className="text-sm text-[#6e6e73]">No active subscription found.</p>
-                      <button onClick={() => router.push('/pricing')} className="text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-5 py-2.5 rounded-xl transition-colors">
-                        View Plans
-                      </button>
-                    </div>
+                    freeTier ? (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                          <div className="space-y-4">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Current Plan</p>
+                              <div className="flex items-center gap-2">
+                                <Crown className="w-5 h-5 text-gray-400" />
+                                <span className="text-lg font-semibold text-[#1d1d1f] capitalize">{freeTier.plan}</span>
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Free</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-4">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Credits Remaining</p>
+                              {(() => {
+                                const plan = freeTier.plan?.toLowerCase();
+                                const totalCredits = plan === 'basic' ? 100 : plan === 'pro' ? 200 : 50;
+                                return (
+                                  <>
+                                    <p className="text-3xl font-bold text-[#1d1d1f] mb-2">
+                                      {freeTier.credits_remaining}
+                                      <span className="text-xl text-gray-400">/{totalCredits}</span>
+                                    </p>
+                                    <div className="h-2 rounded-full bg-[#1d1d1f]">
+                                      <div
+                                        className="h-full rounded-full bg-gray-100 transition-all"
+                                        style={{ width: `${Math.min(((totalCredits - freeTier.credits_remaining) / totalCredits) * 100, 100)}%` }}
+                                      />
+                                    </div>
+                                    <p className="text-[10px] text-[#6e6e73] mt-1">script generation credits</p>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button onClick={() => router.push('/pricing')} className="text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-5 py-2.5 rounded-xl transition-colors">
+                            Upgrade Plan
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="py-10 text-center space-y-3">
+                        <Crown className="w-8 h-8 text-gray-200 mx-auto" />
+                        <p className="text-sm text-[#6e6e73]">No subscription found.</p>
+                        <button onClick={() => router.push('/pricing')} className="text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-5 py-2.5 rounded-xl transition-colors">
+                          View Plans
+                        </button>
+                      </div>
+                    )
                   ) : (
                     <>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
