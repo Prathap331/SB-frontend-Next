@@ -24,7 +24,7 @@ export default function AllScriptsPage() {
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
-        .from('universal_scripts')
+        .from('scripts_universal')
         .select('id, title, topic, script, duration, created_at')
         .order('created_at', { ascending: false });
       if (!error && data) setScripts(data as ScriptRow[]);

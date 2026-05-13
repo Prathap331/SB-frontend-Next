@@ -193,7 +193,7 @@ export default function ScriptPage() {
   const scriptDurationRef    = React.useRef<number | undefined>(undefined);
   const scriptTopicRef       = React.useRef<string | undefined>(undefined);
   const pageTitleRef         = React.useRef('Generated Script');
-  // ID of the universal_scripts row (set when loaded via ?scriptId= from that table)
+  // ID of the scripts_universal row (set when loaded via ?scriptId= from that table)
   const universalScriptIdRef = React.useRef<string | null>(null);
 
  
@@ -249,9 +249,9 @@ export default function ScriptPage() {
           return;
         }
 
-        // 2. Try universal_scripts (show locked — user must unlock to save to their account)
+        // 2. Try scripts_universal (show locked — user must unlock to save to their account)
         const { data: uRow, error: uErr } = await supabase
-          .from('universal_scripts')
+          .from('scripts_universal')
           .select('id, title, topic, script, estimated_word_count, source_urls, analysis, structure, seo, duration')
           .eq('id', scriptId)
           .single();
@@ -597,7 +597,7 @@ console.log("📦 Script API Response:", json);
     setExitSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await supabase.from('lock_feedback').insert({
+      await supabase.from('feedback_lock').insert({
         userId:  session?.user.id ?? null,
         script:  data?.script     ?? null,
         rating:  exitRating,
@@ -630,7 +630,7 @@ console.log("📦 Script API Response:", json);
       .join('');
   }
 
-  // Helper: POST to universal_scripts using fetch keepalive (safe during page unload)
+  // Helper: POST to scripts_universal using fetch keepalive (safe during page unload)
   const saveToUniversalScripts = React.useCallback(async () => {
     const d = dataRef.current;
     const params = new URLSearchParams(window.location.search);
@@ -646,7 +646,7 @@ if (params.get('from') === 'suggested') {
     const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
     const hash = await generateHash(d.script);
     fetch(
-      `${supabaseUrl}/rest/v1/universal_scripts?on_conflict=script_hash`,
+      `${supabaseUrl}/rest/v1/scripts_universal?on_conflict=script_hash`,
       {
         method: 'POST',
         headers: {
@@ -724,7 +724,7 @@ if (params.get('from') === 'suggested') {
         
           // INSERT into scripts table
           const { error: insertError } = await supabase
-            .from("scripts")
+            .from("scripts_assigned")
             .insert({
               userId: session.user.id,
               title: data.title || pageTitle || topic,
@@ -749,13 +749,13 @@ if (params.get('from') === 'suggested') {
             return;
           }
         
-          // DELETE from universal_scripts by exact ID (only when script was loaded from there)
+          // DELETE from scripts_universal by exact ID (only when script was loaded from there)
           if (universalScriptIdRef.current) {
             const { error: deleteError } = await supabase
-              .from('universal_scripts')
+              .from('scripts_universal')
               .delete()
               .eq('id', universalScriptIdRef.current);
-            if (deleteError) console.error('[universal_scripts delete]', deleteError.message);
+            if (deleteError) console.error('[scripts_universal delete]', deleteError.message);
             else universalScriptIdRef.current = null;
           }
         }
@@ -1443,7 +1443,7 @@ const csExpansion =
                   className={`px-6 sm:px-8 py-6 ${!isUnlocked ? 'select-none pointer-events-none' : ''}`}
                 >
                   <div
-                    className="text-[#1d1d1f] leading-[1.9] text-[15px] sm:text-base max-w-3xl mx-auto"
+                    className="text-[#1d1d1f] leading-[1.9] text-[15px] sm:text-base max-w-3xl mx-auto text-justify"
                     style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
                   >
                     {formatScript(data.script || 'No script available.')}
