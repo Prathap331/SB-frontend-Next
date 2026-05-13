@@ -597,7 +597,7 @@ console.log("📦 Script API Response:", json);
     setExitSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await supabase.from('feedback_lock').insert({
+      await supabase.from('Feedback_lock').insert({
         userId:  session?.user.id ?? null,
         script:  data?.script     ?? null,
         rating:  exitRating,

@@ -908,7 +908,7 @@ console.log('Request payload:', { topic: safeTopic });
   
       // STEP 2: Insert into profiles table
       const { error: profileError } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .upsert({
           id: user.id,
           email: request.email,

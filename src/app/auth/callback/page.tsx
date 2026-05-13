@@ -103,14 +103,14 @@ export default function AuthCallback() {
         user.user_metadata?.name ||
         user.email?.split('@')[0] || '';
 
-      await supabase.from('profiles').upsert(
+      await supabase.from('user_profiles').upsert(
         { id: user.id, email: user.email ?? '', full_name: fullName, updated_at: new Date().toISOString() },
         { onConflict: 'id' }
       );
 
       // If primary_language is already set → onboarding was completed → go to app
       const { data: existing } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .select('primary_language')
         .eq('id', user.id)
         .single();
@@ -132,7 +132,7 @@ export default function AuthCallback() {
     setIsSaving(true);
     setError('');
     try {
-      const { error: err } = await supabase.from('profiles').upsert(
+      const { error: err } = await supabase.from('user_profiles').upsert(
         {
           id:               userId,
           primary_language: selectedLanguage,
@@ -156,7 +156,7 @@ export default function AuthCallback() {
     setError('');
     try {
       if (!skip) {
-        const { error: err } = await supabase.from('profiles').upsert(
+        const { error: err } = await supabase.from('user_profiles').upsert(
           {
             id:               userId,
             youtube_link:     profileForm.youtubeLink     || null,

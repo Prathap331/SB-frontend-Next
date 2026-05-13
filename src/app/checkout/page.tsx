@@ -55,7 +55,7 @@ function CheckoutInner() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
         const { data } = await supabase
-          .from('profiles')
+          .from('user_profiles')
           .select('billing_address')
           .eq('id', session.user.id)
           .single();

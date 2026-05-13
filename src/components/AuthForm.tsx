@@ -52,7 +52,7 @@ export default function AuthForm() {
 
       // Save basic profile immediately (name + phone — rest filled after email confirmation)
       if (data.user) {
-        await supabase.from('profiles').upsert({
+        await supabase.from('user_profiles').upsert({
           id:        data.user.id,
           email:     formData.email,
           full_name: formData.name,

@@ -78,7 +78,7 @@ export default function Profile() {
 
         const user = session.user;
         const { data, error } = await supabase
-          .from('profiles')
+          .from('user_profiles')
           .select('full_name, phone, youtube_link, instagram_link, facebook_link, twitter_link, billing_address, primary_language, categories')
           .eq('id', user.id)
           .single();
@@ -139,7 +139,7 @@ export default function Profile() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
         const { data } = await supabase
-          .from('Channel_Profile')
+          .from('user_channel_memory_input')
           .select('Summary')
           .eq('userId', session.user.id)
           .maybeSingle();
@@ -239,7 +239,7 @@ export default function Profile() {
       const { data: { session: s2 } } = await supabase.auth.getSession();
       if (s2) {
         const { data: cp } = await supabase
-          .from('Channel_Profile')
+          .from('user_channel_memory_input')
           .select('Summary')
           .eq('userId', s2.user.id)
           .maybeSingle();
@@ -262,7 +262,7 @@ export default function Profile() {
       if (!session) throw new Error('Not authenticated');
 
       const { error } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .upsert({
           id:               session.user.id,
           full_name:        editData.name,
@@ -376,7 +376,7 @@ export default function Profile() {
         } else {
           // No subscription row — fall back to profiles table for free-tier info
           const { data: profile } = await supabase
-            .from('profiles')
+            .from('user_profiles')
             .select('user_tier, credits_remaining')
             .eq('id', session.user.id)
             .single();
