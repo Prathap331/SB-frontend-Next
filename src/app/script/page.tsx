@@ -187,12 +187,14 @@ export default function ScriptPage() {
   const hasCalledRef = React.useRef(false);
 
   // Refs that stay current for use inside event handlers / cleanup
-  const dataRef           = React.useRef<GeneratedScriptData | null>(null);
-  const isUnlockedRef     = React.useRef(false);
-  const scriptSavedRef    = React.useRef(false);
-  const scriptDurationRef = React.useRef<number | undefined>(undefined);
-  const scriptTopicRef    = React.useRef<string | undefined>(undefined);
-  const pageTitleRef      = React.useRef('Generated Script');
+  const dataRef              = React.useRef<GeneratedScriptData | null>(null);
+  const isUnlockedRef        = React.useRef(false);
+  const scriptSavedRef       = React.useRef(false);
+  const scriptDurationRef    = React.useRef<number | undefined>(undefined);
+  const scriptTopicRef       = React.useRef<string | undefined>(undefined);
+  const pageTitleRef         = React.useRef('Generated Script');
+  // ID of the universal_scripts row (set when loaded via ?scriptId= from that table)
+  const universalScriptIdRef = React.useRef<string | null>(null);
 
  
 
@@ -216,9 +218,72 @@ export default function ScriptPage() {
       setIsLoading(true);
       setError(null);
 
+      // ── Load by scriptId ────────────────────────────────────────────────────
+      const urlSearchParams = new URLSearchParams(window.location.search);
+      const scriptId = urlSearchParams.get('scriptId');
+      if (scriptId) {
+        // 1. Try user's unlocked scripts table (show fully unlocked)
+        const { data: row } = await supabase
+          .from('scripts')
+          .select('id, title, topic, script, estimated_word_count, source_urls, analysis, structure, seo, duration')
+          .eq('id', scriptId)
+          .single();
+
+        if (row) {
+          const normalized: GeneratedScriptData = {
+            script:               row.script ?? '',
+            estimated_word_count: row.estimated_word_count ?? 0,
+            source_urls:          (row.source_urls as string[]) ?? [],
+            analysis:             row.analysis ?? { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: '', history: 0 },
+            title:                row.title ?? row.topic ?? 'Script',
+            structure:            row.structure ?? [],
+            seo:                  row.seo ?? {},
+          };
+          setData(normalized);
+          setPageTitle(row.title || row.topic || 'Script');
+          setScriptTopic(row.topic ?? undefined);
+          setScriptDuration(row.duration ?? undefined);
+          setIsUnlocked(true);
+          setScriptSaved(true);
+          setIsLoading(false);
+          return;
+        }
+
+        // 2. Try universal_scripts (show locked — user must unlock to save to their account)
+        const { data: uRow, error: uErr } = await supabase
+          .from('universal_scripts')
+          .select('id, title, topic, script, estimated_word_count, source_urls, analysis, structure, seo, duration')
+          .eq('id', scriptId)
+          .single();
+
+        if (uErr || !uRow) {
+          setError('Script not found.');
+          setIsLoading(false);
+          return;
+        }
+
+        const uNormalized: GeneratedScriptData = {
+          script:               uRow.script ?? '',
+          estimated_word_count: uRow.estimated_word_count ?? 0,
+          source_urls:          (uRow.source_urls as string[]) ?? [],
+          analysis:             uRow.analysis ?? { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: '', history: 0 },
+          title:                uRow.title ?? uRow.topic ?? 'Script',
+          structure:            uRow.structure ?? [],
+          seo:                  uRow.seo ?? {},
+        };
+        setData(uNormalized);
+        setPageTitle(uRow.title || uRow.topic || 'Script');
+        setScriptTopic(uRow.topic ?? undefined);
+        setScriptDuration(uRow.duration ?? undefined);
+        universalScriptIdRef.current = uRow.id; // remember for delete-on-unlock
+        setIsLoading(false);
+        return;
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       let paramsJson: string | null = null;
       let params: GenerationParams | null = null;
-      
+
       // Check if we have fresh params from "Generate Script" button (in sessionStorage)
       try {
         paramsJson = sessionStorage.getItem('generate_params');
@@ -651,29 +716,48 @@ if (params.get('from') === 'suggested') {
         // Save script to Supabase scripts table (once only)
         if (!scriptSaved && data) {
           setScriptSaved(true);
-          const topic = scriptTopic
-            ?? new URLSearchParams(window.location.search).get('topic')
-            ?? pageTitle;
-          supabase.from('scripts').insert({
-            userId:               session.user.id,
-            title:                data.title || pageTitle || topic,
-            topic:                topic,
-            script:               data.script,
-            estimated_word_count: data.estimated_word_count ?? 0,
-            duration:             scriptDuration ?? null,
-            source_urls:          data.source_urls ?? [],
-            analysis:             data.analysis ?? {},
-            structure:            data.structure ?? [],
-            seo:                  data.seo ?? {},
-            status:               'published',
-            thumbnail_url:        null,
-            youtube_url:          null,
-            views:                0,
-            likes:                0,
-            is_public:            true,
-          }).then(({ error }) => {
-            if (error) console.error('[scripts save]', error.message);
-          });
+
+          const topic =
+            scriptTopic ??
+            new URLSearchParams(window.location.search).get("topic") ??
+            pageTitle;
+        
+          // INSERT into scripts table
+          const { error: insertError } = await supabase
+            .from("scripts")
+            .insert({
+              userId: session.user.id,
+              title: data.title || pageTitle || topic,
+              topic: topic,
+              script: data.script,
+              estimated_word_count: data.estimated_word_count ?? 0,
+              duration: scriptDuration ?? null,
+              source_urls: data.source_urls ?? [],
+              analysis: data.analysis ?? {},
+              structure: data.structure ?? [],
+              seo: data.seo ?? {},
+              status: "published",
+              thumbnail_url: null,
+              youtube_url: null,
+              views: 0,
+              likes: 0,
+              is_public: true,
+            });
+        
+          if (insertError) {
+            console.error("[scripts save]", insertError.message);
+            return;
+          }
+        
+          // DELETE from universal_scripts by exact ID (only when script was loaded from there)
+          if (universalScriptIdRef.current) {
+            const { error: deleteError } = await supabase
+              .from('universal_scripts')
+              .delete()
+              .eq('id', universalScriptIdRef.current);
+            if (deleteError) console.error('[universal_scripts delete]', deleteError.message);
+            else universalScriptIdRef.current = null;
+          }
         }
       } else {
         setShowInsufficientPopup(true);
