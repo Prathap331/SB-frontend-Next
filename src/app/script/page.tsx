@@ -495,6 +495,58 @@ console.log("📦 Script API Response:", json);
   const [scriptTopic, setScriptTopic] = useState<string | undefined>();
   const [scriptSaved, setScriptSaved] = useState(false); // prevent duplicate saves
 
+  // ── Exit feedback (shown when user tries to leave without unlocking) ────────
+  const [showExitFeedback, setShowExitFeedback]   = useState(false);
+  const [exitRating, setExitRating]               = useState('');
+  const [exitComment, setExitComment]             = useState('');
+  const [exitSubmitting, setExitSubmitting]       = useState(false);
+  const allowExitRef = React.useRef(false);
+
+  // Intercept the browser back button when script is locked
+  useEffect(() => {
+    if (!data || isUnlocked) return;
+    // Push a guard entry so the first back-click doesn't leave immediately
+    window.history.pushState(null, '');
+    const handlePopState = () => {
+      if (isUnlockedRef.current || allowExitRef.current) return;
+      window.history.pushState(null, ''); // re-block
+      setShowExitFeedback(true);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!data, isUnlocked]);
+
+  const proceedExit = () => {
+    allowExitRef.current = true;
+    window.history.go(-2); // skip our guard entry + go to previous page
+  };
+
+  const handleExitClose = () => {
+    setShowExitFeedback(false);
+    proceedExit();
+  };
+
+  const handleExitSubmit = async () => {
+    if (!exitRating) return;
+    setExitSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await supabase.from('lock_feedback').insert({
+        userId:  session?.user.id ?? null,
+        script:  data?.script     ?? null,
+        rating:  exitRating,
+        comment: exitComment.trim() || null,
+      });
+    } catch {
+      // fire-and-forget
+    } finally {
+      setExitSubmitting(false);
+      setShowExitFeedback(false);
+      proceedExit();
+    }
+  };
+
   // Keep refs in sync with state so event handlers always see current values
   useEffect(() => { dataRef.current        = data;          }, [data]);
   useEffect(() => { isUnlockedRef.current  = isUnlocked;    }, [isUnlocked]);
@@ -1538,6 +1590,90 @@ const csExpansion =
                 className="w-full py-2 rounded-xl text-sm text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Exit Feedback Popup ── */}
+      {showExitFeedback && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl shadow-black/20 border border-gray-200/80 p-6 max-w-sm w-full">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-[#1d1d1f]">Before you go…</h2>
+                <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Help us improve — why are you leaving?</p>
+              </div>
+              <button
+                onClick={handleExitClose}
+                className="w-7 h-7 rounded-full bg-[#f5f5f7] hover:bg-gray-200 flex items-center justify-center transition-colors flex-shrink-0 ml-3"
+              >
+                <X className="w-3.5 h-3.5 text-[#1d1d1f]" />
+              </button>
+            </div>
+
+            {/* Rating */}
+            <div className="mb-4">
+              <p className="text-xs font-medium text-[#1d1d1f] mb-2.5">Rate your experience</p>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { label: 'Bad',       emoji: '😞' },
+                  { label: 'Ok',        emoji: '😐' },
+                  { label: 'Good',      emoji: '😊' },
+                  { label: 'Very Good', emoji: '😄' },
+                  { label: 'Excellent', emoji: '🤩' },
+                ].map(({ label, emoji }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setExitRating(label)}
+                    className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl border text-center transition-all duration-150 flex-1 min-w-[52px] ${
+                      exitRating === label
+                        ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-md scale-[1.04]'
+                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-[#f5f5f7]'
+                    }`}
+                  >
+                    <span className="text-xl leading-none">{emoji}</span>
+                    <span className={`text-[9px] font-medium leading-tight ${exitRating === label ? 'text-white' : 'text-[#6e6e73]'}`}>
+                      {label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Comment */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">
+                Comment <span className="text-[#6e6e73] font-light">(optional)</span>
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Tell us what could be better…"
+                value={exitComment}
+                onChange={e => setExitComment(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm placeholder-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f] transition-all resize-none"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleExitSubmit}
+                disabled={!exitRating || exitSubmitting}
+                className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {exitSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" />Submitting…</> : 'Submit & Leave'}
+              </button>
+              <button
+                type="button"
+                onClick={handleExitClose}
+                className="w-full py-2 rounded-xl text-sm text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+              >
+                Skip & Leave
               </button>
             </div>
           </div>
