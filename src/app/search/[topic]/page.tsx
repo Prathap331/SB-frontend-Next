@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertCircle, Clock, TrendingUp, TrendingDown, Search, Activity, Flame, Radio, Shield, Layers, Rocket, Target, BarChart3, Zap, Globe, Eye, Trophy, Lightbulb, Sparkles, ChevronRight, Filter } from 'lucide-react';
+import { Loader2, AlertCircle, Clock, TrendingUp, TrendingDown, Search, Activity, Flame, Radio, Shield, Layers, Rocket, Target, BarChart3, Zap, Globe, Eye, Trophy, Lightbulb, Sparkles, ChevronRight, Filter, ArrowUpRight } from 'lucide-react';
 import {
   Youtube,
   User2,
@@ -1086,9 +1086,17 @@ useEffect(() => {
 
         {/* ── Mobile: horizontal suggested scripts slider (lg+ hidden) ── */}
         <div className="lg:hidden px-4 sm:px-6 py-6 border-t border-gray-100">
-          <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase mb-3">
-            Suggested Scripts
-          </p>
+          <div className="flex items-center gap-3 mb-3">
+            <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase">
+              Suggested Scripts
+            </p>
+            <button
+              onClick={() => router.push('/scripts')}
+              className="flex items-center gap-1 text-[10px] font-medium text-[#1d1d1f] bg-white border border-gray-200 hover:border-gray-400 px-2.5 py-1 rounded-full transition-all"
+            >
+              View all <ArrowUpRight className="w-3 h-3" />
+            </button>
+          </div>
           <div
             className="flex gap-3 overflow-x-auto pb-2"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}

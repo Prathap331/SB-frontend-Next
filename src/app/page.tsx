@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import ComingFeatures from '../components/ComingFeatures';
 import Footer from '../components/Footer';
-import { Search, TrendingUp } from 'lucide-react';
+import { Search, TrendingUp, ArrowUpRight } from 'lucide-react';
 import StoryBitPipeline from '@/components/Architecture';
 import { ApiService } from '@/services/api';
 import CategorySlider from '@/components/CategorySlider';
@@ -165,9 +165,17 @@ export default function Home() {
       {/* ── Suggested Topics ── */}
       <section className="bg-white pt-10 sm:pt-14 md:pt-16 px-8 ">
         <div className="max-w-8xl mx-auto mb-6">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl mb-2 font-semibold tracking-tight text-[#1d1d1f] mb-1">
-            Suggested Scripts
-          </h2>
+          <div className="flex items-center gap-4 mb-1">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f]">
+              Suggested Scripts
+            </h2>
+            <button
+              onClick={() => router.push('/scripts')}
+              className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white border border-gray-200 hover:border-gray-400 hover:bg-[#f5f5f7] px-3 py-1.5 rounded-full transition-all duration-200 flex-shrink-0"
+            >
+              View all <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
           <p className="text-sm text-[#6e6e73] font-light">Click any card to analyse the trend and generate script</p>
         </div>
         <SuggestedTopics />

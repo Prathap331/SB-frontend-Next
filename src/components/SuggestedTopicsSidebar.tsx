@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronUp, ChevronDown, FileText, Clock } from 'lucide-react';
+import { ChevronUp, ChevronDown, FileText, Clock, ArrowUpRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
 type ScriptRow = {
@@ -63,9 +63,17 @@ export default function SuggestedTopicsSidebar() {
   return (
     <div className="flex flex-col gap-2 w-full">
       {/* Label */}
-      <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase px-0.5 mb-1">
-        Suggested Scripts
-      </p>
+      <div className="flex items-center justify-between px-0.5 mb-1">
+        <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase">
+          Suggested Scripts
+        </p>
+        <button
+          onClick={() => router.push('/scripts')}
+          className="flex items-center gap-1 text-[10px] font-medium text-[#1d1d1f] hover:text-black transition-colors"
+        >
+          View all <ArrowUpRight className="w-3 h-3" />
+        </button>
+      </div>
 
       {/* Up arrow */}
       <button
