@@ -237,6 +237,8 @@ export type GeneratedScriptData = {
     ctr_score?: number;
     search_intent_type?: string;
   };
+  category?: string;
+  subcategories?: string[];
 };
 
 // ── TSS response from /pipeline-metrics ──────────────────────────────────────

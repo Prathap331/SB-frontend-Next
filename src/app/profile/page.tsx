@@ -324,7 +324,7 @@ export default function Profile() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
         const { data, error } = await supabase
-          .from('scripts')
+          .from('scripts_assigned')
           .select('id, title, topic, estimated_word_count, status, created_at, is_public')
           .eq('userId', session.user.id)
           .order('created_at', { ascending: false });
@@ -889,16 +889,18 @@ export default function Profile() {
           </span>
         </p>
 
-        <div className="h-2 rounded-full bg-[#1d1d1f]">
+        <div className="h-4 rounded-full bg-gray-100  ">
           <div
-            className="h-full rounded-full  bg-gray-100 transition-all"
+            className="h-full rounded-full bg-[#1d1d1f] transition-all text-white text-xs text-center"
             style={{
               width: `${Math.min(
-                ((totalCredits-latestSub.credits) / totalCredits) * 100,
+                ((latestSub.credits) / totalCredits) * 100,
                 100
               )}%`,
             }}
-          />
+          >
+            {latestSub.credits}% Remaining
+          </div>
         </div>
 
         <p className="text-[10px] text-[#6e6e73] mt-1">

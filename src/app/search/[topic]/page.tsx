@@ -535,7 +535,7 @@ export default function SearchTopicPage() {
   // Mobile suggested scripts from Supabase
   const [mobileSuggested, setMobileSuggested] = useState<{ id: string; title: string | null; script: string | null; topic: string | null }[]>([]);
   useEffect(() => {
-    sbClient.from('scripts').select('id, title, script, topic').order('created_at', { ascending: false }).limit(10)
+    sbClient.from('scripts_universal').select('id, title, script, topic').order('created_at', { ascending: false }).limit(10)
       .then(({ data }) => { if (data) setMobileSuggested(data); });
   }, []);
   const [searchQuery, setSearchQuery] = useState(topic);
@@ -935,7 +935,7 @@ useEffect(() => {
 
 
       {/* ── Script Ideas Section ── */}
-      <div className="px-4 py-8 sm:py-12">
+      <div className="px-8 py-8 sm:py-12">
       <div className="bg-gray-100 rounded-3xl relative">
           {/* Header — full width, sticky */}
           <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">

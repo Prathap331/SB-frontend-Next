@@ -14,6 +14,8 @@ type ScriptRow = {
   script: string | null;
   duration: number | null;
   created_at: string;
+  category: string | null;
+  subcategories: string[] | null;
 };
 
 export default function AllScriptsPage() {
@@ -25,7 +27,7 @@ export default function AllScriptsPage() {
     const load = async () => {
       const { data, error } = await supabase
         .from('scripts_universal')
-        .select('id, title, topic, script, duration, created_at')
+        .select('id, title, topic, script, duration, created_at, category, subcategories')
         .order('created_at', { ascending: false });
       if (!error && data) setScripts(data as ScriptRow[]);
       setLoading(false);
@@ -84,17 +86,27 @@ export default function AllScriptsPage() {
                     ? s.script.slice(0, 200).replace(/\*+/g, '').trim() + '…'
                     : 'No preview available.'}
                 </p>
-                <div className="flex items-center justify-between">
-                  {s.duration ? (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {s.duration && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
                       <Clock className="w-3 h-3" />
                       {s.duration} min
                     </span>
-                  ) : <span />}
-                  <span className="text-[10px] text-[#a1a1a6] font-light">
-                    {new Date(s.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                  </span>
+                  )}
+                  {s.category && (
+                    <span className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-2 py-0.5 rounded-full">
+                      {s.category}
+                    </span>
+                  )}
+                  {(s.subcategories ?? []).slice(0, 2).map(sub => (
+                    <span key={sub} className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-2 py-0.5 rounded-full">
+                      {sub}
+                    </span>
+                  ))}
                 </div>
+                <span className="text-[10px] text-[#a1a1a6] font-light">
+                  {new Date(s.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                </span>
               </button>
             ))}
           </div>

@@ -224,7 +224,7 @@ export default function ScriptPage() {
       if (scriptId) {
         // 1. Try user's unlocked scripts table (show fully unlocked)
         const { data: row } = await supabase
-          .from('scripts')
+          .from('scripts_assigned')
           .select('id, title, topic, script, estimated_word_count, source_urls, analysis, structure, seo, duration')
           .eq('id', scriptId)
           .single();
@@ -661,11 +661,13 @@ if (params.get('from') === 'suggested') {
           topic: topic,
           script: d.script,
           estimated_word_count: d.estimated_word_count ?? 0,
-          duration: scriptDurationRef.current ?? null,
-          source_urls: d.source_urls ?? [],
-          analysis: d.analysis ?? {},
-          structure: d.structure ?? [],
-          seo: d.seo ?? {},
+          duration:      scriptDurationRef.current ?? null,
+          source_urls:   d.source_urls   ?? [],
+          analysis:      d.analysis      ?? {},
+          structure:     d.structure     ?? [],
+          seo:           d.seo           ?? {},
+          category:      d.category      ?? null,
+          subcategories: d.subcategories ?? [],
         }),
         keepalive: true,
       }
@@ -742,6 +744,8 @@ if (params.get('from') === 'suggested') {
               views: 0,
               likes: 0,
               is_public: true,
+              category:      data.category      ?? null,
+              subcategories: data.subcategories ?? [],
             });
         
           if (insertError) {

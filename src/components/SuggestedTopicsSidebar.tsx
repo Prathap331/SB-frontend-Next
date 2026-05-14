@@ -11,6 +11,8 @@ type ScriptRow = {
   script: string | null;
   topic: string | null;
   duration: number | null;
+  category: string | null;
+  subcategories: string[] | null;
 };
 
 const SCROLL_STEP = 160;
@@ -28,7 +30,7 @@ export default function SuggestedTopicsSidebar() {
     const fetch = async () => {
       const { data, error } = await supabase
         .from('scripts_universal')
-        .select('id, title, script, topic, duration')
+        .select('id, title, script, topic, duration, category, subcategories')
         .order('created_at', { ascending: false })
         .limit(20);
       if (!error && data) setScripts(data as ScriptRow[]);
@@ -119,12 +121,24 @@ export default function SuggestedTopicsSidebar() {
               <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-3 mb-2">
                 {s.script ? s.script.slice(0, 160).replace(/\*+/g, '').trim() + '…' : 'No preview available.'}
               </p>
-              {s.duration && (
-                <span className="inline-flex gap-1 items-center text-[11px] font-semibold text-green-600 bg-green-100 border border-gray-200 px-2 py-1 rounded-full">
-<Clock className='w-4 h-4'/>
-                  {s.duration} min
-                </span>
-              )}
+              <div className="flex flex-wrap gap-1.5">
+                {s.duration && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-100 border border-green-200 px-2 py-0.5 rounded-full">
+                    <Clock className="w-3 h-3" />
+                    {s.duration} min
+                  </span>
+                )}
+                {s.category && (
+                  <span className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-2 py-0.5 rounded-full">
+                    {s.category}
+                  </span>
+                )}
+                {(s.subcategories ?? []).map(sub => (
+                  <span key={sub} className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-2 py-0.5 rounded-full">
+                    {sub}
+                  </span>
+                ))}
+              </div>
             </button>
           ))
         )}
