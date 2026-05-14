@@ -526,30 +526,17 @@ export class ApiService {
 
   static async processTopic(topic: string, retryCount = 0): Promise<ProcessTopicResponse> {
     const maxRetries = 2;
-    const retryDelay = 5000; // 5 seconds
-    
+
     try {
       const apiUrl = `${this.BASE_URL}/process-topic`;
-      console.log('Making API request to:', apiUrl);
       const safeTopic = this.sanitizeTopic(topic);
 
-console.log('Original topic:', topic);
-console.log('Sanitized topic:', safeTopic);
-console.log('Request payload:', { topic: safeTopic });
-      
-      // Create AbortController for timeout (5 minutes = 300000ms)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.error('[processTopic] Request timeout after 5 minutes');
-        controller.abort();
-      }, 300000); // 5 minutes timeout
-      
       let response;
       try {
+        // No timeout — let the server respond however long it takes
         response = await this.authorizedFetch(
           apiUrl,
           { method: 'POST', body: JSON.stringify({ topic: safeTopic }) },
-          controller.signal,
         );
       } catch (fetchError) {
         if (this.isProduction && fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
@@ -557,15 +544,10 @@ console.log('Request payload:', { topic: safeTopic });
           return this.getFallbackData(topic);
         }
         throw fetchError;
-      } finally {
-        clearTimeout(timeoutId);
       }
-      console.log('Process topic status', response.status);
-      console.log('process topics response', )
 
-      // Handle 502 Bad Gateway with retry
+      // Immediate retry on 502 — no delay
       if (response.status === 502 && retryCount < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
         return this.processTopic(topic, retryCount + 1);
       }
 
@@ -585,54 +567,38 @@ console.log('Request payload:', { topic: safeTopic });
         descriptions: data.descriptions || [],
       };
     } catch (error) {
-      if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('aborted'))) {
-        throw new Error('Request timeout - API took too long to respond (up to 5 minutes). Please try again or contact support if the issue persists.');
-      }
-      
-      // Handle CORS and network errors
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         if (this.isProduction) {
           console.warn('CORS/Network error in production, falling back to sample data');
-          // Return sample data instead of throwing error in production
           return this.getFallbackData(topic);
         }
-        throw new Error('Network error: Unable to connect to the API server. This might be a CORS issue or the server is down.');
+        throw new Error('Network error: Unable to connect to the API server.');
       }
-      
       if (error instanceof Error && error.message.includes('CORS')) {
         if (this.isProduction) {
           console.warn('CORS error in production, falling back to sample data');
           return this.getFallbackData(topic);
         }
-        throw new Error('CORS error: The API server needs to allow requests from this domain. Please check your backend CORS configuration.');
+        throw new Error('CORS error: The API server needs to allow requests from this domain.');
       }
-      
       throw error;
     }
   }
 
   static async generateScript(params: GenerationParams, retryCount = 0): Promise<GeneratedScriptData> {
     const maxRetries = 2;
-    const retryDelay = 5000; // 5 seconds
-    
+
     try {
       const apiUrl = `${this.BASE_URL}/generate-script`;
       console.log('Making API request to:', apiUrl);
       console.log('Request payload:', params);
-      
-      // Create AbortController for timeout (5 minutes = 300000ms)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.error('[generateScript] Request timeout after 5 minutes');
-        controller.abort();
-      }, 300000); // 5 minutes timeout
-      
+
       let response;
       try {
+        // No timeout — generation can take as long as needed
         response = await this.authorizedFetch(
           apiUrl,
           { method: 'POST', body: JSON.stringify(params) },
-          controller.signal,
         );
       } catch (fetchError) {
         if (this.isProduction && fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
@@ -640,14 +606,11 @@ console.log('Request payload:', { topic: safeTopic });
           return { script: 'Error generating script due to network issues.', estimated_word_count: 0, source_urls: [], analysis: { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: 'N/A', history: 0 } };
         }
         throw fetchError;
-      } finally {
-        clearTimeout(timeoutId);
       }
       console.log('API Response status:', response.status);
 
-      // Handle 502 Bad Gateway with retry
+      // Immediate retry on 502 — no delay
       if (response.status === 502 && retryCount < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
         return this.generateScript(params, retryCount + 1);
       }
 
@@ -663,62 +626,30 @@ console.log('Request payload:', { topic: safeTopic });
 
       return await response.json();
     } catch (error) {
-      if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('aborted'))) {
-        throw new Error('Request timeout - API took too long to respond (up to 5 minutes). Please try again or contact support if the issue persists.');
-      }
-      
-      // Handle CORS and network errors
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         if (this.isProduction) {
           console.warn('CORS/Network error in production, returning empty script');
-          return { 
-            script: 'Error generating script due to network issues.', 
-            estimated_word_count: 0, 
-            source_urls: [], 
-            analysis: {
-              examples_count: 0,
-              research_facts_count: 0,
-              proverbs_count: 0,
-              emotional_depth: 'N/A',
-              history: 0,
-            } 
-          };
+          return { script: 'Error generating script due to network issues.', estimated_word_count: 0, source_urls: [], analysis: { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: 'N/A', history: 0 } };
         }
-        throw new Error('Network error: Unable to connect to the API server. This might be a CORS issue or the server is down.');
+        throw new Error('Network error: Unable to connect to the API server.');
       }
-      
       if (error instanceof Error && error.message.includes('CORS')) {
         if (this.isProduction) {
           console.warn('CORS error in production, returning empty script');
-          return { 
-            script: 'Error generating script due to network issues.', 
-            estimated_word_count: 0, 
-            source_urls: [], 
-            analysis: {
-              examples_count: 0,
-              research_facts_count: 0,
-              proverbs_count: 0,
-              emotional_depth: 'N/A',
-              history: 0
-            } 
-          };
+          return { script: 'Error generating script due to network issues.', estimated_word_count: 0, source_urls: [], analysis: { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: 'N/A', history: 0 } };
         }
-        throw new Error('CORS error: The API server needs to allow requests from this domain. Please check your backend CORS configuration.');
+        throw new Error('CORS error: The API server needs to allow requests from this domain.');
       }
-      
       throw error;
     }
   }
 
   static async pipelineMetrics(topic: string): Promise<TSSResponse> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300000);
     const url = `${this.BASE_URL}/pipeline-metrics`;
     try {
       const response = await this.authorizedFetch(
         url,
         { method: 'POST', body: JSON.stringify({ topic }) },
-        controller.signal,
       );
       if (!response.ok) {
         const body = await response.text().catch(() => '(no body)');
@@ -730,20 +661,15 @@ console.log('Request payload:', { topic: safeTopic });
     } catch (err) {
       console.error('[pipeline-metrics] error:', err);
       throw err;
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 
   static async eci(topic: string): Promise<ECIResponse> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300000);
     const url = `${this.BASE_URL}/eci`;
     try {
       const response = await this.authorizedFetch(
         url,
         { method: 'POST', body: JSON.stringify({ topic }) },
-        controller.signal,
       );
       if (!response.ok) {
         const body = await response.text().catch(() => '(no body)');
@@ -755,8 +681,6 @@ console.log('Request payload:', { topic: safeTopic });
     } catch (err) {
       console.error('[eci] error:', err);
       throw err;
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 
