@@ -142,7 +142,7 @@ export default function StoryBitPipeline() {
   }, []);
 
   return (
-    <div className="bg-[#f5f5f7] flex flex-col items-center justify-center px-6 py-14 select-none">
+    <div className="bg-[#f5f5f7] flex flex-col items-center justify-center px-4 py-14 select-none">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
       `}</style>
@@ -346,22 +346,22 @@ export default function StoryBitPipeline() {
           }}
         >
           <div
-            className="rounded-full border-2 border-neutral-900 overflow-hidden bg-white"
+            className="rounded-full border-2 border-neutral-900 overflow-hidden flex-shrink-0 shadow-sm bg-white"
             style={{ width: 200, height: 200 }}
           >
             <img src={nodes[1].image} alt="engine" className="w-full h-full object-cover grayscale" />
           </div>
-          <Label heading={nodes[1].heading} text={nodes[1].label} className="text-center mt-3" />
+          <Label heading={nodes[1].heading} text={nodes[1].label} className="text-left mt-3" />
         </div>
 
         {/* VArrow — centered */}
 
 
-          <div className="absolute pt-[400px] ml-[200px]">
-          <HArrow w={55} arrow="none"/>
+          <div className="absolute self-center pt-[400px] ml-[100px]">
+          <HArrow w={100} arrow="none"/>
           </div>
 
-        <div className="self-center absolute pt-[415px] ml-[200px] sm:ml-[130px]  ">
+        <div className="self-center absolute pt-[410px] ml-[200px] sm:ml-[200px]  ">
           <VArrow h={145} />
         </div>
 
@@ -381,15 +381,15 @@ export default function StoryBitPipeline() {
           >
             <img src={nodes[2].image} alt="data" className="w-full h-full object-cover grayscale" />
           </div>
-          <Label heading={nodes[2].heading} text={nodes[2].label} className="text-left" />
+          <Label heading={nodes[2].heading} text={nodes[2].label} className="text-right" />
         </div>
 
         {/* VArrow — centered */}
-        <div className="absolute pt-[725px] ml-[60px]">
-          <HArrow w={140} arrow="none"/>
+        <div className="absolute pt-[725px] ml-[10px]">
+          <HArrow w={200} arrow="none"/>
         </div>
 
-        <div className="absolute pt-[730px] ml-[50px]">
+        <div className="absolute pt-[735px] ml-[5px]">
           <VArrow h={150} />
         </div>
 
@@ -408,7 +408,7 @@ export default function StoryBitPipeline() {
           >
             <img src={nodes[3].image} alt="script" className="w-full h-full object-cover grayscale" />
           </div>
-          <Label heading={nodes[3].heading} text={nodes[3].label} className="text-right" />
+          <Label heading={nodes[3].heading} text={nodes[3].label} className="text-left" />
         </div>
 
       </div>
