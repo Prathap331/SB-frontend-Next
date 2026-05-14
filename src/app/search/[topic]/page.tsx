@@ -935,7 +935,7 @@ useEffect(() => {
 
 
       {/* ── Script Ideas Section ── */}
-      <div className="container px-8 py-8 sm:py-12">
+      <div className="container px-4 lg:px-8 py-8 sm:py-12">
       <div className="bg-gray-100 rounded-3xl relative">
           {/* Header — full width, sticky */}
           <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
