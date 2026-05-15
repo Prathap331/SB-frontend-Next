@@ -291,10 +291,19 @@ export default function Profile() {
   const handleCancel = () => { setEditData(profileData); setIsEditing(false); setSaveError(null); };
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/auth'); };
 
-  const downloadInvoice = (invoiceUrl: string) => {
+  const downloadInvoice = (invoiceUrl: string | null) => {
     if (!invoiceUrl) return;
-  
-    window.open(invoiceUrl, "_blank");
+    // Open in new tab (browser will prompt download for PDF links)
+    window.open(invoiceUrl, '_blank', 'noopener,noreferrer');
+    // Also trigger a download via anchor
+    const a = document.createElement('a');
+    a.href = invoiceUrl;
+    a.download = '';
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   // ── My Scripts state ─────────────────────────────────────────────────────
@@ -347,6 +356,7 @@ export default function Profile() {
     payment_status: string;
     rayzorpay_payment_id: string | null;
     razorpay_order_id: string | null;
+    invoice_url: string | null;
   };
 
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
@@ -1176,12 +1186,16 @@ export default function Profile() {
                             <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${isPaid ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
                               {isPaid ? 'Paid' : bill.payment_status}
                             </span>
-                            <button
-                              onClick={() => downloadInvoice(String(bill.id))}
-                              className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-3 py-2 rounded-lg transition-colors min-h-[36px]"
-                            >
-                              <Download className="w-3.5 h-3.5" />Invoice
-                            </button>
+                            {bill.invoice_url ? (
+                              <button
+                                onClick={() => downloadInvoice(bill.invoice_url)}
+                                className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-3 py-2 rounded-lg transition-colors min-h-[36px]"
+                              >
+                                <Download className="w-3.5 h-3.5" />Invoice
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-[#a1a1a6] font-light">No invoice</span>
+                            )}
                           </div>
                         </div>
                       );
