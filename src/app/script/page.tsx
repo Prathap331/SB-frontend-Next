@@ -227,7 +227,7 @@ export default function ScriptPage() {
           .from('scripts_assigned')
           .select('id, title, topic, script, estimated_word_count, source_urls, analysis, structure, seo, duration')
           .eq('id', scriptId)
-          .single();
+          .maybeSingle();
 
         if (row) {
           const normalized: GeneratedScriptData = {
@@ -254,7 +254,7 @@ export default function ScriptPage() {
           .from('scripts_universal')
           .select('id, title, topic, script, estimated_word_count, source_urls, analysis, structure, seo, duration')
           .eq('id', scriptId)
-          .single();
+          .maybeSingle();
 
         if (uErr || !uRow) {
           setError('Script not found.');
@@ -523,6 +523,23 @@ console.log("📦 Script API Response:", json);
 
   const [showSourcesDialog, setShowSourcesDialog] = useState(false);
   const [contentTab, setContentTab] = useState<1|2|3|4|5>(1);
+
+  // ── Structure highlight / scroll ─────────────────────────────────────────
+  const [activeSegment, setActiveSegment] = useState<number | null>(null);
+  const segmentRefs    = React.useRef<(HTMLDivElement | null)[]>([]);
+  const scriptScrollRef = React.useRef<HTMLDivElement | null>(null);
+
+  const scrollToSegment = (index: number) => {
+    setActiveSegment(index);
+    const el        = segmentRefs.current[index];
+    const container = scriptScrollRef.current;
+    if (!el || !container) return;
+    const containerRect = container.getBoundingClientRect();
+    const elRect        = el.getBoundingClientRect();
+    const target = container.scrollTop + elRect.top - containerRect.top
+                   - containerRect.height / 2 + elRect.height / 2;
+    container.scrollTo({ top: target, behavior: 'smooth' });
+  };
 
   // ── Feedback state ───────────────────────────────────────────────────────
   const [feedbackRating, setFeedbackRating] = useState<string>('');
@@ -848,6 +865,28 @@ if (params.get('from') === 'suggested') {
     router.push("/teleprompter");
   };
 
+  // ── Must be above all early returns to satisfy Rules of Hooks ──────────────
+  const structureSegments = (data?.structure ?? []);
+
+  const scriptSegmentTexts = React.useMemo(() => {
+    const script = data?.script || '';
+    if (structureSegments.length === 0) return [script];
+    const len = script.length;
+    const chunks: string[] = [];
+    let pos = 0;
+    let cumulative = 0;
+    structureSegments.forEach((s, i) => {
+      cumulative += s.percentage;
+      const isLast = i === structureSegments.length - 1;
+      const end = isLast ? len : Math.min(Math.round((cumulative / 100) * len), len);
+      chunks.push(script.slice(pos, end));
+      pos = end;
+    });
+    return chunks;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.script, structureSegments.length]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   if (isLoading)
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7]">
@@ -867,9 +906,6 @@ if (params.get('from') === 'suggested') {
     </div>
   );
   if (!data) return null;
-
-  // Flatten structure segments from new backend format: structure[].segments[].{ name, percentage }
-  const structureSegments = (data.structure ?? []);
 
   // Don't render anything if redirecting or not yet validated
   if (!shouldRender || isRedirecting) {
@@ -1375,13 +1411,23 @@ const csExpansion =
                     {structureSegments.map((seg, index) => (
                       <div key={index} className="flex items-start gap-3">
                         <div className="flex flex-col items-center flex-shrink-0">
-                          <div className="w-6 h-6 rounded-full bg-[#1d1d1f] text-white flex items-center justify-center text-[10px] font-semibold">{index + 1}</div>
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors ${activeSegment === index ? 'bg-amber-500 text-white' : 'bg-[#1d1d1f] text-white'}`}>
+                            {index + 1}
+                          </div>
                           {index < structureSegments.length - 1 && <div className="w-px bg-gray-200 flex-1 mt-1 min-h-[10px]" />}
                         </div>
-                        <div className="flex-1 bg-[#f5f5f7] rounded-xl px-3 py-2 border border-gray-100 min-w-0 mb-2">
-                          <p className="font-medium text-xs text-[#1d1d1f] break-words">{seg.name}</p>
+                        <button
+                          type="button"
+                          onClick={() => scrollToSegment(index)}
+                          className={`flex-1 text-left rounded-xl px-3 py-2 border min-w-0 mb-2 transition-all duration-200 ${
+                            activeSegment === index
+                              ? 'bg-amber-50 border-amber-200 shadow-sm'
+                              : 'bg-[#f5f5f7] border-gray-100 hover:border-gray-300 hover:bg-white'
+                          }`}
+                        >
+                          <p className={`font-medium text-xs break-words ${activeSegment === index ? 'text-amber-800' : 'text-[#1d1d1f]'}`}>{seg.name}</p>
                           <p className="text-[10px] text-[#6e6e73] mt-0.5 font-light">{seg.percentage}% of script</p>
-                        </div>
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -1439,7 +1485,9 @@ const csExpansion =
               </div>
 
               {/* Script content */}
-              <div className={`relative ${isUnlocked ? 'flex-1 overflow-y-auto' : 'overflow-hidden'}`}
+              <div
+                ref={scriptScrollRef}
+                className={`relative ${isUnlocked ? 'flex-1 overflow-y-auto' : 'overflow-hidden'}`}
                 style={!isUnlocked ? { maxHeight: '82vh' } : {}}>
 
                 <div
@@ -1450,7 +1498,19 @@ const csExpansion =
                     className="text-[#1d1d1f] leading-[1.9] text-[15px] sm:text-base max-w-3xl mx-auto text-justify"
                     style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
                   >
-                    {formatScript(data.script || 'No script available.')}
+                    {scriptSegmentTexts.map((chunk, i) => (
+                      <div
+                        key={i}
+                        ref={el => { segmentRefs.current[i] = el; }}
+                        className={`rounded-2xl transition-all duration-500 px-3 -mx-3 ${
+                          activeSegment === i
+                            ? 'bg-amber-50 ring-2 ring-amber-200'
+                            : ''
+                        }`}
+                      >
+                        {formatScript(chunk || '')}
+                      </div>
+                    ))}
                   </div>
                 </div>
 

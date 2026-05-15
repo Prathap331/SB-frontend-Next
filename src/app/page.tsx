@@ -167,7 +167,7 @@ export default function Home() {
         <div className="max-w-8xl mx-auto mb-6">
           <div className="flex items-center gap-4 mb-1">
             <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f]">
-              Suggested Scripts
+              Script Vault
             </h2>
             <button
               onClick={() => router.push('/scripts')}
@@ -176,7 +176,7 @@ export default function Home() {
               View all <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           </div>
-          <p className="text-sm text-[#6e6e73] font-light">Click any card to analyse the trend and generate script</p>
+          <p className="text-sm text-[#6e6e73] font-light">Create Faster with Ready Scripts</p>
         </div>
         <SuggestedTopics />
       </section>

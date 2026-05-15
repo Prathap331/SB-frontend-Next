@@ -839,7 +839,7 @@ useEffect(() => {
 
           
       {/* Search Section */}
-      <div className="container mx-auto px-4 lg:px-8  py-6 sm:py-4">
+      <div className="container  mx-auto px-4 lg:px-8  py-6 sm:py-4">
         <div className="w-full shadow-lg border border-gray-400 rounded-full">
           <div className="relative flex items-center rounded-full">
                  <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 z-10" />
@@ -868,7 +868,7 @@ useEffect(() => {
       </div>
 
       {/* ── Analytics Section ── */}
-      <section className="container mx-auto px-4 lg:px-8 py-6 sm:py-4">
+      <section className="container  mx-auto px-4 lg:px-8 py-6 sm:py-4">
         <Card className="shadow-xl border border-gray-200 bg-white overflow-hidden flex flex-col">
           <CardHeader className="pb-3">
             <div className="overflow-x-auto scrollbar-none">
@@ -935,7 +935,7 @@ useEffect(() => {
 
 
       {/* ── Script Ideas Section ── */}
-      <div className="container px-4 lg:px-8 py-8 sm:py-12">
+      <div className="container  px-4 lg:px-8 py-8 sm:py-12">
       <div className="bg-gray-100 rounded-3xl relative">
           {/* Header — full width, sticky */}
           <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">

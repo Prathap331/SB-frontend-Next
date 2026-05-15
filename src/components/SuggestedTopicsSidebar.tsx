@@ -66,8 +66,8 @@ export default function SuggestedTopicsSidebar() {
     <div className="flex flex-col gap-2 w-full">
       {/* Label */}
       <div className="flex items-center justify-between px-0.5 mb-1">
-        <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase">
-          Suggested Scripts
+        <p className="text-[12px] font-semibold tracking-widest text-black uppercase">
+          Script Vault
         </p>
         <button
           onClick={() => router.push('/scripts')}
