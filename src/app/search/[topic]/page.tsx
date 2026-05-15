@@ -831,10 +831,10 @@ useEffect(() => {
       
 
       {/* ── Page-level flex: main content | desktop sidebar ── */}
-      <div className="flex w-full items-center justify-center gap-0">
+  <div className="flex w-full items-start gap-0">
 
         {/* ── Main content ── */}
-        <div className="flex-2 min-w-0">
+        <div className="flex-1 min-w-0">
 
 
           
@@ -888,7 +888,7 @@ useEffect(() => {
             </div>
           </CardHeader>
 
-          <CardContent className="overflow-y-auto pb-6 px-0">
+          <CardContent className="overflow-y-auto pb-6 px-8">
 
             {/* ════════════════════ TSS TAB ════════════════════ */}
             {activeTab === 'tss' && isTssLoading && (
