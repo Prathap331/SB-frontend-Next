@@ -13,12 +13,28 @@ const Header = () => {
   const [credits, setCredits] = useState<number | null>(null);
 
   const fetchCredits = async (userId: string) => {
-    const { data } = await supabase
-      .from('user_profiles')
+    // 1. Try subscriptions table first
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('credits')
+      .eq('userId', userId)
+      .order('purchased_date', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (sub) {
+      setCredits(sub.credits ?? null);
+      return;
+    }
+
+    // 2. Fall back to profiles table
+    const { data: profile } = await supabase
+      .from('profiles')
       .select('credits_remaining')
       .eq('id', userId)
       .single();
-    if (data) setCredits(data.credits_remaining ?? null);
+
+    if (profile) setCredits(profile.credits_remaining ?? null);
   };
 
   useEffect(() => {
