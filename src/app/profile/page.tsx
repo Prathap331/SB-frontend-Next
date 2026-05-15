@@ -291,14 +291,10 @@ export default function Profile() {
   const handleCancel = () => { setEditData(profileData); setIsEditing(false); setSaveError(null); };
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/auth'); };
 
-  const downloadInvoice = (invoiceId: string) => {
-    const content = `Invoice #${invoiceId}\nDate: ${new Date().toLocaleDateString()}\nAmount: $29.99\nPlan: Pro Monthly`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `invoice-${invoiceId}.txt`;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
+  const downloadInvoice = (invoiceUrl: string) => {
+    if (!invoiceUrl) return;
+  
+    window.open(invoiceUrl, "_blank");
   };
 
   // ── My Scripts state ─────────────────────────────────────────────────────
@@ -809,12 +805,19 @@ export default function Profile() {
                                       {freeTier.credits_remaining}
                                       <span className="text-xl text-gray-400">/{totalCredits}</span>
                                     </p>
-                                    <div className="h-2 rounded-full bg-[#1d1d1f]">
-                                      <div
-                                        className="h-full rounded-full bg-gray-100 transition-all"
-                                        style={{ width: `${Math.min(((totalCredits - freeTier.credits_remaining) / totalCredits) * 100, 100)}%` }}
-                                      />
-                                    </div>
+                                    <div className="h-4 rounded-full bg-gray-100  ">
+          <div
+            className="h-full rounded-full bg-[#1d1d1f] transition-all text-white text-xs text-center"
+            style={{
+              width: `${Math.min(
+                ((freeTier.credits_remaining) / totalCredits) * 100,
+                100
+              )}%`,
+            }}
+          >
+            {freeTier.credits_remaining}% Remaining
+          </div>
+        </div>
                                     <p className="text-[10px] text-[#6e6e73] mt-1">script generation credits</p>
                                   </>
                                 );
