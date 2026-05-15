@@ -117,7 +117,13 @@ export default function AuthCallback() {
 
       if (existing?.primary_language) {
         setStatus('redirecting');
-        router.replace('/');
+        const redirect = localStorage.getItem('post_auth_redirect');
+        if (redirect) {
+          localStorage.removeItem('post_auth_redirect');
+          router.replace(redirect);
+        } else {
+          router.replace('/');
+        }
         return;
       }
 

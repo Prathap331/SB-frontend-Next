@@ -79,7 +79,13 @@ export default function AuthForm() {
         password: formData.password,
       });
       if (error) throw error;
-      router.push('/');
+      const redirect = localStorage.getItem('post_auth_redirect');
+      if (redirect) {
+        localStorage.removeItem('post_auth_redirect');
+        router.push(redirect);
+      } else {
+        router.push('/');
+      }
     } catch (err) {
       setMessage({ text: err instanceof Error ? err.message : 'Something went wrong.', type: 'error' });
     } finally {

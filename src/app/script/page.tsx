@@ -206,6 +206,8 @@ export default function ScriptPage() {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
+        // Save destination so sign-in can resume the generation flow
+        try { localStorage.setItem('post_auth_redirect', window.location.href); } catch {}
         setIsRedirecting(true);
         router.push('/auth');
         return;
