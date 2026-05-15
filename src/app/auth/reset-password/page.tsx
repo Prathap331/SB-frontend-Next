@@ -73,7 +73,6 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
-      <Header />
       <div className="flex items-center justify-center px-4 sm:px-6 py-10 sm:py-16">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-3xl shadow-xl shadow-black/[0.08] border border-gray-200/80 overflow-hidden">

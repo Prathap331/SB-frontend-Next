@@ -869,7 +869,7 @@ if (params.get('from') === 'suggested') {
   if (!data) return null;
 
   // Flatten structure segments from new backend format: structure[].segments[].{ name, percentage }
-  const structureSegments = (data.structure ?? []).flatMap(s => s.segments ?? []);
+  const structureSegments = (data.structure ?? []);
 
   // Don't render anything if redirecting or not yet validated
   if (!shouldRender || isRedirecting) {
@@ -925,10 +925,10 @@ if (params.get('from') === 'suggested') {
   const metrics = [
     { icon: FileText,  label: 'Total Words',     value: data.metrics?.totalWords ?? data.estimated_word_count ?? 0 },
     { icon: Heart,     label: 'Emotional Depth', value: data.metrics?.emotionalDepth ?? data.analysis?.emotional_depth ?? '—' },
-    { icon: Lightbulb, label: 'Examples',        value: data.metrics?.generalExamples ?? data.analysis?.examples_count ?? 0 },
-    { icon: BookOpen,  label: 'Proverbs',        value: data.analysis?.proverbs_count },
-    { icon: History,   label: 'Hist. Facts',     value: data.analysis?.history   },
     { icon: Search,    label: 'Research Facts',  value: data.metrics?.researchFacts ?? data.analysis?.research_facts_count ?? 0 },
+    { icon: History,   label: 'Hist. Facts',     value: data.analysis?.history   },
+    { icon: BookOpen,  label: 'Proverbs',        value: data.analysis?.proverbs_count },
+    { icon: Lightbulb, label: 'Examples',        value: data.metrics?.generalExamples ?? data.analysis?.examples_count ?? 0 },
   ];
 
   // ── Content Strategy Panel — driven by seo data from backend ────────────

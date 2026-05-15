@@ -180,11 +180,8 @@ export type GeneratedScriptData = {
     keywords: string[];
   };
   structure?: Array<{
-    key: string;
-    segments: Array<{
       name: string;
       percentage: number;
-    }>;
   }>;
   synopsis?: string;
   seo?: {

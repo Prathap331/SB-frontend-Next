@@ -831,7 +831,7 @@ useEffect(() => {
       
 
       {/* ── Page-level flex: main content | desktop sidebar ── */}
-      <div className="flex min-w-4xl items-center justify-center gap-0">
+      <div className="flex w-full items-center justify-center gap-0">
 
         {/* ── Main content ── */}
         <div className="flex-2 min-w-0">

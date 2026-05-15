@@ -112,20 +112,6 @@ export default function AllScriptsPage() {
         <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm px-5 py-4 mb-6">
           <div className="flex flex-wrap gap-3 items-end">
 
-            {/* Duration */}
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase mb-1.5">Duration</label>
-              <select
-                value={durationFilter}
-                onChange={e => setDurationFilter(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-[#f5f5f7] text-sm text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f]"
-              >
-                <option value="">All durations</option>
-                {DURATION_RANGES.map(r => (
-                  <option key={r.label} value={r.label}>{r.label}</option>
-                ))}
-              </select>
-            </div>
 
             {/* Category */}
             <div className="flex-1 min-w-[160px]">
@@ -153,6 +139,21 @@ export default function AllScriptsPage() {
               </select>
             </div>
 
+            {/* Duration */}
+            <div className="flex-1 min-w-[160px]">
+              <label className="block text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase mb-1.5">Duration</label>
+              <select
+                value={durationFilter}
+                onChange={e => setDurationFilter(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-[#f5f5f7] text-sm text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f]"
+              >
+                <option value="">All durations</option>
+                {DURATION_RANGES.map(r => (
+                  <option key={r.label} value={r.label}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+            
             {/* Clear */}
             {activeFilterCount > 0 && (
               <button
