@@ -29,7 +29,7 @@ const Header = () => {
 
     // 2. Fall back to profiles table
     const { data: profile } = await supabase
-      .from('profiles')
+      .from('user_profiles')
       .select('credits_remaining')
       .eq('id', userId)
       .single();
@@ -94,12 +94,7 @@ const Header = () => {
               Upgrade
             </button>
           </Link>
-          {isLoggedIn && credits !== null && (
-            <div className="flex items-center gap-1.5 px-4  py-1.5 rounded-full bg-white border border-gray-200">
-              <Clock className="w-4 h-4 text-purple-600 flex-shrink-0" />
-              <span className="text-sm font-semibold ">{credits}</span>
-            </div>
-          )}
+          
           {!isLoggedIn ? (
             <Link href="/auth">
               <button className="text-sm font-medium text-white bg-[#1d1d1f] px-4 py-1.5 rounded-full hover:bg-black transition-all duration-200">
@@ -107,7 +102,13 @@ const Header = () => {
               </button>
             </Link>
           ) : (
-            <Link href="/profile">
+            <Link className='flex border border-gray-200 rounded-full' href="/profile">
+              {isLoggedIn && credits !== null && (
+            <div className="flex items-center gap-1.5 px-4  py-1.5 rounded-full bg-white ">
+              <Clock className="w-4 h-4 text-purple-600 flex-shrink-0" />
+              <span className="text-sm font-semibold ">{credits}</span>
+            </div>
+          )}
               <button className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all duration-200">
                 <User className="w-4 h-4 text-[#1d1d1f]" />
               </button>

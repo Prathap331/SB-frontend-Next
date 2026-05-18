@@ -1542,8 +1542,6 @@ const csExpansion =
                         background: 'rgba(255,255,255,0.25)',
                       }}
                     />
-
-                    Bottom fade-to-white: 80%–100%
                     <div
                       className="absolute left-0 right-0 bottom-0 pointer-events-none"
                       style={{

@@ -66,12 +66,12 @@ export default function SuggestedTopicsSidebar() {
     <div className="flex flex-col gap-2 w-full">
       {/* Label */}
       <div className="flex items-center justify-between px-0.5 mb-1">
-        <p className="text-[12px] font-semibold tracking-widest text-black uppercase">
+        <p className="text-[18px] font-semibold tracking-widest text-black  rounded-md uppercase">
           Script Vault
         </p>
         <button
           onClick={() => router.push('/scripts')}
-          className="flex items-center gap-1 text-[10px] font-medium text-[#1d1d1f] hover:text-black transition-colors"
+          className="flex items-center gap-1 text-[14px] font-medium text-[#1d1d1f] hover:text-black transition-colors"
         >
           View all <ArrowUpRight className="w-3 h-3" />
         </button>
