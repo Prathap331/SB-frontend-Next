@@ -15,7 +15,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { ApiService, GenerationParams, GeneratedScriptData } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
-
+import nlp from 'compromise';
 
 type HashtagItem = {
   hashtag: string;
@@ -36,11 +36,59 @@ function unwrapScriptJson(text: string): string {
   return trimmed;
 }
 
+function cleanScriptText(text: string): string {
+  if (!text) return '';
+
+  // unwrap weird spacing/newlines
+  let cleaned = text
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  // fix wrapped lines
+  cleaned = cleaned
+    .split('\n')
+    .map(line => line.trim())
+    .join(' ');
+
+  // NLP sentence detection
+  const doc = nlp(cleaned);
+  const sentences = doc.sentences().out('array');
+
+  // rebuild readable paragraphs
+  const paragraphs: string[] = [];
+  let current: string[] = [];
+
+  sentences.forEach((sentence: string, index: number) => {
+    current.push(sentence);
+
+    // create paragraph every 3-5 sentences
+    const shouldBreak =
+      current.length >= 4 ||
+      sentence.includes(':') ||
+      sentence.length > 180;
+
+    if (shouldBreak) {
+      paragraphs.push(current.join(' '));
+      current = [];
+    }
+  });
+
+  if (current.length > 0) {
+    paragraphs.push(current.join(' '));
+  }
+
+  return paragraphs.join('\n\n');
+}
+
 // Format script text: *** becomes <hr/>, *word* becomes <strong>word</strong>, \n\n becomes paragraphs
 function formatScript(text: string): React.ReactNode[] {
   if (!text) return [];
 
-  const scriptText = unwrapScriptJson(text);
+  const scriptText = cleanScriptText(
+    unwrapScriptJson(text)
+  );
   const nodes: React.ReactNode[] = [];
 
   const sections = scriptText.split(/\*\*\*/);
@@ -532,15 +580,29 @@ console.log("📦 Script API Response:", json);
   const scriptScrollRef = React.useRef<HTMLDivElement | null>(null);
 
   const scrollToSegment = (index: number) => {
+    if (!isUnlocked) return;
+  
     setActiveSegment(index);
-    const el        = segmentRefs.current[index];
+  
+    const el = segmentRefs.current[index];
     const container = scriptScrollRef.current;
+  
     if (!el || !container) return;
+  
     const containerRect = container.getBoundingClientRect();
-    const elRect        = el.getBoundingClientRect();
-    const target = container.scrollTop + elRect.top - containerRect.top
-                   - containerRect.height / 2 + elRect.height / 2;
-    container.scrollTo({ top: target, behavior: 'smooth' });
+    const elRect = el.getBoundingClientRect();
+  
+    const target =
+      container.scrollTop +
+      elRect.top -
+      containerRect.top -
+      containerRect.height / 2 +
+      elRect.height / 2;
+  
+    container.scrollTo({
+      top: target,
+      behavior: 'smooth',
+    });
   };
 
   // ── Feedback state ───────────────────────────────────────────────────────
@@ -871,22 +933,38 @@ if (params.get('from') === 'suggested') {
   const structureSegments = (data?.structure ?? []);
 
   const scriptSegmentTexts = React.useMemo(() => {
-    const script = data?.script || '';
+    const script = cleanScriptText(
+      unwrapScriptJson(data?.script || '')
+    );
+  
     if (structureSegments.length === 0) return [script];
-    const len = script.length;
+  
+    const words = script.split(/\s+/);
+    const totalWords = words.length;
+  
     const chunks: string[] = [];
-    let pos = 0;
+    let wordPos = 0;
     let cumulative = 0;
+  
     structureSegments.forEach((s, i) => {
       cumulative += s.percentage;
+  
       const isLast = i === structureSegments.length - 1;
-      const end = isLast ? len : Math.min(Math.round((cumulative / 100) * len), len);
-      chunks.push(script.slice(pos, end));
-      pos = end;
+  
+      const endWord = isLast
+        ? totalWords
+        : Math.min(
+            Math.round((cumulative / 100) * totalWords),
+            totalWords
+          );
+  
+      chunks.push(words.slice(wordPos, endWord).join(' '));
+  
+      wordPos = endWord;
     });
+  
     return chunks;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.script, structureSegments.length]);
+  }, [data?.script, structureSegments]);
   // ─────────────────────────────────────────────────────────────────────────
 
   if (isLoading)

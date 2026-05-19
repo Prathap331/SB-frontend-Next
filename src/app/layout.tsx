@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Providers from "@/components/providers";
+import LocationTracker from "@/components/location-tracker";
 
 const notoSans = Noto_Sans({
   subsets: ["latin"],
@@ -12,7 +13,7 @@ const notoSans = Noto_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
-const OG_IMAGE = "https://www.storybit.tech/og-image.jpg";
+const OG_IMAGE = "https://www.storybit.tech/og-image.png";
 
 export const metadata: Metadata = {
   title: "StoryBit",
@@ -100,20 +101,21 @@ export default function RootLayout({
         <meta property="og:url" content="https://www.storybit.tech" />
         <meta property="og:title" content="StoryBit — Write Your YouTube Script in 3 Minutes" />
         <meta property="og:description" content="AI that transforms your ideas into engaging, factual, research-backed YouTube scripts." />
-        <meta property="og:image" content="https://www.storybit.tech/og-image.jpg" />
+        <meta property="og:image" content="https://www.storybit.tech/og-image.png" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:image:type" content="image/jpeg" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="StoryBit — Write Your YouTube Script in 3 Minutes" />
         <meta name="twitter:description" content="AI that transforms your ideas into engaging, factual, research-backed YouTube scripts." />
-        <meta name="twitter:image" content="https://www.storybit.tech/og-image.jpg" />
+        <meta name="twitter:image" content="https://www.storybit.tech/og-image.png" />
       </head>
       <body className={`${notoSans.className} antialiased`}>
         <Providers>
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <LocationTracker />
             {children}
           </TooltipProvider>
         </Providers>

@@ -291,19 +291,26 @@ export default function Profile() {
   const handleCancel = () => { setEditData(profileData); setIsEditing(false); setSaveError(null); };
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/auth'); };
 
-  const downloadInvoice = (invoiceUrl: string | null) => {
+  const downloadInvoice = async (invoiceUrl: string | null) => {
     if (!invoiceUrl) return;
-    // Open in new tab (browser will prompt download for PDF links)
-    window.open(invoiceUrl, '_blank', 'noopener,noreferrer');
-    // Also trigger a download via anchor
-    const a = document.createElement('a');
-    a.href = invoiceUrl;
-    a.download = '';
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  
+    try {
+      const response = await fetch(invoiceUrl);
+      const blob = await response.blob();
+  
+      const blobUrl = window.URL.createObjectURL(blob);
+  
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'invoice.pdf'; // you can customize filename
+      document.body.appendChild(a);
+      a.click();
+  
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Download failed:', error);
+    }
   };
 
   // ── My Scripts state ─────────────────────────────────────────────────────
