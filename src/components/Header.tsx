@@ -6,11 +6,40 @@ import { Crown, User, Menu, X, Clock, File } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
+const AVATAR_COLORS = [
+  '#1e3a5f', '#1a5276', '#145a32', '#6c3483',
+  '#943126', '#784212', '#0e6655', '#2e4057',
+  '#4a235a', '#1b4f72', '#7b241c', '#117a65',
+];
+
+function getAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function UserAvatar({ name, size = 'sm' }: { name: string; size?: 'sm' | 'md' }) {
+  const letter = name.trim().charAt(0).toUpperCase() || '?';
+  const bg = getAvatarColor(name);
+  const dim = size === 'md' ? 'w-9 h-9 text-sm' : 'w-8 h-8 text-sm';
+  return (
+    <div
+      className={`${dim} rounded-full flex items-center justify-center font-semibold text-white flex-shrink-0`}
+      style={{ backgroundColor: bg }}
+    >
+      {letter}
+    </div>
+  );
+}
+
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
+  const [userName, setUserName] = useState('');
 
   const fetchCredits = async (userId: string) => {
     // 1. Try subscriptions table first
@@ -37,16 +66,31 @@ const Header = () => {
     if (profile) setCredits(profile.credits_remaining ?? null);
   };
 
+  const fetchUserName = async (userId: string, metadata?: Record<string, any>) => {
+    const metaName = metadata?.full_name || metadata?.name;
+    if (metaName) { setUserName(metaName); return; }
+    const { data } = await supabase.from('user_profiles').select('full_name').eq('id', userId).single();
+    if (data?.full_name) setUserName(data.full_name);
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsLoggedIn(!!session);
-      if (session) fetchCredits(session.user.id);
+      if (session) {
+        fetchCredits(session.user.id);
+        fetchUserName(session.user.id, session.user.user_metadata);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session);
-      if (session) fetchCredits(session.user.id);
-      else setCredits(null);
+      if (session) {
+        fetchCredits(session.user.id);
+        fetchUserName(session.user.id, session.user.user_metadata);
+      } else {
+        setCredits(null);
+        setUserName('');
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -102,16 +146,14 @@ const Header = () => {
               </button>
             </Link>
           ) : (
-            <Link className='flex border border-gray-200 rounded-full' href="/profile">
-              {isLoggedIn && credits !== null && (
-            <div className="flex items-center gap-1.5 px-4  py-1.5 rounded-full bg-white ">
-              <Clock className="w-4 h-4 text-purple-600 flex-shrink-0" />
-              <span className="text-sm font-semibold ">{credits}</span>
-            </div>
-          )}
-              <button className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all duration-200">
-                <User className="w-4 h-4 text-[#1d1d1f]" />
-              </button>
+            <Link className='flex items-center border border-gray-200 rounded-full hover:border-gray-300 transition-all duration-200' href="/profile">
+              {credits !== null && (
+                <div className="flex items-center gap-1.5 px-4 py-1.5">
+                  <Clock className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                  <span className="text-sm font-semibold">{credits}</span>
+                </div>
+              )}
+              <UserAvatar name={userName || '?'} />
             </Link>
           )}
         </nav>
@@ -158,7 +200,7 @@ const Header = () => {
             ) : (
               <Link href="/profile" onClick={() => setIsMenuOpen(false)}>
                 <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
-                  <User className="w-4 h-4" />
+                  <UserAvatar name={userName || '?'} size="md" />
                   Profile
                 </button>
               </Link>
