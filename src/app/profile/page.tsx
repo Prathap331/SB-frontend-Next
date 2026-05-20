@@ -815,7 +815,7 @@ export default function Profile() {
                               <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Credits Remaining</p>
                               {(() => {
                                 const plan = freeTier.plan?.toLowerCase();
-                                const totalCredits = plan === 'basic' ? 100 : plan === 'pro' ? 200 : 50;
+                                const totalCredits = plan === 'plus' ? 100 : plan === 'pro' ? 200 : 50;
                                 return (
                                   <>
                                     <p className="text-3xl font-bold text-[#1d1d1f] mb-2">
@@ -894,7 +894,7 @@ export default function Profile() {
 
   {(() => {
     const totalCredits =
-      latestSub.plan?.toLowerCase() === 'basic'
+      latestSub.plan?.toLowerCase() === 'plus'
         ? 100
         : latestSub.plan?.toLowerCase() === 'pro'
         ? 200

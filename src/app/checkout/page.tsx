@@ -136,13 +136,18 @@ function CheckoutInner() {
       await processPayment(
         planAmount,
         planKey,
-        (_paymentId, _orderId) => {
+        async (_paymentId, _orderId) => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user?.email) {
+            await fetch('/api/send-payment-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: user.email, planName, amount: planAmount, mins: planMins }),
+            });
+          }
           setIsProcessing(false);
           setPaymentDone(true);
-          toast.success('Payment successful!', {
-            description: 'Your subscription is being activated.',
-            duration: 5000,
-          });
+          toast.success('Payment successful!', { description: 'Your subscription is being activated.', duration: 5000 });
           setTimeout(() => router.push('/profile'), 2500);
         },
         (error) => {

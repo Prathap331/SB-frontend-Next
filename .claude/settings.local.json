@@ -7,7 +7,9 @@
       "Bash(del \"c:\\\\Users\\\\chint\\\\OneDrive\\\\Desktop\\\\morpho-projects\\\\SB-frontend-Next\\\\src\\\\analytics-section.txt\")",
       "Bash(find /c/Users/chint -name \"storybit_final.html\" 2>/dev/null | head -5)",
       "Read(//c/Users/chint/**)",
-      "Bash(dir \"c:\\\\Users\\\\chint\\\\OneDrive\\\\Desktop\\\\morpho-projects\\\\SB-frontend-Next\\\\public\")"
+      "Bash(dir \"c:\\\\Users\\\\chint\\\\OneDrive\\\\Desktop\\\\morpho-projects\\\\SB-frontend-Next\\\\public\")",
+      "Bash(cat .env.local)",
+      "Bash(cat .env)"
     ]
   }
 }
