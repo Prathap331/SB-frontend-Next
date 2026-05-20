@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2, Globe, MapPin, ChevronLeft, ChevronDown, Search,
-  Upload, FileText, Info, AlertCircle, CheckCircle2,
+  Upload, FileText, Info, AlertCircle, CheckCircle2, Phone,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import Header from '@/components/Header';
@@ -55,7 +55,8 @@ export default function AuthCallback() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError]     = useState('');
 
-  // Step 1 — language + categories
+  // Step 1 — phone + language + categories
+  const [phone, setPhone]                           = useState('');
   const [selectedLanguage, setSelectedLanguage]     = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [langOpen, setLangOpen]   = useState(false);
@@ -134,13 +135,14 @@ export default function AuthCallback() {
 
   // ── Step 1 submit: save language + categories ────────────────────────────
   const handleStep1 = async () => {
-    if (!selectedLanguage) return;
+    if (!phone.trim() || !selectedLanguage) return;
     setIsSaving(true);
     setError('');
     try {
       const { error: err } = await supabase.from('user_profiles').upsert(
         {
           id:               userId,
+          phone:            phone.trim(),
           primary_language: selectedLanguage,
           categories:       selectedCategories.length > 0 ? selectedCategories : null,
           updated_at:       new Date().toISOString(),
@@ -259,7 +261,6 @@ export default function AuthCallback() {
   // ── Onboarding form ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
-      <Header />
 
       <div className="flex items-center justify-center px-4 sm:px-6 py-10 sm:py-16">
         <div className="w-full max-w-md">
@@ -321,6 +322,24 @@ export default function AuthCallback() {
               {/* ── Step 1: Language + Categories ──────────────────────── */}
               {cbStep === 1 && (
                 <div className="space-y-5">
+                  {/* Phone */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">
+                      Phone number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6e6e73] w-4 h-4" />
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={e => setPhone(e.target.value)}
+                        placeholder="+91 98765 43210"
+                        disabled={isSaving}
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm placeholder-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f] transition-all disabled:opacity-60"
+                      />
+                    </div>
+                  </div>
+
                   {/* Language picker */}
                   <div>
                     <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">
@@ -408,15 +427,17 @@ export default function AuthCallback() {
                   <button
                     type="button"
                     onClick={handleStep1}
-                    disabled={!selectedLanguage || isSaving}
+                    disabled={!phone.trim() || !selectedLanguage || isSaving}
                     className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : 'Continue →'}
                   </button>
-                  {!selectedLanguage && (
-                    <p className="text-center text-[11px] text-[#6e6e73]">Please select a language to continue</p>
+                  {(!phone.trim() || !selectedLanguage) && (
+                    <p className="text-center text-[11px] text-[#6e6e73]">
+                      {!phone.trim() ? 'Please enter your phone number' : 'Please select a language to continue'}
+                    </p>
                   )}
-                  {selectedLanguage && selectedCategories.length === 0 && (
+                  {phone.trim() && selectedLanguage && selectedCategories.length === 0 && (
                     <button type="button" onClick={handleStep1} disabled={isSaving} className="w-full py-1.5 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors">
                       Skip categories
                     </button>

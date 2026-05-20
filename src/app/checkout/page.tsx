@@ -5,10 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2, CheckCircle2, Calendar, RefreshCw,
-  MapPin, AlertCircle, ChevronRight, FileText, Zap, Crown, Target,
+  MapPin, AlertCircle, ChevronRight, FileText, Zap, Crown, Target, Phone, X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { pricingPlans } from '@/components/pricingPlans';
 import { processPayment } from '@/services/payment';
 import { toast } from 'sonner';
 import Header from '@/components/Header';
@@ -21,34 +20,73 @@ function addDays(days: number): string {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-const PLAN_META: Record<string, { minutes: string; validity: string; icon: React.ComponentType<{ className?: string }> }> = {
-  free:  { minutes: '100 minutes',      validity: 'One-time use', icon: Target },
-  basic: { minutes: '500 minutes',      validity: '30 days',      icon: Zap    },
-  pro:   { minutes: 'Unlimited scripts', validity: '30 days',     icon: Crown  },
+const PLAN_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  free: Target,
+  plus: Zap,
+  pro:  Crown,
+};
+
+const PLAN_VALIDITY: Record<string, string> = {
+  free: 'One-time use',
+  plus: '30 days',
+  pro:  '30 days',
+};
+
+const PLAN_DESCRIPTIONS: Record<string, string> = {
+  free: 'Perfect for trying out our AI scriptwriting',
+  plus: 'Great for regular content creators',
+  pro:  'For professional content creators and teams',
 };
 
 // ── inner component (uses useSearchParams — must be inside Suspense) ─────────
+
+type DBPlanRow = {
+  plan_name: string;
+  plan_amount: number;
+  mins: number;
+};
 
 function CheckoutInner() {
   const router = useRouter();
   const params = useSearchParams();
   const tier = params.get('tier') ?? '';
 
-  const plan = pricingPlans.find(p => p.targetTier === tier);
-  const meta = PLAN_META[tier];
-
+  const [dbPlan, setDbPlan] = useState<DBPlanRow | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState(true);
   const [address, setAddress] = useState('');
-  const [loadingAddress, setLoadingAddress] = useState(true);
+  const [phone, setPhone] = useState('');
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentDone, setPaymentDone] = useState(false);
   const [paymentError, setPaymentError] = useState('');
 
-  // Redirect if plan not found
-  useEffect(() => {
-    if (!plan || !meta) router.replace('/pricing');
-  }, [plan, meta, router]);
+  // Missing-fields modal
+  const [showMissingModal, setShowMissingModal] = useState(false);
+  const [modalPhone, setModalPhone] = useState('');
+  const [modalAddress, setModalAddress] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
 
-  // Fetch billing address from profile
+  // Fetch plan from Supabase
+  useEffect(() => {
+    if (!tier) { setLoadingPlan(false); return; }
+    const fetchPlan = async () => {
+      const { data } = await supabase
+        .from('subscriptions_plan')
+        .select('plan_name, plan_amount, mins')
+        .ilike('plan_name', tier)
+        .maybeSingle();
+      setDbPlan(data ?? null);
+      setLoadingPlan(false);
+    };
+    fetchPlan();
+  }, [tier]);
+
+  // Redirect if plan not found after loading
+  useEffect(() => {
+    if (!loadingPlan && !dbPlan) router.replace('/pricing');
+  }, [dbPlan, loadingPlan, router]);
+
+  // Fetch phone + billing address from profile
   useEffect(() => {
     const load = async () => {
       try {
@@ -56,29 +94,48 @@ function CheckoutInner() {
         if (!session) return;
         const { data } = await supabase
           .from('user_profiles')
-          .select('billing_address')
+          .select('billing_address, phone')
           .eq('id', session.user.id)
           .single();
         setAddress(data?.billing_address ?? '');
+        setPhone(data?.phone ?? '');
       } finally {
-        setLoadingAddress(false);
+        setLoadingProfile(false);
       }
     };
     load();
   }, []);
 
-  if (!plan || !meta) return null;
+  if (loadingPlan || !dbPlan) return null;
 
+  const planKey        = tier.toLowerCase();
+  const planName       = dbPlan.plan_name;
+  const planAmount     = dbPlan.plan_amount;
+  const planPrice      = planAmount === 0 ? '₹0' : `₹${planAmount}`;
+  const planPeriod     = planAmount === 0 ? 'One-time' : '/month';
+  const planMins       = dbPlan.mins;
+  const planDesc       = PLAN_DESCRIPTIONS[planKey] ?? '';
+  const planValidity   = PLAN_VALIDITY[planKey] ?? '30 days';
+  const IconComponent  = PLAN_ICONS[planKey] ?? Target;
   const nextBillingDate = addDays(30);
-  const IconComponent = meta.icon;
 
   const handlePay = async () => {
+    if (!phone.trim() || !address.trim()) {
+      setModalPhone(phone);
+      setModalAddress(address);
+      setShowMissingModal(true);
+      return;
+    }
+    await triggerPayment();
+  };
+
+  const triggerPayment = async () => {
     setIsProcessing(true);
     setPaymentError('');
     try {
       await processPayment(
-        plan.amount,
-        plan.targetTier,
+        planAmount,
+        planKey,
         (_paymentId, _orderId) => {
           setIsProcessing(false);
           setPaymentDone(true);
@@ -101,6 +158,29 @@ function CheckoutInner() {
       const msg = err?.message ?? 'Payment processing failed';
       setPaymentError(msg);
       toast.error('Payment error', { description: msg, duration: 5000 });
+    }
+  };
+
+  const handleSaveAndPay = async () => {
+    if (!modalPhone.trim() || !modalAddress.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { toast.error('Session expired, please log in again'); return; }
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ phone: modalPhone.trim(), billing_address: modalAddress.trim() })
+        .eq('id', session.user.id);
+      if (error) { toast.error('Failed to save details'); return; }
+      setPhone(modalPhone.trim());
+      setAddress(modalAddress.trim());
+      setShowMissingModal(false);
+      await triggerPayment();
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -152,20 +232,20 @@ function CheckoutInner() {
                 <IconComponent className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-base font-semibold text-[#1d1d1f]">StoryBit {plan.name}</p>
-                <p className="text-sm text-[#6e6e73] font-light">{plan.description}</p>
+                <p className="text-base font-semibold text-[#1d1d1f]">StoryBit {planName}</p>
+                <p className="text-sm text-[#6e6e73] font-light">{planDesc}</p>
               </div>
               <div className="text-right flex-shrink-0">
-                <p className="text-xl font-bold text-[#1d1d1f]">{plan.price}</p>
-                <p className="text-xs text-[#6e6e73]">{plan.period}</p>
+                <p className="text-xl font-bold text-[#1d1d1f]">{planPrice}</p>
+                <p className="text-xs text-[#6e6e73]">{planPeriod}</p>
               </div>
             </div>
 
             {/* Details grid */}
             <div className="space-y-0 divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
               {[
-                { label: 'Script generation', value: meta.minutes },
-                { label: 'Validity',           value: meta.validity },
+                { label: 'Script generation', value: `${planMins} minutes` },
+                { label: 'Validity',           value: planValidity },
                 { label: 'Next billing date',  value: nextBillingDate,
                   icon: <Calendar className="w-3.5 h-3.5 text-[#6e6e73]" /> },
                 { label: 'Auto billing',       value: 'Renews automatically each month',
@@ -190,19 +270,42 @@ function CheckoutInner() {
           </div>
         </div>
 
+        {/* ── Phone card ── */}
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6e6e73]">Phone</p>
+            <Link href="/profile?tab=profile" className="text-xs font-medium text-[#1d1d1f] hover:underline">Edit</Link>
+          </div>
+          <div className="px-6 py-4">
+            {loadingProfile ? (
+              <div className="flex items-center gap-2 text-[#6e6e73]">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm font-light">Loading…</span>
+              </div>
+            ) : phone ? (
+              <div className="flex items-center gap-2.5">
+                <Phone className="w-4 h-4 text-[#6e6e73] flex-shrink-0" />
+                <p className="text-sm text-[#1d1d1f]">{phone}</p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-[#6e6e73] font-light">No phone number on file</p>
+                <Link href="/profile?tab=profile" className="text-xs font-medium text-[#1d1d1f] flex items-center gap-1 hover:underline">
+                  Add <ChevronRight className="w-3 h-3" />
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* ── Address card ── */}
         <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
             <p className="text-[10px] uppercase tracking-widest font-semibold text-[#6e6e73]">Address</p>
-            <Link
-              href="/profile?tab=profile"
-              className="text-xs font-medium text-[#1d1d1f] hover:underline"
-            >
-              Edit
-            </Link>
+            <Link href="/profile?tab=profile" className="text-xs font-medium text-[#1d1d1f] hover:underline">Edit</Link>
           </div>
           <div className="px-6 py-4">
-            {loadingAddress ? (
+            {loadingProfile ? (
               <div className="flex items-center gap-2 text-[#6e6e73]">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span className="text-sm font-light">Loading…</span>
@@ -215,10 +318,7 @@ function CheckoutInner() {
             ) : (
               <div className="flex items-center justify-between">
                 <p className="text-sm text-[#6e6e73] font-light">No billing address on file</p>
-                <Link
-                  href="/profile?tab=profile"
-                  className="text-xs font-medium text-[#1d1d1f] flex items-center gap-1 hover:underline"
-                >
+                <Link href="/profile?tab=profile" className="text-xs font-medium text-[#1d1d1f] flex items-center gap-1 hover:underline">
                   Add <ChevronRight className="w-3 h-3" />
                 </Link>
               </div>
@@ -259,12 +359,12 @@ function CheckoutInner() {
           </div>
           <div className="px-6 py-5 space-y-3">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-[#6e6e73] font-light">StoryBit {plan.name}</span>
-              <span className="font-semibold text-[#1d1d1f]">{plan.price}</span>
+              <span className="text-[#6e6e73] font-light">StoryBit {planName}</span>
+              <span className="font-semibold text-[#1d1d1f]">{planPrice}</span>
             </div>
             <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
               <span className="text-sm font-semibold text-[#1d1d1f]">Total now</span>
-              <span className="text-lg font-bold text-[#1d1d1f]">{plan.price}</span>
+              <span className="text-lg font-bold text-[#1d1d1f]">{planPrice}</span>
             </div>
             <p className="text-[11px] text-[#6e6e73] leading-relaxed">
               By completing this purchase you agree to our{' '}
@@ -293,7 +393,7 @@ function CheckoutInner() {
           {isProcessing ? (
             <><Loader2 className="w-4 h-4 animate-spin" />Processing payment…</>
           ) : (
-            <>Complete purchase · {plan.price}</>
+            <>Complete purchase · {planPrice}</>
           )}
         </button>
 
@@ -303,6 +403,68 @@ function CheckoutInner() {
         </div>
 
       </div>
+
+      {/* ── Missing fields modal ── */}
+      {showMissingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowMissingModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl shadow-black/20 border border-gray-200/80 w-full max-w-sm p-6 flex flex-col gap-5">
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-base font-semibold text-[#1d1d1f]">Complete your details</p>
+                <p className="text-xs text-[#6e6e73] font-light mt-0.5">Required before completing purchase</p>
+              </div>
+              <button onClick={() => setShowMissingModal(false)} className="text-[#6e6e73] hover:text-[#1d1d1f] transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Missing field inputs */}
+            <div className="flex flex-col gap-3">
+              {!phone.trim() && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-[#1d1d1f]">Phone number</label>
+                  <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2.5 focus-within:border-[#1d1d1f] transition-colors">
+                    <Phone className="w-3.5 h-3.5 text-[#6e6e73] flex-shrink-0" />
+                    <input
+                      type="tel"
+                      value={modalPhone}
+                      onChange={e => setModalPhone(e.target.value)}
+                      placeholder="+91 98765 43210"
+                      className="flex-1 text-sm text-[#1d1d1f] bg-transparent outline-none placeholder:text-[#6e6e73] placeholder:font-light"
+                    />
+                  </div>
+                </div>
+              )}
+              {!address.trim() && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-[#1d1d1f]">Billing address</label>
+                  <div className="flex items-start gap-2 border border-gray-200 rounded-xl px-3 py-2.5 focus-within:border-[#1d1d1f] transition-colors">
+                    <MapPin className="w-3.5 h-3.5 text-[#6e6e73] flex-shrink-0 mt-0.5" />
+                    <textarea
+                      value={modalAddress}
+                      onChange={e => setModalAddress(e.target.value)}
+                      placeholder="Street, City, State, PIN"
+                      rows={2}
+                      className="flex-1 text-sm text-[#1d1d1f] bg-transparent outline-none placeholder:text-[#6e6e73] placeholder:font-light resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <button
+              onClick={handleSaveAndPay}
+              disabled={savingProfile}
+              className="w-full py-3 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-semibold transition-all duration-200 disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {savingProfile ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : 'Save & continue to payment'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

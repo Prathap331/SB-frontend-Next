@@ -26,7 +26,7 @@ const sections = [
   },
   {
     title: 'Contact us',
-    body: `If you have questions about billing or need help cancelling, reach us at support.storybit@gmail.com. We aim to respond within one business day.`,
+    body: `If you have questions about billing or need help cancelling, reach us at  support@storybit.tech ,We aim to respond within one business day.`,
   },
 ];
 

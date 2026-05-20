@@ -3,7 +3,7 @@
 import { useState, ChangeEvent, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, User, Eye, EyeOff, Phone, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
 const inputClass =
@@ -13,11 +13,12 @@ export default function AuthForm() {
   const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showPassword1, setShowPassword1] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', password: '', confirmPassword: '',
+    name: '', email: '', password: '', confirmPassword: '',
   });
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -40,7 +41,7 @@ export default function AuthForm() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -49,17 +50,6 @@ export default function AuthForm() {
         },
       });
       if (error) throw error;
-
-      // Save basic profile immediately (name + phone — rest filled after email confirmation)
-      if (data.user) {
-        await supabase.from('user_profiles').upsert({
-          id:        data.user.id,
-          email:     formData.email,
-          full_name: formData.name,
-          phone:     formData.phone || null,
-        }, { onConflict: 'id' });
-      }
-
       setEmailSent(true);
     } catch (err) {
       setMessage({ text: err instanceof Error ? err.message : 'Something went wrong.', type: 'error' });
@@ -244,13 +234,6 @@ export default function AuthForm() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">Phone <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6e6e73] w-4 h-4" />
-                  <input name="phone" type="tel" placeholder="+91 98765 43210" value={formData.phone} onChange={handleInputChange} required disabled={isLoading} className={inputClass} />
-                </div>
-              </div>
-              <div>
                 <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6e6e73] w-4 h-4" />
@@ -264,7 +247,10 @@ export default function AuthForm() {
                 <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">Confirm Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6e6e73] w-4 h-4" />
-                  <input name="confirmPassword" type="password" placeholder="••••••••" value={formData.confirmPassword} onChange={handleInputChange} required disabled={isLoading} className={inputClass} />
+                  <input name="confirmPassword" type={showPassword1 ? 'text' : 'password'} placeholder="••••••••" value={formData.confirmPassword} onChange={handleInputChange} required disabled={isLoading} className={inputClass} />
+                  <button type="button" onClick={() => setShowPassword1(v => !v)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#6e6e73] text-xs">
+                    {showPassword1 ? 'Hide' : 'Show'}
+                  </button>
                 </div>
               </div>
               <button type="submit" disabled={isLoading} className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 mt-1 flex items-center justify-center gap-2">
