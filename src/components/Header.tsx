@@ -74,26 +74,99 @@ const Header = () => {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsLoggedIn(!!session);
-      if (session) {
-        fetchCredits(session.user.id);
-        fetchUserName(session.user.id, session.user.user_metadata);
-      }
-    });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    let creditsChannel: any = null;
+  
+    supabase.auth.getSession().then(({ data: { session } }) => {
+  
       setIsLoggedIn(!!session);
+  
       if (session) {
+  
         fetchCredits(session.user.id);
         fetchUserName(session.user.id, session.user.user_metadata);
+  
+        creditsChannel = supabase
+          .channel('credits-live-update')
+  
+          // subscriptions table updates
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'subscriptions',
+              filter: `userId=eq.${session.user.id}`,
+            },
+            (payload) => {
+              setCredits(payload.new.credits);
+            }
+          )
+  
+          // user_profiles updates
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'user_profiles',
+              filter: `id=eq.${session.user.id}`,
+            },
+            (payload) => {
+              setCredits(payload.new.credits_remaining);
+            }
+          )
+  
+          .subscribe();
+  
       } else {
         setCredits(null);
         setUserName('');
       }
     });
+  
+    const { data: { subscription } } =
+      supabase.auth.onAuthStateChange((_event, session) => {
+  
+        setIsLoggedIn(!!session);
+  
+        if (session) {
+          fetchCredits(session.user.id);
+          fetchUserName(session.user.id, session.user.user_metadata);
+        } else {
+          setCredits(null);
+          setUserName('');
+        }
+      });
+  
+    return () => {
+  
+      subscription.unsubscribe();
+  
+      if (creditsChannel) {
+        supabase.removeChannel(creditsChannel);
+      }
+    };
+  
+  }, []);
 
-    return () => subscription.unsubscribe();
+  useEffect(() => {
+
+    const handleCreditsUpdate = async () => {
+  
+      const { data: { session } } = await supabase.auth.getSession();
+  
+      if (session) {
+        fetchCredits(session.user.id);
+      }
+    };
+  
+    window.addEventListener("creditsUpdated", handleCreditsUpdate);
+  
+    return () => {
+      window.removeEventListener("creditsUpdated", handleCreditsUpdate);
+    };
+  
   }, []);
 
   useEffect(() => {

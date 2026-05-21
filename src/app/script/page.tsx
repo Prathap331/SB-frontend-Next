@@ -647,6 +647,7 @@ console.log("📦 Script API Response:", json);
   const [exitComment, setExitComment]             = useState('');
   const [exitSubmitting, setExitSubmitting]       = useState(false);
   const allowExitRef = React.useRef(false);
+  const [credits, setCredits] = useState<number>(0)
 
   // Intercept the browser back button when script is locked
   useEffect(() => {
@@ -787,8 +788,18 @@ if (params.get('from') === 'suggested') {
 
       const json = await res.json().catch(() => ({}));
 
-      if (res.ok && json.status !== 'insufficient') {
+      if (res.ok && json.message === 'success') {
+
         setIsUnlocked(true);
+      
+        // UPDATE CREDITS IMMEDIATELY
+        if (json.remaining_credits !== undefined) {
+          setCredits(json.remaining_credits);
+
+          window.dispatchEvent(new Event("creditsUpdated"));
+        }
+
+
 
         // Persist unlock so page refresh keeps the script visible
         try {

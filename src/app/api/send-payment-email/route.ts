@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
           <tr>
             <td style="padding:20px 40px;border-top:1px solid #f0f0f0;text-align:center;">
               <p style="margin:0;font-size:11px;color:#a1a1a6;line-height:1.6;">
-                If you have any questions, contact us at support.storybit@gmail.com<br/>
+                If you have any questions, contact us at support@storybit.tech<br/>
                 © ${new Date().getFullYear()} Morpho Technologies Pvt Ltd
               </p>
             </td>
