@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
           <!-- Success icon + message -->
           <tr>
             <td style="padding:36px 40px 24px;text-align:center;">
-              <div style="width:60px;height:60px;background:#d1fae5;border:1px solid #a7f3d0;border-radius:50%;margin:0 auto 20px;display:inline-flex; align-items:center; justify-content:center; ">
+              <div style="width:60px;height:60px;background:#d1fae5;border:1px solid #a7f3d0;border-radius:50%;margin:0 auto 20px;display:inline-flex;align-items:center;justify-content:center;">
                 <span style="font-size:28px;line-height:1;">✓</span>
               </div>
               <h1 style="margin:0 0 8px;font-size:20px;font-weight:600;color:#1d1d1f;">Payment confirmed!</h1>

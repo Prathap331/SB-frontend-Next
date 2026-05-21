@@ -9,7 +9,8 @@
       "Read(//c/Users/chint/**)",
       "Bash(dir \"c:\\\\Users\\\\chint\\\\OneDrive\\\\Desktop\\\\morpho-projects\\\\SB-frontend-Next\\\\public\")",
       "Bash(cat .env.local)",
-      "Bash(cat .env)"
+      "Bash(cat .env)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(p.dependencies.next\\)\")"
     ]
   }
 }

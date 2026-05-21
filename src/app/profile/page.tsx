@@ -1189,7 +1189,7 @@ export default function Profile() {
                             </div>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                            <span className="text-sm font-semibold text-[#1d1d1f]">{fmtAmount(bill.amount)}</span>
+                            <span className="text-sm font-semibold text-[#1d1d1f]">{bill.amount}</span>
                             <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${isPaid ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
                               {isPaid ? 'Paid' : bill.payment_status}
                             </span>

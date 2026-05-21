@@ -212,11 +212,11 @@ export async function processPayment(
     const orderData = await createOrder(amount, targetTier);
     
     // Step 2: Open Razorpay checkout
-    // Use amount from API response (already in paise as per Razorpay requirement)
+    // amount is in INR; Razorpay requires paise (multiply by 100)
     await initiatePayment(
       orderData.order_id,
       orderData.key_id,
-      orderData.amount, // This is already in paise from the API response
+      orderData.amount,
       onSuccess,
       onFailure
     );

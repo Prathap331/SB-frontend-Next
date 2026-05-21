@@ -30,7 +30,15 @@ const sections = [
   },
 ];
 
-export default function CancellationPolicy() {
+export default async function CancellationPolicy({
+  searchParams,
+}: {
+  searchParams: Promise<{ tier?: string }>;
+}) {
+  const { tier } = await searchParams;
+  const backHref = tier ? `/checkout?tier=${tier}` : '/pricing';
+  const backLabel = tier ? 'Back to Checkout' : 'Back to Pricing';
+
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
       <Header />
@@ -39,10 +47,10 @@ export default function CancellationPolicy() {
 
         {/* Back link */}
         <Link
-          href="/pricing"
+          href={backHref}
           className="inline-flex items-center gap-1.5 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors mb-8"
         >
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to Pricing
+          <ArrowLeft className="w-3.5 h-3.5" /> {backLabel}
         </Link>
 
         {/* Hero */}

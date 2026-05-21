@@ -44,6 +44,7 @@ type DBPlanRow = {
   plan_name: string;
   plan_amount: number;
   mins: number;
+  gst: number
 };
 
 function CheckoutInner() {
@@ -72,7 +73,7 @@ function CheckoutInner() {
     const fetchPlan = async () => {
       const { data } = await supabase
         .from('subscriptions_plan')
-        .select('plan_name, plan_amount, mins')
+        .select('plan_name, plan_amount, mins, gst')
         .ilike('plan_name', tier)
         .maybeSingle();
       setDbPlan(data ?? null);
@@ -114,10 +115,14 @@ function CheckoutInner() {
   const planPrice      = planAmount === 0 ? '₹0' : `₹${planAmount}`;
   const planPeriod     = planAmount === 0 ? 'One-time' : '/month';
   const planMins       = dbPlan.mins;
+  const plangst        = dbPlan.gst;
   const planDesc       = PLAN_DESCRIPTIONS[planKey] ?? '';
   const planValidity   = PLAN_VALIDITY[planKey] ?? '30 days';
   const IconComponent  = PLAN_ICONS[planKey] ?? Target;
   const nextBillingDate = addDays(30);
+
+  const totalgst = (plangst * planAmount)/100
+  const totalAmount = totalgst + planAmount
 
   const handlePay = async () => {
     if (!phone.trim() || !address.trim()) {
@@ -134,7 +139,7 @@ function CheckoutInner() {
     setPaymentError('');
     try {
       await processPayment(
-        planAmount,
+        totalAmount,
         planKey,
         async (_paymentId, _orderId) => {
           const { data: { user } } = await supabase.auth.getUser();
@@ -142,7 +147,7 @@ function CheckoutInner() {
             await fetch('/api/send-payment-email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: user.email, planName, amount: planAmount, mins: planMins }),
+              body: JSON.stringify({ email: user.email, planName, amount: totalAmount, mins: planMins, gst: totalgst }),
             });
           }
           setIsProcessing(false);
@@ -214,6 +219,14 @@ function CheckoutInner() {
 
       <div className="max-w-xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-4">
 
+        {/* ── Back ── */}
+        <Link
+          href="/pricing"
+          className="inline-flex items-center gap-1.5 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+        >
+          <ChevronRight className="w-3.5 h-3.5 rotate-180" /> Back to Pricing
+        </Link>
+
         {/* ── Title ── */}
         <div className="text-center mb-6">
           <h1
@@ -268,7 +281,7 @@ function CheckoutInner() {
 
             <p className="text-[11px] text-[#6e6e73] mt-3 leading-relaxed">
               Cancel anytime online.{' '}
-              <Link href="/cancellation-policy" className="text-[#1d1d1f] underline underline-offset-2 hover:opacity-70 transition-opacity">
+              <Link href={`/cancellation-policy?tier=${planKey}`} className="text-[#1d1d1f] underline underline-offset-2 hover:opacity-70 transition-opacity">
                 Cancellation policy
               </Link>
             </p>
@@ -367,13 +380,18 @@ function CheckoutInner() {
               <span className="text-[#6e6e73] font-light">StoryBit {planName}</span>
               <span className="font-semibold text-[#1d1d1f]">{planPrice}</span>
             </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[#6e6e73] font-light">GST</span>
+              <span className="font-semibold text-[#1d1d1f]">{totalgst}</span>
+            </div>
+
             <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
               <span className="text-sm font-semibold text-[#1d1d1f]">Total now</span>
-              <span className="text-lg font-bold text-[#1d1d1f]">{planPrice}</span>
+              <span className="text-lg font-bold text-[#1d1d1f]">{totalAmount}</span>
             </div>
             <p className="text-[11px] text-[#6e6e73] leading-relaxed">
               By completing this purchase you agree to our{' '}
-              <Link href="/cancellation-policy" className="text-[#1d1d1f] underline underline-offset-2">
+              <Link href={`/cancellation-policy?tier=${planKey}`} className="text-[#1d1d1f] underline underline-offset-2">
                 cancellation policy
               </Link>
               . Taxes may apply based on your address.
@@ -398,7 +416,7 @@ function CheckoutInner() {
           {isProcessing ? (
             <><Loader2 className="w-4 h-4 animate-spin" />Processing payment…</>
           ) : (
-            <>Complete purchase · {planPrice}</>
+            <>Complete purchase · {totalAmount}</>
           )}
         </button>
 
