@@ -49,7 +49,7 @@ const Header = () => {
       .eq('userId', userId)
       .order('purchased_date', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (sub) {
       setCredits(sub.credits ?? null);

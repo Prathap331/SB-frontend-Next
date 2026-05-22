@@ -76,20 +76,20 @@ export default function Home() {
 
         <div className="relative max-w-4xl mx-auto text-center">
 
-          <div className='flex gap-2 mx-auto justify-center'>
+          <div className='flex flex-wrap sm:gap-2 mx-auto justify-center'>
 
           {/* pill badge */}
-          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-4 shadow-sm">
+          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             2000+ Digital creators
           </div>
 
-          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-4 shadow-sm">
+          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             40K+ Script Generated
           </div>
 
-          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-4 shadow-sm">
+          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             Your AI Script Assistant
           </div>

@@ -870,7 +870,7 @@ useEffect(() => {
       {/* ── Analytics Section ── */}
       <section className="container  mx-auto px-4 lg:px-8 py-6 sm:py-4">
         <Card className="shadow-xl border border-gray-200 bg-white overflow-hidden flex flex-col">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 px-2 sm:px-8">
             <div className="overflow-x-auto scrollbar-none">
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mt-4 w-fit max-w-full flex-wrap sm:flex-nowrap">
                 {([
@@ -888,7 +888,7 @@ useEffect(() => {
             </div>
           </CardHeader>
 
-          <CardContent className="overflow-y-auto pb-6 px-8">
+          <CardContent className="overflow-y-auto pb-6 px-2 sm:px-8">
 
             {/* ════════════════════ TSS TAB ════════════════════ */}
             {activeTab === 'tss' && isTssLoading && (
@@ -1088,7 +1088,7 @@ useEffect(() => {
         <div className="lg:hidden px-4 sm:px-6 py-6 border-t border-gray-100">
           <div className="flex items-center gap-3 mb-3">
             <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase">
-              Suggested Scripts
+              Script Vault
             </p>
             <button
               onClick={() => router.push('/scripts')}
