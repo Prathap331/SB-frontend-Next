@@ -536,7 +536,7 @@ export default function Profile() {
           <div className="hidden lg:block w-56 flex-shrink-0">{nav}</div>
 
           {/* Content */}
-          <div className="flex-1 min-w-0">
+<div className="flex-1 min-w-0 max-h-[900px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pr-2">
 
             {/* Profile */}
             {activeTab === 'profile' && (
@@ -1175,7 +1175,7 @@ export default function Profile() {
                     subscriptions.map(bill => {
                       const isPaid = bill.payment_status === 'paid';
                       return (
-                        <div key={bill.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[#f5f5f7] rounded-2xl border border-gray-100">
+                        <div key={bill.id} className="flex flex-wrap sm:items-center justify-between gap-3 p-4 bg-[#f5f5f7] rounded-2xl border border-gray-100">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
                               <DollarSign className="w-4 h-4 text-[#1d1d1f]" />

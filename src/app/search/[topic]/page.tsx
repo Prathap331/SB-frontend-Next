@@ -532,11 +532,24 @@ export default function SearchTopicPage() {
 
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
 
-  // Mobile suggested scripts from Supabase
-  const [mobileSuggested, setMobileSuggested] = useState<{ id: string; title: string | null; script: string | null; topic: string | null }[]>([]);
+  // Mobile suggested scripts from Supabase (same fields as desktop Script Vault sidebar)
+  type MobileScriptRow = {
+    id: string;
+    title: string | null;
+    script: string | null;
+    topic: string | null;
+    duration: number | null;
+    category: string | null;
+    subcategories: string[] | null;
+  };
+  const [mobileSuggested, setMobileSuggested] = useState<MobileScriptRow[]>([]);
   useEffect(() => {
-    sbClient.from('scripts_universal').select('id, title, script, topic').order('created_at', { ascending: false }).limit(10)
-      .then(({ data }) => { if (data) setMobileSuggested(data); });
+    sbClient
+      .from('scripts_universal')
+      .select('id, title, script, topic, duration, category, subcategories')
+      .order('created_at', { ascending: false })
+      .limit(10)
+      .then(({ data }) => { if (data) setMobileSuggested(data as MobileScriptRow[]); });
   }, []);
   const [searchQuery, setSearchQuery] = useState(topic);
   const [activeTab, setActiveTab] = useState<'tss' | 'eci'>('tss');
@@ -939,7 +952,7 @@ useEffect(() => {
       <div className="bg-gray-100 rounded-3xl relative">
           {/* Header — full width, sticky */}
           <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-1 min-w-0">
               <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0">
                 <Lightbulb className="w-6 h-6 text-orange-500" />
               </div>
@@ -1110,9 +1123,30 @@ useEffect(() => {
                 <p className="text-xs font-semibold text-[#1d1d1f] leading-snug mb-1.5 line-clamp-2 group-hover:text-black">
                   {s.title || s.topic || 'Untitled Script'}
                 </p>
-                <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-2">
+                <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-2 mb-2">
                   {s.script ? s.script.slice(0, 120).replace(/\*+/g, '').trim() + '…' : ''}
                 </p>
+                <div className="flex flex-wrap gap-1">
+                  {s.duration != null && s.duration > 0 && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full">
+                      <Clock className="w-2.5 h-2.5" />
+                      {s.duration} min
+                    </span>
+                  )}
+                  {s.category && (
+                    <span className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-1.5 py-0.5 rounded-full">
+                      {s.category}
+                    </span>
+                  )}
+                  {(s.subcategories ?? []).slice(0, 2).map(sub => (
+                    <span
+                      key={sub}
+                      className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-1.5 py-0.5 rounded-full"
+                    >
+                      {sub}
+                    </span>
+                  ))}
+                </div>
               </button>
             ))}
           </div>
