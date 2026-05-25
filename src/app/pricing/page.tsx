@@ -12,6 +12,7 @@ export default function Pricing() {
       {/* Hero */}
       <section className="bg-[#f5f5f7] pt-10 pb-12 sm:pt-14 sm:pb-16 md:pt-16 md:pb-20 px-5 sm:px-8 text-center">
         <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full mb-5 sm:mb-6 shadow-sm">
+        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
           Simple, transparent pricing
         </div>
         <h1
