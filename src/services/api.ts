@@ -425,6 +425,90 @@ export interface ECIResponse {
   };
 }
 
+// imports
+
+const TOPICS_CACHE_KEY = "trending_topics_cache";
+
+const CACHE_DURATION = 1000 * 60 * 10;
+
+const LOCAL_TARGET = 5;
+const STATE_TARGET = 8;
+const GLOBAL_TARGET = 5;
+
+function distributeTopics(
+  topics: any[],
+  userCity: string,
+  userState: string
+) {
+  // Remove duplicates
+  const uniqueTopics = Array.from(
+    new Map(topics.map((item) => [item.id, item])).values()
+  );
+
+  // Local topics
+  const localTopics = uniqueTopics.filter(
+    (topic: any) =>
+      topic.city?.toLowerCase() === userCity ||
+      topic.state?.toLowerCase() === userState
+  );
+
+  // Other state topics
+  const otherStateTopics = uniqueTopics.filter(
+    (topic: any) =>
+      topic.state?.toLowerCase() !== "global" &&
+      topic.state?.toLowerCase() !== userState
+  );
+
+  // Global topics
+  const globalTopics = uniqueTopics.filter(
+    (topic: any) =>
+      topic.city?.toLowerCase() === "global"
+  );
+
+  // --------------------------
+  // LOCAL
+  // --------------------------
+
+  const selectedLocal = localTopics.slice(
+    0,
+    LOCAL_TARGET
+  );
+
+  const localRemaining =
+    LOCAL_TARGET - selectedLocal.length;
+
+  // --------------------------
+  // STATE
+  // --------------------------
+
+  const selectedState = otherStateTopics.slice(
+    0,
+    STATE_TARGET + localRemaining
+  );
+
+  const stateRemaining =
+    STATE_TARGET +
+    localRemaining -
+    selectedState.length;
+
+  // --------------------------
+  // GLOBAL
+  // --------------------------
+
+  const selectedGlobal = globalTopics.slice(
+    0,
+    GLOBAL_TARGET + stateRemaining
+  );
+
+  return [
+    ...selectedLocal,
+    ...selectedState,
+    ...selectedGlobal,
+  ].slice(0, 18);
+}
+
+
+
 export type TrendingTopicItem =
   | string
   | { topic?: string; title?: string; tittle?: string; name?: string };
@@ -715,96 +799,108 @@ export class ApiService {
     };
   }
 
-  static async getTrendingTopics(limit = 12): Promise<string[]> {
-    const CACHE_KEY = 'storybit_trending_topics';
-    const CACHE_TIME_KEY = 'storybit_trending_topics_time';
-    const CACHE_DURATION = 12 * 60 * 60 * 1000; // 12 hours
   
-    // ✅ 1. Try cache first
-    if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem(CACHE_KEY);
-      const cachedTime = localStorage.getItem(CACHE_TIME_KEY);
+
+  static async getTrendingTopics() {
+    try {
+      // --------------------------
+      // GET USER LOCATION
+      // --------------------------
   
-      if (cached && cachedTime) {
-        const isExpired = Date.now() - Number(cachedTime) > CACHE_DURATION;
+      const savedLocation =
+        localStorage.getItem("user_location");
   
-        if (!isExpired) {
-          console.log('[Trending] Using cached data');
-          return JSON.parse(cached).slice(0, limit);
+      let userCity = "global";
+      let userState = "global";
+  
+      if (savedLocation) {
+        const parsedLocation =
+          JSON.parse(savedLocation);
+  
+        userCity =
+          parsedLocation.city || "global";
+  
+        userState =
+          parsedLocation.state || "global";
+      }
+  
+      // --------------------------
+      // CHECK CACHE
+      // --------------------------
+  
+      const cached =
+        localStorage.getItem(
+          TOPICS_CACHE_KEY
+        );
+  
+      if (cached) {
+        const parsed = JSON.parse(cached);
+  
+        const isValid =
+          Date.now() - parsed.timestamp <
+          CACHE_DURATION;
+  
+        if (isValid) {
+          console.log("Using cached topics");
+  
+          return distributeTopics(
+            parsed.data,
+            userCity,
+            userState
+          );
         }
       }
-    }
   
-    // ✅ 2. Fetch from API if no cache or expired
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-    const url = `${this.BASE_URL}/trending-data`;
+      // --------------------------
+      // FETCH TOPICS
+      // --------------------------
   
-    const normalize = (items: TrendingTopicItem[]): string[] => {
-      const topics = items
-        .map((item) => {
-          if (typeof item === 'string') return item;
-          return item.topic ?? item.title ?? item.tittle ?? item.name ?? '';
-        })
-        .map((t) => t.trim())
-        .filter(Boolean);
-  
-      // ✅ Ensure uniqueness but DON'T cut early
-      return [...new Set(topics)];
-    };
-  
-    try {
+      const url = `${this.BASE_URL}/trending-data`;
+    
       const response = await this.authorizedFetch(
         url,
         { method: 'GET' },
-        controller.signal,
       );
   
       if (!response.ok) {
-        throw new Error(`trending-data failed: ${response.status}`);
+        throw new Error(
+          "Failed to fetch trending topics"
+        );
       }
   
-      const data = await response.json();
+      const result = await response.json();
+      console.log("Trending API response:", result);
+      const topics = Array.isArray(result.message)
+      ? result.message
+      : [];
+      // --------------------------
+      // SAVE CACHE
+      // --------------------------
   
-      let topics: string[] = [];
+      localStorage.setItem(
+        TOPICS_CACHE_KEY,
+        JSON.stringify({
+          data: topics,
+          timestamp: Date.now(),
+        })
+      );
   
-      if (Array.isArray(data)) {
-        topics = normalize(data);
-      } else if (data && typeof data === 'object') {
-        const maybeTopics =
-          (data as any).topics ?? (data as any).message;
+      // --------------------------
+      // DISTRIBUTE TOPICS
+      // --------------------------
   
-        if (Array.isArray(maybeTopics)) {
-          topics = normalize(maybeTopics);
-        }
-      }
-  
-      // ❗ If backend gives less than 8, DON'T silently fail
-      if (topics.length < limit) {
-        console.warn('[Trending] Less topics from API:', topics.length);
-      }
-  
-      // ✅ 3. Store in cache
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(CACHE_KEY, JSON.stringify(topics));
-        localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
-      }
-  
-      return topics.slice(0, limit);
-    } catch (err) {
-      console.warn('[Trending] API failed, fallback to cache if exists');
-  
-      // ✅ 4. Fallback to stale cache if API fails
-      if (typeof window !== 'undefined') {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-          return JSON.parse(cached).slice(0, limit);
-        }
-      }
+      return distributeTopics(
+        topics,
+        userCity,
+        userState
+      );
+    } catch (error) {
+      console.error(
+        "Trending topics error:",
+        error
+      );
   
       return [];
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 

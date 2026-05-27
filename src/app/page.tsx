@@ -28,7 +28,9 @@ export default function Home() {
     'Cybersecurity Threats',
   ];
 
-  const [trendingTopics, setTrendingTopics] = useState<string[]>([]);
+  
+
+  const [trendingTopics, setTrendingTopics] = useState<any[]>([]);
   const [isTrendingLoading, setIsTrendingLoading] = useState(true);
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export default function Home() {
   
     (async () => {
       try {
-        const topics = await ApiService.getTrendingTopics(12);
+        const topics = await ApiService.getTrendingTopics();
   
         if (!mounted) return;
   
@@ -159,14 +161,14 @@ export default function Home() {
                 </span>
               ))
             ) : (
-              trendingTopics.slice(0, 12).map((topic, i) => (
+              trendingTopics.slice(0, 18).map((topic, i) => (
               <button
                 key={i}
                 onClick={() => handleSearch(topic)}
                 className="text-[13px] font-medium text-grey-600 bg-[#ffffff] hover:bg-[#ebebed] hover:text-[#1d1d1f] px-3.5 py-1.5 rounded-full transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
                 style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
               >
-                {topic}
+                {topic.tittle}
               </button>
               ))
             )}

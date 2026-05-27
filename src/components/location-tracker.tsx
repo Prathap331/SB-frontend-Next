@@ -4,35 +4,48 @@ import { useEffect } from 'react';
 
 export default function LocationTracker() {
   useEffect(() => {
-    // Check if browser supports geolocation
     if (!navigator.geolocation) {
       console.log('Geolocation not supported');
       return;
     }
 
-    // Ask for location permission
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        const latitude = position.coords.latitude;
-        const longitude = position.coords.longitude;
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
 
-        console.log('User Location:', latitude, longitude);
+        const response = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`
+        );
 
-        // OPTIONAL:
-        // Send location to backend/database
-        // await fetch('/api/save-location', {
-        //   method: 'POST',
-        //   headers: {
-        //     'Content-Type': 'application/json',
-        //   },
-        //   body: JSON.stringify({
-        //     latitude,
-        //     longitude,
-        //   }),
-        // });
+        const data = await response.json();
+
+        const userLocation = {
+          city: (
+            data.city ||
+            data.locality ||
+            "global"
+          ).toLowerCase(),
+
+          state: (
+            data.principalSubdivision ||
+            "global"
+          ).toLowerCase(),
+        };
+
+        console.log("user location:", userLocation);
+
+        // SAVE LOCATION
+        localStorage.setItem(
+          "user_location",
+          JSON.stringify(userLocation)
+        );
       },
       (error) => {
-        console.log('Location permission denied or error:', error.message);
+        console.log(
+          'Location permission denied:',
+          error.message
+        );
       }
     );
   }, []);
