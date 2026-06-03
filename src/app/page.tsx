@@ -56,9 +56,14 @@ export default function Home() {
     };
   }, []);
 
-  const handleSearch = (topic: string) => {
-    if (topic.trim()) {
-      router.push(`/search/${encodeURIComponent(topic)}`);
+  const handleSearch = (topic: any) => {
+    const searchText =
+      typeof topic === "string"
+        ? topic
+        : topic?.tittle;
+  
+    if (searchText.trim()) {
+      router.push(`/search/${encodeURIComponent(searchText)}`);
     }
   };
 
@@ -164,7 +169,7 @@ export default function Home() {
               trendingTopics.slice(0, 18).map((topic, i) => (
               <button
                 key={i}
-                onClick={() => handleSearch(topic)}
+                onClick={() => handleSearch(topic.tittle)}
                 className="text-[13px] font-medium text-grey-600 bg-[#ffffff] hover:bg-[#ebebed] hover:text-[#1d1d1f] px-3.5 py-1.5 rounded-full transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
                 style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
               >
