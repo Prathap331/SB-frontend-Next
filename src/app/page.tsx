@@ -5,64 +5,110 @@ import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import ComingFeatures from '../components/ComingFeatures';
 import Footer from '../components/Footer';
-import { Search, TrendingUp, ArrowUpRight } from 'lucide-react';
+import { Search, TrendingUp, ArrowUpRight, MapPin, Globe, Newspaper } from 'lucide-react';
 import StoryBitPipeline from '@/components/Architecture';
 import { ApiService } from '@/services/api';
 import CategorySlider from '@/components/CategorySlider';
 import SuggestedTopics from '@/components/SuggestedTopics';
 
+type Tab = 'foryou' | 'national' | 'global';
+
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  { id: 'foryou',   label: 'Local News',      icon: <MapPin  className="w-3.5 h-3.5" /> },
+  { id: 'national', label: 'National News',     icon: <Newspaper className="w-3.5 h-3.5" /> },
+  { id: 'global',   label: 'Global News',  icon: <Globe   className="w-3.5 h-3.5" /> },
+];
+
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
 
-  const fallbackTrendingTopics = [
-    'AI Revolution in Healthcare',
-    'Climate Change Solutions',
-    'Space Exploration Updates',
-    'Cryptocurrency Market Trends',
-    'Remote Work Future',
-    'Renewable Energy Breakthrough',
-    'Electric Vehicle Adoption',
-    'Quantum Computing Advances',
-    'Mental Health Awareness',
-    'Cybersecurity Threats',
-  ];
+  // ── Tab state ──────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<Tab>('foryou');
 
-  
+  // Topics per tab
+  const [forYouTopics,   setForYouTopics]   = useState<any[]>([]);
+  const [nationalTopics, setNationalTopics] = useState<any[]>([]);
+  const [globalTopics,   setGlobalTopics]   = useState<any[]>([]);
 
-  const [trendingTopics, setTrendingTopics] = useState<any[]>([]);
-  const [isTrendingLoading, setIsTrendingLoading] = useState(true);
+  // Loading per tab
+  const [loadingForYou,   setLoadingForYou]   = useState(true);
+  const [loadingNational, setLoadingNational] = useState(false);
+  const [loadingGlobal,   setLoadingGlobal]   = useState(false);
 
+  // Track which tabs have been fetched already
+  const [fetchedTabs, setFetchedTabs] = useState<Set<Tab>>(new Set());
+
+  // ── Initial load: "For You" ────────────────────────────────────
   useEffect(() => {
     let mounted = true;
-  
     (async () => {
       try {
-        const topics = await ApiService.getTrendingTopics();
-  
-        if (!mounted) return;
-  
-        setTrendingTopics(topics); // ✅ no fallback merge
+        const topics = await ApiService.getForYouTopics();
+        if (mounted) setForYouTopics(topics);
       } catch (err) {
-        console.error('Trending fetch failed:', err);
-        // ❌ DO NOTHING (no fallback)
+        console.error('For You fetch failed:', err);
       } finally {
-        if (mounted) setIsTrendingLoading(false);
+        if (mounted) {
+          setLoadingForYou(false);
+          setFetchedTabs(prev => new Set(prev).add('foryou'));
+        }
       }
     })();
-  
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
+  // ── Lazy load on tab switch ────────────────────────────────────
+  useEffect(() => {
+    if (fetchedTabs.has(activeTab)) return;
+
+    let mounted = true;
+
+    if (activeTab === 'national') {
+      setLoadingNational(true);
+      ApiService.getNationalTopics()
+        .then(topics => { if (mounted) setNationalTopics(topics); })
+        .catch(err => console.error('National fetch failed:', err))
+        .finally(() => {
+          if (mounted) {
+            setLoadingNational(false);
+            setFetchedTabs(prev => new Set(prev).add('national'));
+          }
+        });
+    }
+
+    if (activeTab === 'global') {
+      setLoadingGlobal(true);
+      ApiService.getGlobalTopics()
+        .then(topics => { if (mounted) setGlobalTopics(topics); })
+        .catch(err => console.error('Global fetch failed:', err))
+        .finally(() => {
+          if (mounted) {
+            setLoadingGlobal(false);
+            setFetchedTabs(prev => new Set(prev).add('global'));
+          }
+        });
+    }
+
+    return () => { mounted = false; };
+  }, [activeTab, fetchedTabs]);
+
+  // ── Helpers ────────────────────────────────────────────────────
+  const activeTopics = activeTab === 'foryou'
+    ? forYouTopics
+    : activeTab === 'national'
+    ? nationalTopics
+    : globalTopics;
+
+  const isLoading = activeTab === 'foryou'
+    ? loadingForYou
+    : activeTab === 'national'
+    ? loadingNational
+    : loadingGlobal;
+
   const handleSearch = (topic: any) => {
-    const searchText =
-      typeof topic === "string"
-        ? topic
-        : topic?.tittle;
-  
-    if (searchText.trim()) {
+    const searchText = typeof topic === 'string' ? topic : topic?.tittle;
+    if (searchText?.trim()) {
       router.push(`/search/${encodeURIComponent(searchText)}`);
     }
   };
@@ -78,28 +124,24 @@ export default function Home() {
           aria-hidden
           className="pointer-events-none absolute inset-0 flex items-center justify-center"
         >
-          <div className="w-[min(800px,100vw)] h-[400px] rounded-full bg-white/60 blur-3xl" />
+          <div className="w-[min(800px,100vw)] h-[400px] rounded-full " />
         </div>
 
         <div className="relative max-w-4xl mx-auto text-center">
 
           <div className='flex flex-wrap sm:gap-2 mx-auto justify-center'>
-
-          {/* pill badge */}
-          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            2000+ Digital creators
-          </div>
-
-          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            40K+ Script Generated
-          </div>
-
-          <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Your AI Script Assistant
-          </div>
+            <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              2000+ Digital creators
+            </div>
+            <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              40K+ Script Generated
+            </div>
+            <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              Your AI Script Assistant
+            </div>
           </div>
 
           <h1
@@ -145,41 +187,74 @@ export default function Home() {
             </div>
           </div>
         </div>
-      {/* ── Trending Topics ── */}
-      <section className="py-6 sm:py-10 px-5 sm:px-8 border-b border-gray-100">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex flex-wrap gap-2 items-center justify-center">
-            {/* Label chip */}
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-black px-3 py-1.5 rounded-full">
-              <TrendingUp className="w-3.5 h-3.5" />
-              Trending
-            </span>
 
-            {isTrendingLoading && trendingTopics.length === 0 ? (
-              Array.from({ length: 12 }).map((_, i) => (
+        {/* ── Trending Topics with Tabs ── */}
+        <section className="py-6 sm:py-10 px-5 sm:px-8 border-b border-gray-100">
+          <div className="max-w-5xl mx-auto">
+
+            {/* Tab row */}
+            <div className="flex flex-wrap justify-center items-center gap-2 mb-5">
+              {/* Trending label chip */}
+              {/* <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-black px-3 py-1.5 rounded-full">
+                <TrendingUp className="w-3.5 h-3.5" />
+                Trending
+              </span> */}
+
+              {/* Tab pills */}
+              <div className="flex items-center  gap-1.5 bg-white border border-gray-200 rounded-full px-1 py-1 shadow-sm">
+                {TABS.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-medium px-3 py-1 rounded-full transition-all duration-200 ${
+                      activeTab === tab.id
+                        ? 'bg-[#1d1d1f] text-white'
+                        : 'text-black hover:text-black hover:bg-[#f5f5f7]'
+                    }`}
+                    style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Topic chips */}
+            <div className="flex flex-wrap gap-2">
+              {isLoading && activeTopics.length === 0 ? (
+                Array.from({ length: 12 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="text-[13px] font-medium text-grey-600 bg-white px-3.5 py-1.5 rounded-full opacity-60 animate-pulse border border-gray-100"
+                    style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
+                  >
+                    Loading…
+                  </span>
+                ))
+              ) : activeTopics.length === 0 ? (
                 <span
-                  key={i}
-                  className="text-[13px] font-medium text-grey-600 bg-[#ffffff] px-3.5 py-1.5 rounded-full opacity-60 animate-pulse"
+                  className="text-[13px] text-[#6e6e73] px-3.5 py-1.5"
                   style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
                 >
-                  Loading…
+                  No topics available right now.
                 </span>
-              ))
-            ) : (
-              trendingTopics.slice(0, 18).map((topic, i) => (
-              <button
-                key={i}
-                onClick={() => handleSearch(topic.tittle)}
-                className="text-[13px] font-medium text-grey-600 bg-[#ffffff] hover:bg-[#ebebed] hover:text-[#1d1d1f] px-3.5 py-1.5 rounded-full transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
-                style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
-              >
-                {topic.tittle}
-              </button>
-              ))
-            )}
+              ) : (
+                activeTopics.map((topic, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSearch(topic.tittle)}
+                    className="text-[13px] font-medium text-grey-600 bg-white hover:bg-[#ebebed] hover:text-[#1d1d1f] px-3.5 py-1.5 rounded-full transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] border border-gray-100"
+                    style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
+                  >
+                    {topic.tittle}
+                  </button>
+                ))
+              )}
+            </div>
+
           </div>
-        </div>
-      </section>
+        </section>
       </section>
 
 
@@ -204,23 +279,19 @@ export default function Home() {
 
       {/* ── Top Content Categories ── */}
       <section className="bg-white pt-10 sm:pt-14 md:pt-16 px-8">
-      <div className="max-w-8xl mx-auto">
-      <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f] mb-2">
-        Top Content Categories
-      </h2>
-      <CategorySlider />
-      </div>
+        <div className="max-w-8xl mx-auto">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f] mb-2">
+            Top Content Categories
+          </h2>
+          <CategorySlider />
+        </div>
       </section>
 
-
       {/* ── Why it's different ── */}
-      <section className="bg-white py-10 sm:py-14 md:py-16 px-8  ">
+      <section className="bg-white py-10 sm:py-14 md:py-16 px-8">
         <div className="max-w-8xl mx-auto">
           <div className="mb-10">
-            <h2
-              className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f]"
-              // style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
-            >
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f]">
               Why it&apos;s different.
             </h2>
             <p className="mt-3 text-[#6e6e73] text-base sm:text-lg font-light">

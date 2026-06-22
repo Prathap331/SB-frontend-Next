@@ -801,105 +801,118 @@ export class ApiService {
 
   
 
-  static async getTrendingTopics() {
-    try {
-      // --------------------------
-      // GET USER LOCATION
-      // --------------------------
-  
-      const savedLocation =
-        localStorage.getItem("user_location");
-  
-      let userCity = "global";
-      let userState = "global";
-  
-      if (savedLocation) {
-        const parsedLocation =
-          JSON.parse(savedLocation);
-  
-        userCity =
-          parsedLocation.city || "global";
-  
-        userState =
-          parsedLocation.state || "global";
+ // ─────────────────────────────────────────────────────────────────────────────
+// Add these three methods inside the ApiService class,
+// replacing the existing getTrendingTopics method.
+// ─────────────────────────────────────────────────────────────────────────────
+
+  /** Fetch all raw topics from the API (with cache). */
+  private static async fetchAllTopics(): Promise<any[]> {
+    const cached = typeof window !== 'undefined' && localStorage.getItem(TOPICS_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.timestamp < CACHE_DURATION) {
+        return parsed.data;
       }
-  
-      // --------------------------
-      // CHECK CACHE
-      // --------------------------
-  
-      const cached =
-        localStorage.getItem(
-          TOPICS_CACHE_KEY
-        );
-  
-      if (cached) {
-        const parsed = JSON.parse(cached);
-  
-        const isValid =
-          Date.now() - parsed.timestamp <
-          CACHE_DURATION;
-  
-        if (isValid) {
-          console.log("Using cached topics");
-  
-          return distributeTopics(
-            parsed.data,
-            userCity,
-            userState
-          );
-        }
-      }
-  
-      // --------------------------
-      // FETCH TOPICS
-      // --------------------------
-  
-      const url = `${this.BASE_URL}/trending-data`;
-    
-      const response = await this.authorizedFetch(
-        url,
-        { method: 'GET' },
-      );
-  
-      if (!response.ok) {
-        throw new Error(
-          "Failed to fetch trending topics"
-        );
-      }
-  
-      const result = await response.json();
-      console.log("Trending API response:", result);
-      const topics = Array.isArray(result.message)
-      ? result.message
-      : [];
-      // --------------------------
-      // SAVE CACHE
-      // --------------------------
-  
+    }
+
+    const url = `${this.BASE_URL}/trending-data`;
+    const response = await this.authorizedFetch(url, { method: 'GET' });
+    if (!response.ok) throw new Error('Failed to fetch trending topics');
+
+    const result = await response.json();
+    const topics = Array.isArray(result.message) ? result.message : [];
+
+    if (typeof window !== 'undefined') {
       localStorage.setItem(
         TOPICS_CACHE_KEY,
-        JSON.stringify({
-          data: topics,
-          timestamp: Date.now(),
-        })
+        JSON.stringify({ data: topics, timestamp: Date.now() })
       );
-  
-      // --------------------------
-      // DISTRIBUTE TOPICS
-      // --------------------------
-  
-      return distributeTopics(
-        topics,
-        userCity,
-        userState
+    }
+    return topics;
+  }
+
+  /** Tab 1 — "For You": local city/state topics, up to 18. */
+  static async getForYouTopics(): Promise<any[]> {
+    try {
+      const topics = await this.fetchAllTopics();
+
+      const savedLocation = typeof window !== 'undefined' && localStorage.getItem('user_location');
+      let userCity = 'global';
+      let userState = 'global';
+      if (savedLocation) {
+        const loc = JSON.parse(savedLocation);
+        userCity = (loc.city || 'global').toLowerCase();
+        userState = (loc.state || 'global').toLowerCase();
+      }
+
+      const unique = Array.from(new Map(topics.map((t: any) => [t.id, t])).values());
+
+      // City match first, then state match
+      const cityMatch = unique.filter((t: any) => t.city?.toLowerCase() === userCity);
+      const stateMatch = unique.filter(
+        (t: any) =>
+          t.state?.toLowerCase() === userState &&
+          t.city?.toLowerCase() !== userCity
       );
-    } catch (error) {
-      console.error(
-        "Trending topics error:",
-        error
-      );
-  
+
+      return [...cityMatch, ...stateMatch].slice(0, 18);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Tab 2 — "National": non-global topics (has a real state value). */
+  static async getNationalTopics(): Promise<any[]> {
+    try {
+      const topics = await this.fetchAllTopics();
+      const unique = Array.from(new Map(topics.map((t: any) => [t.id, t])).values());
+
+      return unique
+        .filter(
+          (t: any) =>
+            t.state &&
+            t.state.toLowerCase() !== 'global' &&
+            t.city?.toLowerCase() !== 'global'
+        )
+        .slice(0, 18);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Tab 3 — "Global": topics where city or state is "global". */
+  static async getGlobalTopics(): Promise<any[]> {
+    try {
+      const topics = await this.fetchAllTopics();
+      const unique = Array.from(new Map(topics.map((t: any) => [t.id, t])).values());
+
+      return unique
+        .filter(
+          (t: any) =>
+            t.city?.toLowerCase() === 'global' ||
+            t.state?.toLowerCase() === 'global'
+        )
+        .slice(0, 18);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Keep old method for backward compat (delegates to fetchAllTopics + distributeTopics). */
+  static async getTrendingTopics(): Promise<any[]> {
+    try {
+      const topics = await this.fetchAllTopics();
+      const savedLocation = typeof window !== 'undefined' && localStorage.getItem('user_location');
+      let userCity = 'global';
+      let userState = 'global';
+      if (savedLocation) {
+        const loc = JSON.parse(savedLocation);
+        userCity = loc.city || 'global';
+        userState = loc.state || 'global';
+      }
+      return distributeTopics(topics, userCity, userState);
+    } catch {
       return [];
     }
   }
