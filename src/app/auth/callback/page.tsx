@@ -589,7 +589,7 @@ export default function AuthCallback() {
                       disabled={isSaving}
                       className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
                     >
-                      {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" />Taking you in…</> : 'Go to Storybit →'}
+                      {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" />Taking you in…</> : 'Go to Storio →'}
                     </button>
                   )}
                   <button

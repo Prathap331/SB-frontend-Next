@@ -12,7 +12,7 @@ const CancellationAndRefundPolicyPage = () => {
           <p className="mb-8 text-sm text-gray-700"><strong>Last Updated:</strong> 28th Oct, 2025</p>
 
           <p className="mb-6">
-            This policy explains how subscription cancellations and refunds are handled for users of <strong>Storybit.</strong>
+            This policy explains how subscription cancellations and refunds are handled for users of <strong>Storio.</strong>
           </p>
 
           <div className="space-y-6">
@@ -38,7 +38,7 @@ const CancellationAndRefundPolicyPage = () => {
               <h2 className="text-2xl font-semibold mb-3 text-black">3.3. Refund Process</h2>
               <ul className="list-disc list-inside pl-4 space-y-2">
                 <li>Refunds will be initiated to the <strong>original payment method</strong> within <strong>7–10 business days</strong> post-approval.</li>
-                <li>To claim a refund, email <strong>support@storybit.tech</strong> with your account details and proof of issue (e.g., screenshots, downtime logs).</li>
+                <li>To claim a refund, email <strong>Support@storio.tech</strong> with your account details and proof of issue (e.g., screenshots, downtime logs).</li>
               </ul>
             </div>
 

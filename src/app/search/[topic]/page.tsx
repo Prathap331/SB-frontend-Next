@@ -527,6 +527,7 @@ export default function SearchTopicPage() {
 
 
   const [scriptIdeas, setScriptIdeas] = useState<ScriptIdea[]>([]);
+  const [topicSummary, setTopicSummary] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -714,32 +715,48 @@ useEffect(() => {
       const maxWaitMs = 300000;
       const retryDelayMs = 5000;
 
-      const applyResult = (ideas: ScriptIdea[], err: string | null) => {
-        const cacheData = { scriptIdeas: ideas, error: err, timestamp: Date.now() };
+      const applyResult = (
+        ideas: ScriptIdea[],
+        err: string | null,
+        summary: string | null = null
+      ) => {
+        const cacheData = {
+          scriptIdeas: ideas,
+          error: err,
+          timestamp: Date.now(),
+        };
+      
         saveToCache(topic, cacheData);
+      
         inFlightIdeas.delete(topic);
-        settleFetch(); // unblock any waiting mount
-        // Always update state — in Strict Mode the component is still mounted;
-        // in prod this only runs once.
+        settleFetch();
+      
         setScriptIdeas(ideas);
         setError(err);
+        setTopicSummary(summary);
         setIsLoading(false);
       };
 
       while (true) {
         try {
           const response = await ApiService.processTopic(topic);
-          console.log('[script-ideas] API response for:', topic, response);
 
-          const ideas: ScriptIdea[] = (response.ideas ?? []).map((idea, idx) => ({
-            id: idx + 1,
-            title: idea,
-            description: (response.descriptions ?? [])[idx] || 'No description available.',
-            category: getCategoryFromIndex(idx),
-          }));
+const ideas: ScriptIdea[] = (response.ideas ?? []).map((idea, idx) => ({
+  id: idx + 1,
+  title: idea,
+  description:
+    (response.descriptions ?? [])[idx] ||
+    "No description available.",
+  category: getCategoryFromIndex(idx),
+}));
 
-          applyResult(ideas, null);
-          return;
+applyResult(
+  ideas,
+  null,
+  response.summary ?? null
+);
+
+return;
         } catch (err) {
           const elapsed = Date.now() - (initialLoadStartRef.current ?? Date.now());
           const message = err instanceof Error ? err.message : String(err);
@@ -879,6 +896,32 @@ useEffect(() => {
           </div>
         </div>
       </div>
+
+      {/* Topic Summary */}
+{topicSummary && (
+  <div className="container mx-auto px-4 lg:px-8 pb-2">
+    <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 flex gap-3 items-start shadow-sm">
+      <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Globe className="w-3.5 h-3.5 text-indigo-500" />
+      </div>
+      <p className="text-sm text-[#3d3d3a] leading-relaxed">{topicSummary}</p>
+    </div>
+  </div>
+)}
+
+<div className="container mx-auto px-4 lg:px-8 pb-2">
+    <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 flex flex-col gap-3 items-start shadow-sm">
+      <div className="flex items-center gap-3">
+      <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Globe className="w-3.5 h-3.5 text-indigo-500" />
+      </div>
+      <p className="text-lg text-[#3d3d3a] font-semibold leading-relaxed">Topic Summary</p>
+      </div>
+
+
+      <p className="text-md text-[#3d3d3a] font-[500] leading-relaxed">We trace the money trail behind the Ketan Agarwal murder—insurance policies, debt write-offs, business takeovers—to expose the person who gained the most from his death. This financial forensics investigation reveals a suspect hidden in plain sight, completely overlooked by mainstream coverage.</p>
+    </div>
+  </div>
 
       {/* ── Analytics Section ── */}
       <section className="container  mx-auto px-4 lg:px-8 py-6 sm:py-4">

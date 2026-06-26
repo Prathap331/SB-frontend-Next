@@ -12,7 +12,7 @@ const TermsAndConditionsPage = () => {
           <p className="mb-8 text-sm text-gray-700"><strong>Last Updated:</strong> 28th Oct, 2025</p>
 
           <p className="mb-6">
-            Welcome to <strong>Storybit (Morpho technologies Pvt Ltd)</strong> (“Company”, “we”, “us”, “our”). These Terms and Conditions (“Terms”) govern your access to and use of our platform, software, and services available at <strong>https://www.storybit.tech/</strong> (“Platform”). By accessing or using our services, you agree to comply with these Terms.
+            Welcome to <strong>storio (Morpho technologies Pvt Ltd)</strong> (“Company”, “we”, “us”, “our”). These Terms and Conditions (“Terms”) govern your access to and use of our platform, software, and services available at <strong>https://www.storio.tech/</strong> (“Platform”). By accessing or using our services, you agree to comply with these Terms.
           </p>
 
           <div className="space-y-6">

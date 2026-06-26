@@ -13,27 +13,27 @@ const notoSans = Noto_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
-const OG_IMAGE = "https://www.storybit.tech/og-image.png";
+const OG_IMAGE = "https://www.storio.tech/og-image.png";
 
 export const metadata: Metadata = {
-  title: "StoryBit",
+  title: "storio",
   description: "AI Powered Fully Automatic Script Writing Platform for Content Creators WorldWide.",
-  keywords: "AI scriptwriter, AI script generator, AI story generator, video scriptwriting tool, content creator tools, AI writing assistant, Storybit, YouTube script generator, AI storytelling platform, scriptwriting software, screenplay generator, video content automation, AI video ideas, creative writing AI, story generation AI",
+  keywords: "AI scriptwriter, AI script generator, AI story generator, video scriptwriting tool, content creator tools, AI writing assistant, storio, YouTube script generator, AI storytelling platform, scriptwriting software, screenplay generator, video content automation, AI video ideas, creative writing AI, story generation AI",
   authors: [{ name: "Morpho Technologies Pvt Ltd" }],
   creator: "Morpho Technologies Pvt Ltd",
   publisher: "Morpho Technologies Pvt Ltd",
   robots: "index, follow",
   openGraph: {
-    title: "StoryBit",
+    title: "storio",
     description: "AI Powered Fully Automatic Script Writing Platform for Content Creators WorldWide.",
-    url: "https://www.storybit.tech",
-    siteName: "StoryBit",
+    url: "https://www.storio.tech",
+    siteName: "storio",
     images: [
       {
         url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "StoryBit",
+        alt: "storio",
         type: "image/jpeg",
       },
     ],
@@ -42,12 +42,12 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "StoryBit",
+    title: "storio",
     description: "AI Powered Fully Automatic Script Writing Platform for Content Creators WorldWide.",
     images: [OG_IMAGE],
   },
   alternates: {
-    canonical: process.env.NEXT_PUBLIC_SITE_URL || 'https://storybit.tech',
+    canonical: process.env.NEXT_PUBLIC_SITE_URL || 'https://storio.tech',
   },
   icons: {
     icon: "/favicon_io/favicon.ico",
@@ -97,18 +97,18 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="512x512" href="/favicon_io/android-chrome-512x512.png" />
         {/* Explicit OG tags — ensures WhatsApp, iMessage, and older crawlers read them */}
         <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="StoryBit" />
-        <meta property="og:url" content="https://www.storybit.tech" />
-        <meta property="og:title" content="StoryBit — Write Your YouTube Script in 3 Minutes" />
+        <meta property="og:site_name" content="storio" />
+        <meta property="og:url" content="https://www.storio.tech" />
+        <meta property="og:title" content="storio — Write Your YouTube Script in 3 Minutes" />
         <meta property="og:description" content="AI that transforms your ideas into engaging, factual, research-backed YouTube scripts." />
-        <meta property="og:image" content="https://www.storybit.tech/og-image.png" />
+        <meta property="og:image" content="https://www.storio.tech/og-image.png" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:image:type" content="image/jpeg" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="StoryBit — Write Your YouTube Script in 3 Minutes" />
+        <meta name="twitter:title" content="storio — Write Your YouTube Script in 3 Minutes" />
         <meta name="twitter:description" content="AI that transforms your ideas into engaging, factual, research-backed YouTube scripts." />
-        <meta name="twitter:image" content="https://www.storybit.tech/og-image.png" />
+        <meta name="twitter:image" content="https://www.storio.tech/og-image.png" />
       </head>
       <body className={`${notoSans.className} antialiased`}>
         <Providers>

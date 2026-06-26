@@ -96,6 +96,7 @@ export interface PipelineMetricsResponse {
 export interface ProcessTopicResponse {
   ideas: string[];
   descriptions: string[];
+  summary?: string;
 }
 
 export interface SignUpRequest {
@@ -646,6 +647,7 @@ export class ApiService {
       return {
         ideas: data.ideas || [],
         descriptions: data.descriptions || [],
+        summary: data.summary || null,
       };
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
@@ -792,6 +794,7 @@ export class ApiService {
       `Explore the environmental and sustainability aspects of ${topic}. This analysis examines ecological considerations, sustainable practices, and the environmental impact of current trends and developments.`,
       `Discover the latest innovations and breakthroughs in ${topic}. This analysis covers cutting-edge developments, technological advances, and emerging solutions that are shaping the future of this field.`
     ];
+    
 
     return {
       ideas,

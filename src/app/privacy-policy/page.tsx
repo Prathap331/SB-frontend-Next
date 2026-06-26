@@ -12,7 +12,7 @@ const PrivacyPolicyPage = () => {
           <p className="mb-8 text-sm text-gray-700"><strong>Last Updated:</strong> 28th Oct, 2025</p>
 
           <p className="mb-6">
-            At <strong>Storybit</strong> we respect your privacy and are committed to protecting your personal information in compliance with the <strong>Information Technology Act, 2000</strong>, and the <strong>Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011</strong> (“SPDI Rules”).
+            At <strong>storio</strong> we respect your privacy and are committed to protecting your personal information in compliance with the <strong>Information Technology Act, 2000</strong>, and the <strong>Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011</strong> (“SPDI Rules”).
           </p>
 
           <div className="space-y-6">
@@ -72,7 +72,7 @@ const PrivacyPolicyPage = () => {
                 <li>Withdraw consent for data processing.</li>
                 <li>Request deletion of your account and associated data.</li>
               </ul>
-              <p className="mt-4">Contact: <strong>support@storybit.tech</strong></p>
+              <p className="mt-4">Contact: <strong>Support@storio.tech</strong></p>
             </div>
 
             <div>
@@ -80,7 +80,7 @@ const PrivacyPolicyPage = () => {
               <p className="mb-4">In compliance with Rule 5(9) of the SPDI Rules, the Grievance Officer for data protection issues is:</p>
               <ul className="list-none pl-4 space-y-1">
                 <li><strong>Name:</strong> Prathap Kothapalli</li>
-                <li><strong>Email:</strong> pj@storybit.tech</li>
+                <li><strong>Email:</strong> pj@storio.tech</li>
                 <li><strong>Address:</strong> Flat no. 502, Meenakshi enclave MIG 891, KPHB phase 3, Hyderabad, 500072</li>
                 <li><strong>Response Time:</strong> Within 30 days of complaint receipt.</li>
               </ul>

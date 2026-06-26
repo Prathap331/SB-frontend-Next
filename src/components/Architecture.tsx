@@ -10,13 +10,13 @@ const nodes = [
   },
   {
     id: "engine",
-    heading: "StoryBit Intelligence Engine",
+    heading: "storio Intelligence Engine",
     label: "Analyze top-performing content to uncover proven revenue-driving patterns. Break down winning content to reveal  opportunities",
     image: "https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=400&h=400&fit=crop&q=80",
   },
   {
     id: "data",
-    heading: "StoryBit Knowledge Vault",
+    heading: "storio Knowledge Vault",
     label: "Access deep insights across news, history, books and science,ower your content with rich, multi-domain knowledge intelligence",
     image: "https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=300&h=300&fit=crop&q=80",
   },
@@ -152,7 +152,7 @@ export default function StoryBitPipeline() {
         className="text-2xl md:text-3xl font-semibold tracking-tight text-[#1d1d1f] mb-1 text-center"
         style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
       >
-        StoryBit Pipeline
+        storio Pipeline
       </h1>
       <p
         className="text-xs tracking-widest text-[#6e6e73] mb-16 text-center font-light uppercase"

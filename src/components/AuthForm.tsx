@@ -121,7 +121,7 @@ export default function AuthForm() {
           </h1>
           <p className="text-sm text-[#6e6e73] font-light">
             {!isSignUp
-              ? 'Sign in to continue to Storybit'
+              ? 'Sign in to continue to storio'
               : emailSent
               ? `We sent a confirmation link to ${formData.email}`
               : 'Start creating research-backed YouTube scripts'}

@@ -250,7 +250,7 @@ function CheckoutInner() {
                 <IconComponent className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-base font-semibold text-[#1d1d1f]">StoryBit {planName}</p>
+                <p className="text-base font-semibold text-[#1d1d1f]">storio {planName}</p>
                 <p className="text-sm text-[#6e6e73] font-light">{planDesc}</p>
               </div>
               <div className="text-right flex-shrink-0">
@@ -377,7 +377,7 @@ function CheckoutInner() {
           </div>
           <div className="px-6 py-5 space-y-3">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-[#6e6e73] font-light">StoryBit {planName}</span>
+              <span className="text-[#6e6e73] font-light">storio {planName}</span>
               <span className="font-semibold text-[#1d1d1f]">{planPrice}</span>
             </div>
             <div className="flex items-center justify-between text-sm">

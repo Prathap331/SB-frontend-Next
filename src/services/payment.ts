@@ -166,7 +166,7 @@ export async function initiatePayment(
     key: keyId,
     amount: amount,
     currency: 'INR',
-    name: 'StoryBit AI',
+    name: 'storio AI',
     description: 'Subscription Payment',
     order_id: orderId,
     handler: function (response: any) {

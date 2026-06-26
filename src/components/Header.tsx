@@ -187,8 +187,8 @@ const Header = () => {
         {/* Logo */}
         <Link href="/" className="flex items-center hover:opacity-75 transition-opacity duration-200">
           <Image
-            src="/Logo.png"
-            alt="Storybit"
+            src="/header-logo.png"
+            alt="storio"
             width={140}
             height={36}
             className="h-8 w-auto"

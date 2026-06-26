@@ -12,9 +12,9 @@ export async function POST(req: NextRequest) {
     }
 
     const { error } = await resend.emails.send({
-      from: 'StoryBit <noreply@storybit.tech>',
+      from: 'Storio <noreply@storybit.tech>',
       to: email,
-      subject: `Your StoryBit ${planName} plan is active!`,
+      subject: `Your Storio ${planName} plan is active!`,
       html: `
 <!DOCTYPE html>
 <html lang="en">
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
           <!-- Header -->
           <tr>
             <td style="padding:36px 40px 28px;border-bottom:1px solid #f0f0f0;text-align:center;">
-              <p style="margin:0 0 4px;font-size:22px;font-weight:700;color:#1d1d1f;letter-spacing:-0.5px;">StoryBit</p>
+              <p style="margin:0 0 4px;font-size:22px;font-weight:700;color:#1d1d1f;letter-spacing:-0.5px;">storio</p>
               <p style="margin:0;font-size:13px;color:#6e6e73;font-weight:400;">AI Script Writing Platform</p>
             </td>
           </tr>
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
               </div>
               <h1 style="margin:0 0 8px;font-size:20px;font-weight:600;color:#1d1d1f;">Payment confirmed!</h1>
               <p style="margin:0;font-size:14px;color:#6e6e73;line-height:1.6;">
-                Your <strong style="color:#1d1d1f;">StoryBit ${planName}</strong> plan is now active.<br/>
+                Your <strong style="color:#1d1d1f;">storio ${planName}</strong> plan is now active.<br/>
                 Start creating your next script right away.
               </p>
             </td>
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td style="font-size:12px;color:#6e6e73;">Plan</td>
-                        <td align="right" style="font-size:12px;font-weight:600;color:#1d1d1f;">StoryBit ${planName}</td>
+                        <td align="right" style="font-size:12px;font-weight:600;color:#1d1d1f;">storio ${planName}</td>
                       </tr>
                     </table>
                   </td>
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
           <!-- CTA -->
           <tr>
             <td style="padding:0 40px 36px;text-align:center;">
-              <a href="https://www.storybit.tech" style="display:inline-block;background:#1d1d1f;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:14px 32px;border-radius:12px;">
+              <a href="https://www.storio.tech" style="display:inline-block;background:#1d1d1f;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:14px 32px;border-radius:12px;">
                 Start writing scripts →
               </a>
             </td>
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
           <tr>
             <td style="padding:20px 40px;border-top:1px solid #f0f0f0;text-align:center;">
               <p style="margin:0;font-size:11px;color:#a1a1a6;line-height:1.6;">
-                If you have any questions, contact us at support@storybit.tech<br/>
+                If you have any questions, contact us at Support@storio.tech<br/>
                 © ${new Date().getFullYear()} Morpho Technologies Pvt Ltd
               </p>
             </td>

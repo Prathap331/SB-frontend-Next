@@ -12,8 +12,8 @@ const Footer = () => {
           <div className="sm:col-span-2 md:col-span-1">
             <Link href="/" className="inline-block hover:opacity-80 transition-opacity mb-4">
               <Image
-                src="/White logo.png"
-                alt="Storybit"
+                src="/footer-logo.png"
+                alt="storio"
                 width={120}
                 height={30}
                 className="h-7 w-auto"
@@ -45,11 +45,11 @@ const Footer = () => {
             </h4>
             <div className="space-y-3">
               <a
-                href="mailto:support@storybit.tech"
+                href="mailto:Support@storio.tech"
                 className="flex items-center gap-2 text-sm text-[#6e6e73] hover:text-white transition-colors font-light"
               >
                 <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                support@storybit.tech
+                Support@storio.tech
               </a>
               <a
                 href="tel:+919000449855"

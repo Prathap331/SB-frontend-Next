@@ -6,11 +6,11 @@ import { ArrowLeft } from 'lucide-react';
 const sections = [
   {
     title: 'Cancellation',
-    body: `You may cancel your StoryBit subscription at any time from your account settings or by contacting our support team. Cancellations take effect at the end of the current billing period — you will retain full access to your plan features until that date.`,
+    body: `You may cancel your storio subscription at any time from your account settings or by contacting our support team. Cancellations take effect at the end of the current billing period — you will retain full access to your plan features until that date.`,
   },
   {
     title: 'Refund policy',
-    body: `StoryBit does not offer refunds for partial months or unused script generation minutes. If you cancel mid-cycle, your subscription remains active until the billing period ends and you will not be charged again. We may, at our sole discretion, issue a refund in exceptional circumstances.`,
+    body: `storio does not offer refunds for partial months or unused script generation minutes. If you cancel mid-cycle, your subscription remains active until the billing period ends and you will not be charged again. We may, at our sole discretion, issue a refund in exceptional circumstances.`,
   },
   {
     title: 'Auto-renewal',
@@ -26,7 +26,7 @@ const sections = [
   },
   {
     title: 'Contact us',
-    body: `If you have questions about billing or need help cancelling, reach us at  support@storybit.tech ,We aim to respond within one business day.`,
+    body: `If you have questions about billing or need help cancelling, reach us at  Support@storio.tech ,We aim to respond within one business day.`,
   },
 ];
 
@@ -78,7 +78,7 @@ export default async function CancellationPolicy({
 
         {/* Footer note */}
         <p className="text-center text-xs text-[#6e6e73] mt-8 font-light">
-          These terms may change. Continued use of StoryBit after changes constitutes acceptance.
+          These terms may change. Continued use of storio after changes constitutes acceptance.
         </p>
       </div>
 

@@ -15,9 +15,9 @@ serve(async (req) => {
     } = body
 
     const data = await resend.emails.send({
-      from: 'StoryBit <noreply@storybit.tech>',
+      from: 'Storio <noreply@storybit.tech>',
       to: [email],
-      subject: 'Your StoryBit Subscription is Active 🎉',
+      subject: 'Your storio Subscription is Active 🎉',
 
       html: `
         <h2>Payment Successful</h2>
