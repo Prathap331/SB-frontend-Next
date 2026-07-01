@@ -909,7 +909,7 @@ return;
   </div>
 )}
 
-<div className="container mx-auto px-4 lg:px-8 pb-2">
+{/* <div className="container mx-auto px-4 lg:px-8 pb-2">
     <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 flex flex-col gap-3 items-start shadow-sm">
       <div className="flex items-center gap-3">
       <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -921,7 +921,7 @@ return;
 
       <p className="text-md text-[#3d3d3a] font-[500] leading-relaxed">We trace the money trail behind the Ketan Agarwal murder—insurance policies, debt write-offs, business takeovers—to expose the person who gained the most from his death. This financial forensics investigation reveals a suspect hidden in plain sight, completely overlooked by mainstream coverage.</p>
     </div>
-  </div>
+  </div> */}
 
       {/* ── Analytics Section ── */}
       <section className="container  mx-auto px-4 lg:px-8 py-6 sm:py-4">
