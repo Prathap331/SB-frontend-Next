@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { error } = await resend.emails.send({
-      from: 'Storio <noreply@storybit.tech>',
+      from: 'Storio <support@storio.tech>',
       to: email,
       subject: `Your Storio ${planName} plan is active!`,
       html: `

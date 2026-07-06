@@ -39,6 +39,15 @@ export default function Home() {
   // Track which tabs have been fetched already
   const [fetchedTabs, setFetchedTabs] = useState<Set<Tab>>(new Set());
 
+  // ── Inline search warning popup ──────────────────────────────────
+  const [searchWarning, setSearchWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!searchWarning) return;
+    const timer = setTimeout(() => setSearchWarning(null), 3500);
+    return () => clearTimeout(timer);
+  }, [searchWarning]);
+
   // ── Initial load: "For You" ────────────────────────────────────
   useEffect(() => {
     let mounted = true;
@@ -113,12 +122,27 @@ export default function Home() {
     }
   };
 
+  const handleGenerate = async () => {
+    const wordCount = searchQuery
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean).length;
+
+    if (wordCount < 4) {
+      setSearchWarning('For better AI responses, please describe your search using at least 4 words.');
+      return;
+    }
+
+    setSearchWarning(null);
+    router.push(`/search/${encodeURIComponent(searchQuery)}`);
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <Header />
 
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-[#f5f5f7] pt-10 pb-4 sm:pt-14 sm:pb-6 md:pt-20 md:pb-8 px-5 sm:px-8">
+      <section className="relative overflow-hidden bg-[#f5f5f7] pt-10 pb-4 sm:pt-10 sm:pb-6  md:pb-8 px-5 sm:px-8">
         {/* subtle radial glow */}
         <div
           aria-hidden
@@ -163,21 +187,26 @@ export default function Home() {
           </p>
 
           {/* Search bar */}
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-2xl mx-auto relative">
             <div className="relative flex items-center bg-white rounded-full shadow-lg shadow-black/[0.08] border border-gray-200/80 overflow-hidden transition-shadow hover:shadow-xl hover:shadow-black/[0.10] focus-within:shadow-xl focus-within:shadow-black/[0.12] focus-within:border-gray-300">
               <Search className="absolute left-4 sm:left-5 w-4 h-4 sm:w-5 sm:h-5 text-[#6e6e73] pointer-events-none flex-shrink-0" />
               <input
                 type="text"
-                placeholder="Search topics, events, ideas…"
+                placeholder="Describe your search using at least 4 words for the best AI results."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch(searchQuery)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (searchWarning) setSearchWarning(null);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
                 className="flex-1 pl-10 sm:pl-12 pr-2 py-3 sm:py-4 text-sm sm:text-[15px] text-[#1d1d1f] placeholder-[#a1a1a6] bg-transparent outline-none font-normal min-w-0"
                 style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
               />
+
               <div className="pr-1.5 sm:pr-2 flex-shrink-0">
                 <button
-                  onClick={() => handleSearch(searchQuery)}
+                   onClick={handleGenerate}
+                   disabled={isLoading}
                   className="bg-[#1d1d1f] hover:bg-black text-white text-[12px] sm:text-[13px] font-medium px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
                   style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
                 >
@@ -185,6 +214,20 @@ export default function Home() {
                 </button>
               </div>
             </div>
+
+            {/* Inline warning popup */}
+            {searchWarning && (
+              <div
+                className="absolute left-1/2 -translate-x-1/2 top-full mt-3 z-30 w-[90%] sm:w-auto sm:max-w-sm animate-in fade-in slide-in-from-top-1 duration-200"
+                role="alert"
+              >
+                <div className="relative bg-[#1d1d1f] text-white text-[12px] sm:text-[13px] font-medium px-4 py-2.5 rounded-xl shadow-xl text-center leading-snug">
+                  {/* arrow */}
+                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1d1d1f] rotate-45" />
+                  {searchWarning}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -194,13 +237,6 @@ export default function Home() {
 
             {/* Tab row */}
             <div className="flex flex-wrap justify-center items-center gap-2 mb-5">
-              {/* Trending label chip */}
-              {/* <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-black px-3 py-1.5 rounded-full">
-                <TrendingUp className="w-3.5 h-3.5" />
-                Trending
-              </span> */}
-
-              {/* Tab pills */}
               <div className="flex items-center  gap-1.5 bg-white border border-gray-200 rounded-full px-1 py-1 shadow-sm">
                 {TABS.map(tab => (
                   <button
@@ -221,7 +257,7 @@ export default function Home() {
             </div>
 
             {/* Topic chips */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               {isLoading && activeTopics.length === 0 ? (
                 Array.from({ length: 12 }).map((_, i) => (
                   <span
