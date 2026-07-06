@@ -16,15 +16,14 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ['productivity', 'business'],
     icons: [
       {
-        src: '/icon',
-        sizes: '32x32',
+        src: '/favicon_io/android-chrome-192x192.png',
+        sizes: '192x192',
         type: 'image/png',
       },
       {
-        src: '/apple-icon',
-        sizes: '180x180',
+        src: '/favicon_io/android-chrome-512x512.png',
+        sizes: '512x512',
         type: 'image/png',
-        purpose: 'any',
       },
     ],
     id: SITE_URL,
