@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+'use client';
+
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 const nodes = [
@@ -27,6 +30,29 @@ const nodes = [
     image: "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=300&h=300&fit=crop&q=80",
   },
 ];
+
+function PipelineImage({
+  src,
+  alt,
+  size,
+  className = 'w-full h-full object-cover grayscale hover:scale-105 transition-all duration-500',
+}: {
+  src: string;
+  alt: string;
+  size: number;
+  className?: string;
+}) {
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      width={size}
+      height={size}
+      className={className}
+      sizes={`${size}px`}
+    />
+  );
+}
 
 // ─── SVG Connectors ────────────────────────────────────────────────────────
 
@@ -111,11 +137,7 @@ function Circle({
         transition: `opacity 0.6s ease ${delay}s, transform 0.6s ease ${delay}s`,
       }}
     >
-      <img
-        src={node.image}
-        alt={node.id}
-        className="w-full h-full object-cover grayscale hover:scale-105 transition-all duration-500"
-      />
+      <PipelineImage src={node.image} alt={node.id} size={size} />
     </div>
   );
 }
@@ -231,11 +253,7 @@ export default function StoryBitPipeline() {
               className="rounded-full border border-gray-200 overflow-hidden bg-white flex-shrink-0 cursor-pointer shadow-sm"
               style={{ width: 170, height: 170 }}
             >
-              <img
-                src={nodes[2].image}
-                alt="data"
-                className="w-full h-full object-cover grayscale  hover:scale-105 transition-all duration-500"
-              />
+              <PipelineImage src={nodes[2].image} alt="data" size={170} />
             </div>
             <Label heading={nodes[2].heading} text={nodes[2].label} className="text-left" />
           </div>
@@ -256,11 +274,7 @@ export default function StoryBitPipeline() {
               className="rounded-full border border-gray-200 overflow-hidden bg-white flex-shrink-0 cursor-pointer shadow-sm"
               style={{ width: 250, height: 90 }}
               >
-              <img
-                src={nodes[3].image}
-                alt="script"
-                className="w-full h-full object-cover grayscale  hover:scale-105 transition-all duration-500"
-                />
+              <PipelineImage src={nodes[3].image} alt="script" size={250} />
             </div>
             {/* <Label text={nodes[3].label} className="text-left" /> */}
           </div>
@@ -282,11 +296,7 @@ export default function StoryBitPipeline() {
               className="rounded-full border border-gray-200 overflow-hidden bg-white flex-shrink-0 cursor-pointer shadow-sm"
               style={{ width: 160, height: 160 }}
               >
-              <img
-                src={nodes[3].image}
-                alt="script"
-                className="w-full h-full object-cover grayscale hover:scale-105 transition-all duration-500"
-                />
+              <PipelineImage src={nodes[3].image} alt="script" size={160} />
             </div>
             <Label heading={nodes[3].heading} text={nodes[3].label} className="text-left" />
           </div>
@@ -321,7 +331,7 @@ export default function StoryBitPipeline() {
             className="rounded-full border border-gray-200 overflow-hidden bg-white flex-shrink-0 shadow-sm"
             style={{ width: 145, height: 145 }}
           >
-            <img src={nodes[0].image} alt="input" className="w-full h-full object-cover grayscale" />
+            <PipelineImage src={nodes[0].image} alt="input" size={145} className="w-full h-full object-cover grayscale" />
           </div>
           <Label heading={nodes[0].heading} text={nodes[0].label} className="text-right" />
         </div>
@@ -349,7 +359,7 @@ export default function StoryBitPipeline() {
             className="rounded-full border-2 border-neutral-900 overflow-hidden flex-shrink-0 shadow-sm bg-white"
             style={{ width: 200, height: 200 }}
           >
-            <img src={nodes[1].image} alt="engine" className="w-full h-full object-cover grayscale" />
+            <PipelineImage src={nodes[1].image} alt="engine" size={200} className="w-full h-full object-cover grayscale" />
           </div>
           <Label heading={nodes[1].heading} text={nodes[1].label} className="text-left mt-3" />
         </div>
@@ -379,7 +389,7 @@ export default function StoryBitPipeline() {
             className="rounded-full border border-gray-200 overflow-hidden bg-white flex-shrink-0 shadow-sm"
             style={{ width: 145, height: 145 }}
           >
-            <img src={nodes[2].image} alt="data" className="w-full h-full object-cover grayscale" />
+            <PipelineImage src={nodes[2].image} alt="data" size={145} className="w-full h-full object-cover grayscale" />
           </div>
           <Label heading={nodes[2].heading} text={nodes[2].label} className="text-right" />
         </div>
@@ -406,7 +416,7 @@ export default function StoryBitPipeline() {
             className="rounded-full border border-gray-200 overflow-hidden bg-white flex-shrink-0 shadow-sm"
             style={{ width: 145, height: 145 }}
           >
-            <img src={nodes[3].image} alt="script" className="w-full h-full object-cover grayscale" />
+            <PipelineImage src={nodes[3].image} alt="script" size={145} className="w-full h-full object-cover grayscale" />
           </div>
           <Label heading={nodes[3].heading} text={nodes[3].label} className="text-left" />
         </div>

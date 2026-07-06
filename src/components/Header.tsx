@@ -188,12 +188,13 @@ const Header = () => {
         <Link href="/" className="flex items-center hover:opacity-75 transition-opacity duration-200">
           <Image
             src="/header-logo.png"
-            alt="storio"
+            alt="Storio — AI YouTube script generator"
             width={140}
             height={36}
             className="h-8 w-auto"
             style={{ width: 'auto' }}
             priority
+            sizes="140px"
           />
         </Link>
 

@@ -13,11 +13,12 @@ const Footer = () => {
             <Link href="/" className="inline-block hover:opacity-80 transition-opacity mb-4">
               <Image
                 src="/footer-logo.png"
-                alt="storio"
+                alt="Storio — AI YouTube script generator"
                 width={120}
                 height={30}
                 className="h-7 w-auto"
                 style={{ width: 'auto' }}
+                sizes="120px"
               />
             </Link>
             <p className="text-[#6e6e73] text-sm leading-relaxed font-light">
