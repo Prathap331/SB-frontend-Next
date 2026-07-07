@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { getAllArticles } from '@/lib/blog/utils';
 import { absoluteUrl, PUBLIC_ROUTES } from '@/lib/seo';
 
 async function getTopicUrls(): Promise<MetadataRoute.Sitemap> {
@@ -53,5 +54,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const topicEntries = await getTopicUrls();
 
-  return [...staticEntries, ...topicEntries];
+  const blogEntries: MetadataRoute.Sitemap = getAllArticles().map((article) => ({
+    url: absoluteUrl(`/blog/${article.slug}`),
+    lastModified: new Date(article.publishedAt),
+    changeFrequency: 'monthly',
+    priority: 0.75,
+  }));
+
+  return [...staticEntries, ...blogEntries, ...topicEntries];
 }

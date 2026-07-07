@@ -10,6 +10,7 @@ import StoryBitPipeline from '@/components/Architecture';
 import { ApiService } from '@/services/api';
 import CategorySlider from '@/components/CategorySlider';
 import SuggestedTopics from '@/components/SuggestedTopics';
+import RecommendedArticles from '@/components/blog/RecommendedArticles';
 
 type Tab = 'foryou' | 'national' | 'global';
 
@@ -342,6 +343,9 @@ export default function Home() {
 
       {/* ── Coming Features ── */}
       <ComingFeatures />
+
+      {/* ── Recommended Articles ── */}
+      <RecommendedArticles />
 
       {/* ── Footer ── */}
       <Footer />

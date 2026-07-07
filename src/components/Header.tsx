@@ -200,6 +200,11 @@ const Header = () => {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-3">
+          <Link href="/blog">
+            <button className="flex items-center gap-1.5 text-sm font-medium text-[#1d1d1f] px-4 py-1.5 rounded-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200">
+              Blog
+            </button>
+          </Link>
           <Link href="/scripts">
             <button className="flex items-center gap-1.5 text-sm font-medium text-[#1d1d1f] px-4 py-1.5 rounded-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200">
               <File className='w-3.5 h-3.5 text-amber-500'/>
@@ -246,6 +251,11 @@ const Header = () => {
       {isMenuOpen && (
         <div className="md:hidden bg-white/90 backdrop-blur-2xl border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-5 py-4 flex flex-col gap-2">
+            <Link href="/blog" onClick={() => setIsMenuOpen(false)}>
+              <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
+                Blog
+              </button>
+            </Link>
             <Link href="/scripts" onClick={() => setIsMenuOpen(false)}>
               <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
               <File className='w-4 h-4 text-amber-500'/>
