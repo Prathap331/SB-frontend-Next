@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import PrefixedLink from '@/components/PrefixedLink';
+import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 import { ArrowUpRight } from 'lucide-react';
 import BlogCard from '@/components/blog/BlogCard';
 import { getRecommendedArticles } from '@/lib/blog/utils';
@@ -13,10 +14,11 @@ export default function RecommendedArticles({
   showViewAll = true,
 }: RecommendedArticlesProps) {
   const articles = getRecommendedArticles(limit);
+  const { landingPath } = useKeywordNavigation();
 
   return (
     <section className="bg-[#f5f5f7] py-10 sm:py-14 md:py-16 px-5 sm:px-8 border-t border-gray-100">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-8xl mx-auto">
         <div className="flex items-center justify-between gap-4 mb-8">
           <div>
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
@@ -27,12 +29,12 @@ export default function RecommendedArticles({
             </p>
           </div>
           {showViewAll && (
-            <Link
-              href="/blog"
+            <PrefixedLink
+              href={landingPath('/blog')}
               className="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-[#1d1d1f] bg-white border border-gray-200 hover:border-gray-400 hover:bg-white px-4 py-2 rounded-full transition-all duration-200 flex-shrink-0"
             >
               View all <ArrowUpRight className="w-4 h-4" />
-            </Link>
+            </PrefixedLink>
           )}
         </div>
 
@@ -44,12 +46,12 @@ export default function RecommendedArticles({
 
         {showViewAll && (
           <div className="sm:hidden mt-6 text-center">
-            <Link
-              href="/blog"
+            <PrefixedLink
+              href={landingPath('/blog')}
               className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1d1d1f] bg-white border border-gray-200 px-4 py-2 rounded-full"
             >
               View all articles <ArrowUpRight className="w-4 h-4" />
-            </Link>
+            </PrefixedLink>
           </div>
         )}
       </div>

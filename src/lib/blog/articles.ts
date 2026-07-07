@@ -5,7 +5,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: 'how-to-write-youtube-script-with-ai',
     title: 'How to write a YouTube script with AI in 2026',
     description:
-      'A practical framework for turning ideas into research-backed YouTube scripts using AI—without losing your voice or accuracy.',
+      'A practical framework for turning ideas into research-backed YouTube Content using AI—without losing your voice or accuracy.',
     category: 'scriptwriting',
     author: 'Storio Team',
     publishedAt: '2026-07-01',
@@ -135,7 +135,7 @@ If your hook wouldn't work as a title, it won't work as an opening line. Generat
 ## Our shortlist
 
 ### Storio
-Best for research-backed YouTube scripts with a multi-agent pipeline. Built specifically for creators who need depth and speed.
+Best for research-backed YouTube Content with a multi-agent pipeline. Built specifically for creators who need depth and speed.
 
 ### ChatGPT
 Flexible general assistant. Strong for brainstorming and rewrites, but you'll do more manual structuring and fact-checking.

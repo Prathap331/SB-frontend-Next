@@ -19,6 +19,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ECIExactReplica from '@/components/ECIExactReplica';
 import SuggestedTopicsSidebar from '@/components/SuggestedTopicsSidebar';
 import { supabase as sbClient } from '@/lib/supabaseClient';
+import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 
 interface VideoItem {
   url: string;
@@ -500,6 +501,7 @@ const TSSCard: React.FC<TSSCardProps> = ({
 export default function SearchTopicPage() {
   const params = useParams();
   const router = useRouter();
+  const { searchPath, landingPath } = useKeywordNavigation();
   // Read raw param and decode safely so UI shows spaces (not "%20")
   const rawTopic = Array.isArray(params?.topic) ? params.topic[0] : params?.topic ?? '';
   const topic = (() => {
@@ -533,7 +535,7 @@ export default function SearchTopicPage() {
 
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
 
-  // Mobile suggested scripts from Supabase (same fields as desktop Script Vault sidebar)
+  // Mobile suggested scripts from Supabase (same fields as desktop Content Vault sidebar)
   type MobileScriptRow = {
     id: string;
     title: string | null;
@@ -659,7 +661,7 @@ useEffect(() => {
   const handleSearchSubmit = () => {
     const trimmed = searchQuery.trim();
     if (!trimmed) return;
-    router.push(`/search/${encodeURIComponent(trimmed)}`);
+    router.push(searchPath(trimmed));
   };
 
   useEffect(() => {
@@ -990,7 +992,7 @@ return;
 
 
 
-      {/* ── Script Ideas Section ── */}
+      {/* ── Content Ideas Section ── */}
       <div className="container  px-4 lg:px-8 py-8 sm:py-12">
       <div className="bg-gray-100 rounded-3xl relative">
           {/* Header — full width, sticky */}
@@ -1002,13 +1004,13 @@ return;
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">AI-generated</p>
                 <h2 className="text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
-                  Script Ideas
+                  Content Ideas
                   <span className="inline-flex items-center gap-1.5 bg-[#1d1d1f] text-white text-sm font-semibold px-3 py-0.5 rounded-full">
                     <Sparkles className="w-3 h-3 text-orange-400" />
                     {topic}
                   </span>
                 </h2>
-                <p className="text-sm text-[#6e6e73] mt-1">Choose a perspective and generate a full YouTube script in seconds</p>
+                <p className="text-sm text-[#6e6e73] mt-1">Choose a perspective and generate a full youtube content in seconds</p>
               </div>
             </div>
             {!isLoading && (
@@ -1032,7 +1034,7 @@ return;
                       <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
                     </div>
                     <div>
-                      <p className="text-base font-semibold text-[#1d1d1f] mb-1">Generating Script Ideas</p>
+                      <p className="text-base font-semibold text-[#1d1d1f] mb-1">Generating Content Ideas</p>
                       <p className="text-sm text-[#6e6e73]">AI is analysing &quot;{topic}&quot; — this may take up to 5 minutes</p>
                     </div>
                   </div>
@@ -1106,7 +1108,7 @@ return;
                             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
                           >
                             <Sparkles className="w-3.5 h-3.5 text-orange-400" />
-                            Generate Script
+                            Generate Content
                           </button>
                         </div>
                       </div>
@@ -1144,10 +1146,10 @@ return;
         <div className="lg:hidden px-4 sm:px-6 py-6 border-t border-gray-100">
           <div className="flex items-center gap-3 mb-3">
             <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase">
-              Script Vault
+              Content Vault
             </p>
             <button
-              onClick={() => router.push('/scripts')}
+              onClick={() => router.push(landingPath('/content-vault'))}
               className="flex items-center gap-1 text-[10px] font-medium text-[#1d1d1f] bg-white border border-gray-200 hover:border-gray-400 px-2.5 py-1 rounded-full transition-all"
             >
               View all <ArrowUpRight className="w-3 h-3" />

@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
       console.error('[generate-script] Backend error:', errorText);
       
-      let errorMessage = 'Failed to generate script due to an external API error.';
+      let errorMessage = 'Failed to Generate Content due to an external API error.';
       try {
         const errorJson = JSON.parse(errorText);
         errorMessage = errorJson.detail || errorJson.error || errorMessage;

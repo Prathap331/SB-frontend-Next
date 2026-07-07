@@ -3,7 +3,7 @@ import { createPageMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = createPageMetadata({
   title: 'Teleprompter',
-  description: 'Practice and record your YouTube scripts with the Storio teleprompter.',
+  description: 'Practice and record your YouTube Content with the Storio teleprompter.',
   path: '/teleprompter',
   noIndex: true,
 });

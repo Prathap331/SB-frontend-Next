@@ -1,9 +1,11 @@
+'use client';
+
 import Image from 'next/image';
-import Link from 'next/link';
 import { Clock } from 'lucide-react';
 import type { BlogArticle } from '@/lib/blog/types';
 import { BLOG_CATEGORIES } from '@/lib/blog/types';
 import { formatArticleDate } from '@/lib/blog/utils';
+import PrefixedLink from '@/components/PrefixedLink';
 
 type BlogCardProps = {
   article: BlogArticle;
@@ -15,7 +17,7 @@ export default function BlogCard({ article, variant = 'default' }: BlogCardProps
 
   if (variant === 'featured') {
     return (
-      <Link
+      <PrefixedLink
         href={`/blog/${article.slug}`}
         className="group grid lg:grid-cols-2 gap-6 lg:gap-10 items-center rounded-3xl border border-gray-200 bg-white p-4 sm:p-6 hover:shadow-lg hover:shadow-black/[0.06] transition-all duration-300"
       >
@@ -50,13 +52,13 @@ export default function BlogCard({ article, variant = 'default' }: BlogCardProps
             </span>
           </div>
         </div>
-      </Link>
+      </PrefixedLink>
     );
   }
 
   if (variant === 'compact') {
     return (
-      <Link
+      <PrefixedLink
         href={`/blog/${article.slug}`}
         className="group block py-4 border-b border-gray-100 last:border-0"
       >
@@ -72,12 +74,12 @@ export default function BlogCard({ article, variant = 'default' }: BlogCardProps
         <p className="mt-2 text-xs text-[#a1a1a6]">
           {formatArticleDate(article.publishedAt)} · {article.readTimeMinutes} min read
         </p>
-      </Link>
+      </PrefixedLink>
     );
   }
 
   return (
-    <Link
+    <PrefixedLink
       href={`/blog/${article.slug}`}
       className="group flex flex-col rounded-2xl border border-gray-200 bg-white overflow-hidden hover:shadow-lg hover:shadow-black/[0.06] transition-all duration-300 h-full"
     >
@@ -104,6 +106,6 @@ export default function BlogCard({ article, variant = 'default' }: BlogCardProps
           {formatArticleDate(article.publishedAt)} · {article.readTimeMinutes} min read
         </p>
       </div>
-    </Link>
+    </PrefixedLink>
   );
 }

@@ -3,7 +3,7 @@ import { createPageMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = createPageMetadata({
   title: 'Sign In',
-  description: 'Sign in to your Storio account to generate AI-powered YouTube scripts.',
+  description: 'Sign in to your Storio account to generate AI-powered YouTube Content.',
   path: '/auth',
   noIndex: true,
 });

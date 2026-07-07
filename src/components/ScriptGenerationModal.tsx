@@ -140,7 +140,7 @@ export function ScriptGenerationModal({
     <Dialog open={isOpen} onOpenChange={(open) => !isGenerating && !open && onClose()}>
       <DialogContent className="max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Generate Script</DialogTitle>
+          <DialogTitle>Generate Content</DialogTitle>
           <DialogDescription>
             Customize your script generation parameters below
           </DialogDescription>
@@ -269,7 +269,7 @@ export function ScriptGenerationModal({
                 Generating Script...
               </>
             ) : (
-              "Generate Script"
+              "Generate Content"
             )}
           </Button>
         </DialogFooter>

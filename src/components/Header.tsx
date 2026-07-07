@@ -1,10 +1,11 @@
 "use client";
 
-import Link from 'next/link';
 import Image from 'next/image';
 import { Crown, User, Menu, X, Clock, File } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import PrefixedLink from '@/components/PrefixedLink';
+import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 
 const AVATAR_COLORS = [
   '#1e3a5f', '#1a5276', '#145a32', '#6c3483',
@@ -35,6 +36,7 @@ function UserAvatar({ name, size = 'sm' }: { name: string; size?: 'sm' | 'md' })
 }
 
 const Header = () => {
+  const { homePath } = useKeywordNavigation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -185,7 +187,7 @@ const Header = () => {
     >
       <div className="max-w-8xl mx-auto px-8   h-14 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center hover:opacity-75 transition-opacity duration-200">
+        <PrefixedLink href={homePath} className="flex items-center hover:opacity-75 transition-opacity duration-200">
           <Image
             src="/header-logo.png"
             alt="Storio — AI YouTube script generator"
@@ -196,36 +198,32 @@ const Header = () => {
             priority
             sizes="140px"
           />
-        </Link>
+        </PrefixedLink>
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-3">
-          <Link href="/blog">
-            <button className="flex items-center gap-1.5 text-sm font-medium text-[#1d1d1f] px-4 py-1.5 rounded-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200">
-              Blog
-            </button>
-          </Link>
-          <Link href="/scripts">
+          
+          <PrefixedLink href="/content-vault">
             <button className="flex items-center gap-1.5 text-sm font-medium text-[#1d1d1f] px-4 py-1.5 rounded-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200">
               <File className='w-3.5 h-3.5 text-amber-500'/>
-              Script Vault
+              Content Vault
             </button>
-          </Link>
-          <Link href="/pricing">
+          </PrefixedLink>
+          <PrefixedLink href="/pricing">
             <button className="flex items-center gap-1.5 text-sm font-medium text-[#1d1d1f] px-4 py-1.5 rounded-full border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200">
               <Crown className="w-3.5 h-3.5 text-amber-500" />
               Upgrade
             </button>
-          </Link>
+          </PrefixedLink>
           
           {!isLoggedIn ? (
-            <Link href="/auth">
+            <PrefixedLink href="/auth">
               <button className="text-sm font-medium text-white bg-[#1d1d1f] px-4 py-1.5 rounded-full hover:bg-black transition-all duration-200">
                 Sign In
               </button>
-            </Link>
+            </PrefixedLink>
           ) : (
-            <Link className='flex items-center border border-gray-200 rounded-full hover:border-gray-300 transition-all duration-200' href="/profile">
+            <PrefixedLink className='flex items-center border border-gray-200 rounded-full hover:border-gray-300 transition-all duration-200' href="/profile">
               {credits !== null && (
                 <div className="flex items-center gap-1.5 px-4 py-1.5">
                   <Clock className="w-4 h-4 text-purple-600 flex-shrink-0" />
@@ -233,7 +231,7 @@ const Header = () => {
                 </div>
               )}
               <UserAvatar name={userName || '?'} />
-            </Link>
+            </PrefixedLink>
           )}
         </nav>
 
@@ -251,23 +249,19 @@ const Header = () => {
       {isMenuOpen && (
         <div className="md:hidden bg-white/90 backdrop-blur-2xl border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-5 py-4 flex flex-col gap-2">
-            <Link href="/blog" onClick={() => setIsMenuOpen(false)}>
-              <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
-                Blog
-              </button>
-            </Link>
-            <Link href="/scripts" onClick={() => setIsMenuOpen(false)}>
+            
+            <PrefixedLink href="/content-vault" onClick={() => setIsMenuOpen(false)}>
               <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
               <File className='w-4 h-4 text-amber-500'/>
-                Script Vault
+                Content Vault
               </button>
-            </Link>
-            <Link href="/pricing" onClick={() => setIsMenuOpen(false)}>
+            </PrefixedLink>
+            <PrefixedLink href="/pricing" onClick={() => setIsMenuOpen(false)}>
               <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
                 <Crown className="w-4 h-4 text-amber-500" />
                 Upgrade
               </button>
-            </Link>
+            </PrefixedLink>
             {isLoggedIn && credits !== null && (
               <div className="flex items-center gap-2 px-4 py-2.5">
                 <Clock className="w-4 h-4 text-purple-600 flex-shrink-0" />
@@ -275,19 +269,19 @@ const Header = () => {
               </div>
             )}
             {!isLoggedIn ? (
-              <Link href="/auth" onClick={() => setIsMenuOpen(false)}>
+              <PrefixedLink href="/auth" onClick={() => setIsMenuOpen(false)}>
                 <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
                   <User className="w-4 h-4" />
                   Sign In
                 </button>
-              </Link>
+              </PrefixedLink>
             ) : (
-              <Link href="/profile" onClick={() => setIsMenuOpen(false)}>
+              <PrefixedLink href="/profile" onClick={() => setIsMenuOpen(false)}>
                 <button className="w-full flex items-center gap-2 text-sm font-medium text-[#1d1d1f] px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
                   <UserAvatar name={userName || '?'} size="md" />
                   Profile
                 </button>
-              </Link>
+              </PrefixedLink>
             )}
           </div>
         </div>

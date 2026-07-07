@@ -8,7 +8,7 @@ export const SITE_NAME = 'Storio';
 export const DEFAULT_TITLE = 'Storio — Write Your YouTube Script in 3 Minutes';
 
 export const DEFAULT_DESCRIPTION =
-  'AI that transforms your ideas into engaging, factual, research-backed YouTube scripts. Generate scripts in 3 minutes with Storio.';
+  'AI that transforms your ideas into engaging, factual, research-backed YouTube Content. Generate scripts in 3 minutes with Storio.';
 
 export const DEFAULT_KEYWORDS = [
   'AI scriptwriter',
@@ -37,7 +37,7 @@ export const PUBLIC_ROUTES = [
   { path: '/', priority: 1, changeFrequency: 'weekly' as const },
   { path: '/pricing', priority: 0.9, changeFrequency: 'weekly' as const },
   { path: '/blog', priority: 0.9, changeFrequency: 'weekly' as const },
-  { path: '/scripts', priority: 0.85, changeFrequency: 'daily' as const },
+  { path: '/content-vault', priority: 0.85, changeFrequency: 'daily' as const },
   { path: '/privacy-policy', priority: 0.3, changeFrequency: 'yearly' as const },
   { path: '/terms-and-conditions', priority: 0.3, changeFrequency: 'yearly' as const },
   { path: '/cancellation-policy', priority: 0.3, changeFrequency: 'yearly' as const },

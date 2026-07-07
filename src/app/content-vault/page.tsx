@@ -101,7 +101,7 @@ export default function AllScriptsPage() {
             className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-[#1d1d1f] mb-1"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
           >
-            Script Vault
+            Content Vault
           </h1>
           <p className="text-sm text-[#6e6e73] font-light">
           Create Faster with Ready Scripts

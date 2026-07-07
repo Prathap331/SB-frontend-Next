@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
 
   return createPageMetadata({
     title: `${decodedTopic} — YouTube Script Ideas & AI Generator`,
-    description: `Generate research-backed YouTube scripts about "${decodedTopic}" with Storio AI. Explore topic insights, trends, and script ideas in minutes.`,
+    description: `Generate research-backed YouTube Content about "${decodedTopic}" with Storio AI. Explore topic insights, trends, and script ideas in minutes.`,
     path: `/search/${encodeURIComponent(decodedTopic)}`,
     keywords: `${decodedTopic}, YouTube script ideas, AI script generator, ${decodedTopic} video script`,
   });

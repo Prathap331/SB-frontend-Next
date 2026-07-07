@@ -1,6 +1,11 @@
 import type { MetadataRoute } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { getAllArticles } from '@/lib/blog/utils';
+import {
+  DEFAULT_LANDING_SLUG,
+  LANDING_KEYWORD_SLUGS,
+  SEARCH_KEYWORD_SLUGS,
+} from '@/lib/keyword-routes';
 import { absoluteUrl, PUBLIC_ROUTES } from '@/lib/seo';
 
 async function getTopicUrls(): Promise<MetadataRoute.Sitemap> {
@@ -54,6 +59,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const topicEntries = await getTopicUrls();
 
+  const topicEntriesWithSearchSlug = topicEntries.map((entry) => {
+    const legacyPath = entry.url.replace(absoluteUrl(), '');
+    if (!legacyPath.startsWith('/search/')) return entry;
+    const topic = legacyPath.replace('/search/', '');
+    return {
+      ...entry,
+      url: absoluteUrl(`/content-ideas/${topic}`),
+    };
+  });
+
   const blogEntries: MetadataRoute.Sitemap = getAllArticles().map((article) => ({
     url: absoluteUrl(`/blog/${article.slug}`),
     lastModified: new Date(article.publishedAt),
@@ -61,5 +76,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.75,
   }));
 
-  return [...staticEntries, ...blogEntries, ...topicEntries];
+  const landingKeywordEntries: MetadataRoute.Sitemap = LANDING_KEYWORD_SLUGS.map(
+    (slug) => ({
+      url: absoluteUrl(`/${slug}`),
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: slug === DEFAULT_LANDING_SLUG ? 1 : 0.9,
+    }),
+  );
+
+  const searchKeywordEntries: MetadataRoute.Sitemap = SEARCH_KEYWORD_SLUGS.map(
+    (slug) => ({
+      url: absoluteUrl(`/${slug}`),
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    }),
+  );
+
+  return [
+    ...staticEntries,
+    ...landingKeywordEntries,
+    ...searchKeywordEntries,
+    ...blogEntries,
+    ...topicEntriesWithSearchSlug,
+  ];
 }

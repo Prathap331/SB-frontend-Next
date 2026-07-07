@@ -14,6 +14,8 @@ import {
   getArticleBySlug,
   getRelatedArticles,
 } from '@/lib/blog/utils';
+import { buildLandingPath } from '@/lib/keyword-routes';
+import { getRequestLandingSlug } from '@/lib/keyword-routes.server';
 import { absoluteUrl, SITE_NAME } from '@/lib/seo';
 
 type PageProps = {
@@ -47,6 +49,10 @@ export default async function BlogArticlePage({ params }: PageProps) {
 
   const category = BLOG_CATEGORIES[article.category];
   const related = getRelatedArticles(slug, 3);
+  const landingSlug = await getRequestLandingSlug();
+  const blogPath = buildLandingPath('/blog', landingSlug);
+  const blogCategoryPath = `${blogPath}?category=${article.category}`;
+  const homePath = buildLandingPath('/', landingSlug);
 
   const articleJsonLd = {
     '@context': 'https://schema.org',
@@ -79,12 +85,12 @@ export default async function BlogArticlePage({ params }: PageProps) {
       <div className="border-b border-gray-100 bg-[#fafafa]">
         <div className="max-w-3xl mx-auto px-5 sm:px-8 py-3">
           <nav className="flex flex-wrap items-center gap-1 text-sm text-[#6e6e73]">
-            <Link href="/blog" className="hover:text-[#1d1d1f] transition-colors">
+            <Link href={blogPath} className="hover:text-[#1d1d1f] transition-colors">
               Blog
             </Link>
             <ChevronRight className="w-3.5 h-3.5" />
             <Link
-              href={`/blog?category=${article.category}`}
+              href={blogCategoryPath}
               className="hover:text-[#1d1d1f] transition-colors"
             >
               {category.label}
@@ -95,21 +101,9 @@ export default async function BlogArticlePage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Hero image */}
-      <div className="relative w-full aspect-[21/9] sm:aspect-[2.4/1] max-h-[420px] bg-[#f5f5f7]">
-        <Image
-          src={article.image}
-          alt={article.imageAlt}
-          fill
-          className="object-cover"
-          priority
-          sizes="100vw"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-      </div>
 
       {/* Article header */}
-      <header className="max-w-3xl mx-auto px-5 sm:px-8 pt-10 pb-8">
+      <header className="max-w-6xl mx-auto px-5 sm:px-8 pt-10 pb-8">
         <span className="inline-flex text-[11px] font-semibold uppercase tracking-widest text-[#6e6e73] mb-4">
           {category.label}
         </span>
@@ -131,13 +125,26 @@ export default async function BlogArticlePage({ params }: PageProps) {
         </div>
       </header>
 
+      {/* Hero image */}
+      <div className="relative max-w-6xl mx-auto aspect-[21/9] sm:aspect-[2.4/1] max-h-[420px] bg-[#f5f5f7]">
+        <Image
+          src={article.image}
+          alt={article.imageAlt}
+          fill
+          className="object-cover"
+          priority
+          sizes="100vw"
+        />
+        {/* <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" /> */}
+      </div>
+
       {/* Article body */}
-      <article className="max-w-3xl mx-auto px-5 sm:px-8 pb-12">
+      <article className="max-w-6xl mx-auto px-5 sm:px-8 pb-12">
         <MarkdownContent content={article.content} />
       </article>
 
       {/* CTA */}
-      <section className="max-w-3xl mx-auto px-5 sm:px-8 pb-14">
+      <section className="max-w-6xl mx-auto px-5 sm:px-8 pb-14">
         <div className="rounded-2xl bg-[#f5f5f7] border border-gray-200 p-6 sm:p-8 text-center">
           <h2 className="text-xl sm:text-2xl font-semibold text-[#1d1d1f] mb-2">
             Write your next script in 3 minutes
@@ -146,7 +153,7 @@ export default async function BlogArticlePage({ params }: PageProps) {
             Put these ideas into practice—generate a research-backed YouTube script with Storio.
           </p>
           <Link
-            href="/"
+            href={homePath}
             className="inline-flex items-center justify-center bg-[#1d1d1f] text-white text-sm font-medium px-6 py-3 rounded-full hover:bg-black transition-colors"
           >
             Try Storio free

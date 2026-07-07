@@ -11,6 +11,7 @@ import { ApiService } from '@/services/api';
 import CategorySlider from '@/components/CategorySlider';
 import SuggestedTopics from '@/components/SuggestedTopics';
 import RecommendedArticles from '@/components/blog/RecommendedArticles';
+import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 
 type Tab = 'foryou' | 'national' | 'global';
 
@@ -23,6 +24,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
+  const { searchPath, landingPath } = useKeywordNavigation();
 
   // ── Tab state ──────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('foryou');
@@ -119,7 +121,7 @@ export default function Home() {
   const handleSearch = (topic: any) => {
     const searchText = typeof topic === 'string' ? topic : topic?.tittle;
     if (searchText?.trim()) {
-      router.push(`/search/${encodeURIComponent(searchText)}`);
+      router.push(searchPath(searchText));
     }
   };
 
@@ -135,7 +137,7 @@ export default function Home() {
     }
 
     setSearchWarning(null);
-    router.push(`/search/${encodeURIComponent(searchQuery)}`);
+    router.push(searchPath(searchQuery));
   };
 
   return (
@@ -175,7 +177,7 @@ export default function Home() {
           >
             Write your YouTube
             <br className="hidden xs:block" />
-            {' '}script in{' '}
+            {' '}content in{' '}
             <span className="text-[#1d1d1f]">3 minutes.</span>
           </h1>
 
@@ -184,7 +186,7 @@ export default function Home() {
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
           >
             AI that transforms your ideas into engaging, factual,
-            research-backed YouTube scripts.
+            research-backed YouTube Content.
           </p>
 
           {/* Search bar */}
@@ -300,10 +302,10 @@ export default function Home() {
         <div className="max-w-8xl mx-auto mb-6">
           <div className="flex items-center gap-4 mb-1">
             <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f]">
-              Script Vault
+              Content Vault
             </h2>
             <button
-              onClick={() => router.push('/scripts')}
+              onClick={() => router.push(landingPath('/content-vault'))}
               className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white border border-gray-200 hover:border-gray-400 hover:bg-[#f5f5f7] px-3 py-1.5 rounded-full transition-all duration-200 flex-shrink-0"
             >
               View all <ArrowUpRight className="w-3.5 h-3.5" />

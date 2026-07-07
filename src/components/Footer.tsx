@@ -1,8 +1,13 @@
+'use client';
+
 import { Mail, Phone } from 'lucide-react';
-import Link from 'next/link';
 import Image from 'next/image';
+import PrefixedLink from '@/components/PrefixedLink';
+import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 
 const Footer = () => {
+  const { homePath } = useKeywordNavigation();
+
   return (
     <footer className="bg-[#1d1d1f] text-white">
       {/* Main content */}
@@ -10,7 +15,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-10 lg:gap-16">
           {/* Brand */}
           <div className="sm:col-span-2 md:col-span-1">
-            <Link href="/" className="inline-block hover:opacity-80 transition-opacity mb-4">
+            <PrefixedLink href={homePath} className="inline-block hover:opacity-80 transition-opacity mb-4">
               <Image
                 src="/footer-logo.png"
                 alt="Storio — AI YouTube script generator"
@@ -20,7 +25,7 @@ const Footer = () => {
                 style={{ width: 'auto' }}
                 sizes="120px"
               />
-            </Link>
+            </PrefixedLink>
             <p className="text-[#6e6e73] text-sm leading-relaxed font-light">
               AI-powered scriptwriting for content creators worldwide.
             </p>
@@ -68,24 +73,24 @@ const Footer = () => {
               Legal
             </h4>
             <div className="space-y-3">
-              <Link
+              <PrefixedLink
                 href="/terms-and-conditions"
                 className="block text-sm text-[#6e6e73] hover:text-white transition-colors font-light"
               >
                 Terms &amp; Conditions
-              </Link>
-              <Link
+              </PrefixedLink>
+              <PrefixedLink
                 href="/privacy-policy"
                 className="block text-sm text-[#6e6e73] hover:text-white transition-colors font-light"
               >
                 Privacy Policy
-              </Link>
-              <Link
+              </PrefixedLink>
+              <PrefixedLink
                 href="/cancellation-and-refund-policy"
                 className="block text-sm text-[#6e6e73] hover:text-white transition-colors font-light"
               >
                 Cancellation &amp; Refund
-              </Link>
+              </PrefixedLink>
             </div>
           </div>
         </div>

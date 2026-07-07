@@ -4,7 +4,7 @@ import { createPageMetadata } from '@/lib/seo';
 export const metadata: Metadata = createPageMetadata({
   title: 'AI Script Generator',
   description:
-    'Generate, edit, and export research-backed YouTube scripts with Storio’s AI scriptwriting workspace.',
+    'Generate, edit, and export research-backed YouTube Content with Storio’s AI scriptwriting workspace.',
   path: '/script',
   noIndex: true,
 });

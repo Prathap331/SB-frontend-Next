@@ -2,7 +2,9 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import PrefixedLink from '@/components/PrefixedLink';
 import Header from '@/components/Header';
+import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 import Footer from '@/components/Footer';
 import BlogCard from '@/components/blog/BlogCard';
 import BlogCategoryNav, { CATEGORY_ORDER } from '@/components/blog/BlogCategoryNav';
@@ -15,6 +17,7 @@ import {
 } from '@/lib/blog/utils';
 
 export default function BlogPageClient() {
+  const { homePath } = useKeywordNavigation();
   const searchParams = useSearchParams();
   const categoryParam = searchParams.get('category');
   const initialCategory =
@@ -52,21 +55,9 @@ export default function BlogPageClient() {
     <div className="min-h-screen bg-white">
       <Header />
 
-      <section className="bg-[#f5f5f7] border-b border-gray-100 pt-10 pb-8 sm:pt-14 sm:pb-10 px-5 sm:px-8">
-        <div className="max-w-6xl mx-auto">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[#6e6e73] mb-3">
-            Storio Blog
-          </p>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-[#1d1d1f] mb-3">
-            Creator guides &amp; scriptwriting tips
-          </h1>
-          <p className="text-base sm:text-lg text-[#6e6e73] font-light max-w-2xl">
-            Workflow guides, AI scripting strategies, and YouTube growth ideas for content creators.
-          </p>
-        </div>
-      </section>
+     
 
-      <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
+      <div className="max-w-8xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
         <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] gap-10 lg:gap-14">
           <aside className="hidden lg:block">
             <div className="sticky top-20">
@@ -158,12 +149,12 @@ export default function BlogPageClient() {
           <p className="text-[#a1a1a6] font-light mb-6">
             Turn any topic into a research-backed YouTube script in minutes with Storio.
           </p>
-          <a
-            href="/"
+          <PrefixedLink
+            href={homePath}
             className="inline-flex items-center justify-center bg-white text-[#1d1d1f] text-sm font-medium px-6 py-3 rounded-full hover:bg-[#f5f5f7] transition-colors"
           >
             Start writing free
-          </a>
+          </PrefixedLink>
         </div>
       </section>
 

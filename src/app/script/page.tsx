@@ -334,7 +334,7 @@ export default function ScriptPage() {
       let paramsJson: string | null = null;
       let params: GenerationParams | null = null;
 
-      // Check if we have fresh params from "Generate Script" button (in sessionStorage)
+      // Check if we have fresh params from "Generate Content" button (in sessionStorage)
       try {
         paramsJson = sessionStorage.getItem('generate_params');
         if (paramsJson) {
@@ -348,7 +348,7 @@ export default function ScriptPage() {
         console.warn('Error reading sessionStorage:', e);
       }
 
-      // If we have fresh params from "Generate Script" button, ALWAYS generate new script
+      // If we have fresh params from "Generate Content" button, ALWAYS generate new script
       // Don't load from cache - this is a new generation request
       if (paramsJson && params) {
         // Skip cache check - generate new script
@@ -467,8 +467,8 @@ setData(normalized);
               router.push('/auth');
               return;
             }
-            console.error('Failed to generate script from URL params:', error);
-            setError(error.message || 'Failed to generate script from URL params');
+            console.error('Failed to Generate Content from URL params:', error);
+            setError(error.message || 'Failed to Generate Content from URL params');
             setIsLoading(false);
             return;
           }
@@ -561,8 +561,8 @@ console.log("📦 Script API Response:", json);
           router.push('/pricing');
           return;
         }
-        console.error('Failed to generate script:', error);
-        setError(error.message || 'Failed to generate script');
+        console.error('Failed to Generate Content:', error);
+        setError(error.message || 'Failed to Generate Content');
       } finally {
         setIsLoading(false);
       }
