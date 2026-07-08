@@ -145,7 +145,7 @@ export default function Home() {
       <Header />
 
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-[#f5f5f7] pt-10 pb-4 sm:pt-10 sm:pb-6  md:pb-8 px-5 sm:px-8">
+      <section className="relative overflow-hidden bg-[#f5f5f7] pt-10 pb-4 sm:pt-10 sm:pb-6 md:pt-14 md:pb-16 px-5 sm:px-8">
         {/* subtle radial glow */}
         <div
           aria-hidden

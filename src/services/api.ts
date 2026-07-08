@@ -606,6 +606,45 @@ export class ApiService {
     return response;
   }
 
+  /**
+   * Normalizes the /process-topic backend response into the shape the UI expects
+   * ({ ideas: string[], descriptions: string[], summary? }).
+   *
+   * Supports the latest backend structure where `ideas` is an array of
+   * `{ title, description }` objects, while remaining backward compatible with
+   * the legacy structure (`ideas: string[]` + `descriptions: string[]`).
+   */
+  private static normalizeProcessTopicResponse(data: any): ProcessTopicResponse {
+    const rawIdeas = Array.isArray(data?.ideas) ? data.ideas : [];
+
+    // Latest structure: ideas = [{ title, description }, ...]
+    const isObjectIdeas =
+      rawIdeas.length > 0 &&
+      typeof rawIdeas[0] === 'object' &&
+      rawIdeas[0] !== null;
+
+    if (isObjectIdeas) {
+      const ideas = rawIdeas.map(
+        (idea: any) => idea?.title ?? idea?.idea ?? '',
+      );
+      const descriptions = rawIdeas.map(
+        (idea: any) => idea?.description ?? '',
+      );
+      return {
+        ideas,
+        descriptions,
+        summary: data?.summary ?? null,
+      };
+    }
+
+    // Legacy structure: ideas = string[], descriptions = string[]
+    return {
+      ideas: rawIdeas,
+      descriptions: Array.isArray(data?.descriptions) ? data.descriptions : [],
+      summary: data?.summary ?? null,
+    };
+  }
+
   static async processTopic(topic: string, retryCount = 0): Promise<ProcessTopicResponse> {
     const maxRetries = 2;
 
@@ -644,11 +683,7 @@ export class ApiService {
       }
 
       const data = await response.json();
-      return {
-        ideas: data.ideas || [],
-        descriptions: data.descriptions || [],
-        summary: data.summary || null,
-      };
+      return this.normalizeProcessTopicResponse(data);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         if (this.isProduction) {
