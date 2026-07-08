@@ -96,7 +96,7 @@ export interface PipelineMetricsResponse {
 export interface ProcessTopicResponse {
   ideas: string[];
   descriptions: string[];
-  summary?: string;
+  topic_summary?: string;
 }
 
 export interface SignUpRequest {
@@ -633,7 +633,7 @@ export class ApiService {
       return {
         ideas,
         descriptions,
-        summary: data?.summary ?? null,
+        topic_summary: data?.topic_summary ?? null,
       };
     }
 
@@ -641,7 +641,7 @@ export class ApiService {
     return {
       ideas: rawIdeas,
       descriptions: Array.isArray(data?.descriptions) ? data.descriptions : [],
-      summary: data?.summary ?? null,
+      topic_summary: data?.topic_summary ?? null,
     };
   }
 

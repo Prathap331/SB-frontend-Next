@@ -755,7 +755,7 @@ const ideas: ScriptIdea[] = (response.ideas ?? []).map((idea, idx) => ({
 applyResult(
   ideas,
   null,
-  response.summary ?? null
+  response.topic_summary ?? null
 );
 
 return;
@@ -902,11 +902,16 @@ return;
       {/* Topic Summary */}
 {topicSummary && (
   <div className="container mx-auto px-4 lg:px-8 pb-2">
-    <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 flex gap-3 items-start shadow-sm">
+     <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 flex flex-col gap-3 items-start shadow-sm">
+      <div className="flex items-center gap-3">
       <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0 mt-0.5">
         <Globe className="w-3.5 h-3.5 text-indigo-500" />
       </div>
-      <p className="text-sm text-[#3d3d3a] leading-relaxed">{topicSummary}</p>
+      <p className="text-lg text-[#3d3d3a] font-semibold leading-relaxed">Topic Summary</p>
+      </div>
+
+
+      <p className="text-md text-[#3d3d3a] font-[500] leading-relaxed">{topicSummary}</p>
     </div>
   </div>
 )}
@@ -925,7 +930,7 @@ return;
     </div>
   </div> */}
 
-      {/* ── Analytics Section ── */}
+{/*       
       <section className="container  mx-auto px-4 lg:px-8 py-6 sm:py-4">
         <Card className="shadow-xl border border-gray-200 bg-white overflow-hidden flex flex-col">
           <CardHeader className="pb-3 px-2 sm:px-8">
@@ -948,7 +953,7 @@ return;
 
           <CardContent className="overflow-y-auto pb-6 px-2 sm:px-8">
 
-            {/* ════════════════════ TSS TAB ════════════════════ */}
+           
             {activeTab === 'tss' && isTssLoading && (
               <div className="flex flex-col items-center justify-center py-20 gap-3">
                 <Loader2 className="w-7 h-7 animate-spin text-[#1d1d1f]" />
@@ -971,7 +976,7 @@ return;
               </div>
             )}
 
-            {/* ════════════════════ ECI TAB ════════════════════ */}
+        
             {activeTab === 'eci' && eciData && (
   <ECIExactReplica data={eciData} />
 )}
@@ -985,7 +990,7 @@ return;
 
           </CardContent>
         </Card>
-      </section>
+      </section> */}
   
 
 
