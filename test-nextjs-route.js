@@ -69,14 +69,14 @@ async function testAllRoutes() {
     // Process Topic API - GET (health check)
     testRoute(
       'Process Topic (GET)',
-      `${baseUrl}/process-topic`,
+      `${baseUrl}/generate-ideas`,
       'GET'
     ),
     
     // Process Topic API - POST
     testRoute(
       'Process Topic (POST)',
-      `${baseUrl}/process-topic`,
+      `${baseUrl}/generate-ideas`,
       'POST',
       { topic: 'Flying Cars' }
     ),
@@ -198,7 +198,7 @@ async function testAllRoutes() {
     }
     if (has404) {
       console.log('   • Restart dev server to register route changes');
-      console.log('   • Check if route files exist: src/app/api/process-topic/route.ts');
+      console.log('   • Check if route files exist: src/app/api/generate-ideas/route.ts');
       console.log('   • Clear .next folder and rebuild: rm -rf .next && npm run build');
     }
     

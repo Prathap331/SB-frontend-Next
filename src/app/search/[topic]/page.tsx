@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertCircle, Clock, TrendingUp, TrendingDown, Search, Activity, Flame, Radio, Shield, Layers, Rocket, Target, BarChart3, Zap, Globe, Eye, Trophy, Lightbulb, Sparkles, ChevronRight, Filter, ArrowUpRight } from 'lucide-react';
+import { Loader2, AlertCircle, Clock, TrendingUp, TrendingDown, Search, Activity, Flame, Radio, Shield, Layers, Rocket, Target, BarChart3, Zap, Globe, Eye, Trophy, Lightbulb, Sparkles, ChevronRight, Filter, ArrowUpRight, Link2 } from 'lucide-react';
 import {
   Youtube,
   User2,
   Newspaper,
 } from 'lucide-react';
-import { ApiService, TSSResponse, ECIResponse } from '@/services/api';
+import { ApiService, TSSResponse, ECIResponse, SimilarPastIdea } from '@/services/api';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ECIExactReplica from '@/components/ECIExactReplica';
 import SuggestedTopicsSidebar from '@/components/SuggestedTopicsSidebar';
@@ -51,7 +51,7 @@ const videoLinks: string[] = [
 
 
 // Cache both in memory and localStorage to persist between visits
-const resultsCache = new Map<string, { scriptIdeas: ScriptIdea[]; error: string | null; timestamp: number }>();
+const resultsCache = new Map<string, { scriptIdeas: ScriptIdea[]; similarPastIdeas: SimilarPastIdea[]; topicSummary: string | null; error: string | null; timestamp: number }>();
 const pipelineCache = new Map<string, { data: TSSResponse; timestamp: number }>();
 const eciCache     = new Map<string, { data: ECIResponse;  timestamp: number }>();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
@@ -63,6 +63,8 @@ const inFlightPipeline = new Set<string>();
 
 interface CacheItem {
   scriptIdeas: ScriptIdea[];
+  similarPastIdeas: SimilarPastIdea[];
+  topicSummary: string | null;
   error: string | null;
   timestamp: number;
 }
@@ -529,6 +531,7 @@ export default function SearchTopicPage() {
 
 
   const [scriptIdeas, setScriptIdeas] = useState<ScriptIdea[]>([]);
+  const [similarPastIdeas, setSimilarPastIdeas] = useState<SimilarPastIdea[]>([]);
   const [topicSummary, setTopicSummary] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -595,64 +598,64 @@ useEffect(() => {
     cleanupCache();
   }, []);
 
-  // Fetch TSS — cached per topic
-  useEffect(() => {
-    if (!topic) return;
-    const mem = pipelineCache.get(topic);
-    if (mem && Date.now() - mem.timestamp < CACHE_DURATION) { setTssData(mem.data); return; }
-    const ls = getPipelineFromLocalStorage(topic);
-    if (ls) { pipelineCache.set(topic, ls); setTssData(ls.data); return; }
-    if (inFlightPipeline.has(topic)) return;
-    inFlightPipeline.add(topic);
-    setIsTssLoading(true);
-    setTssData(null);
-    ApiService.pipelineMetrics(topic)
-    .then(data => {
-      console.log("🔥 TSS API RESPONSE:", data); // ✅ HERE
-      savePipelineToCache(topic, data);
-      setTssData(data);
-    })
-      .catch(err => console.error('[tss]', err))
-      .finally(() => { setIsTssLoading(false); inFlightPipeline.delete(topic); });
-  }, [topic]);
+  // // Fetch TSS — cached per topic
+  // useEffect(() => {
+  //   if (!topic) return;
+  //   const mem = pipelineCache.get(topic);
+  //   if (mem && Date.now() - mem.timestamp < CACHE_DURATION) { setTssData(mem.data); return; }
+  //   const ls = getPipelineFromLocalStorage(topic);
+  //   if (ls) { pipelineCache.set(topic, ls); setTssData(ls.data); return; }
+  //   if (inFlightPipeline.has(topic)) return;
+  //   inFlightPipeline.add(topic);
+  //   setIsTssLoading(true);
+  //   setTssData(null);
+  //   ApiService.pipelineMetrics(topic)
+  //   .then(data => {
+  //     console.log("🔥 TSS API RESPONSE:", data); // ✅ HERE
+  //     savePipelineToCache(topic, data);
+  //     setTssData(data);
+  //   })
+  //     .catch(err => console.error('[tss]', err))
+  //     .finally(() => { setIsTssLoading(false); inFlightPipeline.delete(topic); });
+  // }, [topic]);
 
-  // Fetch ECI — lazy: only when ECI tab is first activated
-  useEffect(() => {
-    if (!topic || activeTab !== 'eci') return;
+  // // Fetch ECI — lazy: only when ECI tab is first activated
+  // useEffect(() => {
+  //   if (!topic || activeTab !== 'eci') return;
   
-    // ✅ 1. Memory cache
-    const mem = eciCache.get(topic);
-    if (mem && Date.now() - mem.timestamp < CACHE_DURATION) {
-      console.log("⚡ ECI memory cache hit");
-      setEciData(mem.data);
-      return;
-    }
+  //   // ✅ 1. Memory cache
+  //   const mem = eciCache.get(topic);
+  //   if (mem && Date.now() - mem.timestamp < CACHE_DURATION) {
+  //     console.log("⚡ ECI memory cache hit");
+  //     setEciData(mem.data);
+  //     return;
+  //   }
   
-    // ✅ 2. localStorage cache
-    const ls = getECIFromLocalStorage(topic);
-    if (ls) {
-      console.log("💾 ECI localStorage cache hit");
-      eciCache.set(topic, ls);
-      setEciData(ls.data);
-      return;
-    }
+  //   // ✅ 2. localStorage cache
+  //   const ls = getECIFromLocalStorage(topic);
+  //   if (ls) {
+  //     console.log("💾 ECI localStorage cache hit");
+  //     eciCache.set(topic, ls);
+  //     setEciData(ls.data);
+  //     return;
+  //   }
   
-    // ❌ No cache → fetch
-    setIsEciLoading(true);
-    setEciData(null);
+  //   // ❌ No cache → fetch
+  //   setIsEciLoading(true);
+  //   setEciData(null);
   
-    ApiService.eci(topic)
-      .then((data) => {
-        console.log("🔥 ECI API RESPONSE:", data);
+  //   ApiService.eci(topic)
+  //     .then((data) => {
+  //       console.log("🔥 ECI API RESPONSE:", data);
   
-        // ✅ SAVE HERE
-        saveECIToCache(topic, data);
+  //       // ✅ SAVE HERE
+  //       saveECIToCache(topic, data);
   
-        setEciData(data);
-      })
-      .catch((err) => console.error('[eci]', err))
-      .finally(() => setIsEciLoading(false));
-  }, [topic, activeTab]);
+  //       setEciData(data);
+  //     })
+  //     .catch((err) => console.error('[eci]', err))
+  //     .finally(() => setIsEciLoading(false));
+  // }, [topic, activeTab]);
 
   useEffect(() => {
     setSearchQuery(topic);
@@ -675,6 +678,8 @@ useEffect(() => {
       if (memCached && Date.now() - memCached.timestamp < CACHE_DURATION) {
         console.log('[script-ideas] memory cache hit:', topic);
         setScriptIdeas(memCached.scriptIdeas);
+        setSimilarPastIdeas(memCached.similarPastIdeas);
+        setTopicSummary(memCached.topicSummary);
         setError(memCached.error);
         setIsLoading(false);
         return;
@@ -686,6 +691,8 @@ useEffect(() => {
         console.log('[script-ideas] localStorage cache hit:', topic);
         resultsCache.set(topic, lsCached);
         setScriptIdeas(lsCached.scriptIdeas);
+        setSimilarPastIdeas(lsCached.similarPastIdeas ?? []);
+        setTopicSummary(lsCached.topicSummary ?? null);
         setError(lsCached.error);
         setIsLoading(false);
         return;
@@ -699,6 +706,8 @@ useEffect(() => {
         const result = resultsCache.get(topic) ?? getFromLocalStorage(topic);
         if (result) {
           setScriptIdeas(result.scriptIdeas);
+          setSimilarPastIdeas(result.similarPastIdeas ?? []);
+          setTopicSummary(result.topicSummary ?? null);
           setError(result.error);
           setIsLoading(false);
         }
@@ -713,6 +722,7 @@ useEffect(() => {
       setIsLoading(true);
       setError(null);
       setScriptIdeas([]);
+      setSimilarPastIdeas([]);
 
       const maxWaitMs = 300000;
       const retryDelayMs = 5000;
@@ -720,10 +730,13 @@ useEffect(() => {
       const applyResult = (
         ideas: ScriptIdea[],
         err: string | null,
-        summary: string | null = null
+        summary: string | null = null,
+        relatedIdeas: SimilarPastIdea[] = []
       ) => {
         const cacheData = {
           scriptIdeas: ideas,
+          similarPastIdeas: relatedIdeas,
+          topicSummary: summary,
           error: err,
           timestamp: Date.now(),
         };
@@ -734,6 +747,7 @@ useEffect(() => {
         settleFetch();
       
         setScriptIdeas(ideas);
+        setSimilarPastIdeas(relatedIdeas);
         setError(err);
         setTopicSummary(summary);
         setIsLoading(false);
@@ -755,7 +769,8 @@ const ideas: ScriptIdea[] = (response.ideas ?? []).map((idea, idx) => ({
 applyResult(
   ideas,
   null,
-  response.topic_summary ?? null
+  response.topic_summary ?? null,
+  response.similar_past_ideas ?? []
 );
 
 return;
@@ -840,6 +855,34 @@ return;
       },
     };
   
+    // All ideas except the one the user selected are "unused" → send to backend.
+    const unusedIdeas = scriptIdeas
+      .filter((i) => i.id !== idea.id)
+      .map((i) => ({ title: i.title, description: i.description }));
+
+    if (unusedIdeas.length > 0) {
+      ApiService.sendUnusedIdeas({
+        topic,
+        topic_summary: topicSummary,
+        ideas: unusedIdeas,
+      });
+    }
+
+    // Stash the selected idea so the script page can report it as unused
+    // if the user leaves without unlocking the generated script.
+    try {
+      sessionStorage.setItem(
+        "pending_unused_idea",
+        JSON.stringify({
+          topic,
+          topic_summary: topicSummary,
+          ideas: [{ title: idea.title, description: idea.description }],
+        })
+      );
+    } catch (err) {
+      console.error(err);
+    }
+
     try {
       sessionStorage.setItem(
         "generate_params",
@@ -1144,6 +1187,135 @@ return;
           </div>
         </div>
       </div>
+
+      {/* ── Related Topic Ideas Section ── */}
+      {(isLoading || similarPastIdeas.length > 0) && (
+        <div className="container px-4 lg:px-8 pb-8 sm:pb-12">
+          <div className="bg-gray-100 rounded-3xl relative">
+            <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-1 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center flex-shrink-0">
+                  <Link2 className="w-6 h-6 text-indigo-500" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">From past searches</p>
+                  <h2 className="text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
+                    Related Topic Ideas
+                    <span className="inline-flex items-center gap-1.5 bg-[#1d1d1f] text-white text-sm font-semibold px-3 py-0.5 rounded-full">
+                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                      {topic}
+                    </span>
+                  </h2>
+                  <p className="text-sm text-[#6e6e73] mt-1">Ideas from similar topics you&apos;ve explored before</p>
+                </div>
+              </div>
+              {!isLoading && (
+                <div className="flex-shrink-0 self-start sm:self-center">
+                  <span className="inline-flex items-center gap-1.5 bg-[#f5f5f7] text-[#6e6e73] text-xs font-medium px-3 py-1.5 rounded-full">
+                    <Filter className="w-3 h-3" />
+                    {similarPastIdeas.reduce((sum, g) => sum + g.ideas.length, 0)} idea{similarPastIdeas.reduce((sum, g) => sum + g.ideas.length, 0) !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="px-4 pb-8">
+              {isLoading && (
+                <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold text-[#1d1d1f] mb-1">Finding Related Topic Ideas</p>
+                      <p className="text-sm text-[#6e6e73]">Looking for similar past topics related to &quot;{topic}&quot;</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!isLoading && (
+                <div className="space-y-8">
+                  {similarPastIdeas.map((pastTopic, groupIdx) => (
+                    <div key={pastTopic.id}>
+                      <div className="flex flex-wrap items-center gap-3 mb-4 px-2">
+                        <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 text-xs font-semibold px-3 py-1 rounded-full border border-indigo-100">
+                          <Globe className="w-3 h-3" />
+                          {pastTopic.topic}
+                        </span>
+                        <span className="inline-flex items-center gap-1 bg-[#f5f5f7] text-[#6e6e73] text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                          {Math.round(pastTopic.similarity * 100)}% match
+                        </span>
+                      </div>
+
+                      <div className="space-y-4">
+                        {pastTopic.ideas.map((idea, idx) => {
+                          const ideaId = 10000 + groupIdx * 100 + idx;
+                          const relatedIdea: ScriptIdea = {
+                            id: ideaId,
+                            title: idea.title,
+                            description: idea.description,
+                            category: pastTopic.topic,
+                          };
+
+                          return (
+                            <div
+                              key={`${pastTopic.id}-${idx}`}
+                              className="bg-white border border-gray-200/80 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+                            >
+                              <div className="px-6 pt-5 pb-4 border-b border-gray-100">
+                                <div className="flex flex-col sm:flex-row items-start gap-4">
+                                  <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                    <span className="text-xs font-black text-indigo-500">{String(idx + 1).padStart(2, '0')}</span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                      <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full uppercase">
+                                        Related
+                                      </span>
+                                    </div>
+                                    <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f] leading-snug">{idea.title}</h3>
+                                  </div>
+                                </div>
+                                <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed sm:pl-12 line-clamp-2 sm:line-clamp-6">{idea.description}</p>
+                              </div>
+                              <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-[#fafafa]">
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <Clock className="w-3.5 h-3.5 text-[#6e6e73]" />
+                                  <label className="text-xs font-medium text-[#6e6e73]">Length (min)</label>
+                                  <Input
+                                    type="number"
+                                    placeholder="10"
+                                    value={videoLengths[ideaId] || ''}
+                                    onChange={(e) => handleVideoLengthChange(ideaId, e.target.value)}
+                                    className="w-16 h-7 text-xs rounded-lg border-gray-200 bg-white text-center"
+                                    min={1}
+                                    max={60}
+                                  />
+                                </div>
+                                <div className="sm:ml-auto">
+                                  <button
+                                    onClick={() => handleGenerateScript(relatedIdea)}
+                                    disabled={!videoLengths[ideaId]?.trim()}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                                    Generate Content
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
 
 

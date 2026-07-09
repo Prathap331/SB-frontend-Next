@@ -93,10 +93,34 @@ export interface PipelineMetricsResponse {
   final_verdict: { action: string; summary: string };
 }
 
+export interface SimilarPastIdeaItem {
+  title: string;
+  description: string;
+}
+
+export interface SimilarPastIdea {
+  id: number;
+  topic: string;
+  ideas: SimilarPastIdeaItem[];
+  similarity: number;
+}
+
 export interface ProcessTopicResponse {
   ideas: string[];
   descriptions: string[];
   topic_summary?: string;
+  similar_past_ideas?: SimilarPastIdea[];
+}
+
+export interface UnusedIdea {
+  title: string;
+  description: string;
+}
+
+export interface UnusedIdeasPayload {
+  topic: string;
+  topic_summary?: string | null;
+  ideas: UnusedIdea[];
 }
 
 export interface SignUpRequest {
@@ -607,7 +631,7 @@ export class ApiService {
   }
 
   /**
-   * Normalizes the /process-topic backend response into the shape the UI expects
+   * Normalizes the /generate-ideas backend response into the shape the UI expects
    * ({ ideas: string[], descriptions: string[], summary? }).
    *
    * Supports the latest backend structure where `ideas` is an array of
@@ -634,6 +658,9 @@ export class ApiService {
         ideas,
         descriptions,
         topic_summary: data?.topic_summary ?? null,
+        similar_past_ideas: Array.isArray(data?.similar_past_ideas)
+          ? data.similar_past_ideas
+          : [],
       };
     }
 
@@ -642,6 +669,9 @@ export class ApiService {
       ideas: rawIdeas,
       descriptions: Array.isArray(data?.descriptions) ? data.descriptions : [],
       topic_summary: data?.topic_summary ?? null,
+      similar_past_ideas: Array.isArray(data?.similar_past_ideas)
+        ? data.similar_past_ideas
+        : [],
     };
   }
 
@@ -649,7 +679,7 @@ export class ApiService {
     const maxRetries = 2;
 
     try {
-      const apiUrl = `${this.BASE_URL}/process-topic`;
+      const apiUrl = `${this.BASE_URL}/generate-ideas`;
       const safeTopic = this.sanitizeTopic(topic);
 
       let response;
@@ -700,6 +730,47 @@ export class ApiService {
         throw new Error('CORS error: The API server needs to allow requests from this domain.');
       }
       throw error;
+    }
+  }
+
+  /**
+   * Fire-and-forget keepalive POST of unused ideas to /save_ideas.
+   * Synchronous so it survives page unload (tab close / SPA navigation).
+   * The payload mirrors the /generate-ideas response shape:
+   * { topic, topic_summary, ideas: [{ title, description }] }.
+   */
+  static sendUnusedIdeasKeepalive(
+    payload: UnusedIdeasPayload,
+    token?: string | null,
+  ): void {
+    if (!payload?.ideas?.length) return;
+
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      fetch(`${this.BASE_URL}/save-ideas`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {
+      // fire-and-forget — never block the UI
+    }
+  }
+
+  /**
+   * Async wrapper that resolves the auth token first, then sends unused ideas.
+   * Safe to call from normal user interactions (e.g. selecting an idea).
+   */
+  static async sendUnusedIdeas(payload: UnusedIdeasPayload): Promise<void> {
+    if (!payload?.ideas?.length) return;
+    try {
+      const token = await this.getAuthToken();
+      this.sendUnusedIdeasKeepalive(payload, token);
+    } catch {
+      // fire-and-forget
     }
   }
 

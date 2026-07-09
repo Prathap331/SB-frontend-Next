@@ -5,12 +5,12 @@ const API_URL = process.env.API_URL || 'https://storybit-backend.onrender.com';
 
 async function testProcessTopic() {
   console.log('\n=== Testing Process Topic API ===');
-  console.log('Backend URL:', `${API_URL}/process-topic`);
+  console.log('Backend URL:', `${API_URL}/generate-ideas`);
   
   try {
     const startTime = Date.now();
     
-    const response = await fetch(`${API_URL}/process-topic`, {
+    const response = await fetch(`${API_URL}/generate-ideas`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

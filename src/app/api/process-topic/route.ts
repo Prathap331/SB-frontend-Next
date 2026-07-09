@@ -20,16 +20,16 @@ export async function POST(request: NextRequest) {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   try {
-    console.log('[process-topic] ✅ Route handler called');
-    console.log('[process-topic] Request URL:', request.url);
-    console.log('[process-topic] Request method:', request.method);
+    console.log('[generate-ideas] ✅ Route handler called');
+    console.log('[generate-ideas] Request URL:', request.url);
+    console.log('[generate-ideas] Request method:', request.method);
     
     // Parse request body with error handling
     let body;
     try {
       body = await request.json();
     } catch (parseError) {
-      console.error('[process-topic] JSON parse error:', parseError);
+      console.error('[generate-ideas] JSON parse error:', parseError);
       return NextResponse.json(
         { error: 'Invalid JSON in request body' },
         { status: 400 }
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[process-topic] Processing topic:', topic);
+    console.log('[generate-ideas] Processing topic:', topic);
 
     const authHeader = request.headers.get('Authorization');
     const headers: HeadersInit = {
@@ -60,12 +60,12 @@ export async function POST(request: NextRequest) {
     // Create AbortController for timeout (5 minutes = 300000ms)
     controller = new AbortController();
     timeoutId = setTimeout(() => {
-      console.error('[process-topic] Request timeout after 5 minutes');
+      console.error('[generate-ideas] Request timeout after 5 minutes');
       controller?.abort();
     }, 300000); // 5 minutes
 
-    const backendUrl = `${API_URL}/process-topic`;
-    console.log('[process-topic] Calling backend:', backendUrl);
+    const backendUrl = `${API_URL}/generate-ideas`;
+    console.log('[generate-ideas] Calling backend:', backendUrl);
 
     const response = await fetch(backendUrl, {
       method: 'POST',
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       timeoutId = null;
     }
 
-    console.log('[process-topic] Backend response status:', response.status);
+    console.log('[generate-ideas] Backend response status:', response.status);
 
     if (!response.ok) {
       let errorData: string;
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         errorData = `HTTP ${response.status}: ${response.statusText}`;
       }
 
-      console.error('[process-topic] Backend error:', errorData);
+      console.error('[generate-ideas] Backend error:', errorData);
 
       // Return appropriate error response
       return NextResponse.json(
@@ -106,9 +106,9 @@ export async function POST(request: NextRequest) {
     let data;
     try {
       data = await response.json();
-      console.log('[process-topic] Successfully received data');
+      console.log('[generate-ideas] Successfully received data');
     } catch (jsonError) {
-      console.error('[process-topic] JSON parse error in response:', jsonError);
+      console.error('[generate-ideas] JSON parse error in response:', jsonError);
       return NextResponse.json(
         { error: 'Invalid JSON response from backend' },
         { status: 502 }
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
     // Handle specific error types
     if (error instanceof Error) {
       if (error.name === 'AbortError' || error.message.includes('aborted')) {
-        console.error('[process-topic] Request aborted (timeout)');
+        console.error('[generate-ideas] Request aborted (timeout)');
         return NextResponse.json(
           { error: 'Request timed out after 5 minutes. The server is taking too long to respond.' },
           { status: 408 }
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (error.message.includes('fetch')) {
-        console.error('[process-topic] Network error:', error.message);
+        console.error('[generate-ideas] Network error:', error.message);
         return NextResponse.json(
           { error: 'Unable to connect to backend server. Please check your network connection and try again.' },
           { status: 503 }
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.error('[process-topic] Unexpected error:', error);
+    console.error('[generate-ideas] Unexpected error:', error);
     return NextResponse.json(
       { error: 'An unexpected error occurred while processing your request.' },
       { status: 500 }

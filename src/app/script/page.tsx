@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { ApiService, GenerationParams, GeneratedScriptData } from '@/services/api';
+import { ApiService, GenerationParams, GeneratedScriptData, UnusedIdeasPayload } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
 import nlp from 'compromise';
 
@@ -243,6 +243,11 @@ export default function ScriptPage() {
   const pageTitleRef         = React.useRef('Generated Script');
   // ID of the scripts_universal row (set when loaded via ?scriptId= from that table)
   const universalScriptIdRef = React.useRef<string | null>(null);
+
+  // Selected idea to report as "unused" if the user leaves without unlocking.
+  const pendingUnusedIdeaRef = React.useRef<UnusedIdeasPayload | null>(null);
+  const authTokenRef         = React.useRef<string | null>(null);
+  const unusedIdeaSentRef    = React.useRef(false);
 
  
 
@@ -768,6 +773,58 @@ if (params.get('from') === 'suggested') {
     return () => window.removeEventListener('pagehide', handler);
   }, [saveToUniversalScripts]);
 
+  // ── Unused idea reporting ──────────────────────────────────────────────────
+  // Load the idea the user selected from the search page (fresh generate flow
+  // only). If the user leaves this page without unlocking, that idea is reported
+  // to /save_ideas. Vault/suggested loads (scriptId / from=suggested) are not
+  // part of the generate flow, so any stale pending idea is cleared.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isSuggested =
+      params.get('from') === 'suggested' || !!params.get('scriptId');
+
+    if (isSuggested) {
+      try { sessionStorage.removeItem('pending_unused_idea'); } catch {}
+      return;
+    }
+
+    try {
+      const raw = sessionStorage.getItem('pending_unused_idea');
+      if (raw) pendingUnusedIdeaRef.current = JSON.parse(raw);
+    } catch {
+      // ignore malformed data
+    }
+
+    // Capture the auth token so the unload handler can send it synchronously.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      authTokenRef.current = session?.access_token ?? null;
+    });
+  }, []);
+
+  // Report the selected idea as unused — only if it was never unlocked.
+  const sendPendingUnusedIdea = React.useCallback(() => {
+    if (unusedIdeaSentRef.current) return;
+    if (isUnlockedRef.current) return; // unlocked → idea was used
+    const payload = pendingUnusedIdeaRef.current;
+    if (!payload?.ideas?.length) return;
+
+    unusedIdeaSentRef.current = true;
+    ApiService.sendUnusedIdeasKeepalive(payload, authTokenRef.current);
+    try { sessionStorage.removeItem('pending_unused_idea'); } catch {}
+  }, []);
+
+  // Report on SPA navigation away (component unmount)
+  useEffect(() => {
+    return () => { sendPendingUnusedIdea(); };
+  }, [sendPendingUnusedIdea]);
+
+  // Report on tab close / browser refresh (keepalive fetch survives unload)
+  useEffect(() => {
+    const handler = () => { sendPendingUnusedIdea(); };
+    window.addEventListener('pagehide', handler);
+    return () => window.removeEventListener('pagehide', handler);
+  }, [sendPendingUnusedIdea]);
+
   const handleUnlock = async () => {
     setIsUnlocking(true);
     try {
@@ -791,6 +848,12 @@ if (params.get('from') === 'suggested') {
       if (res.ok && json.message === 'success') {
 
         setIsUnlocked(true);
+        isUnlockedRef.current = true;
+
+        // Script was unlocked → the selected idea was used, don't report it.
+        pendingUnusedIdeaRef.current = null;
+        unusedIdeaSentRef.current = true;
+        try { sessionStorage.removeItem('pending_unused_idea'); } catch {}
       
         // UPDATE CREDITS IMMEDIATELY
         if (json.remaining_credits !== undefined) {
