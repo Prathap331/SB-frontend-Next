@@ -1,6 +1,6 @@
 'use client';
 
-import { Mail, Phone } from 'lucide-react';
+import { Mail, Phone , Newspaper} from 'lucide-react';
 import Image from 'next/image';
 import PrefixedLink from '@/components/PrefixedLink';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
@@ -63,6 +63,11 @@ const Footer = () => {
               >
                 <Phone className="w-3.5 h-3.5 flex-shrink-0" />
                 +91 90004 49855
+              </a>
+              <a  href="/blog"
+                className="flex items-center gap-2 text-sm text-[#6e6e73] hover:text-white transition-colors font-light">
+                <Newspaper className="w-3.5 h-3.5 flex-shrink-0" />
+                Blog
               </a>
             </div>
           </div>

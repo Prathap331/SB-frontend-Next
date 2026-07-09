@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -18,6 +18,7 @@ import { ApiService, TSSResponse, ECIResponse, SimilarPastIdea } from '@/service
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ECIExactReplica from '@/components/ECIExactReplica';
 import SuggestedTopicsSidebar from '@/components/SuggestedTopicsSidebar';
+import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
 import { supabase as sbClient } from '@/lib/supabaseClient';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 
@@ -534,6 +535,7 @@ export default function SearchTopicPage() {
   const [similarPastIdeas, setSimilarPastIdeas] = useState<SimilarPastIdea[]>([]);
   const [topicSummary, setTopicSummary] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchReady, setFetchReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
@@ -667,11 +669,22 @@ useEffect(() => {
     router.push(searchPath(trimmed));
   };
 
+  const handleProgressFinished = useCallback(() => {
+    setIsLoading(false);
+    setFetchReady(false);
+  }, []);
+
+  const finishLoading = useCallback(() => {
+    setFetchReady(true);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
       if (!topic) return;
+
+      setFetchReady(false);
 
       // 1. Memory cache hit
       const memCached = resultsCache.get(topic);
@@ -681,7 +694,7 @@ useEffect(() => {
         setSimilarPastIdeas(memCached.similarPastIdeas);
         setTopicSummary(memCached.topicSummary);
         setError(memCached.error);
-        setIsLoading(false);
+        finishLoading();
         return;
       }
 
@@ -694,7 +707,7 @@ useEffect(() => {
         setSimilarPastIdeas(lsCached.similarPastIdeas ?? []);
         setTopicSummary(lsCached.topicSummary ?? null);
         setError(lsCached.error);
-        setIsLoading(false);
+        finishLoading();
         return;
       }
 
@@ -709,7 +722,7 @@ useEffect(() => {
           setSimilarPastIdeas(result.similarPastIdeas ?? []);
           setTopicSummary(result.topicSummary ?? null);
           setError(result.error);
-          setIsLoading(false);
+          finishLoading();
         }
         return;
       }
@@ -720,6 +733,7 @@ useEffect(() => {
 
       initialLoadStartRef.current = Date.now();
       setIsLoading(true);
+      setFetchReady(false);
       setError(null);
       setScriptIdeas([]);
       setSimilarPastIdeas([]);
@@ -750,7 +764,7 @@ useEffect(() => {
         setSimilarPastIdeas(relatedIdeas);
         setError(err);
         setTopicSummary(summary);
-        setIsLoading(false);
+        finishLoading();
       };
 
       while (true) {
@@ -804,7 +818,7 @@ return;
 
     run();
     return () => { cancelled = true; };
-  }, [topic]);
+  }, [topic, finishLoading]);
 
   const getCategoryFromIndex = (index: number) => {
     const categoryMap = ['Technology', 'Social Impact', 'Economic Analysis', 'Historical', 'Future Analysis'];
@@ -931,13 +945,13 @@ return;
                    }}
                    className="pl-10 sm:pl-12 md:pl-14 pr-20 sm:pr-24 md:pr-32 py-4 sm:py-5 md:py-7 text-xs sm:text-sm md:text-lg rounded-full border-0 bg-white text-black placeholder-gray-500 focus:bg-white focus:ring-2 focus:ring-gray-400 font-sans w-full"
                  />
-                 <Button
+                 <button
                    onClick={handleSearchSubmit}
-                   className="absolute right-1.5 sm:right-2 top-1/2 transform -translate-y-1/2 rounded-full bg-black text-white hover:bg-gray-800 hover:shadow-xl hover:scale-105 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 text-xs sm:text-sm md:text-lg font-medium font-sans transition-all duration-300 ease-in-out"
+                   className="absolute right-1.5 sm:right-2 top-1/2 transform -translate-y-1/2 rounded-full bg-black text-white hover:bg-gray-800 hover:shadow-xl hover:scale-105 px-3 sm:px-4 md:px-6 py-2 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-lg font-medium font-sans transition-all duration-300 ease-in-out"
                  >
                    <span className="hidden sm:inline">Generate Ideas</span>
                    <span className="sm:hidden">Generate</span>
-                 </Button>
+                 </button>
           </div>
         </div>
       </div>
@@ -1046,18 +1060,32 @@ return;
           {/* Header — full width, sticky */}
           <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-1 min-w-0">
+              <div className='flex gap-4'>
+
               <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0">
                 <Lightbulb className="w-6 h-6 text-orange-500" />
               </div>
-              <div className="min-w-0">
+              <div className='sm:hidden'>
                 <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">AI-generated</p>
                 <h2 className="text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
                   Content Ideas
+                </h2>
+              </div>
+              </div>
+
+
+              <div className="min-w-0">
+                <p className="hidden  sm:block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">AI-generated</p>
+                <h2 className="hidden sm:block text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
+                  Content Ideas
+                </h2>
+
                   <span className="inline-flex items-center gap-1.5 bg-[#1d1d1f] text-white text-sm font-semibold px-3 py-0.5 rounded-full">
                     <Sparkles className="w-3 h-3 text-orange-400" />
                     {topic}
                   </span>
-                </h2>
+
+                
                 <p className="text-sm text-[#6e6e73] mt-1">Choose a perspective and generate a full youtube content in seconds</p>
               </div>
             </div>
@@ -1075,21 +1103,7 @@ return;
           <div className="px-4 pb-8">
             <div className="flex-1 min-w-0">
 
-              {isLoading && (
-                <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center">
-                      <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
-                    </div>
-                    <div>
-                      <p className="text-base font-semibold text-[#1d1d1f] mb-1">Generating Content Ideas</p>
-                      <p className="text-sm text-[#6e6e73]">AI is analysing &quot;{topic}&quot; — this may take up to 5 minutes</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {error && (
+              {isLoading ? null : error && (
                 <div className="bg-red-50 border border-red-100 rounded-2xl p-6 mb-6 flex items-start gap-4">
                   <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
                     <AlertCircle className="w-4.5 h-4.5 text-red-500" />
@@ -1133,7 +1147,7 @@ return;
                             <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f] leading-snug">{statement.title}</h3>
                           </div>
                         </div>
-                        <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed sm:pl-12 line-clamp-2 sm:line-clamp-6">{statement.description}</p>
+                        <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed sm:pl-12  ">{statement.description}</p>
                       </div>
                       <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-[#fafafa]">
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -1194,18 +1208,30 @@ return;
           <div className="bg-gray-100 rounded-3xl relative">
             <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-1 min-w-0">
+
+                <div className='flex gap-4'>
                 <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center flex-shrink-0">
                   <Link2 className="w-6 h-6 text-indigo-500" />
                 </div>
-                <div className="min-w-0">
+
+                <div className='sm:hidden'>
                   <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">From past searches</p>
                   <h2 className="text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
                     Related Topic Ideas
+                  </h2>
+                </div>
+</div>
+
+
+                <div className="min-w-0">
+                  <p className="hidden sm:block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">From past searches</p>
+                  <h2 className="hidden sm:block text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
+                    Related Topic Ideas
+                  </h2>
                     <span className="inline-flex items-center gap-1.5 bg-[#1d1d1f] text-white text-sm font-semibold px-3 py-0.5 rounded-full">
                       <Sparkles className="w-3 h-3 text-indigo-400" />
                       {topic}
                     </span>
-                  </h2>
                   <p className="text-sm text-[#6e6e73] mt-1">Ideas from similar topics you&apos;ve explored before</p>
                 </div>
               </div>
@@ -1220,20 +1246,6 @@ return;
             </div>
 
             <div className="px-4 pb-8">
-              {isLoading && (
-                <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
-                      <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-                    </div>
-                    <div>
-                      <p className="text-base font-semibold text-[#1d1d1f] mb-1">Finding Related Topic Ideas</p>
-                      <p className="text-sm text-[#6e6e73]">Looking for similar past topics related to &quot;{topic}&quot;</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {!isLoading && (
                 <div className="space-y-8">
                   {similarPastIdeas.map((pastTopic, groupIdx) => (
@@ -1277,7 +1289,7 @@ return;
                                     <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f] leading-snug">{idea.title}</h3>
                                   </div>
                                 </div>
-                                <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed sm:pl-12 line-clamp-2 sm:line-clamp-6">{idea.description}</p>
+                                <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed sm:pl-12">{idea.description}</p>
                               </div>
                               <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-[#fafafa]">
                                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -1386,6 +1398,14 @@ return;
         </aside>
 
       </div>{/* end page-level flex */}
+
+      <GenerationProgressOverlay
+        isOpen={isLoading}
+        ready={fetchReady}
+        onFinished={handleProgressFinished}
+        subtext={`Usually under 5 minutes. We're analysing "${topic}" in the background.`}
+      />
+
         <Footer />
     </div>
   );

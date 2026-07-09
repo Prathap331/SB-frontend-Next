@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2, FileText, Lightbulb, Heart, BookOpen, History,
   Search, Link as LinkIcon, ExternalLink,
-  Eye, Monitor, Download, X, Lock, Unlock, AlertCircle
+  Eye, Monitor, Download, X, Lock, Unlock, AlertCircle, Rocket, Target
 } from 'lucide-react';
 // Note: GeneratedScript component exists in the project but is not used in this detailed view
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
 import { ApiService, GenerationParams, GeneratedScriptData, UnusedIdeasPayload } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
 import nlp from 'compromise';
@@ -21,6 +22,72 @@ type HashtagItem = {
   hashtag: string;
   strategy: 'expansion' | 'established';
 };
+
+const SCRIPT_GENERATION_STEPS = [
+  'Understanding your topic',
+  'Web searching for factual information',
+  'Analysing the data',
+  'Generating your script for YouTube',
+  'Finishing',
+];
+
+const STORYBIT_PRODUCTION_GUIDE = {
+  optimized: {
+    title: 'What Storybit AI Already Optimized For You',
+    items: [
+      {
+        title: 'AI-Engineered Narrative Architecture',
+        description:
+          'Your script is built using advanced narrative storytelling, curiosity loops, emotional payoffs, and retention frameworks that maximize Audience Retention, Watch Time, and overall Viewer Satisfaction—the strongest ranking signals in YouTube\'s recommendation system.',
+      },
+      {
+        title: 'Discovery & SEO Optimization Completed',
+        description:
+          'Titles, descriptions, keywords, search intent, and metadata are strategically aligned to improve Search, Browse, Suggested Videos, and AI-powered content discovery while maintaining complete relevance between viewer expectation and content delivery.',
+      },
+      {
+        title: 'Research Intelligence Already Done',
+        description:
+          'Every script is synthesized from published books, historical records, research papers, credible news, and authoritative sources, eliminating days of research while delivering factual, structured, production-ready documentary storytelling you can confidently publish.',
+      },
+    ],
+  },
+  nextSteps: {
+    title: 'Your Next Steps to Maximize Reach',
+    items: [
+      {
+        title: 'Your Presentation Creates Viewer Satisfaction',
+        description:
+          'The script captures attention; your delivery builds emotional connection. Natural pacing, vocal variation, confident storytelling, and authentic personality significantly improve Audience Retention, Viewer Satisfaction, and Returning Viewer signals measured by YouTube AI.',
+      },
+      {
+        title: 'Every Scene Must Visually Validate the Story',
+        description:
+          'Support narration using historical photographs, newspaper archives, official documents, maps, timelines, charts, screenshots, and event footage. Visual evidence continuously rewards attention, improves perceived quality, and strengthens long-duration viewer engagement.',
+      },
+      {
+        title: 'Edit for Continuous Attention, Not Video Length',
+        description:
+          'Remove every unnecessary pause, repetition, or static scene. Maintain rapid visual progression using B-roll, motion graphics, captions, zooms, sound design, and transitions to continuously reinforce positive Audience Retention signals.',
+      },
+      {
+        title: 'Optimize for Session Watch Time',
+        description:
+          'End your video with a compelling curiosity bridge, end screens, playlists, and related recommendations. YouTube strongly rewards creators who extend overall viewing sessions, not just individual video watch time.',
+      },
+      {
+        title: 'Audio Quality Outranks Camera Quality',
+        description:
+          'A smartphone, natural lighting, tripod, and external microphone are enough. Crystal-clear audio consistently outperforms expensive cameras because poor sound creates immediate abandonment and negative Viewer Satisfaction signals.',
+      },
+      {
+        title: 'Let Analytics Train the Algorithm',
+        description:
+          'After publishing, analyze Audience Retention, Click-Through Rate (CTR), Session Watch Time, Returning Viewers, and traffic sources. Every upload teaches YouTube\'s AI exactly which audience should receive your future recommendations.',
+      },
+    ],
+  },
+} as const;
 
 // Unwrap JSON envelope if backend returned {"script": "..."} as raw string
 function unwrapScriptJson(text: string): string {
@@ -227,6 +294,7 @@ export default function ScriptPage() {
   const router = useRouter();
   const [data, setData] = useState<GeneratedScriptData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [progressReady, setProgressReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shouldRender, setShouldRender] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -248,6 +316,15 @@ export default function ScriptPage() {
   const pendingUnusedIdeaRef = React.useRef<UnusedIdeasPayload | null>(null);
   const authTokenRef         = React.useRef<string | null>(null);
   const unusedIdeaSentRef    = React.useRef(false);
+
+  const handleProgressFinished = useCallback(() => {
+    setIsLoading(false);
+    setProgressReady(false);
+  }, []);
+
+  const finishLoading = useCallback(() => {
+    setProgressReady(true);
+  }, []);
 
  
 
@@ -271,6 +348,7 @@ export default function ScriptPage() {
     const run = async () => {
       const userId = session.user.id;
       setIsLoading(true);
+      setProgressReady(false);
       setError(null);
 
       // ── Load by scriptId ────────────────────────────────────────────────────
@@ -300,7 +378,7 @@ export default function ScriptPage() {
           setScriptDuration(row.duration ?? undefined);
           setIsUnlocked(true);
           setScriptSaved(true);
-          setIsLoading(false);
+          finishLoading();
           return;
         }
 
@@ -331,7 +409,7 @@ export default function ScriptPage() {
         setScriptTopic(uRow.topic ?? undefined);
         setScriptDuration(uRow.duration ?? undefined);
         universalScriptIdRef.current = uRow.id; // remember for delete-on-unlock
-        setIsLoading(false);
+        finishLoading();
         return;
       }
       // ────────────────────────────────────────────────────────────────────────
@@ -377,7 +455,7 @@ export default function ScriptPage() {
                 // Restore unlock state if previously unlocked
                 const cacheKey = getStorageKey(topic, undefined);
                 if (localStorage.getItem(`${cacheKey}_unlocked`) === 'true') setIsUnlocked(true);
-                setIsLoading(false);
+                finishLoading();
                 return; // Successfully loaded from cache
               }
             }
@@ -398,7 +476,7 @@ export default function ScriptPage() {
                 if (cached.pageTitle) setPageTitle(cached.pageTitle);
                 // Restore unlock state if previously unlocked
                 if (localStorage.getItem(`${latestKey}_unlocked`) === 'true') setIsUnlocked(true);
-                setIsLoading(false);
+                finishLoading();
                 return; // Successfully loaded latest script
               }
             }
@@ -461,7 +539,7 @@ setData(normalized);
             if (payload.duration_minutes) setScriptDuration(payload.duration_minutes);
             if (payload.topic) setScriptTopic(payload.topic);
             setPageTitle(scriptTitle);
-            setIsLoading(false);
+            finishLoading();
             return;
           } catch (err) {
             const error = err as Error;
@@ -553,6 +631,7 @@ console.log("📦 Script API Response:", json);
         } catch {
           // Ignore sessionStorage errors
         }
+        finishLoading();
       } catch (err) {
         const error = err as Error;
         // Handle unauthorized errors immediately - redirect without showing error state
@@ -568,13 +647,12 @@ console.log("📦 Script API Response:", json);
         }
         console.error('Failed to Generate Content:', error);
         setError(error.message || 'Failed to Generate Content');
-      } finally {
         setIsLoading(false);
       }
     };
     run();
   })();
-  }, [router]);
+  }, [router, finishLoading]);
 
   const [showSourcesDialog, setShowSourcesDialog] = useState(false);
   const [contentTab, setContentTab] = useState<1|2|3|4|5>(1);
@@ -642,6 +720,7 @@ console.log("📦 Script API Response:", json);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [showInsufficientPopup, setShowInsufficientPopup] = useState(false);
+  const [showProductionGuidePopup, setShowProductionGuidePopup] = useState(false);
   const [scriptDuration, setScriptDuration] = useState<number | undefined>();
   const [scriptTopic, setScriptTopic] = useState<string | undefined>();
   const [scriptSaved, setScriptSaved] = useState(false); // prevent duplicate saves
@@ -849,6 +928,7 @@ if (params.get('from') === 'suggested') {
 
         setIsUnlocked(true);
         isUnlockedRef.current = true;
+        setShowProductionGuidePopup(true);
 
         // Script was unlocked → the selected idea was used, don't report it.
         pendingUnusedIdeaRef.current = null;
@@ -949,6 +1029,24 @@ if (params.get('from') === 'suggested') {
     }
   }, [showSourcesDialog]);
 
+  useEffect(() => {
+    if (!showProductionGuidePopup) return;
+
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, [showProductionGuidePopup]);
+
 
   /* ---------------- DOWNLOAD PDF ---------------- */
 
@@ -1041,15 +1139,21 @@ if (params.get('from') === 'suggested') {
   }, [data?.script, structureSegments]);
   // ─────────────────────────────────────────────────────────────────────────
 
-  if (isLoading)
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7]">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="animate-spin w-7 h-7 text-[#1d1d1f]" />
-          <p className="text-sm text-[#6e6e73] font-light">Generating your script…</p>
-        </div>
+      <div className="min-h-screen bg-[#f5f5f7]">
+        <Header />
+        <GenerationProgressOverlay
+          isOpen
+          ready={progressReady}
+          onFinished={handleProgressFinished}
+          steps={SCRIPT_GENERATION_STEPS}
+          subtext="Usually under 5 minutes. We'll keep working in the background."
+        />
+        <Footer />
       </div>
     );
+  }
 
   if (error) return (
     <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7]">
@@ -1064,22 +1168,6 @@ if (params.get('from') === 'suggested') {
   // Don't render anything if redirecting or not yet validated
   if (!shouldRender || isRedirecting) {
     return null;
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#E9EBF0]/20">
-        <Header />
-        <main className="container mx-auto px-4 py-8 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin" />
-            <p className="text-lg">Generating your script...</p>
-            <p className="text-gray-600">This may take up to a couple minutes</p>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
   }
 
   if (error) {
@@ -1866,6 +1954,84 @@ const csExpansion =
           </div>
         </ScrollArea>
       </div>
+
+      {/* ── Production Guide Popup (on unlock) ── */}
+      {showProductionGuidePopup && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl shadow-black/20 border border-gray-200/80 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-orange-50/80 via-white to-indigo-50/80 flex-shrink-0">
+              <div className="min-w-0 pr-2">
+                <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">Script unlocked</p>
+                <h2 className="text-base font-semibold text-[#1d1d1f] leading-snug">Your Storybit Production Playbook</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowProductionGuidePopup(false)}
+                aria-label="Close"
+                className="w-8 h-8 rounded-full bg-[#f5f5f7] hover:bg-gray-200 flex items-center justify-center transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4 text-[#1d1d1f]" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-5 py-4 space-y-5 flex-1">
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Rocket className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                  <h3 className="text-sm font-semibold text-[#1d1d1f] leading-snug">
+                    {STORYBIT_PRODUCTION_GUIDE.optimized.title}
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {STORYBIT_PRODUCTION_GUIDE.optimized.items.map((item, index) => (
+                    <div key={item.title} className="flex gap-2.5">
+                      <span className="w-5 h-5 rounded-md bg-orange-50 border border-orange-100 text-orange-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#1d1d1f] leading-snug mb-0.5">{item.title}</p>
+                        <p className="text-[11px] text-[#6e6e73] leading-relaxed">{item.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                  <h3 className="text-sm font-semibold text-[#1d1d1f] leading-snug">
+                    {STORYBIT_PRODUCTION_GUIDE.nextSteps.title}
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {STORYBIT_PRODUCTION_GUIDE.nextSteps.items.map((item, index) => (
+                    <div key={item.title} className="flex gap-2.5">
+                      <span className="w-5 h-5 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#1d1d1f] leading-snug mb-0.5">{item.title}</p>
+                        <p className="text-[11px] text-[#6e6e73] leading-relaxed">{item.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 bg-[#fafafa] flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowProductionGuidePopup(false)}
+                className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-semibold transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+              >
+                Yes, I will do my best
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Insufficient Credits Popup ── */}
       {showInsufficientPopup && (

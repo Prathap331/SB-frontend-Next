@@ -102,6 +102,32 @@ All colors MUST be HSL.
   scrollbar-width: none;     /* Firefox */
 }
 
+@keyframes generation-step-shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.generation-step-shimmer {
+  background: linear-gradient(
+    90deg,
+    #1d1d1f 0%,
+    #1d1d1f 35%,
+    #8e8e93 50%,
+    #1d1d1f 65%,
+    #1d1d1f 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: generation-step-shimmer 2.2s linear infinite;
+}
+
 @layer base {
   * {
     @apply border-border;
