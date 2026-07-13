@@ -11,7 +11,7 @@ const DEFAULT_STEPS = [
   'Finishing',
 ];
 
-const STEP_DURATION_MS = 3500;
+const STEP_DURATION_MS = 3000;
 const FINISH_HOLD_MS = 700;
 
 interface GenerationProgressOverlayProps {
@@ -32,23 +32,28 @@ export default function GenerationProgressOverlay({
   const [visible, setVisible] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const finishedRef = useRef(false);
+  const wasOpenRef = useRef(false);
   const lastStepIndex = steps.length - 1;
 
+  // Open once per session — never restart steps while still loading
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
+      wasOpenRef.current = true;
       finishedRef.current = false;
       setVisible(true);
       setCurrentStep(0);
       return;
     }
 
-    if (!ready) {
+    if (!isOpen && !ready) {
+      wasOpenRef.current = false;
+      finishedRef.current = false;
       setVisible(false);
       setCurrentStep(0);
     }
   }, [isOpen, ready]);
 
-  // Advance through steps until the final one
+  // Advance one step every 3s until "Finishing" (last step)
   useEffect(() => {
     if (!visible || currentStep >= lastStepIndex) return;
 
@@ -59,13 +64,19 @@ export default function GenerationProgressOverlay({
     return () => clearTimeout(timer);
   }, [visible, currentStep, lastStepIndex]);
 
-  // On final step, wait for backend then close
+  // Ready before "Finishing" → fast-forward; on "Finishing" + ready → close
   useEffect(() => {
-    if (!visible || !ready || currentStep < lastStepIndex || finishedRef.current) return;
+    if (!visible || !ready || finishedRef.current) return;
+
+    if (currentStep < lastStepIndex) {
+      setCurrentStep(lastStepIndex);
+      return;
+    }
 
     finishedRef.current = true;
     const timer = window.setTimeout(() => {
       onFinished?.();
+      wasOpenRef.current = false;
       setVisible(false);
       setCurrentStep(0);
     }, FINISH_HOLD_MS);
