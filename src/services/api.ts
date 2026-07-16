@@ -180,11 +180,26 @@ export interface GenerationParams {
   userId?: string;
 }
 
+/** SEO block returned by /generate-script as `youtube_metadata` */
+export interface YoutubeMetadata {
+  titles?: string[];
+  descriptions?: string[];
+  /** Each entry is one set of hashtags (matching a title/description option) */
+  hashtags?: string[][];
+  thumbnail_text?: string[];
+}
+
+export interface BookReference {
+  title: string;
+  author: string;
+}
+
 export type GeneratedScriptData = {
   script: string;
-  estimated_word_count: number;
-  source_urls: string[];
-  analysis: {
+  estimated_word_count?: number;
+  /** Legacy field — new responses return `sources` instead */
+  source_urls?: string[];
+  analysis?: {
     examples_count: number;
     research_facts_count: number;
     proverbs_count: number;
@@ -193,23 +208,33 @@ export type GeneratedScriptData = {
   };
   title?: string;
   metrics?: {
-    totalWords: number;
-    videoLength: number;
-    emotionalDepth: number;
-    generalExamples: number;
-    proverbs_count: number;
-    historicalExamples: number;
-    history: number;
-    researchFacts: number;
-    lawsIncluded: number;
-    keywords: string[];
+    totalWords?: number;
+    videoLength?: number;
+    emotionalDepth?: number;
+    generalExamples?: number;
+    proverbs_count?: number;
+    historical_facts?: number;
+    historicalExamples?: number;
+    history?: number;
+    researchFacts?: number;
+    lawsIncluded?: number;
+    keywords?: string[];
   };
+  /** New SEO section from /generate-script */
+  youtube_metadata?: YoutubeMetadata;
+  /** New: research source domains */
+  sources?: string[];
+  /** New: books referenced during research */
+  books?: BookReference[];
   structure?: Array<{
       name: string;
       percentage: number;
   }>;
   synopsis?: string;
   seo?: {
+    /** New-format SEO data persisted to Supabase under the seo column */
+    youtube_metadata?: YoutubeMetadata;
+    books?: BookReference[];
     /** Backend sometimes double-nests the rich SEO data under seo.seo */
     seo?: {
       recommended_titles?: Array<{

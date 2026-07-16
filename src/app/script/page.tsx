@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2, FileText, Lightbulb, Heart, BookOpen, History,
-  Search, Link as LinkIcon, ExternalLink,
+  Search, Link as LinkIcon, ExternalLink, Clock, Copy, Check, ImageIcon, Hash,
   Eye, Monitor, Download, X, Lock, Unlock, AlertCircle, Rocket, Target
 } from 'lucide-react';
 // Note: GeneratedScript component exists in the project but is not used in this detailed view
@@ -18,10 +18,12 @@ import { ApiService, GenerationParams, GeneratedScriptData, UnusedIdeasPayload }
 import { supabase } from '@/lib/supabaseClient';
 import nlp from 'compromise';
 
-type HashtagItem = {
-  hashtag: string;
-  strategy: 'expansion' | 'established';
-};
+// Accent colors cycled across the SEO option cards (option 1 / 2 / 3)
+const OPTION_META = [
+  { dot: 'bg-purple-500', label: 'text-purple-700', border: 'border-purple-200', bg: 'bg-purple-50' },
+  { dot: 'bg-blue-500',   label: 'text-blue-700',   border: 'border-blue-200',   bg: 'bg-blue-50'   },
+  { dot: 'bg-green-500',  label: 'text-green-700',  border: 'border-green-200',  bg: 'bg-green-50'  },
+] as const;
 
 const SCRIPT_GENERATION_STEPS = [
   'Understanding your topic',
@@ -101,6 +103,63 @@ function unwrapScriptJson(text: string): string {
     if (m) return m[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
   }
   return trimmed;
+}
+
+// Extract the script text from a raw API/DB payload
+function extractScriptText(raw: any): string {
+  if (!raw) return '';
+  if (typeof raw === 'object') {
+    const s = raw.script || '';
+    return typeof s === 'string' ? unwrapScriptJson(s) : '';
+  }
+  if (typeof raw === 'string') return unwrapScriptJson(raw);
+  return '';
+}
+
+/**
+ * Normalizes a /generate-script response (or a Supabase row) into
+ * GeneratedScriptData, bridging the new structure
+ * (youtube_metadata / metrics / sources / books) with legacy fields
+ * (seo / analysis / source_urls) so both old and new payloads render.
+ */
+function normalizeScriptData(raw: any): GeneratedScriptData {
+  const metrics = raw?.metrics ?? undefined;
+
+  // New responses put SEO data in youtube_metadata; DB rows persist it under seo.youtube_metadata
+  const youtube_metadata = raw?.youtube_metadata ?? raw?.seo?.youtube_metadata ?? undefined;
+
+  const sources: string[] =
+    Array.isArray(raw?.sources) && raw.sources.length > 0
+      ? raw.sources
+      : Array.isArray(raw?.source_urls)
+        ? raw.source_urls
+        : [];
+
+  const books = Array.isArray(raw?.books) && raw.books.length > 0
+    ? raw.books
+    : Array.isArray(raw?.seo?.books)
+      ? raw.seo.books
+      : [];
+
+  const analysis = raw?.analysis ?? {
+    examples_count:       metrics?.generalExamples ?? 0,
+    research_facts_count: metrics?.researchFacts ?? 0,
+    proverbs_count:       metrics?.proverbs_count ?? 0,
+    emotional_depth:      metrics?.emotionalDepth != null ? String(metrics.emotionalDepth) : '',
+    history:              metrics?.historical_facts ?? metrics?.history ?? 0,
+  };
+
+  return {
+    ...raw,
+    script: extractScriptText(raw),
+    estimated_word_count: raw?.estimated_word_count ?? metrics?.totalWords ?? 0,
+    source_urls: sources,
+    sources,
+    books,
+    analysis,
+    youtube_metadata,
+    structure: Array.isArray(raw?.structure) ? raw.structure : [],
+  };
 }
 
 function cleanScriptText(text: string): string {
@@ -364,13 +423,9 @@ export default function ScriptPage() {
 
         if (row) {
           const normalized: GeneratedScriptData = {
-            script:               row.script ?? '',
-            estimated_word_count: row.estimated_word_count ?? 0,
-            source_urls:          (row.source_urls as string[]) ?? [],
-            analysis:             row.analysis ?? { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: '', history: 0 },
-            title:                row.title ?? row.topic ?? 'Script',
-            structure:            row.structure ?? [],
-            seo:                  row.seo ?? {},
+            ...normalizeScriptData(row),
+            title: row.title ?? row.topic ?? 'Script',
+            seo:   row.seo ?? {},
           };
           setData(normalized);
           setPageTitle(row.title || row.topic || 'Script');
@@ -396,13 +451,9 @@ export default function ScriptPage() {
         }
 
         const uNormalized: GeneratedScriptData = {
-          script:               uRow.script ?? '',
-          estimated_word_count: uRow.estimated_word_count ?? 0,
-          source_urls:          (uRow.source_urls as string[]) ?? [],
-          analysis:             uRow.analysis ?? { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: '', history: 0 },
-          title:                uRow.title ?? uRow.topic ?? 'Script',
-          structure:            uRow.structure ?? [],
-          seo:                  uRow.seo ?? {},
+          ...normalizeScriptData(uRow),
+          title: uRow.title ?? uRow.topic ?? 'Script',
+          seo:   uRow.seo ?? {},
         };
         setData(uNormalized);
         setPageTitle(uRow.title || uRow.topic || 'Script');
@@ -513,23 +564,7 @@ export default function ScriptPage() {
             }
 console.log("📦 Script API Response (URL params):", json);
 
-function extractScript(raw: any): string {
-  if (!raw) return "";
-
-  if (typeof raw === "object") {
-    const s = raw.script || "";
-    return typeof s === "string" ? unwrapScriptJson(s) : "";
-  }
-
-  if (typeof raw === "string") return unwrapScriptJson(raw);
-
-  return "";
-}
-
-const normalized: GeneratedScriptData = {
-  ...json,
-  script: extractScript(json),
-};
+const normalized: GeneratedScriptData = normalizeScriptData(json);
 
 const scriptTitle = normalized.title || topic || 'Generated Script';
 
@@ -599,22 +634,7 @@ try {
 }
 console.log("📦 Script API Response:", json);
         // Use the title from response if available, otherwise use ideaTitle or topic
-
-        function extractScript(raw: any): string {
-          if (!raw) return "";
-          if (typeof raw === "object") {
-            const s = raw.script || "";
-            return typeof s === "string" ? unwrapScriptJson(s) : "";
-          }
-          if (typeof raw === "string") return unwrapScriptJson(raw);
-          return "";
-        }
-        
-
-        const normalized: GeneratedScriptData = {
-          ...json,
-          script: extractScript(json),
-        };
+        const normalized: GeneratedScriptData = normalizeScriptData(json);
         
         const scriptTitle =
           normalized.title || params.ideaTitle || params.topic || "Generated Script";
@@ -655,7 +675,8 @@ console.log("📦 Script API Response:", json);
   }, [router, finishLoading]);
 
   const [showSourcesDialog, setShowSourcesDialog] = useState(false);
-  const [contentTab, setContentTab] = useState<1|2|3|4|5>(1);
+  const [contentTab, setContentTab] = useState<1|2|3|4>(1);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // ── Structure highlight / scroll ─────────────────────────────────────────
   const [activeSegment, setActiveSegment] = useState<number | null>(null);
@@ -826,12 +847,16 @@ if (params.get('from') === 'suggested') {
           title: d.title || pageTitleRef.current || topic,
           topic: topic,
           script: d.script,
-          estimated_word_count: d.estimated_word_count ?? 0,
+          estimated_word_count: d.estimated_word_count ?? d.metrics?.totalWords ?? 0,
           duration:      scriptDurationRef.current ?? null,
-          source_urls:   d.source_urls   ?? [],
+          source_urls:   d.sources ?? d.source_urls ?? [],
           analysis:      d.analysis      ?? {},
           structure:     d.structure     ?? [],
-          seo:           d.seo           ?? {},
+          seo: {
+            ...(d.seo ?? {}),
+            ...(d.youtube_metadata ? { youtube_metadata: d.youtube_metadata } : {}),
+            ...(d.books?.length ? { books: d.books } : {}),
+          },
           category:      d.category      ?? null,
           subcategories: d.subcategories ?? [],
         }),
@@ -967,12 +992,16 @@ if (params.get('from') === 'suggested') {
               title: data.title || pageTitle || topic,
               topic: topic,
               script: data.script,
-              estimated_word_count: data.estimated_word_count ?? 0,
+              estimated_word_count: data.estimated_word_count ?? data.metrics?.totalWords ?? 0,
               duration: scriptDuration ?? null,
-              source_urls: data.source_urls ?? [],
+              source_urls: data.sources ?? data.source_urls ?? [],
               analysis: data.analysis ?? {},
               structure: data.structure ?? [],
-              seo: data.seo ?? {},
+              seo: {
+                ...(data.seo ?? {}),
+                ...(data.youtube_metadata ? { youtube_metadata: data.youtube_metadata } : {}),
+                ...(data.books?.length ? { books: data.books } : {}),
+              },
               status: "published",
               thumbnail_url: null,
               youtube_url: null,
@@ -1200,89 +1229,46 @@ if (params.get('from') === 'suggested') {
     );
   }
 
+  const m = data.metrics;
   const metrics = [
-    { icon: FileText,  label: 'Total Words',     value: data.metrics?.totalWords ?? data.estimated_word_count ?? 0 },
-    { icon: Heart,     label: 'Emotional Depth', value: data.metrics?.emotionalDepth ?? data.analysis?.emotional_depth ?? '—' },
-    { icon: Search,    label: 'Research Facts',  value: data.metrics?.researchFacts ?? data.analysis?.research_facts_count ?? 0 },
-    { icon: History,   label: 'Hist. Facts',     value: data.analysis?.history   },
-    { icon: BookOpen,  label: 'Proverbs',        value: data.analysis?.proverbs_count },
-    { icon: Lightbulb, label: 'Examples',        value: data.metrics?.generalExamples ?? data.analysis?.examples_count ?? 0 },
+    { icon: FileText,  label: 'Total Words',     value: m?.totalWords ?? data.estimated_word_count ?? 0 },
+    { icon: Clock,     label: 'Video Length',    value: m?.videoLength != null ? `${Math.round(m.videoLength * 10) / 10} min` : '—' },
+    { icon: Heart,     label: 'Emotional Depth', value: m?.emotionalDepth ?? data.analysis?.emotional_depth ?? '—' },
+    { icon: Search,    label: 'Research Facts',  value: m?.researchFacts ?? data.analysis?.research_facts_count ?? 0 },
+    { icon: History,   label: 'Hist. Facts',     value: m?.historical_facts ?? data.analysis?.history ?? 0 },
+    { icon: BookOpen,  label: 'Proverbs',        value: m?.proverbs_count ?? data.analysis?.proverbs_count ?? 0 },
+    { icon: Lightbulb, label: 'Examples',        value: m?.generalExamples ?? data.analysis?.examples_count ?? 0 },
   ];
 
-  // ── Content Strategy Panel — driven by seo data from backend ────────────
-  const csBase   = data.title || pageTitle;
-  // Backend double-nests as seo.seo — resolve the inner object first, fall back to outer
-  const seoInner = data.seo?.seo ?? data.seo;
+  // ── SEO Panel — driven by youtube_metadata from /generate-script ─────────
+  // Legacy scripts persisted the old seo shape (sometimes double-nested as seo.seo)
+  const legacySeo: any = data.seo?.seo ?? data.seo ?? {};
+  const ytMeta = data.youtube_metadata;
 
-  // ── Tab 1: Title Workshop ─────────────────────────────────────────────────
-  const TYPE_META: Record<string, { label: string; dotColor: string; typeColor: string; borderActive: string; bgActive: string }> = {
-    curiosity_gap: { label: 'CURIOSITY GAP', dotColor: 'bg-purple-500', typeColor: 'text-purple-700', borderActive: 'border-purple-200', bgActive: 'bg-purple-50' },
-    data_led:      { label: 'DATA-LED',      dotColor: 'bg-blue-500',   typeColor: 'text-blue-700',   borderActive: 'border-blue-200',   bgActive: 'bg-blue-50'   },
-    how_to:        { label: 'HOW-TO',        dotColor: 'bg-green-500',  typeColor: 'text-green-700',  borderActive: 'border-green-200',  bgActive: 'bg-green-50'  },
-    narrative:     { label: 'NARRATIVE',     dotColor: 'bg-orange-500', typeColor: 'text-orange-700', borderActive: 'border-orange-200', bgActive: 'bg-orange-50' },
+  const seoTitles: string[] =
+    (ytMeta?.titles?.length ? ytMeta.titles : null)
+    ?? (legacySeo?.recommended_titles ?? []).map((t: any) => t?.title).filter(Boolean);
+
+  const seoDescriptions: string[] = ytMeta?.descriptions ?? [];
+
+  const legacyHashtags: string[] = (legacySeo?.hashtags ?? [])
+    .map((h: any) => (typeof h === 'string' ? h : h?.hashtag))
+    .filter(Boolean);
+  const seoHashtagSets: string[][] =
+    (ytMeta?.hashtags?.length ? ytMeta.hashtags : null)
+    ?? (legacyHashtags.length > 0 ? [legacyHashtags] : []);
+
+  const seoThumbnailTexts: string[] =
+    (ytMeta?.thumbnail_text?.length ? ytMeta.thumbnail_text : null)
+    ?? (legacySeo?.thumbnail_brief ?? []).map((t: any) => t?.text_overlay).filter(Boolean);
+
+  const books = data.books ?? [];
+
+  const handleCopy = (key: string, text: string) => {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(k => (k === key ? null : k)), 1500);
   };
-  const backendTitles = (seoInner as { recommended_titles?: Array<{ type: string; title: string; desc: string; selected?: boolean }> } | undefined)?.recommended_titles;
-  const csTitleVariants = (
-    backendTitles && backendTitles.length > 0
-      ? backendTitles.map(t => ({
-          type:         (TYPE_META[t.type]?.label   ?? t.type.replace(/_/g, ' ').toUpperCase()),
-          dotColor:     (TYPE_META[t.type]?.dotColor ?? 'bg-gray-500'),
-          typeColor:    (TYPE_META[t.type]?.typeColor ?? 'text-gray-700'),
-          borderActive: (TYPE_META[t.type]?.borderActive ?? 'border-gray-200'),
-          bgActive:     (TYPE_META[t.type]?.bgActive ?? 'bg-gray-50'),
-          title:        t.title,
-          desc:         t.desc,
-          selected:     t.selected ?? false,
-        }))
-      : [
-          { type: 'CURIOSITY GAP', dotColor: 'bg-purple-500', typeColor: 'text-purple-700', borderActive: 'border-purple-200', bgActive: 'bg-purple-50',  title: csBase,                                desc: 'Self-recognition hook creates cognitive dissonance. Signals exclusive information — strong CTR on discovery feeds.', selected: true  },
-          { type: 'DATA-LED',      dotColor: 'bg-blue-500',   typeColor: 'text-blue-700',   borderActive: 'border-blue-200',   bgActive: 'bg-blue-50',    title: `The Research Behind: ${csBase}`,       desc: 'Statistic-first builds instant credibility. Appeals to evidence-seeking viewers who have already noticed the problem.', selected: false },
-          { type: 'HOW-TO',        dotColor: 'bg-green-500',  typeColor: 'text-green-700',  borderActive: 'border-green-200',  bgActive: 'bg-green-50',   title: `How ${csBase} Works — And What To Do`, desc: 'Mechanism + solution promise in one frame. Captures viewers actively seeking answers, not just understanding.', selected: false },
-          { type: 'NARRATIVE',     dotColor: 'bg-orange-500', typeColor: 'text-orange-700', borderActive: 'border-orange-200', bgActive: 'bg-orange-50',  title: `A Deep Dive Into ${csBase}`,           desc: '"Deep dive" signals premium content depth — correlates with strong watch-time retention on long-form viewers.', selected: false },
-        ]
-  ).map(v => {
-    const c = v.title.length;
-    return { ...v, chars: c, verdict: c <= 60 ? 'within limit' : c <= 79 ? 'optimal' : 'trim needed', verdictColor: c <= 60 ? 'text-green-600' : c <= 79 ? 'text-green-500' : 'text-amber-500' };
-  });
-
-  // ── Tab 2: Keyword Strategy ───────────────────────────────────────────────
-  const kc       = (seoInner as { keyword_clusters?: { primary: string[]; secondary: string[]; longtail: string[]; question_based: string[] } } | undefined)?.keyword_clusters;
-  const csKws    = data.metrics?.keywords ?? [];
-  const csPrimary    = (kc?.primary   ?? []).length > 0 ? (kc?.primary ?? [])   : csKws.slice(0, 2).length > 0 ? csKws.slice(0, 2) : [csBase.toLowerCase().split(' ').slice(0, 3).join(' '), csBase.toLowerCase().split(' ').slice(0, 2).join(' ') + ' explained'];
-  const csSecondary  = (kc?.secondary ?? []).length > 0 ? (kc?.secondary ?? []) : csKws.slice(2, 5).length > 0 ? csKws.slice(2, 5) : ['related topic', 'semantic variant', 'alternative angle'];
-  const csLongTail   = (kc?.longtail  ?? []).length > 0 ? (kc?.longtail ?? [])  : csKws.length > 0 ? [`why ${csKws[0]} explained`, `${csKws[0]} complete guide`, `how ${csKws[0]} works`, `${csKws[1] ?? csKws[0]} for beginners`] : [`why ${csBase.toLowerCase()} explained`, `${csBase.toLowerCase()} complete guide`, `how ${csBase.toLowerCase()} works`, `${csBase.toLowerCase()} for beginners`];
-  const csQuestions  = (kc?.question_based ?? []).length > 0 ? (kc?.question_based ?? []) : [`is ${csKws[0] ?? csBase.toLowerCase()} real?`, `how to understand ${csKws[0] ?? csBase.toLowerCase()}`, `why is ${csKws[0] ?? 'this'} happening?`, `what causes ${csKws[1] ?? csBase.toLowerCase()}?`];
-
-  // ── Tab 4: Description Builder ────────────────────────────────────────────
-  const dt = (seoInner as { description_template?: { hook: string; body_bullets: string[]; outro: string } } | undefined)?.description_template;
-  const csSynopsisLines = (data.synopsis ?? data.script ?? '').split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 20);
-  const csHook    = dt?.hook ?? (csSynopsisLines.slice(0, 2).join('. ') + '.');
-  const csBody    = (dt?.body_bullets ?? []).length > 0 ? (dt?.body_bullets ?? []) : csSynopsisLines.slice(2, 7);
-  const csOutro   = dt?.outro ?? 'If this changed how you see this topic, subscribe for more research-backed breakdowns every week. Drop your biggest takeaway in the comments — I read every one.';
-  const csFirstKw = csKws[0] ?? csPrimary[0] ?? '';
-
-  // ── Tab 5: Hashtag Strategy ───────────────────────────────────────────────
-  const seoHashtags: HashtagItem[] = (seoInner?.hashtags ?? []) as HashtagItem[];
-  const establishedTags = seoHashtags
-  .filter(h => h.strategy === 'established')
-  .map(h => h.hashtag);
-
-const expansionTags = seoHashtags
-  .filter(h => h.strategy === 'expansion')
-  .map(h => h.hashtag);
-
-const csEstablished =
-  establishedTags.length > 0
-    ? establishedTags
-    : ['#content', '#education', '#learning'];
-
-const csExpansion =
-  expansionTags.length > 0
-    ? expansionTags
-    : ['#newcontent', '#trending'];
-
-  // ── Tab 3: Thumbnail Concepts ─────────────────────────────────────────────
-  const csThumbnails = (seoInner as { thumbnail_brief?: Array<{ type: string; style: string; headline: string; text_overlay: string; face_recommended: boolean; description: string; preview_image_url?: string }> } | undefined)?.thumbnail_brief ?? [];
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
@@ -1310,7 +1296,7 @@ const csExpansion =
         </div>
 
         {/* Metrics strip */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-5">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
           {metrics.map(({ icon: Icon, label, value }) => (
             <div key={label} className="bg-white rounded-2xl border border-gray-200/80 p-3 text-center shadow-sm">
               <Icon className="w-4 h-4 mx-auto mb-1.5 text-[#6e6e73]" />
@@ -1326,15 +1312,14 @@ const csExpansion =
           {/* Tab navigation */}
           <div className="flex overflow-x-auto border-b border-gray-100 scrollbar-none">
             {([
-              [1, 'Title Workshop'],
-              [2, 'Keyword Strategy'],
-              [3, 'Thumbnail Concepts'],
-              [4, 'Description Builder'],
-              [5, 'Hashtag Strategy'],
+              [1, 'Titles'],
+              [2, 'Descriptions'],
+              [3, 'Hashtags'],
+              [4, 'Thumbnails'],
             ] as [number, string][]).map(([id, label]) => (
               <button
                 key={id}
-                onClick={() => setContentTab(id as 1|2|3|4|5)}
+                onClick={() => setContentTab(id as 1|2|3|4)}
                 className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm whitespace-nowrap font-medium border-b-2 -mb-px transition-colors flex-shrink-0 ${
                   contentTab === id
                     ? 'border-[#1d1d1f] text-[#1d1d1f] font-semibold'
@@ -1351,287 +1336,163 @@ const csExpansion =
 
           <div className="p-5 overflow-y-scroll h-[300px]">
 
-            {/* ── Tab 1: Title Workshop ── */}
+            {/* ── Tab 1: Titles ── */}
             {contentTab === 1 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 ">
-                {csTitleVariants.map((v, i) => (
-                  <div key={i} className={`rounded-xl border p-4 transition-all ${v.selected ? `${v.borderActive} ${v.bgActive}` : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/60'}`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${v.dotColor}`} />
-                        <span className={`text-[10px] font-bold tracking-widest uppercase ${v.typeColor}`}>{v.type}</span>
+              seoTitles.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {seoTitles.map((title, i) => {
+                    const meta = OPTION_META[i % OPTION_META.length];
+                    const chars = title.length;
+                    const verdict = chars <= 60 ? 'within limit' : chars <= 79 ? 'optimal' : 'trim needed';
+                    const verdictColor = chars <= 60 ? 'text-green-600' : chars <= 79 ? 'text-green-500' : 'text-amber-500';
+                    const copyKey = `title-${i}`;
+                    return (
+                      <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-gray-300 hover:bg-gray-50/60">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${meta.dot}`} />
+                            <span className={`text-[10px] font-bold tracking-widest uppercase ${meta.label}`}>Title {i + 1}</span>
+                          </div>
+                          <button
+                            className="flex items-center gap-1 text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
+                            onClick={() => handleCopy(copyKey, title)}
+                          >
+                            {copiedKey === copyKey ? <><Check className="w-3 h-3 text-green-600" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
+                          </button>
+                        </div>
+                        <p className="text-[#1d1d1f] font-bold text-sm leading-snug mb-2">{title}</p>
+                        <p className={`text-[11px] font-semibold ${verdictColor}`}>{chars} chars · {verdict}</p>
                       </div>
-                      {v.selected && (
-                        <span className="w-5 h-5 rounded-full bg-[#1d1d1f] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">✓</span>
-                      )}
-                    </div>
-                    <p className="text-[#1d1d1f] font-bold text-sm leading-snug mb-2">{v.title}</p>
-                    <p className={`text-[11px] font-semibold mb-3 ${v.verdictColor}`}>{v.chars} chars · {v.verdict}</p>
-                    <p className="text-[11px] text-gray-500 leading-relaxed">{v.desc}</p>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <FileText className="w-8 h-8 text-gray-300 mb-2" />
+                  <p className="text-xs text-[#6e6e73]">No title suggestions available</p>
+                </div>
+              )
             )}
 
-            {/* ── Tab 2: Keyword Strategy ── */}
+            {/* ── Tab 2: Descriptions ── */}
             {contentTab === 2 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* PRIMARY */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-amber-500" />
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-amber-700">Primary</span>
-                    </div>
-                    <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">Use in title + first 30s</span>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mb-3 leading-relaxed">Use in title, spoken in first 30 seconds, and naturally 2–3× throughout the video.</p>
-                  <div className="space-y-2">
-                    {csPrimary.map((kw, i) => (
-                      <div key={i} className="bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-sm font-bold text-amber-900 text-center">{kw}</div>
-                    ))}
-                  </div>
+              seoDescriptions.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {seoDescriptions.map((desc, i) => {
+                    const meta = OPTION_META[i % OPTION_META.length];
+                    const copyKey = `desc-${i}`;
+                    return (
+                      <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-gray-300 hover:bg-gray-50/60">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${meta.dot}`} />
+                            <span className={`text-[10px] font-bold tracking-widest uppercase ${meta.label}`}>Description {i + 1}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] text-gray-400">{desc.length} chars</span>
+                            <button
+                              className="flex items-center gap-1 text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
+                              onClick={() => handleCopy(copyKey, desc)}
+                            >
+                              {copiedKey === copyKey ? <><Check className="w-3 h-3 text-green-600" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-[#1d1d1f] leading-relaxed">{desc}</p>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                {/* SECONDARY */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-purple-500" />
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-purple-700">Secondary</span>
-                    </div>
-                    <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">Weave into body</span>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mb-3 leading-relaxed">Semantic variants — distribute through script body and YouTube description.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {csSecondary.map((kw, i) => (
-                      <span key={i} className="bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#1d1d1f]">{kw}</span>
-                    ))}
-                  </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <FileText className="w-8 h-8 text-gray-300 mb-2" />
+                  <p className="text-xs text-[#6e6e73]">No descriptions available</p>
                 </div>
-
-                {/* LONG-TAIL */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-green-700">Long-Tail</span>
-                    </div>
-                    <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">Low competition</span>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mb-3 leading-relaxed">High specificity phrases — strong for YouTube search ranking against low-quality incumbents.</p>
-                  <div className="space-y-1.5">
-                    {csLongTail.map((kw, i) => (
-                      <div key={i} className="bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#1d1d1f]">{kw}</div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* QUESTIONS */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-blue-500" />
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-blue-700">Questions</span>
-                    </div>
-                    <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">PAA · Answer in script</span>
-                  </div>
-                  <p className="text-[10px] text-gray-500 mb-3 leading-relaxed">Real questions from &apos;People Also Ask&apos; — answering these directly boosts search relevance.</p>
-                  <div className="space-y-1.5">
-                    {csQuestions.map((q, i) => (
-                      <div key={i} className="bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-900">{q}</div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              )
             )}
 
-            {/* ── Tab 3: Thumbnail Concepts ── */}
+            {/* ── Tab 3: Hashtags ── */}
             {contentTab === 3 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Concept 1: Curiosity Gap */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4 flex gap-4">
-                  <div
-                    className=" w-28 sm:w-44 h-full rounded-xl flex-shrink-0 flex items-center justify-center object-cover"
-                    
-                  >
-                   <img src="https://tse4.mm.bing.net/th/id/OIP.cLbYbv7UTbr2eAgrEEhkwwHaEK?pid=Api&P=0&h=180" alt="Thumbnail 1" className="w-full h-full rounded-xl" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-purple-500" />
-                        <span className="text-[10px] font-bold tracking-widest uppercase text-purple-700">Curiosity Gap</span>
+              seoHashtagSets.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {seoHashtagSets.map((set, i) => {
+                    const meta = OPTION_META[i % OPTION_META.length];
+                    const copyKey = `tags-${i}`;
+                    return (
+                      <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-gray-300 hover:bg-gray-50/60">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${meta.dot}`} />
+                            <span className={`text-[10px] font-bold tracking-widest uppercase ${meta.label}`}>Set {i + 1}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] text-gray-400">{set.length} tags</span>
+                            <button
+                              className="flex items-center gap-1 text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
+                              onClick={() => handleCopy(copyKey, set.join(' '))}
+                            >
+                              {copiedKey === copyKey ? <><Check className="w-3 h-3 text-green-600" />Copied</> : <><Copy className="w-3 h-3" />Copy all</>}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {set.map((tag, j) => (
+                            <div key={j} className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-full px-2.5 py-1">
+                              <Hash className="w-3 h-3 text-gray-400" />
+                              <span className="text-[11px] font-bold text-[#1d1d1f]">{tag.replace(/^#/, '')}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <span className="text-[9px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-semibold">Warm</span>
-                    </div>
-                    <p className="text-sm font-bold text-[#1d1d1f] mb-1.5">Shocked expression + bold text overlay</p>
-                    <p className="text-[11px] text-gray-500 leading-relaxed mb-3">Face + emotional text creates immediate empathy. Warm palette mirrors topic energy — shock vs calm headline tension drives clicks.</p>
-                    <div className="bg-[#f5f5f7] border border-gray-200 rounded-lg px-3 py-2 mb-2.5">
-                      <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-0.5">Text Overlay</p>
-                      <p className="text-xs font-bold text-[#1d1d1f]">YOUR BRAIN ON FASHION</p>
-                    </div>
-                    <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 border border-green-200 text-[10px] px-2 py-0.5 rounded-full font-semibold">✓ Face recommended</span>
-                  </div>
+                    );
+                  })}
                 </div>
-
-                {/* Concept 2: Data-Driven */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4 flex gap-4">
-                <div
-                    className="w-28 sm:w-44 h-full rounded-xl flex-shrink-0 flex items-center justify-center object-cover"
-                    
-                  >
-                   <img src="https://tse4.mm.bing.net/th/id/OIP.cLbYbv7UTbr2eAgrEEhkwwHaEK?pid=Api&P=0&h=180" alt="Thumbnail 1" className="w-full h-full rounded-xl" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-blue-500" />
-                        <span className="text-[10px] font-bold tracking-widest uppercase text-blue-700">Data-Driven</span>
-                      </div>
-                      <span className="text-[9px] bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-full font-semibold">Cool</span>
-                    </div>
-                    <p className="text-sm font-bold text-[#1d1d1f] mb-1.5">Bold statistic on dark minimal background</p>
-                    <p className="text-[11px] text-gray-500 leading-relaxed mb-3">Number-first framing signals credibility and stops the scroll. Cool palette reads analytical — separates from oversaturated thumbnails.</p>
-                    <div className="bg-[#f5f5f7] border border-gray-200 rounded-lg px-3 py-2 mb-2.5">
-                      <p className="text-[9px] text-gray-400 uppercase tracking-widest mb-0.5">Text Overlay</p>
-                      <p className="text-xs font-bold text-[#1d1d1f]">1 IN 3 ARE ADDICTED</p>
-                    </div>
-                    <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 border border-gray-200 text-[10px] px-2 py-0.5 rounded-full font-semibold">No face needed</span>
-                  </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <Hash className="w-8 h-8 text-gray-300 mb-2" />
+                  <p className="text-xs text-[#6e6e73]">No hashtags available</p>
                 </div>
-              </div>
+              )
             )}
 
-            {/* ── Tab 4: Description Builder ── */}
+            {/* ── Tab 4: Thumbnails ── */}
             {contentTab === 4 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* HOOK */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-amber-500" />
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-amber-700">Hook</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] text-gray-400">keyword in first 10 words</span>
-                      <button
-                        className="text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
-                        onClick={() => navigator.clipboard.writeText(csHook)}
-                      >Copy</button>
-                    </div>
-                  </div>
-                  <p className="text-sm text-[#1d1d1f] leading-relaxed">
-                    {csFirstKw && csHook.toLowerCase().includes(csFirstKw.toLowerCase())
-                      ? csHook.split(new RegExp(`(${csFirstKw})`, 'i')).map((part, i) =>
-                          part.toLowerCase() === csFirstKw.toLowerCase()
-                            ? <mark key={i} className="bg-amber-200 text-amber-900 rounded px-0.5 not-italic font-semibold">{part}</mark>
-                            : part
-                        )
-                      : csHook || 'No synopsis available.'}
-                  </p>
-                </div>
-
-                {/* BODY */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-green-700">Body</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] text-gray-400">3–5 content bullets</span>
-                      <button
-                        className="text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
-                        onClick={() => navigator.clipboard.writeText(csBody.map(b => `→ ${b}`).join('\n'))}
-                      >Copy</button>
-                    </div>
-                  </div>
-                  <ul className="space-y-2.5">
-                    {csBody.length > 0 ? csBody.map((bullet, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="text-green-500 font-bold mt-0.5 flex-shrink-0">→</span>
-                        <span className="text-sm text-[#1d1d1f] leading-snug font-medium">{bullet}</span>
-                      </li>
-                    )) : (
-                      <li className="text-sm text-gray-400">No body content available from synopsis.</li>
-                    )}
-                  </ul>
-                </div>
-
-                {/* OUTRO */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-purple-500" />
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-purple-700">Outro</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] text-gray-400">CTA + links</span>
-                      <button
-                        className="text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
-                        onClick={() => navigator.clipboard.writeText('If this changed how you see this topic, subscribe for more research-backed breakdowns every week. Drop your biggest takeaway in the comments — I read every one.')}
-                      >Copy</button>
-                    </div>
-                  </div>
-                  <p className="text-sm text-[#1d1d1f] leading-relaxed mb-4 font-medium">
-                    {csOutro}
-                  </p>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {['[SUBSCRIBE]', '[INSTAGRAM]', '[NEWSLETTER]'].map(link => (
-                      <span key={link} className="bg-gray-100 border border-gray-200 text-xs font-bold text-[#1d1d1f] px-2.5 py-1 rounded-lg">{link}</span>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-gray-500">
-                    Sources &amp; reading: <span className="font-bold text-blue-600 cursor-pointer">[SOURCES LINK]</span>
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* ── Tab 5: Hashtag Strategy ── */}
-            {contentTab === 5 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* ESTABLISHED */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-gray-500" />
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-gray-700">Established</span>
-                    </div>
-                    <span className="text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full font-semibold">Consistency</span>
-                  </div>
-                  <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">Already part of your channel&apos;s vocabulary. Use these to reinforce tag authority and keep content discoverable within your existing audience base.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(csEstablished.length > 0 ? csEstablished : ['#content', '#education', '#learning']).map((tag, i) => (
-                      <div key={i} className="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-full px-3 py-1.5">
-                        <span className="text-[10px] text-gray-400 font-bold">↺</span>
-                        <span className="text-xs font-bold text-[#1d1d1f]">{tag}</span>
+              seoThumbnailTexts.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {seoThumbnailTexts.map((text, i) => {
+                    const meta = OPTION_META[i % OPTION_META.length];
+                    const copyKey = `thumb-${i}`;
+                    return (
+                      <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-gray-300 hover:bg-gray-50/60">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${meta.dot}`} />
+                            <span className={`text-[10px] font-bold tracking-widest uppercase ${meta.label}`}>Concept {i + 1}</span>
+                          </div>
+                          <button
+                            className="flex items-center gap-1 text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
+                            onClick={() => handleCopy(copyKey, text)}
+                          >
+                            {copiedKey === copyKey ? <><Check className="w-3 h-3 text-green-600" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
+                          </button>
+                        </div>
+                        {/* 16:9 thumbnail text preview */}
+                        <div className="aspect-video rounded-lg bg-gradient-to-br from-[#1d1d1f] to-[#3a3a3d] flex items-center justify-center px-4 mb-2.5">
+                          <p className="text-white font-extrabold text-base sm:text-lg text-center uppercase leading-tight tracking-wide drop-shadow-md">
+                            {text}
+                          </p>
+                        </div>
+                        <p className="text-[10px] text-gray-500 leading-relaxed">Suggested text overlay for your thumbnail design.</p>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-
-                {/* EXPANSION */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      <span className="text-[10px] font-bold tracking-widests uppercase text-green-700">Expansion</span>
-                    </div>
-                    <span className="text-[9px] bg-green-100 border border-green-200 text-green-700 px-2 py-0.5 rounded-full font-semibold">New reach</span>
-                  </div>
-                  <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">New territory for your channel. Each expansion tag surfaces this video to audiences who don&apos;t follow you yet. Minimum 2 always required for reach growth.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(csExpansion.length > 0 ? csExpansion : ['#newcontent', '#trending']).map((tag, i) => (
-                      <div key={i} className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1.5">
-                        <span className="text-[10px] text-green-500 font-bold">↗</span>
-                        <span className="text-xs font-bold text-green-800">{tag}</span>
-                      </div>
-                    ))}
-                  </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <ImageIcon className="w-8 h-8 text-gray-300 mb-2" />
+                  <p className="text-xs text-[#6e6e73]">No thumbnail text available</p>
                 </div>
-              </div>
+              )
             )}
 
           </div>
@@ -1906,7 +1767,9 @@ const csExpansion =
       <div className={`fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white border-l border-gray-200 shadow-2xl z-50 transition-transform duration-300 ease-in-out ${showSourcesDialog ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-[#1d1d1f]">{data.source_urls?.length || 0} Sources</h2>
+            <h2 className="text-sm font-semibold text-[#1d1d1f]">
+              {data.source_urls?.length || 0} Sources{books.length > 0 ? ` · ${books.length} Books` : ''}
+            </h2>
             <p className="text-[11px] text-[#6e6e73] font-light">Research references used in this script</p>
           </div>
           <button onClick={() => setShowSourcesDialog(false)} className="w-8 h-8 rounded-full bg-[#f5f5f7] hover:bg-gray-200 flex items-center justify-center transition-colors">
@@ -1917,11 +1780,13 @@ const csExpansion =
           <div className="px-4 py-4 space-y-3">
             {data.source_urls && data.source_urls.length > 0 ? (
               data.source_urls.map((url, index) => {
+                // New responses return bare domains (e.g. "finance.yahoo.com") — make them linkable
+                const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
                 let domain = '';
                 let domainInitial = '?';
                 try {
                   if (url) {
-                    domain = new URL(url).hostname.replace('www.', '');
+                    domain = new URL(href).hostname.replace('www.', '');
                     domainInitial = domain.charAt(0).toUpperCase();
                   }
                 } catch {
@@ -1929,7 +1794,7 @@ const csExpansion =
                   domainInitial = domain.charAt(0).toUpperCase();
                 }
                 return (
-                  <a key={index} href={url} target="_blank" rel="noopener noreferrer"
+                  <a key={index} href={href} target="_blank" rel="noopener noreferrer"
                     className="flex items-start gap-3 bg-[#f5f5f7] hover:bg-gray-100 rounded-2xl p-4 transition-colors group border border-gray-100"
                   >
                     <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-[#1d1d1f] font-semibold text-sm flex-shrink-0 shadow-sm">
@@ -1949,6 +1814,26 @@ const csExpansion =
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <LinkIcon className="w-10 h-10 text-gray-200 mb-3" />
                 <p className="text-sm text-[#6e6e73]">No sources available</p>
+              </div>
+            )}
+
+            {/* Books referenced during research */}
+            {books.length > 0 && (
+              <div className="pt-4">
+                <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-3 px-1">Books Referenced</p>
+                <div className="space-y-3">
+                  {books.map((book, index) => (
+                    <div key={index} className="flex items-start gap-3 bg-[#f5f5f7] rounded-2xl p-4 border border-gray-100">
+                      <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <BookOpen className="w-4 h-4 text-[#1d1d1f]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-[#1d1d1f] leading-snug">{book.title}</p>
+                        <p className="text-[11px] text-[#6e6e73] mt-0.5 font-light">{book.author}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
