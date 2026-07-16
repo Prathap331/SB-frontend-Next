@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import ComingFeatures from '../components/ComingFeatures';
 import Footer from '../components/Footer';
-import { Search, TrendingUp, ArrowUpRight, MapPin, Globe, Newspaper } from 'lucide-react';
+import { Search, ArrowUpRight, Globe, Newspaper } from 'lucide-react';
 import StoryBitPipeline from '@/components/Architecture';
 import { ApiService } from '@/services/api';
 import CategorySlider from '@/components/CategorySlider';
@@ -13,12 +13,11 @@ import SuggestedTopics from '@/components/SuggestedTopics';
 import RecommendedArticles from '@/components/blog/RecommendedArticles';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 
-type Tab = 'foryou' | 'national' | 'global';
+type Tab = 'national' | 'global';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: 'foryou',   label: 'Local News',      icon: <MapPin  className="w-3.5 h-3.5" /> },
-  { id: 'national', label: 'National News',     icon: <Newspaper className="w-3.5 h-3.5" /> },
-  { id: 'global',   label: 'Global News',  icon: <Globe   className="w-3.5 h-3.5" /> },
+  { id: 'national', label: 'National News', icon: <Newspaper className="w-3.5 h-3.5" /> },
+  { id: 'global',   label: 'Global News',   icon: <Globe     className="w-3.5 h-3.5" /> },
 ];
 
 export default function Home() {
@@ -27,16 +26,14 @@ export default function Home() {
   const { searchPath, landingPath } = useKeywordNavigation();
 
   // ── Tab state ──────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<Tab>('foryou');
+  const [activeTab, setActiveTab] = useState<Tab>('national');
 
   // Topics per tab
-  const [forYouTopics,   setForYouTopics]   = useState<any[]>([]);
   const [nationalTopics, setNationalTopics] = useState<any[]>([]);
   const [globalTopics,   setGlobalTopics]   = useState<any[]>([]);
 
   // Loading per tab
-  const [loadingForYou,   setLoadingForYou]   = useState(true);
-  const [loadingNational, setLoadingNational] = useState(false);
+  const [loadingNational, setLoadingNational] = useState(true);
   const [loadingGlobal,   setLoadingGlobal]   = useState(false);
 
   // Track which tabs have been fetched already
@@ -51,19 +48,19 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [searchWarning]);
 
-  // ── Initial load: "For You" ────────────────────────────────────
+  // ── Initial load: National News ────────────────────────────────
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const topics = await ApiService.getForYouTopics();
-        if (mounted) setForYouTopics(topics);
+        const topics = await ApiService.getNationalTopics();
+        if (mounted) setNationalTopics(topics);
       } catch (err) {
-        console.error('For You fetch failed:', err);
+        console.error('National fetch failed:', err);
       } finally {
         if (mounted) {
-          setLoadingForYou(false);
-          setFetchedTabs(prev => new Set(prev).add('foryou'));
+          setLoadingNational(false);
+          setFetchedTabs(prev => new Set(prev).add('national'));
         }
       }
     })();
@@ -75,19 +72,6 @@ export default function Home() {
     if (fetchedTabs.has(activeTab)) return;
 
     let mounted = true;
-
-    if (activeTab === 'national') {
-      setLoadingNational(true);
-      ApiService.getNationalTopics()
-        .then(topics => { if (mounted) setNationalTopics(topics); })
-        .catch(err => console.error('National fetch failed:', err))
-        .finally(() => {
-          if (mounted) {
-            setLoadingNational(false);
-            setFetchedTabs(prev => new Set(prev).add('national'));
-          }
-        });
-    }
 
     if (activeTab === 'global') {
       setLoadingGlobal(true);
@@ -106,17 +90,8 @@ export default function Home() {
   }, [activeTab, fetchedTabs]);
 
   // ── Helpers ────────────────────────────────────────────────────
-  const activeTopics = activeTab === 'foryou'
-    ? forYouTopics
-    : activeTab === 'national'
-    ? nationalTopics
-    : globalTopics;
-
-  const isLoading = activeTab === 'foryou'
-    ? loadingForYou
-    : activeTab === 'national'
-    ? loadingNational
-    : loadingGlobal;
+  const activeTopics = activeTab === 'national' ? nationalTopics : globalTopics;
+  const isLoading = activeTab === 'national' ? loadingNational : loadingGlobal;
 
   const handleSearch = (topic: any) => {
     const searchText = typeof topic === 'string' ? topic : topic?.tittle;
