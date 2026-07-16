@@ -475,93 +475,20 @@ export interface ECIResponse {
   };
 }
 
-// imports
+// ── Trending topics (/trending-data) ─────────────────────────────────────────
 
-const TOPICS_CACHE_KEY = "trending_topics_cache";
-
+// v2 key: the response structure changed (category-based), invalidate old caches
+const TOPICS_CACHE_KEY = "trending_topics_cache_v2";
 const CACHE_DURATION = 1000 * 60 * 10;
+const TOPICS_PER_TAB = 20;
 
-const LOCAL_TARGET = 5;
-const STATE_TARGET = 8;
-const GLOBAL_TARGET = 5;
-
-function distributeTopics(
-  topics: any[],
-  userCity: string,
-  userState: string
-) {
-  // Remove duplicates
-  const uniqueTopics = Array.from(
-    new Map(topics.map((item) => [item.id, item])).values()
-  );
-
-  // Local topics
-  const localTopics = uniqueTopics.filter(
-    (topic: any) =>
-      topic.city?.toLowerCase() === userCity ||
-      topic.state?.toLowerCase() === userState
-  );
-
-  // Other state topics
-  const otherStateTopics = uniqueTopics.filter(
-    (topic: any) =>
-      topic.state?.toLowerCase() !== "global" &&
-      topic.state?.toLowerCase() !== userState
-  );
-
-  // Global topics
-  const globalTopics = uniqueTopics.filter(
-    (topic: any) =>
-      topic.city?.toLowerCase() === "global"
-  );
-
-  // --------------------------
-  // LOCAL
-  // --------------------------
-
-  const selectedLocal = localTopics.slice(
-    0,
-    LOCAL_TARGET
-  );
-
-  const localRemaining =
-    LOCAL_TARGET - selectedLocal.length;
-
-  // --------------------------
-  // STATE
-  // --------------------------
-
-  const selectedState = otherStateTopics.slice(
-    0,
-    STATE_TARGET + localRemaining
-  );
-
-  const stateRemaining =
-    STATE_TARGET +
-    localRemaining -
-    selectedState.length;
-
-  // --------------------------
-  // GLOBAL
-  // --------------------------
-
-  const selectedGlobal = globalTopics.slice(
-    0,
-    GLOBAL_TARGET + stateRemaining
-  );
-
-  return [
-    ...selectedLocal,
-    ...selectedState,
-    ...selectedGlobal,
-  ].slice(0, 18);
+export interface TrendingTopic {
+  id: number;
+  created_at: string;
+  tittle: string;
+  category: 'national' | 'international' | string;
+  regular_tittle: string;
 }
-
-
-
-export type TrendingTopicItem =
-  | string
-  | { topic?: string; title?: string; tittle?: string; name?: string };
 
 export class ApiService {
   // Use Next.js API routes in both development and production
@@ -935,18 +862,21 @@ export class ApiService {
 
   
 
- // ─────────────────────────────────────────────────────────────────────────────
-// Add these three methods inside the ApiService class,
-// replacing the existing getTrendingTopics method.
-// ─────────────────────────────────────────────────────────────────────────────
+ // ── Trending topics (/trending-data) — category based ───────────────────────
 
-  /** Fetch all raw topics from the API (with cache). */
-  private static async fetchAllTopics(): Promise<any[]> {
-    const cached = typeof window !== 'undefined' && localStorage.getItem(TOPICS_CACHE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Date.now() - parsed.timestamp < CACHE_DURATION) {
-        return parsed.data;
+  /** Fetch all raw topics from /trending-data (with a 10-minute cache). */
+  private static async fetchAllTopics(): Promise<TrendingTopic[]> {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(TOPICS_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Date.now() - parsed.timestamp < CACHE_DURATION && Array.isArray(parsed.data)) {
+            return parsed.data;
+          }
+        }
+      } catch {
+        // corrupt cache — refetch
       }
     }
 
@@ -955,100 +885,42 @@ export class ApiService {
     if (!response.ok) throw new Error('Failed to fetch trending topics');
 
     const result = await response.json();
-    const topics = Array.isArray(result.message) ? result.message : [];
+    const topics: TrendingTopic[] = Array.isArray(result.message) ? result.message : [];
 
     if (typeof window !== 'undefined') {
-      localStorage.setItem(
-        TOPICS_CACHE_KEY,
-        JSON.stringify({ data: topics, timestamp: Date.now() })
-      );
+      try {
+        localStorage.setItem(
+          TOPICS_CACHE_KEY,
+          JSON.stringify({ data: topics, timestamp: Date.now() })
+        );
+      } catch {
+        // localStorage full — skip caching
+      }
     }
     return topics;
   }
 
-  /** Tab 1 — "For You": local city/state topics, up to 18. */
-  static async getForYouTopics(): Promise<any[]> {
+  /** Topics for one tab, filtered by category, deduped, up to 20. */
+  private static async getTopicsByCategory(category: 'national' | 'international'): Promise<TrendingTopic[]> {
     try {
       const topics = await this.fetchAllTopics();
-
-      const savedLocation = typeof window !== 'undefined' && localStorage.getItem('user_location');
-      let userCity = 'global';
-      let userState = 'global';
-      if (savedLocation) {
-        const loc = JSON.parse(savedLocation);
-        userCity = (loc.city || 'global').toLowerCase();
-        userState = (loc.state || 'global').toLowerCase();
-      }
-
-      const unique = Array.from(new Map(topics.map((t: any) => [t.id, t])).values());
-
-      // City match first, then state match
-      const cityMatch = unique.filter((t: any) => t.city?.toLowerCase() === userCity);
-      const stateMatch = unique.filter(
-        (t: any) =>
-          t.state?.toLowerCase() === userState &&
-          t.city?.toLowerCase() !== userCity
-      );
-
-      return [...cityMatch, ...stateMatch].slice(0, 18);
-    } catch {
-      return [];
-    }
-  }
-
-  /** Tab 2 — "National": non-global topics (has a real state value). */
-  static async getNationalTopics(): Promise<any[]> {
-    try {
-      const topics = await this.fetchAllTopics();
-      const unique = Array.from(new Map(topics.map((t: any) => [t.id, t])).values());
-
+      const unique = Array.from(new Map(topics.map(t => [t.id, t])).values());
       return unique
-        .filter(
-          (t: any) =>
-            t.state &&
-            t.state.toLowerCase() !== 'global' &&
-            t.city?.toLowerCase() !== 'global'
-        )
-        .slice(0, 18);
+        .filter(t => t.category?.toLowerCase() === category)
+        .slice(0, TOPICS_PER_TAB);
     } catch {
       return [];
     }
   }
 
-  /** Tab 3 — "Global": topics where city or state is "global". */
-  static async getGlobalTopics(): Promise<any[]> {
-    try {
-      const topics = await this.fetchAllTopics();
-      const unique = Array.from(new Map(topics.map((t: any) => [t.id, t])).values());
-
-      return unique
-        .filter(
-          (t: any) =>
-            t.city?.toLowerCase() === 'global' ||
-            t.state?.toLowerCase() === 'global'
-        )
-        .slice(0, 18);
-    } catch {
-      return [];
-    }
+  /** Tab 1 — "National": up to 20 topics with category "national". */
+  static async getNationalTopics(): Promise<TrendingTopic[]> {
+    return this.getTopicsByCategory('national');
   }
 
-  /** Keep old method for backward compat (delegates to fetchAllTopics + distributeTopics). */
-  static async getTrendingTopics(): Promise<any[]> {
-    try {
-      const topics = await this.fetchAllTopics();
-      const savedLocation = typeof window !== 'undefined' && localStorage.getItem('user_location');
-      let userCity = 'global';
-      let userState = 'global';
-      if (savedLocation) {
-        const loc = JSON.parse(savedLocation);
-        userCity = loc.city || 'global';
-        userState = loc.state || 'global';
-      }
-      return distributeTopics(topics, userCity, userState);
-    } catch {
-      return [];
-    }
+  /** Tab 2 — "International": up to 20 topics with category "international". */
+  static async getInternationalTopics(): Promise<TrendingTopic[]> {
+    return this.getTopicsByCategory('international');
   }
 
   static async signUp(request: SignUpRequest) {

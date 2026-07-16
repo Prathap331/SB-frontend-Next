@@ -4,15 +4,15 @@ import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2, Globe, MapPin, ChevronLeft, ChevronDown, Search,
-  Upload, FileText, Info, AlertCircle, CheckCircle2, Phone,
+  Upload, FileText, Info, AlertCircle, CheckCircle2, Phone, Camera, X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import Header from '@/components/Header';
 
-type CBStep = 1 | 2 | 3;
+type CBStep = 1 | 2 | 3 | 4;
 type AppStatus = 'loading' | 'form' | 'redirecting';
 
-const STEP_LABELS: Record<CBStep, string> = { 1: 'Categories', 2: 'Profile', 3: 'Channel' };
+const STEP_LABELS: Record<CBStep, string> = { 1: 'Categories', 2: 'Profile', 3: 'Thumbnails', 4: 'Channel' };
 
 const ALL_LANGUAGES = [
   'English', 'Hindi', 'Bengali', 'Telugu', 'Marathi', 'Tamil', 'Urdu',
@@ -34,6 +34,22 @@ const ALL_CATEGORIES = [
 ];
 
 const MAX_PDF_SIZE = 10 * 1024 * 1024;
+
+// ── Thumbnail photos (facial expressions) ────────────────────────────────────
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB per image
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const THUMBNAIL_BUCKET = 'thumbnail-images';
+
+const EXPRESSIONS = [
+  { key: 'happy',     label: 'Happy',     emoji: '😄' },
+  { key: 'sad',       label: 'Sad',       emoji: '😢' },
+  { key: 'angry',     label: 'Angry',     emoji: '😠' },
+  { key: 'surprised', label: 'Surprised', emoji: '😲' },
+  { key: 'thinking',  label: 'Thinking',  emoji: '🤔' },
+  { key: 'neutral',   label: 'Neutral',   emoji: '😐' },
+] as const;
+
+type ExpressionKey = (typeof EXPRESSIONS)[number]['key'];
 
 const inputClass =
   'w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm placeholder-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f] transition-all disabled:opacity-60';
@@ -68,7 +84,13 @@ export default function AuthCallback() {
     youtubeLink: '', instagramLink: '', facebookLink: '', twitterLink: '', billingAddress: '',
   });
 
-  // Step 3 — channel PDF
+  // Step 3 — thumbnail photos (facial expressions)
+  const [thumbFiles, setThumbFiles]       = useState<Partial<Record<ExpressionKey, File>>>({});
+  const [thumbPreviews, setThumbPreviews] = useState<Partial<Record<ExpressionKey, string>>>({});
+  const [thumbError, setThumbError]       = useState<string | null>(null);
+  const thumbInputRefs = useRef<Partial<Record<ExpressionKey, HTMLInputElement | null>>>({});
+
+  // Step 4 — channel PDF
   const [channelFile, setChannelFile]     = useState<File | null>(null);
   const [channelFileError, setChannelFileError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver]       = useState(false);
@@ -186,8 +208,79 @@ export default function AuthCallback() {
     }
   };
 
-  // ── Step 3 submit: upload PDF (optional) then finish ─────────────────────
-  const handleStep3 = async (skipUpload = false) => {
+  // ── Step 3: thumbnail photo helpers ───────────────────────────────────────
+  const handleThumbSelect = (key: ExpressionKey, file: File) => {
+    setThumbError(null);
+    if (!IMAGE_TYPES.includes(file.type)) {
+      setThumbError('Only JPG, PNG or WEBP images are accepted.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setThumbError('Each image must be under 5 MB.');
+      return;
+    }
+    setThumbPreviews(prev => {
+      if (prev[key]) URL.revokeObjectURL(prev[key]!);
+      return { ...prev, [key]: URL.createObjectURL(file) };
+    });
+    setThumbFiles(prev => ({ ...prev, [key]: file }));
+  };
+
+  const removeThumb = (key: ExpressionKey) => {
+    setThumbPreviews(prev => {
+      if (prev[key]) URL.revokeObjectURL(prev[key]!);
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setThumbFiles(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  // ── Step 3 submit: upload expression photos, save URLs as JSON ───────────
+  const handleStep3 = async (skip = false) => {
+    setIsSaving(true);
+    setError('');
+    try {
+      const entries = Object.entries(thumbFiles) as [ExpressionKey, File][];
+      if (!skip && entries.length > 0) {
+        const thumbnailImages: Record<string, string> = {};
+
+        for (const [key, file] of entries) {
+          const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+          const path = `${userId}/${key}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from(THUMBNAIL_BUCKET)
+            .upload(path, file, { upsert: true, contentType: file.type });
+          if (upErr) throw new Error(`Failed to upload "${key}" photo: ${upErr.message}`);
+
+          const { data: pub } = supabase.storage.from(THUMBNAIL_BUCKET).getPublicUrl(path);
+          thumbnailImages[key] = pub.publicUrl;
+        }
+
+        const { error: err } = await supabase.from('user_profiles').upsert(
+          {
+            id:               userId,
+            thumbnail_images: thumbnailImages,
+            updated_at:       new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        );
+        if (err) throw err;
+      }
+      setCbStep(4);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to save photos. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ── Step 4 submit: upload PDF (optional) then finish ─────────────────────
+  const handleStep4 = async (skipUpload = false) => {
     setIsSaving(true);
     setError('');
     try {
@@ -279,8 +372,8 @@ export default function AuthCallback() {
               )}
 
               {/* Step indicator */}
-              <div className="flex items-center gap-1.5 mb-4">
-                {([1, 2, 3] as CBStep[]).map((s, idx) => (
+              <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+                {([1, 2, 3, 4] as CBStep[]).map((s, idx) => (
                   <div key={s} className="flex items-center gap-1.5 flex-shrink-0">
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all ${
                       s === cbStep ? 'bg-[#1d1d1f] text-white' : s < cbStep ? 'bg-green-500 text-white' : 'bg-gray-100 text-[#6e6e73]'
@@ -290,7 +383,7 @@ export default function AuthCallback() {
                     <span className={`text-[10px] font-medium ${s === cbStep ? 'text-[#1d1d1f]' : 'text-[#6e6e73]'}`}>
                       {STEP_LABELS[s]}
                     </span>
-                    {idx < 2 && <div className="w-4 h-px bg-gray-200" />}
+                    {idx < 3 && <div className="w-4 h-px bg-gray-200" />}
                   </div>
                 ))}
               </div>
@@ -300,13 +393,15 @@ export default function AuthCallback() {
                   className="text-2xl font-semibold text-[#1d1d1f] mb-1 tracking-tight"
                   style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
                 >
-                  {cbStep === 1 ? 'Your content niche' : cbStep === 2 ? 'Your profile' : 'Channel memory'}
+                  {cbStep === 1 ? 'Your content niche' : cbStep === 2 ? 'Your profile' : cbStep === 3 ? 'Thumbnail photos' : 'Channel memory'}
                 </h1>
                 <p className="text-sm text-[#6e6e73] font-light">
                   {cbStep === 1
                     ? 'Tell us about your content & preferred language'
                     : cbStep === 2
                     ? 'Add your social links (optional)'
+                    : cbStep === 3
+                    ? 'Upload photos of yourself with different expressions for AI thumbnails'
                     : 'Upload your channel style guide so AI writes scripts that sound like you'}
                 </p>
               </div>
@@ -486,8 +581,110 @@ export default function AuthCallback() {
                 </div>
               )}
 
-              {/* ── Step 3: Channel memory ────────────────────────────── */}
+              {/* ── Step 3: Thumbnail photos ──────────────────────────── */}
               {cbStep === 3 && (
+                <div className="space-y-4">
+                  <div className="bg-[#f5f5f7] rounded-2xl p-4 flex gap-3">
+                    <Camera className="w-4 h-4 text-[#6e6e73] flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-[#1d1d1f] mb-1">Why we ask for these</p>
+                      <p className="text-[11px] text-[#6e6e73] leading-relaxed">
+                        Upload clear photos of your face with different expressions. We use them to
+                        generate click-worthy thumbnails that match each video&apos;s emotion. Well-lit,
+                        front-facing photos work best.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Expression slots */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {EXPRESSIONS.map(({ key, label, emoji }) => {
+                      const preview = thumbPreviews[key];
+                      return (
+                        <div key={key}>
+                          <input
+                            ref={el => { thumbInputRefs.current[key] = el; }}
+                            type="file"
+                            accept={IMAGE_TYPES.join(',')}
+                            className="hidden"
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (file) handleThumbSelect(key, file);
+                              e.target.value = '';
+                            }}
+                          />
+                          {preview ? (
+                            <div className="relative rounded-2xl overflow-hidden border border-green-200 group">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={preview} alt={`${label} expression`} className="w-full aspect-square object-cover" />
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5 flex items-center gap-1">
+                                <span className="text-xs">{emoji}</span>
+                                <span className="text-[10px] font-semibold text-white">{label}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeThumb(key)}
+                                disabled={isSaving}
+                                aria-label={`Remove ${label} photo`}
+                                className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/55 hover:bg-black/75 flex items-center justify-center transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5 text-white" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => thumbInputRefs.current[key]?.click()}
+                              disabled={isSaving}
+                              className="w-full aspect-square rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-[#f5f5f7]/60 flex flex-col items-center justify-center gap-1.5 transition-all disabled:opacity-60"
+                            >
+                              <span className="text-xl leading-none">{emoji}</span>
+                              <span className="text-[11px] font-medium text-[#1d1d1f]">{label}</span>
+                              <span className="flex items-center gap-1 text-[9px] text-[#6e6e73]">
+                                <Upload className="w-2.5 h-2.5" /> Add photo
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <p className="text-[11px] text-[#6e6e73]">
+                    JPG, PNG or WEBP · max 5 MB each · upload as many expressions as you like
+                  </p>
+
+                  {thumbError && (
+                    <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />{thumbError}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleStep3(false)}
+                    disabled={isSaving}
+                    className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isSaving
+                      ? <><Loader2 className="w-4 h-4 animate-spin" />Uploading…</>
+                      : Object.keys(thumbFiles).length > 0
+                      ? `Upload ${Object.keys(thumbFiles).length} photo${Object.keys(thumbFiles).length > 1 ? 's' : ''} & Continue →`
+                      : 'Continue →'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStep3(true)}
+                    disabled={isSaving}
+                    className="w-full py-1.5 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+                  >
+                    Skip for now
+                  </button>
+                </div>
+              )}
+
+              {/* ── Step 4: Channel memory ────────────────────────────── */}
+              {cbStep === 4 && (
                 <div className="space-y-4">
                   <div className="bg-[#f5f5f7] rounded-2xl p-4 flex gap-3">
                     <Info className="w-4 h-4 text-[#6e6e73] flex-shrink-0 mt-0.5" />
@@ -573,7 +770,7 @@ export default function AuthCallback() {
                   {uploadStatus !== 'success' && (
                     <button
                       type="button"
-                      onClick={() => handleStep3(false)}
+                      onClick={() => handleStep4(false)}
                       disabled={isSaving}
                       className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
                     >
@@ -585,7 +782,7 @@ export default function AuthCallback() {
                   {uploadStatus === 'success' && (
                     <button
                       type="button"
-                      onClick={() => handleStep3(true)}
+                      onClick={() => handleStep4(true)}
                       disabled={isSaving}
                       className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
                     >
@@ -594,7 +791,7 @@ export default function AuthCallback() {
                   )}
                   <button
                     type="button"
-                    onClick={() => handleStep3(true)}
+                    onClick={() => handleStep4(true)}
                     disabled={isSaving}
                     className="w-full py-1.5 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
                   >

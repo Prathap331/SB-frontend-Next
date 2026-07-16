@@ -7,17 +7,17 @@ import ComingFeatures from '../components/ComingFeatures';
 import Footer from '../components/Footer';
 import { Search, ArrowUpRight, Globe, Newspaper } from 'lucide-react';
 import StoryBitPipeline from '@/components/Architecture';
-import { ApiService } from '@/services/api';
+import { ApiService, TrendingTopic } from '@/services/api';
 import CategorySlider from '@/components/CategorySlider';
 import SuggestedTopics from '@/components/SuggestedTopics';
 import RecommendedArticles from '@/components/blog/RecommendedArticles';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 
-type Tab = 'national' | 'global';
+type Tab = 'national' | 'international';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: 'national', label: 'National News', icon: <Newspaper className="w-3.5 h-3.5" /> },
-  { id: 'global',   label: 'Global News',   icon: <Globe     className="w-3.5 h-3.5" /> },
+  { id: 'national',      label: 'National News',      icon: <Newspaper className="w-3.5 h-3.5" /> },
+  { id: 'international', label: 'International News', icon: <Globe     className="w-3.5 h-3.5" /> },
 ];
 
 export default function Home() {
@@ -29,12 +29,12 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('national');
 
   // Topics per tab
-  const [nationalTopics, setNationalTopics] = useState<any[]>([]);
-  const [globalTopics,   setGlobalTopics]   = useState<any[]>([]);
+  const [nationalTopics,      setNationalTopics]      = useState<TrendingTopic[]>([]);
+  const [internationalTopics, setInternationalTopics] = useState<TrendingTopic[]>([]);
 
   // Loading per tab
-  const [loadingNational, setLoadingNational] = useState(true);
-  const [loadingGlobal,   setLoadingGlobal]   = useState(false);
+  const [loadingNational,      setLoadingNational]      = useState(true);
+  const [loadingInternational, setLoadingInternational] = useState(false);
 
   // Track which tabs have been fetched already
   const [fetchedTabs, setFetchedTabs] = useState<Set<Tab>>(new Set());
@@ -73,15 +73,15 @@ export default function Home() {
 
     let mounted = true;
 
-    if (activeTab === 'global') {
-      setLoadingGlobal(true);
-      ApiService.getGlobalTopics()
-        .then(topics => { if (mounted) setGlobalTopics(topics); })
-        .catch(err => console.error('Global fetch failed:', err))
+    if (activeTab === 'international') {
+      setLoadingInternational(true);
+      ApiService.getInternationalTopics()
+        .then(topics => { if (mounted) setInternationalTopics(topics); })
+        .catch(err => console.error('International fetch failed:', err))
         .finally(() => {
           if (mounted) {
-            setLoadingGlobal(false);
-            setFetchedTabs(prev => new Set(prev).add('global'));
+            setLoadingInternational(false);
+            setFetchedTabs(prev => new Set(prev).add('international'));
           }
         });
     }
@@ -90,8 +90,8 @@ export default function Home() {
   }, [activeTab, fetchedTabs]);
 
   // ── Helpers ────────────────────────────────────────────────────
-  const activeTopics = activeTab === 'national' ? nationalTopics : globalTopics;
-  const isLoading = activeTab === 'national' ? loadingNational : loadingGlobal;
+  const activeTopics = activeTab === 'national' ? nationalTopics : internationalTopics;
+  const isLoading = activeTab === 'national' ? loadingNational : loadingInternational;
 
   const handleSearch = (topic: any) => {
     const searchText = typeof topic === 'string' ? topic : topic?.tittle;
@@ -254,9 +254,10 @@ export default function Home() {
                   No topics available right now.
                 </span>
               ) : (
-                activeTopics.map((topic, i) => (
+                activeTopics.map(topic => (
                   <button
-                    key={i}
+                    key={topic.id}
+                    title={topic.regular_tittle}
                     onClick={() => handleSearch(topic.tittle)}
                     className="text-[13px] font-medium text-grey-600 bg-white hover:bg-[#ebebed] hover:text-[#1d1d1f] px-3.5 py-1.5 rounded-full transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] border border-gray-100"
                     style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
