@@ -4,8 +4,11 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { User, Edit, Save, FileText, CreditCard, Crown, Calendar, DollarSign, Download, ExternalLink, LogOut, Menu, X, Video, Upload, CheckCircle2, AlertCircle, Loader2, FileIcon, Info, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Edit, Save, FileText, CreditCard, Crown, Calendar, DollarSign, Download, ExternalLink, LogOut, Menu, X, Video, Upload, CheckCircle2, AlertCircle, Loader2, FileIcon, Info, Lock, Eye, EyeOff, Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import {
+  MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, EXPRESSIONS, ExpressionKey,
+} from '@/lib/thumbnails';
 
 type ProfileData = {
   name: string;
@@ -254,6 +257,149 @@ export default function Profile() {
     }
   };
 
+  // ── Thumbnail photos (facial expressions) state ──────────────────────────
+  const [savedThumbs, setSavedThumbs]     = useState<Partial<Record<ExpressionKey, string>>>({});
+  const [thumbFiles, setThumbFiles]       = useState<Partial<Record<ExpressionKey, File>>>({});
+  const [thumbPreviews, setThumbPreviews] = useState<Partial<Record<ExpressionKey, string>>>({});
+  const [thumbError, setThumbError]       = useState<string | null>(null);
+  const [thumbSuccess, setThumbSuccess]   = useState(false);
+  const [thumbSaving, setThumbSaving]     = useState(false);
+  const [isLoadingThumbs, setIsLoadingThumbs] = useState(false);
+  const [thumbsFetched, setThumbsFetched] = useState(false);
+  const thumbInputRefs = useRef<Partial<Record<ExpressionKey, HTMLInputElement | null>>>({});
+
+  // Fetch saved thumbnail images when the tab is opened
+  useEffect(() => {
+    if (activeTab !== 'thumbnails' || thumbsFetched) return;
+    const fetchThumbs = async () => {
+      setIsLoadingThumbs(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('thumbnail_images')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        setSavedThumbs((data?.thumbnail_images as Partial<Record<ExpressionKey, string>>) ?? {});
+        setThumbsFetched(true);
+      } finally {
+        setIsLoadingThumbs(false);
+      }
+    };
+    fetchThumbs();
+  }, [activeTab, thumbsFetched]);
+
+  const handleThumbSelect = (key: ExpressionKey, file: File) => {
+    setThumbError(null);
+    setThumbSuccess(false);
+    if (!IMAGE_TYPES.includes(file.type)) {
+      setThumbError('Only JPG, PNG or WEBP images are accepted.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setThumbError('Each image must be under 5 MB.');
+      return;
+    }
+    setThumbPreviews(prev => {
+      if (prev[key]) URL.revokeObjectURL(prev[key]!);
+      return { ...prev, [key]: URL.createObjectURL(file) };
+    });
+    setThumbFiles(prev => ({ ...prev, [key]: file }));
+  };
+
+  // Discard a pending (not yet saved) photo selection
+  const discardPendingThumb = (key: ExpressionKey) => {
+    setThumbPreviews(prev => {
+      if (prev[key]) URL.revokeObjectURL(prev[key]!);
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setThumbFiles(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  // Remove an already-saved photo (storage file + JSON entry)
+  const removeSavedThumb = async (key: ExpressionKey) => {
+    setThumbError(null);
+    setThumbSuccess(false);
+    setThumbSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const next = { ...savedThumbs };
+      delete next[key];
+
+      const { error } = await supabase.from('user_profiles').upsert(
+        { id: session.user.id, thumbnail_images: next, updated_at: new Date().toISOString() },
+        { onConflict: 'id' }
+      );
+      if (error) throw error;
+
+      // Best-effort storage cleanup — the JSON is already updated
+      const url = savedThumbs[key];
+      const match = url?.match(/\/object\/public\/[^/]+\/(.+?)(\?|$)/);
+      if (match) {
+        supabase.storage.from(THUMBNAIL_BUCKET).remove([decodeURIComponent(match[1])]).then(() => {});
+      }
+
+      setSavedThumbs(next);
+    } catch (err: any) {
+      setThumbError(err?.message || 'Failed to remove photo. Please try again.');
+    } finally {
+      setThumbSaving(false);
+    }
+  };
+
+  // Upload all pending photos and merge into thumbnail_images JSON
+  const handleThumbsSave = async () => {
+    const entries = Object.entries(thumbFiles) as [ExpressionKey, File][];
+    if (entries.length === 0) return;
+
+    setThumbSaving(true);
+    setThumbError(null);
+    setThumbSuccess(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+      const uid = session.user.id;
+
+      const merged: Record<string, string> = { ...savedThumbs };
+
+      for (const [key, file] of entries) {
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const path = `${uid}/${key}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from(THUMBNAIL_BUCKET)
+          .upload(path, file, { upsert: true, contentType: file.type });
+        if (upErr) throw new Error(`Failed to upload "${key}" photo: ${upErr.message}`);
+
+        const { data: pub } = supabase.storage.from(THUMBNAIL_BUCKET).getPublicUrl(path);
+        // Cache-bust so a replaced photo shows immediately despite the same path
+        merged[key] = `${pub.publicUrl}?v=${Date.now()}`;
+      }
+
+      const { error } = await supabase.from('user_profiles').upsert(
+        { id: uid, thumbnail_images: merged, updated_at: new Date().toISOString() },
+        { onConflict: 'id' }
+      );
+      if (error) throw error;
+
+      setSavedThumbs(merged as Partial<Record<ExpressionKey, string>>);
+      entries.forEach(([key]) => discardPendingThumb(key));
+      setThumbSuccess(true);
+    } catch (err: any) {
+      setThumbError(err?.message || 'Failed to save photos. Please try again.');
+    } finally {
+      setThumbSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     setSaveError(null);
@@ -423,6 +569,7 @@ export default function Profile() {
   const menuItems = [
     { id: 'profile', label: 'Basic Details', icon: User },
     { id: 'scripts', label: 'My Scripts', icon: FileText },
+    { id: 'thumbnails', label: 'Thumbnail Photos', icon: Camera },
     { id: 'channel', label: 'Channel memory', icon: Video },
     { id: 'subscription', label: 'Subscription', icon: Crown },
     { id: 'billing', label: 'Billing', icon: CreditCard },
@@ -945,6 +1092,129 @@ export default function Profile() {
                         </button>
                       </div>
                     </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Thumbnail Photos */}
+            {activeTab === 'thumbnails' && (
+              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+                <div className="px-6 py-5 border-b border-gray-100">
+                  <h2 className="text-sm font-semibold text-[#1d1d1f]">Thumbnail Photos</h2>
+                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Photos of your facial expressions, used to generate video thumbnails that match each video&apos;s emotion</p>
+                </div>
+
+                <div className="px-6 py-5">
+                  {isLoadingThumbs ? (
+                    <div className="flex items-center justify-center py-10 gap-2 text-[#6e6e73]">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-xs font-light">Loading photos…</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="bg-[#f5f5f7] rounded-2xl p-4 flex gap-3">
+                        <Camera className="w-4 h-4 text-[#6e6e73] flex-shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-[#6e6e73] leading-relaxed">
+                          Upload clear, well-lit, front-facing photos for each expression. Click a photo to
+                          replace it — changes are applied when you press <span className="font-semibold text-[#1d1d1f]">Save photos</span>.
+                        </p>
+                      </div>
+
+                      {/* Expression grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        {EXPRESSIONS.map(({ key, label, emoji }) => {
+                          const pending = thumbPreviews[key];
+                          const saved = savedThumbs[key];
+                          const shown = pending ?? saved;
+                          return (
+                            <div key={key}>
+                              <input
+                                ref={el => { thumbInputRefs.current[key] = el; }}
+                                type="file"
+                                accept={IMAGE_TYPES.join(',')}
+                                className="hidden"
+                                onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleThumbSelect(key, file);
+                                  e.target.value = '';
+                                }}
+                              />
+                              {shown ? (
+                                <div className={`relative rounded-2xl overflow-hidden border group ${pending ? 'border-amber-300' : 'border-gray-200'}`}>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={shown}
+                                    alt={`${label} expression`}
+                                    className="w-full aspect-square object-cover cursor-pointer"
+                                    onClick={() => !thumbSaving && thumbInputRefs.current[key]?.click()}
+                                    title="Click to replace"
+                                  />
+                                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5 flex items-center gap-1 pointer-events-none">
+                                    <span className="text-xs">{emoji}</span>
+                                    <span className="text-[10px] font-semibold text-white">{label}</span>
+                                  </div>
+                                  {pending && (
+                                    <span className="absolute top-1.5 left-1.5 text-[8px] font-bold uppercase tracking-wider bg-amber-400 text-amber-950 px-1.5 py-0.5 rounded-full pointer-events-none">
+                                      Unsaved
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => pending ? discardPendingThumb(key) : removeSavedThumb(key)}
+                                    disabled={thumbSaving}
+                                    aria-label={`Remove ${label} photo`}
+                                    title={pending ? 'Discard change' : 'Remove photo'}
+                                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/55 hover:bg-black/75 flex items-center justify-center transition-colors disabled:opacity-50"
+                                  >
+                                    <X className="w-3.5 h-3.5 text-white" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => thumbInputRefs.current[key]?.click()}
+                                  disabled={thumbSaving}
+                                  className="w-full aspect-square rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-[#f5f5f7]/60 flex flex-col items-center justify-center gap-1.5 transition-all disabled:opacity-60"
+                                >
+                                  <span className="text-xl leading-none">{emoji}</span>
+                                  <span className="text-[11px] font-medium text-[#1d1d1f]">{label}</span>
+                                  <span className="flex items-center gap-1 text-[9px] text-[#6e6e73]">
+                                    <Upload className="w-2.5 h-2.5" /> Add photo
+                                  </span>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <p className="text-[11px] text-[#6e6e73]">JPG, PNG or WEBP · max 5 MB each</p>
+
+                      {thumbError && (
+                        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0" />{thumbError}
+                        </div>
+                      )}
+                      {thumbSuccess && (
+                        <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+                          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />Photos saved successfully.
+                        </div>
+                      )}
+
+                      {Object.keys(thumbFiles).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleThumbsSave}
+                          disabled={thumbSaving}
+                          className="flex items-center gap-2 text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-6 py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+                        >
+                          {thumbSaving
+                            ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</>
+                            : <><Save className="w-4 h-4" />Save photos ({Object.keys(thumbFiles).length})</>}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

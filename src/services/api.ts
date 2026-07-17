@@ -178,6 +178,8 @@ export interface GenerationParams {
   duration_minutes?: number;
   length?: number;
   userId?: string;
+  /** true = script/thumbnails use the user's photos, false = faceless channel */
+  isFace?: boolean;
 }
 
 /** SEO block returned by /generate-script as `youtube_metadata` */
