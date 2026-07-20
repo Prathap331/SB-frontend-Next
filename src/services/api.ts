@@ -495,10 +495,6 @@ export interface TrendingTopic {
 export class ApiService {
   // Use Next.js API routes in both development and production
   private static readonly BASE_URL = 'https://storybit-backend.onrender.com';
-  
-  // Check if we're in production and handle CORS issues
-  private static isProduction = process.env.NODE_ENV === 'production';
-
 
   private static sanitizeTopic(input: string): string {
     return input
@@ -636,20 +632,11 @@ export class ApiService {
       const apiUrl = `${this.BASE_URL}/generate-ideas`;
       const safeTopic = this.sanitizeTopic(topic);
 
-      let response;
-      try {
-        // No timeout — let the server respond however long it takes
-        response = await this.authorizedFetch(
-          apiUrl,
-          { method: 'POST', body: JSON.stringify({ topic: safeTopic }) },
-        );
-      } catch (fetchError) {
-        if (this.isProduction && fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
-          console.warn('CORS error detected in production, using fallback data');
-          return this.getFallbackData(topic);
-        }
-        throw fetchError;
-      }
+      // No timeout — let the server respond however long it takes
+      const response = await this.authorizedFetch(
+        apiUrl,
+        { method: 'POST', body: JSON.stringify({ topic: safeTopic }) },
+      );
 
       // Immediate retry on 502 — no delay
       if (response.status === 502 && retryCount < maxRetries) {
@@ -667,20 +654,13 @@ export class ApiService {
       }
 
       const data = await response.json();
+      console.log('[generate-ideas] response:', data);
       return this.normalizeProcessTopicResponse(data);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        if (this.isProduction) {
-          console.warn('CORS/Network error in production, falling back to sample data');
-          return this.getFallbackData(topic);
-        }
         throw new Error('Network error: Unable to connect to the API server.');
       }
       if (error instanceof Error && error.message.includes('CORS')) {
-        if (this.isProduction) {
-          console.warn('CORS error in production, falling back to sample data');
-          return this.getFallbackData(topic);
-        }
         throw new Error('CORS error: The API server needs to allow requests from this domain.');
       }
       throw error;
@@ -736,20 +716,11 @@ export class ApiService {
       console.log('Making API request to:', apiUrl);
       console.log('Request payload:', params);
 
-      let response;
-      try {
-        // No timeout — generation can take as long as needed
-        response = await this.authorizedFetch(
-          apiUrl,
-          { method: 'POST', body: JSON.stringify(params) },
-        );
-      } catch (fetchError) {
-        if (this.isProduction && fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
-          console.warn('CORS error detected in production, returning empty script');
-          return { script: 'Error generating script due to network issues.', estimated_word_count: 0, source_urls: [], analysis: { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: 'N/A', history: 0 } };
-        }
-        throw fetchError;
-      }
+      // No timeout — generation can take as long as needed
+      const response = await this.authorizedFetch(
+        apiUrl,
+        { method: 'POST', body: JSON.stringify(params) },
+      );
       console.log('API Response status:', response.status);
 
       // Immediate retry on 502 — no delay
@@ -767,20 +738,14 @@ export class ApiService {
         throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log('[generate-script] response:', data);
+      return data;
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        if (this.isProduction) {
-          console.warn('CORS/Network error in production, returning empty script');
-          return { script: 'Error generating script due to network issues.', estimated_word_count: 0, source_urls: [], analysis: { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: 'N/A', history: 0 } };
-        }
         throw new Error('Network error: Unable to connect to the API server.');
       }
       if (error instanceof Error && error.message.includes('CORS')) {
-        if (this.isProduction) {
-          console.warn('CORS error in production, returning empty script');
-          return { script: 'Error generating script due to network issues.', estimated_word_count: 0, source_urls: [], analysis: { examples_count: 0, research_facts_count: 0, proverbs_count: 0, emotional_depth: 'N/A', history: 0 } };
-        }
         throw new Error('CORS error: The API server needs to allow requests from this domain.');
       }
       throw error;
@@ -826,43 +791,6 @@ export class ApiService {
       throw err;
     }
   }
-
-  // Fallback data generator for when API is unavailable
-  private static getFallbackData(topic: string): ProcessTopicResponse {
-    const ideas = [
-      `Understanding ${topic}: A Comprehensive Analysis`,
-      `The Impact of ${topic} on Modern Society`,
-      `Future Trends: Where ${topic} is Heading`,
-      `Breaking Down ${topic}: Key Insights and Perspectives`,
-      `The Science Behind ${topic}: What You Need to Know`,
-      `${topic} in the Digital Age: Opportunities and Challenges`,
-      `Global Perspectives on ${topic}: A Worldwide View`,
-      `The Economics of ${topic}: Market Analysis and Trends`,
-      `${topic} and Sustainability: Environmental Considerations`,
-      `Innovation in ${topic}: Latest Developments and Breakthroughs`
-    ];
-
-    const descriptions = [
-      `Dive deep into the world of ${topic} and explore its various aspects, implications, and real-world applications. This comprehensive analysis will provide you with valuable insights and perspectives that will help you understand the topic from multiple angles.`,
-      `Explore how ${topic} is shaping our world today and what it means for the future. This analysis covers social implications, economic effects, and cultural changes brought about by this trending topic.`,
-      `Get a glimpse into the future of ${topic} and discover what experts predict will happen next. This forward-looking analysis examines emerging trends, potential developments, and what to expect in the coming years.`,
-      `Break down the complex aspects of ${topic} into digestible insights. This analysis provides key perspectives and actionable information that will help viewers understand the topic's significance and impact.`,
-      `Explore the scientific foundations of ${topic} and understand the research behind current developments. This analysis combines expert knowledge with accessible explanations for a broad audience.`,
-      `Examine how ${topic} is evolving in our digital world. This analysis looks at technological influences, digital transformation, and the opportunities and challenges that come with modern advancements.`,
-      `Take a global perspective on ${topic} and understand how different cultures and regions approach this topic. This analysis provides a worldwide view of trends, practices, and cultural differences.`,
-      `Analyze the economic aspects of ${topic} and understand market dynamics, financial implications, and business opportunities. This analysis covers market trends, investment potential, and economic impact.`,
-      `Explore the environmental and sustainability aspects of ${topic}. This analysis examines ecological considerations, sustainable practices, and the environmental impact of current trends and developments.`,
-      `Discover the latest innovations and breakthroughs in ${topic}. This analysis covers cutting-edge developments, technological advances, and emerging solutions that are shaping the future of this field.`
-    ];
-    
-
-    return {
-      ideas,
-      descriptions
-    };
-  }
-
-  
 
  // ── Trending topics (/trending-data) — category based ───────────────────────
 

@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
+import { ApiFailCard } from '@/components/ApiFailCard';
 import { ApiService, GenerationParams, GeneratedScriptData, UnusedIdeasPayload } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
 import nlp from 'compromise';
@@ -1185,11 +1186,19 @@ if (params.get('from') === 'suggested') {
   }
 
   if (error) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7]">
-      <div className="text-center">
-        <p className="text-red-500 mb-4 text-sm">{error}</p>
-        <button onClick={() => window.history.back()} className="text-sm text-[#1d1d1f] underline">Go back</button>
-      </div>
+    <div className="min-h-screen bg-[#f5f5f7] flex flex-col">
+      <Header />
+      <main className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="w-full">
+          <ApiFailCard onRetry={() => window.location.reload()} variant="full" />
+          <p className="text-center mt-4">
+            <button onClick={() => window.history.back()} className="text-sm text-[#6e6e73] underline hover:text-[#1d1d1f] transition-colors">
+              or go back
+            </button>
+          </p>
+        </div>
+      </main>
+      <Footer />
     </div>
   );
   if (!data) return null;
@@ -1197,21 +1206,6 @@ if (params.get('from') === 'suggested') {
   // Don't render anything if redirecting or not yet validated
   if (!shouldRender || isRedirecting) {
     return null;
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#E9EBF0]/20">
-        <Header />
-        <main className="container mx-auto px-4 py-8 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <p className="text-red-600">{error}</p>
-            <Button onClick={() => router.back()} variant="outline">Go Back</Button>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
   }
 
   if (!data) {

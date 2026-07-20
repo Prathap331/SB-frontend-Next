@@ -26,6 +26,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ECIExactReplica from '@/components/ECIExactReplica';
 import SuggestedTopicsSidebar from '@/components/SuggestedTopicsSidebar';
 import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
+import { ApiFailCard } from '@/components/ApiFailCard';
 import { supabase as sbClient } from '@/lib/supabaseClient';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 
@@ -88,6 +89,11 @@ const getFromLocalStorage = (topic: string): CacheItem | null => {
     if (!item) return null;
     const parsed = JSON.parse(item) as CacheItem;
     if (Date.now() - parsed.timestamp > CACHE_DURATION) {
+      localStorage.removeItem(`topic_ideas_${topic}`);
+      return null;
+    }
+    // Discard stale entries cached from failed API calls (old fallback/sample data)
+    if (parsed.error || !parsed.scriptIdeas?.length) {
       localStorage.removeItem(`topic_ideas_${topic}`);
       return null;
     }
@@ -754,16 +760,17 @@ useEffect(() => {
         summary: string | null = null,
         relatedIdeas: SimilarPastIdea[] = []
       ) => {
-        const cacheData = {
-          scriptIdeas: ideas,
-          similarPastIdeas: relatedIdeas,
-          topicSummary: summary,
-          error: err,
-          timestamp: Date.now(),
-        };
-      
-        saveToCache(topic, cacheData);
-      
+        // Only cache successful results — never persist errors/empty fallbacks
+        if (!err) {
+          saveToCache(topic, {
+            scriptIdeas: ideas,
+            similarPastIdeas: relatedIdeas,
+            topicSummary: summary,
+            error: err,
+            timestamp: Date.now(),
+          });
+        }
+
         inFlightIdeas.delete(topic);
         settleFetch();
       
@@ -805,19 +812,13 @@ return;
             continue;
           }
 
-          const fallbackIdeas: ScriptIdea[] = [
-            { id: 1, title: `Understanding ${topic}: A Comprehensive Analysis`, description: `Dive deep into ${topic} and explore its aspects, implications, and real-world applications.`, category: 'Technology' },
-            { id: 2, title: `The Impact of ${topic} on Modern Society`, description: `Explore how ${topic} is shaping our world today and what it means for the future.`, category: 'Social Impact' },
-            { id: 3, title: `Future Trends: Where ${topic} is Heading`, description: `Discover what experts predict will happen next with ${topic}.`, category: 'Future Analysis' },
-          ];
-
           const errorMessage = message.includes('timeout')
-            ? 'API request timed out. Using sample data.'
+            ? 'API request timed out. Please try again.'
             : message.includes('502')
-            ? 'Server temporarily unavailable. Using sample data.'
-            : 'API temporarily unavailable. Using sample data.';
+            ? 'Server temporarily unavailable. Please try again.'
+            : message || 'API temporarily unavailable. Please try again.';
 
-          applyResult(fallbackIdeas, errorMessage);
+          applyResult([], errorMessage);
           return;
         }
       }
@@ -1245,21 +1246,7 @@ return;
             <div className="flex-1 min-w-0">
 
               {isLoading ? null : error && (
-                <div className="bg-red-50 border border-red-100 rounded-2xl p-6 mb-6 flex items-start gap-4">
-                  <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-                    <AlertCircle className="w-4.5 h-4.5 text-red-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-red-700 mb-1">API Temporarily Unavailable</p>
-                    <p className="text-sm text-red-600 mb-3">{error}</p>
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="text-xs font-semibold text-red-700 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-100 transition-colors"
-                    >
-                      Try Again
-                    </button>
-                  </div>
-                </div>
+                <ApiFailCard onRetry={() => window.location.reload()} />
               )}
 
     
@@ -1318,7 +1305,7 @@ return;
                     </div>
                   ))}
 
-                  {scriptIdeas.length === 0 && (
+                  {scriptIdeas.length === 0 && !error && (
                     <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
                       <div className="flex flex-col items-center gap-3">
                         <div className="w-10 h-10 rounded-2xl bg-[#f5f5f7] flex items-center justify-center">
