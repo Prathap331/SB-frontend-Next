@@ -7,7 +7,7 @@ import Footer from '../../components/Footer';
 import { User, Edit, Save, FileText, CreditCard, Crown, Calendar, DollarSign, Download, ExternalLink, LogOut, Menu, X, Video, Upload, CheckCircle2, AlertCircle, Loader2, FileIcon, Info, Lock, Eye, EyeOff, Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import {
-  MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, EXPRESSIONS, ExpressionKey,
+  MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, PHOTO_SLOTS, PhotoKey,
 } from '@/lib/thumbnails';
 
 type ProfileData = {
@@ -257,16 +257,16 @@ export default function Profile() {
     }
   };
 
-  // ── Thumbnail photos (facial expressions) state ──────────────────────────
-  const [savedThumbs, setSavedThumbs]     = useState<Partial<Record<ExpressionKey, string>>>({});
-  const [thumbFiles, setThumbFiles]       = useState<Partial<Record<ExpressionKey, File>>>({});
-  const [thumbPreviews, setThumbPreviews] = useState<Partial<Record<ExpressionKey, string>>>({});
+  // ── Thumbnail photos (2 HD photos of the user) state ─────────────────────
+  const [savedThumbs, setSavedThumbs]     = useState<Partial<Record<PhotoKey, string>>>({});
+  const [thumbFiles, setThumbFiles]       = useState<Partial<Record<PhotoKey, File>>>({});
+  const [thumbPreviews, setThumbPreviews] = useState<Partial<Record<PhotoKey, string>>>({});
   const [thumbError, setThumbError]       = useState<string | null>(null);
   const [thumbSuccess, setThumbSuccess]   = useState(false);
   const [thumbSaving, setThumbSaving]     = useState(false);
   const [isLoadingThumbs, setIsLoadingThumbs] = useState(false);
   const [thumbsFetched, setThumbsFetched] = useState(false);
-  const thumbInputRefs = useRef<Partial<Record<ExpressionKey, HTMLInputElement | null>>>({});
+  const thumbInputRefs = useRef<Partial<Record<PhotoKey, HTMLInputElement | null>>>({});
 
   // Fetch saved thumbnail images when the tab is opened
   useEffect(() => {
@@ -281,7 +281,12 @@ export default function Profile() {
           .select('thumbnail_images')
           .eq('id', session.user.id)
           .maybeSingle();
-        setSavedThumbs((data?.thumbnail_images as Partial<Record<ExpressionKey, string>>) ?? {});
+        const imgs = (data?.thumbnail_images ?? {}) as Record<string, string>;
+        // Only read the new { photo1, photo2 } shape — ignore legacy expression keys
+        setSavedThumbs({
+          ...(imgs.photo1 ? { photo1: imgs.photo1 } : {}),
+          ...(imgs.photo2 ? { photo2: imgs.photo2 } : {}),
+        });
         setThumbsFetched(true);
       } finally {
         setIsLoadingThumbs(false);
@@ -290,7 +295,7 @@ export default function Profile() {
     fetchThumbs();
   }, [activeTab, thumbsFetched]);
 
-  const handleThumbSelect = (key: ExpressionKey, file: File) => {
+  const handleThumbSelect = (key: PhotoKey, file: File) => {
     setThumbError(null);
     setThumbSuccess(false);
     if (!IMAGE_TYPES.includes(file.type)) {
@@ -309,7 +314,7 @@ export default function Profile() {
   };
 
   // Discard a pending (not yet saved) photo selection
-  const discardPendingThumb = (key: ExpressionKey) => {
+  const discardPendingThumb = (key: PhotoKey) => {
     setThumbPreviews(prev => {
       if (prev[key]) URL.revokeObjectURL(prev[key]!);
       const next = { ...prev };
@@ -324,7 +329,7 @@ export default function Profile() {
   };
 
   // Remove an already-saved photo (storage file + JSON entry)
-  const removeSavedThumb = async (key: ExpressionKey) => {
+  const removeSavedThumb = async (key: PhotoKey) => {
     setThumbError(null);
     setThumbSuccess(false);
     setThumbSaving(true);
@@ -332,11 +337,14 @@ export default function Profile() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
 
-      const next = { ...savedThumbs };
-      delete next[key];
+      // Always persist the full { photo1, photo2 } shape, blanking the removed slot
+      const nextDb: Record<PhotoKey, string> = {
+        photo1: key === 'photo1' ? '' : savedThumbs.photo1 ?? '',
+        photo2: key === 'photo2' ? '' : savedThumbs.photo2 ?? '',
+      };
 
       const { error } = await supabase.from('user_profiles').upsert(
-        { id: session.user.id, thumbnail_images: next, updated_at: new Date().toISOString() },
+        { id: session.user.id, thumbnail_images: nextDb, updated_at: new Date().toISOString() },
         { onConflict: 'id' }
       );
       if (error) throw error;
@@ -348,6 +356,8 @@ export default function Profile() {
         supabase.storage.from(THUMBNAIL_BUCKET).remove([decodeURIComponent(match[1])]).then(() => {});
       }
 
+      const next = { ...savedThumbs };
+      delete next[key];
       setSavedThumbs(next);
     } catch (err: any) {
       setThumbError(err?.message || 'Failed to remove photo. Please try again.');
@@ -358,7 +368,7 @@ export default function Profile() {
 
   // Upload all pending photos and merge into thumbnail_images JSON
   const handleThumbsSave = async () => {
-    const entries = Object.entries(thumbFiles) as [ExpressionKey, File][];
+    const entries = Object.entries(thumbFiles) as [PhotoKey, File][];
     if (entries.length === 0) return;
 
     setThumbSaving(true);
@@ -369,7 +379,11 @@ export default function Profile() {
       if (!session) throw new Error('Not authenticated');
       const uid = session.user.id;
 
-      const merged: Record<string, string> = { ...savedThumbs };
+      // Always persist the full { photo1, photo2 } shape
+      const merged: Record<PhotoKey, string> = {
+        photo1: savedThumbs.photo1 ?? '',
+        photo2: savedThumbs.photo2 ?? '',
+      };
 
       for (const [key, file] of entries) {
         const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
@@ -390,7 +404,10 @@ export default function Profile() {
       );
       if (error) throw error;
 
-      setSavedThumbs(merged as Partial<Record<ExpressionKey, string>>);
+      setSavedThumbs({
+        ...(merged.photo1 ? { photo1: merged.photo1 } : {}),
+        ...(merged.photo2 ? { photo2: merged.photo2 } : {}),
+      });
       entries.forEach(([key]) => discardPendingThumb(key));
       setThumbSuccess(true);
     } catch (err: any) {
@@ -1102,7 +1119,7 @@ export default function Profile() {
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                 <div className="px-6 py-5 border-b border-gray-100">
                   <h2 className="text-sm font-semibold text-[#1d1d1f]">Thumbnail Photos</h2>
-                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Photos of your facial expressions, used to generate video thumbnails that match each video&apos;s emotion</p>
+                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">2 HD photos of yourself, used to generate your video thumbnails</p>
                 </div>
 
                 <div className="px-6 py-5">
@@ -1116,14 +1133,14 @@ export default function Profile() {
                       <div className="bg-[#f5f5f7] rounded-2xl p-4 flex gap-3">
                         <Camera className="w-4 h-4 text-[#6e6e73] flex-shrink-0 mt-0.5" />
                         <p className="text-[11px] text-[#6e6e73] leading-relaxed">
-                          Upload clear, well-lit, front-facing photos for each expression. Click a photo to
+                          Upload 2 clear, well-lit, high-quality photos of yourself. Click a photo to
                           replace it — changes are applied when you press <span className="font-semibold text-[#1d1d1f]">Save photos</span>.
                         </p>
                       </div>
 
-                      {/* Expression grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                        {EXPRESSIONS.map(({ key, label, emoji }) => {
+                      {/* Photo grid */}
+                      <div className="grid grid-cols-2 gap-3 max-w-sm">
+                        {PHOTO_SLOTS.map(({ key, label }) => {
                           const pending = thumbPreviews[key];
                           const saved = savedThumbs[key];
                           const shown = pending ?? saved;
@@ -1145,13 +1162,12 @@ export default function Profile() {
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
                                     src={shown}
-                                    alt={`${label} expression`}
+                                    alt={label}
                                     className="w-full aspect-square object-cover cursor-pointer"
                                     onClick={() => !thumbSaving && thumbInputRefs.current[key]?.click()}
                                     title="Click to replace"
                                   />
-                                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5 flex items-center gap-1 pointer-events-none">
-                                    <span className="text-xs">{emoji}</span>
+                                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5 pointer-events-none">
                                     <span className="text-[10px] font-semibold text-white">{label}</span>
                                   </div>
                                   {pending && (
@@ -1177,7 +1193,7 @@ export default function Profile() {
                                   disabled={thumbSaving}
                                   className="w-full aspect-square rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-[#f5f5f7]/60 flex flex-col items-center justify-center gap-1.5 transition-all disabled:opacity-60"
                                 >
-                                  <span className="text-xl leading-none">{emoji}</span>
+                                  <Camera className="w-5 h-5 text-[#6e6e73]" />
                                   <span className="text-[11px] font-medium text-[#1d1d1f]">{label}</span>
                                   <span className="flex items-center gap-1 text-[9px] text-[#6e6e73]">
                                     <Upload className="w-2.5 h-2.5" /> Add photo

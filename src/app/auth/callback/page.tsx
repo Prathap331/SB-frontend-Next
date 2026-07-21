@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import {
-  MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, EXPRESSIONS, ExpressionKey,
+  MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, PHOTO_SLOTS, PhotoKey,
 } from '@/lib/thumbnails';
 import Header from '@/components/Header';
 
@@ -71,11 +71,11 @@ export default function AuthCallback() {
     youtubeLink: '', instagramLink: '', facebookLink: '', twitterLink: '', billingAddress: '',
   });
 
-  // Step 3 — thumbnail photos (facial expressions)
-  const [thumbFiles, setThumbFiles]       = useState<Partial<Record<ExpressionKey, File>>>({});
-  const [thumbPreviews, setThumbPreviews] = useState<Partial<Record<ExpressionKey, string>>>({});
+  // Step 3 — thumbnail photos (2 HD photos of the user)
+  const [thumbFiles, setThumbFiles]       = useState<Partial<Record<PhotoKey, File>>>({});
+  const [thumbPreviews, setThumbPreviews] = useState<Partial<Record<PhotoKey, string>>>({});
   const [thumbError, setThumbError]       = useState<string | null>(null);
-  const thumbInputRefs = useRef<Partial<Record<ExpressionKey, HTMLInputElement | null>>>({});
+  const thumbInputRefs = useRef<Partial<Record<PhotoKey, HTMLInputElement | null>>>({});
 
   // Step 4 — channel PDF
   const [channelFile, setChannelFile]     = useState<File | null>(null);
@@ -196,7 +196,7 @@ export default function AuthCallback() {
   };
 
   // ── Step 3: thumbnail photo helpers ───────────────────────────────────────
-  const handleThumbSelect = (key: ExpressionKey, file: File) => {
+  const handleThumbSelect = (key: PhotoKey, file: File) => {
     setThumbError(null);
     if (!IMAGE_TYPES.includes(file.type)) {
       setThumbError('Only JPG, PNG or WEBP images are accepted.');
@@ -213,7 +213,7 @@ export default function AuthCallback() {
     setThumbFiles(prev => ({ ...prev, [key]: file }));
   };
 
-  const removeThumb = (key: ExpressionKey) => {
+  const removeThumb = (key: PhotoKey) => {
     setThumbPreviews(prev => {
       if (prev[key]) URL.revokeObjectURL(prev[key]!);
       const next = { ...prev };
@@ -227,14 +227,15 @@ export default function AuthCallback() {
     });
   };
 
-  // ── Step 3 submit: upload expression photos, save URLs as JSON ───────────
+  // ── Step 3 submit: upload 2 HD photos, save as { photo1, photo2 } ────────
   const handleStep3 = async (skip = false) => {
     setIsSaving(true);
     setError('');
     try {
-      const entries = Object.entries(thumbFiles) as [ExpressionKey, File][];
+      const entries = Object.entries(thumbFiles) as [PhotoKey, File][];
       if (!skip && entries.length > 0) {
-        const thumbnailImages: Record<string, string> = {};
+        // Always persist the full { photo1, photo2 } shape
+        const thumbnailImages: Record<PhotoKey, string> = { photo1: '', photo2: '' };
 
         for (const [key, file] of entries) {
           const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
@@ -245,7 +246,7 @@ export default function AuthCallback() {
           if (upErr) throw new Error(`Failed to upload "${key}" photo: ${upErr.message}`);
 
           const { data: pub } = supabase.storage.from(THUMBNAIL_BUCKET).getPublicUrl(path);
-          thumbnailImages[key] = pub.publicUrl;
+          thumbnailImages[key] = `${pub.publicUrl}?v=${Date.now()}`;
         }
 
         const { error: err } = await supabase.from('user_profiles').upsert(
@@ -388,7 +389,7 @@ export default function AuthCallback() {
                     : cbStep === 2
                     ? 'Add your social links (optional)'
                     : cbStep === 3
-                    ? 'Upload photos of yourself with different expressions for AI thumbnails'
+                    ? 'Upload 2 HD photos of yourself for AI thumbnails'
                     : 'Upload your channel style guide so AI writes scripts that sound like you'}
                 </p>
               </div>
@@ -568,7 +569,7 @@ export default function AuthCallback() {
                 </div>
               )}
 
-              {/* ── Step 3: Thumbnail photos ──────────────────────────── */}
+              {/* ── Step 3: Thumbnail photos (2 HD photos) ─────────────── */}
               {cbStep === 3 && (
                 <div className="space-y-4">
                   <div className="bg-[#f5f5f7] rounded-2xl p-4 flex gap-3">
@@ -576,16 +577,15 @@ export default function AuthCallback() {
                     <div>
                       <p className="text-xs font-semibold text-[#1d1d1f] mb-1">Why we ask for these</p>
                       <p className="text-[11px] text-[#6e6e73] leading-relaxed">
-                        Upload clear photos of your face with different expressions. We use them to
-                        generate click-worthy thumbnails that match each video&apos;s emotion. Well-lit,
-                        front-facing photos work best.
+                        Upload 2 clear, well-lit, high-quality photos of yourself. We use them to
+                        generate click-worthy AI thumbnails for your videos. Front-facing photos work best.
                       </p>
                     </div>
                   </div>
 
-                  {/* Expression slots */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {EXPRESSIONS.map(({ key, label, emoji }) => {
+                  {/* Photo 1 / Photo 2 slots */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {PHOTO_SLOTS.map(({ key, label }) => {
                       const preview = thumbPreviews[key];
                       return (
                         <div key={key}>
@@ -603,9 +603,8 @@ export default function AuthCallback() {
                           {preview ? (
                             <div className="relative rounded-2xl overflow-hidden border border-green-200 group">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={preview} alt={`${label} expression`} className="w-full aspect-square object-cover" />
-                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5 flex items-center gap-1">
-                                <span className="text-xs">{emoji}</span>
+                              <img src={preview} alt={label} className="w-full aspect-square object-cover" />
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
                                 <span className="text-[10px] font-semibold text-white">{label}</span>
                               </div>
                               <button
@@ -625,7 +624,7 @@ export default function AuthCallback() {
                               disabled={isSaving}
                               className="w-full aspect-square rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-[#f5f5f7]/60 flex flex-col items-center justify-center gap-1.5 transition-all disabled:opacity-60"
                             >
-                              <span className="text-xl leading-none">{emoji}</span>
+                              <Camera className="w-5 h-5 text-[#6e6e73]" />
                               <span className="text-[11px] font-medium text-[#1d1d1f]">{label}</span>
                               <span className="flex items-center gap-1 text-[9px] text-[#6e6e73]">
                                 <Upload className="w-2.5 h-2.5" /> Add photo
@@ -638,7 +637,7 @@ export default function AuthCallback() {
                   </div>
 
                   <p className="text-[11px] text-[#6e6e73]">
-                    JPG, PNG or WEBP · max 5 MB each · upload as many expressions as you like
+                    JPG, PNG or WEBP · max 5 MB each · clear, high-quality photos of your face work best
                   </p>
 
                   {thumbError && (

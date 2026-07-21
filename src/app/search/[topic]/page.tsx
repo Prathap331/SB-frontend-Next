@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { ApiService, TSSResponse, ECIResponse, SimilarPastIdea } from '@/services/api';
 import {
-  MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, EXPRESSIONS, ExpressionKey,
+  MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, PHOTO_SLOTS, PhotoKey,
 } from '@/lib/thumbnails';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ECIExactReplica from '@/components/ECIExactReplica';
@@ -838,11 +838,11 @@ return;
   const [faceChoiceIdea, setFaceChoiceIdea] = useState<ScriptIdea | null>(null);
   const [showPhotoPopup, setShowPhotoPopup] = useState(false);
   const [checkingPhotos, setCheckingPhotos] = useState(false);
-  const [pFiles, setPFiles]       = useState<Partial<Record<ExpressionKey, File>>>({});
-  const [pPreviews, setPPreviews] = useState<Partial<Record<ExpressionKey, string>>>({});
+  const [pFiles, setPFiles]       = useState<Partial<Record<PhotoKey, File>>>({});
+  const [pPreviews, setPPreviews] = useState<Partial<Record<PhotoKey, string>>>({});
   const [pError, setPError]       = useState<string | null>(null);
   const [pSaving, setPSaving]     = useState(false);
-  const photoInputRefs = useRef<Partial<Record<ExpressionKey, HTMLInputElement | null>>>({});
+  const photoInputRefs = useRef<Partial<Record<PhotoKey, HTMLInputElement | null>>>({});
 
   const openFaceChoice = (idea: ScriptIdea) => {
     if (!videoLengths[idea.id]) {
@@ -885,7 +885,7 @@ return;
         .eq('id', session.user.id)
         .maybeSingle();
       const imgs = (data?.thumbnail_images ?? {}) as Record<string, string>;
-      if (Object.keys(imgs).length > 0) {
+      if (imgs.photo1 && imgs.photo2) {
         closeFacePopups();
         proceedGeneration(idea, true);
       } else {
@@ -900,7 +900,7 @@ return;
     }
   };
 
-  const handlePhotoSelect = (key: ExpressionKey, file: File) => {
+  const handlePhotoSelect = (key: PhotoKey, file: File) => {
     setPError(null);
     if (!IMAGE_TYPES.includes(file.type)) {
       setPError('Only JPG, PNG or WEBP images are accepted.');
@@ -917,7 +917,7 @@ return;
     setPFiles(prev => ({ ...prev, [key]: file }));
   };
 
-  const removePhoto = (key: ExpressionKey) => {
+  const removePhoto = (key: PhotoKey) => {
     setPPreviews(prev => {
       if (prev[key]) URL.revokeObjectURL(prev[key]!);
       const next = { ...prev };
@@ -933,8 +933,8 @@ return;
 
   // Upload the selected photos to the profile, then generate with isFace=true
   const handlePhotoUploadAndGenerate = async () => {
-    const entries = Object.entries(pFiles) as [ExpressionKey, File][];
-    if (entries.length === 0 || !faceChoiceIdea) return;
+    const entries = Object.entries(pFiles) as [PhotoKey, File][];
+    if (entries.length < PHOTO_SLOTS.length || !faceChoiceIdea) return;
     const idea = faceChoiceIdea;
 
     setPSaving(true);
@@ -944,7 +944,7 @@ return;
       if (!session) throw new Error('Not authenticated');
       const uid = session.user.id;
 
-      const thumbnailImages: Record<string, string> = {};
+      const thumbnailImages: Record<string, string> = { photo1: '', photo2: '' };
       for (const [key, file] of entries) {
         const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
         const path = `${uid}/${key}.${ext}`;
@@ -1549,7 +1549,7 @@ return;
 
             <h2 className="text-lg font-semibold text-[#1d1d1f] mb-1 pr-8">How should this video look?</h2>
             <p className="text-sm text-[#6e6e73] font-light mb-5">
-              Tell us whether your face should appear in the video&apos;s thumbnails and presentation style.
+              Tell us whether your face should appear in the thumbnails and presentation style.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1567,7 +1567,7 @@ return;
                 </div>
                 <p className="text-sm font-semibold text-[#1d1d1f] mb-1">With my photo</p>
                 <p className="text-[11px] text-[#6e6e73] leading-relaxed">
-                  Uses your expression photos for click-worthy, face-driven thumbnails.
+                  Uses your photos for click-worthy, face-driven thumbnails.
                 </p>
               </button>
 
@@ -1604,15 +1604,15 @@ return;
               >
                 <X className="w-4 h-4 text-[#1d1d1f]" />
               </button>
-              <h2 className="text-lg font-semibold text-[#1d1d1f] mb-1 pr-8">Thumbnail photos</h2>
+              <h2 className="text-lg font-semibold text-[#1d1d1f] mb-1 pr-8">Your photos</h2>
               <p className="text-sm text-[#6e6e73] font-light">
-                You haven&apos;t added any photos yet. Upload photos of yourself with different expressions for AI thumbnails.
+                You haven&apos;t added any photos yet. Upload 2 HD photos of yourself for AI thumbnails.
               </p>
             </div>
 
             <div className="px-6 py-5 overflow-y-auto flex-1 space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {EXPRESSIONS.map(({ key, label, emoji }) => {
+              <div className="grid grid-cols-2 gap-3">
+                {PHOTO_SLOTS.map(({ key, label }) => {
                   const preview = pPreviews[key];
                   return (
                     <div key={key}>
@@ -1630,16 +1630,15 @@ return;
                       {preview ? (
                         <div className="relative rounded-2xl overflow-hidden border border-green-200">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={preview} alt={`${label} expression`} className="w-full aspect-square object-cover" />
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5 flex items-center gap-1">
-                            <span className="text-xs">{emoji}</span>
+                          <img src={preview} alt={label} className="w-full aspect-square object-cover" />
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
                             <span className="text-[10px] font-semibold text-white">{label}</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => removePhoto(key)}
                             disabled={pSaving}
-                            aria-label={`Remove ${label} photo`}
+                            aria-label={`Remove ${label}`}
                             className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/55 hover:bg-black/75 flex items-center justify-center transition-colors"
                           >
                             <X className="w-3.5 h-3.5 text-white" />
@@ -1652,7 +1651,7 @@ return;
                           disabled={pSaving}
                           className="w-full aspect-square rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-[#f5f5f7]/60 flex flex-col items-center justify-center gap-1.5 transition-all disabled:opacity-60"
                         >
-                          <span className="text-xl leading-none">{emoji}</span>
+                          <Camera className="w-5 h-5 text-[#6e6e73]" />
                           <span className="text-[11px] font-medium text-[#1d1d1f]">{label}</span>
                           <span className="flex items-center gap-1 text-[9px] text-[#6e6e73]">
                             <Upload className="w-2.5 h-2.5" /> Add photo
@@ -1664,7 +1663,7 @@ return;
                 })}
               </div>
 
-              <p className="text-[11px] text-[#6e6e73]">JPG, PNG or WEBP · max 5 MB each · at least one photo required</p>
+              <p className="text-[11px] text-[#6e6e73]">JPG, PNG or WEBP · max 5 MB each · both photos required · clear, high-quality photos of your face work best</p>
 
               {pError && (
                 <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
@@ -1677,7 +1676,7 @@ return;
               <button
                 type="button"
                 onClick={handlePhotoUploadAndGenerate}
-                disabled={Object.keys(pFiles).length === 0 || pSaving}
+                disabled={Object.keys(pFiles).length < PHOTO_SLOTS.length || pSaving}
                 className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {pSaving
