@@ -34,6 +34,7 @@ export const BARE_APP_SEGMENTS = new Set([
   'blog',
   'scripts',
   'content-vault',
+  'my-scripts',
   'auth',
   'profile',
   'checkout',

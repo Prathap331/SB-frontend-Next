@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Lightbulb,
   FileText,
@@ -16,9 +17,28 @@ import {
   History,
   BookOpen,
   Download,
+  Link as LinkIcon,
+  ExternalLink,
+  Monitor,
+  X,
+  Unlock,
+  Loader2,
+  AlertCircle,
+  Rocket,
+  Target,
 } from 'lucide-react';
 import type { GeneratedScriptData } from '@/services/api';
 import { unwrapScriptJson } from '@/lib/script-data';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { supabase } from '@/lib/supabaseClient';
+import { getBackendUrl } from '@/lib/backend';
+import { STORYBIT_PRODUCTION_GUIDE } from '@/lib/production-guide';
+import { moveScriptToAssigned } from '@/lib/script-persistence';
+
+function studioUnlockKey(topic: string, ideaTitle: string) {
+  const safe = `${topic}_${ideaTitle}`.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  return `studio_${safe}_unlocked`;
+}
 
 export type StudioTab = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll';
 
@@ -235,13 +255,35 @@ function splitScriptByStructure(
 export function StudioScriptPanel({
   data,
   ideaTitle,
+  topic,
+  durationMinutes,
+  universalScriptId,
 }: {
   data?: GeneratedScriptData | null;
   ideaTitle?: string;
+  topic?: string;
+  durationMinutes?: number;
+  universalScriptId?: string | null;
 }) {
+  const router = useRouter();
   const [activeSegment, setActiveSegment] = useState(0);
   const segmentRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scriptScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const [showSourcesPanel, setShowSourcesPanel] = useState(false);
+  const [panelFocus, setPanelFocus] = useState<'sources' | 'books'>('sources');
+
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [scriptSaved, setScriptSaved] = useState(false);
+  const [showInsufficientPopup, setShowInsufficientPopup] = useState(false);
+  const [showProductionGuidePopup, setShowProductionGuidePopup] = useState(false);
+
+  const [feedbackRating, setFeedbackRating] = useState('');
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
 
   const structureSegments = data?.structure ?? [];
   const scriptSegmentTexts = useMemo(
@@ -249,9 +291,141 @@ export function StudioScriptPanel({
     [data?.script, structureSegments],
   );
 
+  const sourceUrls = data?.sources ?? data?.source_urls ?? [];
+  const books = data?.books ?? data?.seo?.books ?? [];
+
+  const unlockKey = studioUnlockKey(topic || '', ideaTitle || data?.title || '');
+
+  useEffect(() => {
+    setActiveSegment(0);
+    setFeedbackRating('');
+    setFeedbackComment('');
+    setFeedbackSubmitted(false);
+    setFeedbackError('');
+    setScriptSaved(false);
+    setShowSourcesPanel(false);
+    try {
+      setIsUnlocked(localStorage.getItem(unlockKey) === 'true');
+    } catch {
+      setIsUnlocked(false);
+    }
+  }, [data?.script, unlockKey]);
+
+  useEffect(() => {
+    if (!showSourcesPanel) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [showSourcesPanel]);
+
   const scrollToSegment = (index: number) => {
+    if (!isUnlocked) return;
     setActiveSegment(index);
     segmentRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const openPanel = (focus: 'sources' | 'books') => {
+    if (!isUnlocked) return;
+    setPanelFocus(focus);
+    setShowSourcesPanel(true);
+  };
+
+  const handleTeleprompter = () => {
+    if (!isUnlocked || !data?.script) return;
+    sessionStorage.setItem('teleprompter_script', data.script);
+    router.push('/teleprompter');
+  };
+
+  const handleDownloadScript = () => {
+    if (!isUnlocked || !data?.script) return;
+    const blob = new Blob([data.script], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(ideaTitle || data.title || 'script').replace(/[^\w\-]+/g, '_')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFeedbackSubmit = async () => {
+    if (!feedbackRating) return;
+    setFeedbackSubmitting(true);
+    setFeedbackError('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { error } = await supabase.from('Feedback').insert({
+        Rating: feedbackRating,
+        Comments: feedbackComment.trim() || null,
+        Scripts: data?.script ?? null,
+        userId: session?.user.id ?? null,
+      });
+      if (error) throw error;
+      setFeedbackSubmitted(true);
+    } catch (err: any) {
+      setFeedbackError(err?.message || 'Failed to submit feedback. Please try again.');
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
+
+  const handleUnlock = async () => {
+    setIsUnlocking(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/auth');
+        return;
+      }
+
+      const duration =
+        durationMinutes ??
+        (data?.metrics?.videoLength != null ? Math.round(data.metrics.videoLength) : 10);
+
+      const res = await fetch(`${getBackendUrl()}/unlock`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ userId: session.user.id, duration }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (res.ok && json.message === 'success') {
+        setIsUnlocked(true);
+        setShowProductionGuidePopup(true);
+
+        if (json.remaining_credits !== undefined) {
+          window.dispatchEvent(new Event('creditsUpdated'));
+        }
+
+        try {
+          localStorage.setItem(unlockKey, 'true');
+        } catch { /* ignore */ }
+
+        if (!scriptSaved && data) {
+          setScriptSaved(true);
+          const saveTopic = topic || ideaTitle || data.title || 'Untitled';
+          const result = await moveScriptToAssigned({
+            userId: session.user.id,
+            data,
+            title: data.title || ideaTitle || saveTopic,
+            topic: saveTopic,
+            universalScriptId,
+          });
+          if (!result.ok) console.error('[scripts save]', result.error);
+        }
+      } else {
+        setShowInsufficientPopup(true);
+      }
+    } catch (err) {
+      console.error('Unlock error:', err);
+    } finally {
+      setIsUnlocking(false);
+    }
   };
 
   if (!data?.script) {
@@ -278,18 +452,12 @@ export function StudioScriptPanel({
     { icon: Lightbulb, label: 'Examples', value: m?.generalExamples ?? data.analysis?.examples_count ?? 0 },
   ];
 
-  const handleDownloadScript = () => {
-    const blob = new Blob([data.script || ''], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${(ideaTitle || data.title || 'script').replace(/[^\w\-]+/g, '_')}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const toolbarBtn =
+    'flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors';
 
   return (
-    <div className="space-y-5">
+    <>
+    <div className={`space-y-5 transition-all duration-300 ${showSourcesPanel ? 'blur-sm' : ''}`}>
       <div>
         <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#1d1d1f] break-words">
           {ideaTitle || data.title || 'Generated script'}
@@ -322,7 +490,7 @@ export function StudioScriptPanel({
                       <div className="flex flex-col items-center flex-shrink-0">
                         <div
                           className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors ${
-                            activeSegment === index ? 'bg-amber-500 text-white' : 'bg-[#1d1d1f] text-white'
+                            isUnlocked && activeSegment === index ? 'bg-amber-500 text-white' : 'bg-[#1d1d1f] text-white'
                           }`}
                         >
                           {index + 1}
@@ -334,15 +502,16 @@ export function StudioScriptPanel({
                       <button
                         type="button"
                         onClick={() => scrollToSegment(index)}
+                        disabled={!isUnlocked}
                         className={`flex-1 text-left rounded-xl px-3 py-2 border min-w-0 mb-2 transition-all duration-200 ${
-                          activeSegment === index
+                          isUnlocked && activeSegment === index
                             ? 'bg-amber-50 border-amber-200 shadow-sm'
-                            : 'bg-[#f5f5f7] border-gray-100 hover:border-gray-300 hover:bg-white'
-                        }`}
+                            : 'bg-[#f5f5f7] border-gray-100'
+                        } ${isUnlocked ? 'hover:border-gray-300 hover:bg-white' : 'cursor-default opacity-80'}`}
                       >
                         <p
                           className={`font-medium text-xs break-words ${
-                            activeSegment === index ? 'text-amber-800' : 'text-[#1d1d1f]'
+                            isUnlocked && activeSegment === index ? 'text-amber-800' : 'text-[#1d1d1f]'
                           }`}
                         >
                           {seg.name}
@@ -372,11 +541,48 @@ export function StudioScriptPanel({
                 <p className="text-[11px] text-[#6e6e73] font-light">Full script with research &amp; structure</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <CopyBtn text={data.script} />
+                <button
+                  type="button"
+                  onClick={() => openPanel('sources')}
+                  disabled={!isUnlocked}
+                  className={`${toolbarBtn} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#f5f5f7]`}
+                >
+                  <LinkIcon className="w-3.5 h-3.5" />
+                  Sources
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openPanel('books')}
+                  disabled={!isUnlocked}
+                  className={`${toolbarBtn} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#f5f5f7]`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  Books
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTeleprompter}
+                  disabled={!isUnlocked}
+                  className={`${toolbarBtn} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#f5f5f7]`}
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                  Teleprompter
+                </button>
+                {isUnlocked ? <CopyBtn text={data.script} /> : (
+                  <button
+                    type="button"
+                    disabled
+                    className={`${toolbarBtn} disabled:opacity-40 disabled:cursor-not-allowed`}
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleDownloadScript}
-                  className="flex items-center gap-1.5 text-[11px] font-medium text-white bg-[#1d1d1f] hover:bg-black px-3 py-1.5 rounded-lg transition-colors"
+                  disabled={!isUnlocked}
+                  className="flex items-center gap-1.5 text-[11px] font-medium text-white bg-[#1d1d1f] hover:bg-black px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#1d1d1f]"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Download
@@ -384,8 +590,14 @@ export function StudioScriptPanel({
               </div>
             </div>
 
-            <div ref={scriptScrollRef} className="flex-1 overflow-y-auto">
-              <div className="px-6 sm:px-8 py-6">
+            <div
+              ref={scriptScrollRef}
+              className={`relative ${isUnlocked ? 'flex-1 overflow-y-auto' : 'overflow-hidden'}`}
+              style={!isUnlocked ? { maxHeight: '82vh' } : undefined}
+            >
+              <div
+                className={`px-6 sm:px-8 py-6 ${!isUnlocked ? 'select-none pointer-events-none' : ''}`}
+              >
                 <div
                   className="text-[#1d1d1f] leading-[1.9] text-[15px] sm:text-base max-w-3xl mx-auto text-justify"
                   style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
@@ -397,7 +609,7 @@ export function StudioScriptPanel({
                         segmentRefs.current[i] = el;
                       }}
                       className={`rounded-2xl transition-all duration-500 px-3 -mx-3 ${
-                        activeSegment === i ? 'bg-amber-50 ring-2 ring-amber-200' : ''
+                        isUnlocked && activeSegment === i ? 'bg-amber-50 ring-2 ring-amber-200' : ''
                       }`}
                     >
                       {formatScriptNodes(chunk || '')}
@@ -405,11 +617,388 @@ export function StudioScriptPanel({
                   ))}
                 </div>
               </div>
+
+              {!isUnlocked && (
+                <>
+                  <div
+                    className="absolute left-0 right-0 pointer-events-none"
+                    style={{
+                      top: '20%',
+                      height: '20%',
+                      backdropFilter: 'blur(7px)',
+                      WebkitBackdropFilter: 'blur(7px)',
+                      background: 'rgba(255,255,255,0.25)',
+                    }}
+                  />
+                  <div
+                    className="absolute left-0 right-0 pointer-events-none"
+                    style={{
+                      top: '60%',
+                      height: '20%',
+                      backdropFilter: 'blur(7px)',
+                      WebkitBackdropFilter: 'blur(7px)',
+                      background: 'rgba(255,255,255,0.25)',
+                    }}
+                  />
+                  <div
+                    className="absolute left-0 right-0 bottom-0 pointer-events-none"
+                    style={{
+                      height: '20%',
+                      background:
+                        'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.97) 100%)',
+                    }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={handleUnlock}
+                      disabled={isUnlocking}
+                      className="flex items-center gap-2.5 bg-[#1d1d1f] hover:bg-black text-white text-sm font-semibold px-7 py-3.5 rounded-2xl shadow-2xl shadow-black/20 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] disabled:opacity-60"
+                    >
+                      {isUnlocking ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Unlocking…
+                        </>
+                      ) : (
+                        <>
+                          <Unlock className="w-4 h-4" />
+                          Unlock Script
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {isUnlocked && (
+                <section className="max-w-3xl mx-auto px-6 sm:px-8 py-10">
+                  <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+                    <div className="px-6 py-5 border-b border-gray-100">
+                      <h3 className="text-sm font-semibold text-[#1d1d1f]">How was this script?</h3>
+                      <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">
+                        Your feedback helps us improve script quality
+                      </p>
+                    </div>
+
+                    {feedbackSubmitted ? (
+                      <div className="flex flex-col items-center gap-3 py-10">
+                        <div className="w-12 h-12 rounded-full bg-green-100 border border-green-200 flex items-center justify-center">
+                          <span className="text-xl">🎉</span>
+                        </div>
+                        <p className="text-sm font-semibold text-[#1d1d1f]">Thanks for your feedback!</p>
+                        <p className="text-[11px] text-[#6e6e73] font-light">
+                          We&apos;ll use it to make scripts even better.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="px-6 py-6 space-y-6">
+                        <div>
+                          <p className="text-xs font-medium text-[#1d1d1f] mb-3">Rate this script</p>
+                          <div className="flex flex-wrap gap-3">
+                            {[
+                              { label: 'Bad', emoji: '😞' },
+                              { label: 'Ok', emoji: '😐' },
+                              { label: 'Good', emoji: '😊' },
+                              { label: 'Very Good', emoji: '😄' },
+                              { label: 'Excellent', emoji: '🤩' },
+                            ].map(({ label, emoji }) => (
+                              <button
+                                key={label}
+                                type="button"
+                                onClick={() => setFeedbackRating(label)}
+                                className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-2xl border text-center transition-all duration-150 min-w-[72px] ${
+                                  feedbackRating === label
+                                    ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-md scale-[1.04]'
+                                    : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-[#f5f5f7]'
+                                }`}
+                              >
+                                <span className="text-2xl leading-none">{emoji}</span>
+                                <span
+                                  className={`text-[10px] font-medium ${
+                                    feedbackRating === label ? 'text-white' : 'text-[#6e6e73]'
+                                  }`}
+                                >
+                                  {label}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">
+                            Comment <span className="text-[#6e6e73] font-light">(optional)</span>
+                          </label>
+                          <textarea
+                            rows={3}
+                            placeholder="What did you like or what could be improved?"
+                            value={feedbackComment}
+                            onChange={(e) => setFeedbackComment(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm placeholder-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f] transition-all resize-none"
+                          />
+                        </div>
+
+                        {feedbackError && (
+                          <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
+                            {feedbackError}
+                          </p>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={handleFeedbackSubmit}
+                          disabled={!feedbackRating || feedbackSubmitting}
+                          className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {feedbackSubmitting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Submitting…
+                            </>
+                          ) : (
+                            'Submit Feedback'
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
             </div>
           </div>
         </div>
       </div>
     </div>
+
+      {showSourcesPanel && (
+        <div
+          className="fixed inset-0 z-40 bg-black/20"
+          onClick={() => setShowSourcesPanel(false)}
+          aria-hidden
+        />
+      )}
+
+      <div
+        className={`fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white border-l border-gray-200 shadow-2xl z-50 transition-transform duration-300 ease-in-out ${
+          showSourcesPanel ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-[#1d1d1f]">
+              {panelFocus === 'books'
+                ? `${books.length} Book${books.length === 1 ? '' : 's'}`
+                : `${sourceUrls.length} Source${sourceUrls.length === 1 ? '' : 's'}`}
+            </h2>
+            <p className="text-[11px] text-[#6e6e73] font-light">
+              {panelFocus === 'books'
+                ? 'Books referenced during research'
+                : 'Research sources used in this script'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowSourcesPanel(false)}
+            className="w-8 h-8 rounded-full bg-[#f5f5f7] hover:bg-gray-200 flex items-center justify-center transition-colors"
+          >
+            <X className="w-4 h-4 text-[#1d1d1f]" />
+          </button>
+        </div>
+        <ScrollArea className="h-[calc(100vh-73px)]">
+          <div className="px-4 py-4 space-y-3">
+            {panelFocus === 'sources' && (
+              <>
+                {sourceUrls.length > 0 ? (
+                  sourceUrls.map((url, index) => {
+                    const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+                    let domain = '';
+                    let domainInitial = '?';
+                    try {
+                      domain = new URL(href).hostname.replace('www.', '');
+                      domainInitial = domain.charAt(0).toUpperCase();
+                    } catch {
+                      domain = url || 'Unknown source';
+                      domainInitial = domain.charAt(0).toUpperCase();
+                    }
+                    return (
+                      <a
+                        key={index}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-start gap-3 bg-[#f5f5f7] hover:bg-gray-100 rounded-2xl p-4 transition-colors group border border-gray-100"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-[#1d1d1f] font-semibold text-sm flex-shrink-0 shadow-sm">
+                          {domainInitial}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-[#6e6e73] mb-0.5 font-light">{domain}</p>
+                          <p className="text-xs font-medium text-[#1d1d1f] line-clamp-2 group-hover:text-blue-600 transition-colors break-all">
+                            {url}
+                          </p>
+                          <div className="flex items-center gap-1 mt-1.5 text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            Visit source <ExternalLink className="w-3 h-3" />
+                          </div>
+                        </div>
+                      </a>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-[#6e6e73]">No sources available</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {panelFocus === 'books' && (
+              <>
+                {books.length > 0 ? (
+                  books.map((book, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start gap-3 bg-[#f5f5f7] rounded-2xl p-4 border border-gray-100"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <BookOpen className="w-4 h-4 text-[#1d1d1f]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-[#1d1d1f] leading-snug">{book.title}</p>
+                        <p className="text-[11px] text-[#6e6e73] mt-0.5 font-light">{book.author}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-[#6e6e73]">No books referenced</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {showProductionGuidePopup && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl shadow-black/20 border border-gray-200/80 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-orange-50/80 via-white to-indigo-50/80 flex-shrink-0">
+              <div className="min-w-0 pr-2">
+                <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
+                  Script unlocked
+                </p>
+                <h2 className="text-base font-semibold text-[#1d1d1f] leading-snug">
+                  Your Storybit Production Playbook
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowProductionGuidePopup(false)}
+                aria-label="Close"
+                className="w-8 h-8 rounded-full bg-[#f5f5f7] hover:bg-gray-200 flex items-center justify-center transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4 text-[#1d1d1f]" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-5 py-4 space-y-5 flex-1">
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Rocket className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                  <h3 className="text-sm font-semibold text-[#1d1d1f] leading-snug">
+                    {STORYBIT_PRODUCTION_GUIDE.optimized.title}
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {STORYBIT_PRODUCTION_GUIDE.optimized.items.map((item, index) => (
+                    <div key={item.title} className="flex gap-2.5">
+                      <span className="w-5 h-5 rounded-md bg-orange-50 border border-orange-100 text-orange-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#1d1d1f] leading-snug mb-0.5">
+                          {item.title}
+                        </p>
+                        <p className="text-[11px] text-[#6e6e73] leading-relaxed">{item.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                  <h3 className="text-sm font-semibold text-[#1d1d1f] leading-snug">
+                    {STORYBIT_PRODUCTION_GUIDE.nextSteps.title}
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {STORYBIT_PRODUCTION_GUIDE.nextSteps.items.map((item, index) => (
+                    <div key={item.title} className="flex gap-2.5">
+                      <span className="w-5 h-5 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#1d1d1f] leading-snug mb-0.5">
+                          {item.title}
+                        </p>
+                        <p className="text-[11px] text-[#6e6e73] leading-relaxed">{item.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 bg-[#fafafa] flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowProductionGuidePopup(false)}
+                className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-semibold transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+              >
+                Yes, I will do my best
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInsufficientPopup && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl shadow-black/20 border border-gray-200/80 p-8 max-w-sm w-full text-center">
+            <div className="w-14 h-14 rounded-full bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-7 h-7 text-red-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-[#1d1d1f] mb-2">Not enough credits</h2>
+            <p className="text-sm text-[#6e6e73] font-light leading-relaxed mb-6">
+              You don&apos;t have enough credits to unlock this script. Upgrade your plan to keep generating
+              content.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowInsufficientPopup(false);
+                  router.push('/pricing');
+                }}
+                className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all duration-200 hover:scale-[1.01]"
+              >
+                View Plans
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowInsufficientPopup(false)}
+                className="w-full py-2 rounded-xl text-sm text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -1,8 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Search,
   Plus,
@@ -14,9 +14,11 @@ import {
   Lock,
   Vault,
   Video,
+  FileText,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
+import { stripKeywordPrefix } from '@/lib/keyword-routes';
 import {
   getRecentTopics,
   countCompletedStages,
@@ -38,34 +40,82 @@ function getAvatarColor(name: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-/** null = topic workspace; otherwise a right-panel library/account view */
+/** Right-panel views driven by URL */
 export type StudioSideView =
   | null
   | 'content-vault'
+  | 'my-scripts'
+  | 'pricing'
   | ProfileTabId;
+
+const PROFILE_TABS: ProfileTabId[] = [
+  'profile', 'thumbnails', 'channel', 'subscription', 'billing', 'password',
+];
+
+/** Canonical href for each studio view (landing-prefix applied at navigate time) */
+export function hrefForStudioView(view: Exclude<StudioSideView, null>): string {
+  switch (view) {
+    case 'content-vault':
+      return '/content-vault';
+    case 'my-scripts':
+      return '/my-scripts';
+    case 'pricing':
+      return '/pricing';
+    case 'profile':
+      return '/profile';
+    case 'scripts':
+      return '/my-scripts';
+    default:
+      return `/profile?tab=${view}`;
+  }
+}
+
+export function studioViewFromLocation(
+  pathname: string,
+  searchParams: URLSearchParams | { get: (k: string) => string | null },
+): StudioSideView {
+  const bare = stripKeywordPrefix(pathname);
+  if (bare === '/content-vault' || bare.startsWith('/content-vault/')) return 'content-vault';
+  if (bare === '/my-scripts' || bare.startsWith('/my-scripts/')) return 'my-scripts';
+  if (bare === '/pricing' || bare.startsWith('/pricing/')) return 'pricing';
+  if (bare === '/profile' || bare.startsWith('/profile/')) {
+    const tab = searchParams.get('tab');
+    if (tab === 'scripts') return 'my-scripts';
+    if (tab && PROFILE_TABS.includes(tab as ProfileTabId)) return tab as ProfileTabId;
+    return 'profile';
+  }
+  return null;
+}
 
 type Props = {
   activeTopic?: string;
   refreshKey?: number;
-  activeView?: StudioSideView;
-  onSelectView?: (view: StudioSideView) => void;
-  onSelectTopic?: () => void;
+  /** Called after a nav click (e.g. close mobile drawer) */
+  onNavigate?: () => void;
+  /** When set (search workspace), stay on page and show new-topic prompt */
+  onNewTopic?: () => void;
 };
 
 export default function StudioSidebar({
   activeTopic,
   refreshKey = 0,
-  activeView = null,
-  onSelectView,
-  onSelectTopic,
+  onNavigate,
+  onNewTopic,
 }: Props) {
   const router = useRouter();
-  const { searchPath, homePath } = useKeywordNavigation();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { searchPath, homePath, landingPath } = useKeywordNavigation();
   const [recent, setRecent] = useState<StudioTopicRecord[]>([]);
   const [userName, setUserName] = useState('Creator');
   const [plan, setPlan] = useState('Free plan');
   const [creditsLeft, setCreditsLeft] = useState(0);
   const [creditsTotal, setCreditsTotal] = useState(50);
+
+  const activeView = useMemo(
+    () => studioViewFromLocation(pathname, searchParams),
+    [pathname, searchParams],
+  );
 
   const reloadRecent = () => setRecent(getRecentTopics());
 
@@ -127,11 +177,13 @@ export default function StudioSidebar({
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    onNavigate?.();
     router.push('/auth');
   };
 
-  const go = (view: StudioSideView) => {
-    onSelectView?.(view);
+  const go = (view: Exclude<StudioSideView, null>) => {
+    onNavigate?.();
+    router.push(landingPath(hrefForStudioView(view)));
   };
 
   const pct = Math.min(100, Math.round((creditsLeft / Math.max(creditsTotal, 1)) * 100));
@@ -143,7 +195,7 @@ export default function StudioSidebar({
       <div className="px-5 pt-5 pb-4">
         <button
           type="button"
-          onClick={() => router.push(homePath)}
+          onClick={() => { onNavigate?.(); router.push(homePath); }}
           className="flex items-center gap-2.5 text-left hover:opacity-80 transition-opacity"
         >
           <Image
@@ -162,7 +214,21 @@ export default function StudioSidebar({
       <div className="px-4 mb-4">
         <button
           type="button"
-          onClick={() => router.push(homePath)}
+          onClick={() => {
+            onNavigate?.();
+            if (onNewTopic) {
+              onNewTopic();
+              return;
+            }
+            // From vault / profile / pricing → open last topic in compose mode
+            const target = activeTopic || recent[0]?.topic;
+            if (target) {
+              router.push(`${searchPath(target)}?new=1`);
+              return;
+            }
+            // No history — open studio compose shell (no landing redirect)
+            router.push(`${searchPath('__compose__')}?new=1`);
+          }}
           className="w-full flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-[#1d1d1f] shadow-sm hover:bg-gray-50 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -188,8 +254,7 @@ export default function StudioSidebar({
                 key={rec.topic}
                 type="button"
                 onClick={() => {
-                  onSelectTopic?.();
-                  go(null);
+                  onNavigate?.();
                   router.push(searchPath(rec.topic));
                 }}
                 className={`w-full flex items-start gap-2.5 rounded-xl px-2.5 py-2.5 text-left transition-colors ${
@@ -223,10 +288,10 @@ export default function StudioSidebar({
             onClick={() => go('content-vault')}
           />
           <SidebarLink
-            icon={Video}
-            label="Channel Memory"
-            active={activeView === 'channel'}
-            onClick={() => go('channel')}
+            icon={FileText}
+            label="My Scripts"
+            active={activeView === 'my-scripts'}
+            onClick={() => go('my-scripts')}
           />
         </nav>
 
@@ -234,6 +299,12 @@ export default function StudioSidebar({
           Account
         </p>
         <nav className="space-y-0.5">
+          <SidebarLink
+            icon={Video}
+            label="Channel Memory"
+            active={activeView === 'channel'}
+            onClick={() => go('channel')}
+          />
           <SidebarLink
             icon={Camera}
             label="Thumbnail Photos"
@@ -258,12 +329,17 @@ export default function StudioSidebar({
             active={activeView === 'password'}
             onClick={() => go('password')}
           />
-          <SidebarLink icon={LogOut} label="Logout" onClick={handleLogout} />
           <SidebarLink
             icon={User}
             label="Profile"
             active={activeView === 'profile'}
             onClick={() => go('profile')}
+          />
+          <SidebarLink
+            icon={LogOut}
+            label="Logout"
+            onClick={handleLogout}
+            danger
           />
         </nav>
       </div>
@@ -294,10 +370,14 @@ export default function StudioSidebar({
           </div>
           <button
             type="button"
-            onClick={() => go('subscription')}
-            className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-[#1d1d1f] hover:bg-gray-50 transition-colors flex-shrink-0"
+            onClick={() => go('pricing')}
+            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors flex-shrink-0 ${
+              activeView === 'pricing'
+                ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
+                : 'border-gray-200 bg-white text-[#1d1d1f] hover:bg-gray-50'
+            }`}
           >
-            <Crown className="w-3 h-3 text-amber-500" />
+            <Crown className={`w-3 h-3 ${activeView === 'pricing' ? 'text-amber-300' : 'text-amber-500'}`} />
             Upgrade
           </button>
         </div>
@@ -311,23 +391,31 @@ function SidebarLink({
   label,
   onClick,
   active,
+  danger,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
   active?: boolean;
+  danger?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={`w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
-        active
+        danger
+          ? 'text-red-600 hover:bg-red-50'
+          : active
           ? 'bg-white text-[#1d1d1f] font-semibold shadow-sm'
           : 'text-[#1d1d1f] hover:bg-white'
       }`}
     >
-      <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${active ? 'text-[#8b7ec8]' : 'text-gray-400'}`} />
+      <Icon
+        className={`w-3.5 h-3.5 flex-shrink-0 ${
+          danger ? 'text-red-500' : active ? 'text-[#8b7ec8]' : 'text-gray-400'
+        }`}
+      />
       {label}
     </button>
   );

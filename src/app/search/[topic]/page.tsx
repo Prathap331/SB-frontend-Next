@@ -1,11 +1,11 @@
 ﻿'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import {
   Loader2, Search, Globe, Sparkles, Link2,
-  Check, FileText, Menu, AlertCircle, ArrowLeft,
+  Check, FileText, AlertCircle,
 } from 'lucide-react';
 import {
   Youtube,
@@ -22,9 +22,10 @@ import {
 } from '@/lib/thumbnails';
 import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
 import { ApiFailCard } from '@/components/ApiFailCard';
+import { NewTopicPrompt } from '@/components/NewTopicPrompt';
 import { supabase as sbClient } from '@/lib/supabaseClient';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
-import StudioSidebar, { type StudioSideView } from '@/components/studio/StudioSidebar';
+import StudioShell from '@/components/studio/StudioShell';
 import {
   StudioStageNav,
   StudioScriptPanel,
@@ -42,8 +43,7 @@ import {
   getTopicRecord,
 } from '@/lib/studio-storage';
 import { normalizeScriptData } from '@/lib/script-data';
-import { ProfileWorkspace, type ProfileTabId } from '@/app/profile/page';
-import { ContentVaultPanel } from '@/app/content-vault/page';
+import { saveScriptToUniversal } from '@/lib/script-persistence';
 
 const SCRIPT_GENERATION_STEPS = [
   'Understanding your topic',
@@ -540,6 +540,7 @@ const TSSCard: React.FC<TSSCardProps> = ({
 export default function SearchTopicPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { searchPath } = useKeywordNavigation();
   // Read raw param and decode safely so UI shows spaces (not "%20")
   const rawTopic = Array.isArray(params?.topic) ? params.topic[0] : params?.topic ?? '';
@@ -552,6 +553,13 @@ export default function SearchTopicPage() {
       return rawTopic;
     }
   })();
+  const isComposePlaceholder = topic === '__compose__';
+
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const composeOnTopicRef = useRef<string | null>(null);
+  const [isComposingNew, setIsComposingNew] = useState(
+    () => searchParams.get('new') === '1' || isComposePlaceholder,
+  );
 
 
 
@@ -579,28 +587,26 @@ export default function SearchTopicPage() {
   const [generatedIdeaIds, setGeneratedIdeaIds] = useState<Set<number>>(new Set());
   const [activeScriptData, setActiveScriptData] = useState<GeneratedScriptData | null>(null);
   const [activeScriptIdeaTitle, setActiveScriptIdeaTitle] = useState<string>('');
+  const [activeScriptDuration, setActiveScriptDuration] = useState<number>(10);
+  const [activeUniversalScriptId, setActiveUniversalScriptId] = useState<string | null>(null);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [scriptGenReady, setScriptGenReady] = useState(false);
   const [scriptGenError, setScriptGenError] = useState<string | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [sideView, setSideView] = useState<StudioSideView>(null);
 
-  // Mobile suggested scripts from Supabase (same fields as desktop Content Vault sidebar)
+  // Mobile suggested scripts from Content Vault
   type MobileScriptRow = {
     id: string;
     title: string | null;
     script: string | null;
     topic: string | null;
-    duration: number | null;
-    category: string | null;
-    subcategories: string[] | null;
+    metrics?: { videoLength?: number; totalWords?: number } | null;
   };
   const [mobileSuggested, setMobileSuggested] = useState<MobileScriptRow[]>([]);
   useEffect(() => {
     sbClient
       .from('scripts_universal')
-      .select('id, title, script, topic, duration, category, subcategories')
+      .select('id, title, script, topic, metrics')
       .order('created_at', { ascending: false })
       .limit(10)
       .then(({ data }) => { if (data) setMobileSuggested(data as MobileScriptRow[]); });
@@ -732,6 +738,10 @@ useEffect(() => {
       if (selected?.data) {
         setActiveScriptData(selected.data);
         setActiveScriptIdeaTitle(selected.ideaTitle);
+        setActiveUniversalScriptId(selected.universalScriptId ?? null);
+        const ideaMeta = rec.ideas.find((i) => i.title === selected.ideaTitle);
+        const mins = Number(ideaMeta?.videoLength || selected.data.metrics?.videoLength || 10);
+        setActiveScriptDuration(Number.isFinite(mins) && mins > 0 ? mins : 10);
       }
     }
     setSidebarRefresh((n) => n + 1);
@@ -740,10 +750,41 @@ useEffect(() => {
     } catch { /* ignore */ }
   }, [topic]);
 
+  const newTopicParam = searchParams.get('new');
+
+  // Enter compose mode from ?new=1 or the __compose__ placeholder topic
   useEffect(() => {
+    if (newTopicParam !== '1' && !isComposePlaceholder) return;
+
+    composeOnTopicRef.current = topic;
+    setIsComposingNew(true);
+    setSearchQuery('');
+    setIsLoading(false);
+    setFetchReady(false);
+    setError(null);
+
+    const focusTimer = window.setTimeout(() => searchInputRef.current?.focus(), 80);
+
+    // Strip ?new=1 once so this effect does not re-fire in a loop
+    if (newTopicParam === '1') {
+      router.replace(searchPath(topic), { scroll: false });
+    }
+
+    return () => window.clearTimeout(focusTimer);
+    // intentionally omit router/searchPath — new function refs every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newTopicParam, isComposePlaceholder, topic]);
+
+  // Sync local studio state when the URL topic changes (not while composing on it)
+  useEffect(() => {
+    if (isComposePlaceholder) return;
+    if (composeOnTopicRef.current === topic) return;
+
+    composeOnTopicRef.current = null;
+    setIsComposingNew(false);
     setSearchQuery(topic);
     setStudioTab('ideas');
-    setSideView(null);
+
     const rec = getTopicRecord(topic);
     if (rec) {
       setGeneratedIdeaIds(new Set(rec.ideas.filter((i) => i.hasScript).map((i) => i.id)));
@@ -755,20 +796,43 @@ useEffect(() => {
       if (selected?.data) {
         setActiveScriptData(selected.data);
         setActiveScriptIdeaTitle(selected.ideaTitle);
+        setActiveUniversalScriptId(selected.universalScriptId ?? null);
+        const ideaMeta = synced?.ideas.find((i) => i.title === selected.ideaTitle);
+        const mins = Number(ideaMeta?.videoLength || selected.data.metrics?.videoLength || 10);
+        setActiveScriptDuration(Number.isFinite(mins) && mins > 0 ? mins : 10);
       } else {
         setActiveScriptData(null);
         setActiveScriptIdeaTitle('');
+        setActiveScriptDuration(10);
+        setActiveUniversalScriptId(null);
       }
     } else {
       setGeneratedIdeaIds(new Set());
       setActiveScriptData(null);
       setActiveScriptIdeaTitle('');
+      setActiveScriptDuration(10);
+      setActiveUniversalScriptId(null);
     }
+  }, [topic, isComposePlaceholder]);
+
+  const enterComposeNew = useCallback(() => {
+    composeOnTopicRef.current = topic;
+    setIsComposingNew(true);
+    setSearchQuery('');
+    setIsLoading(false);
+    setFetchReady(false);
+    setError(null);
+    window.setTimeout(() => searchInputRef.current?.focus(), 50);
   }, [topic]);
 
   const handleSearchSubmit = () => {
     const trimmed = searchQuery.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      searchInputRef.current?.focus();
+      return;
+    }
+    composeOnTopicRef.current = null;
+    setIsComposingNew(false);
     router.push(searchPath(trimmed));
   };
 
@@ -790,7 +854,13 @@ useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
-      if (!topic) return;
+      if (!topic || isComposingNew || isComposePlaceholder) {
+        if (isComposingNew || isComposePlaceholder) {
+          setIsLoading(false);
+          setFetchReady(false);
+        }
+        return;
+      }
 
       setFetchReady(false);
 
@@ -928,7 +998,7 @@ return;
 
     run();
     return () => { cancelled = true; };
-  }, [topic, finishLoading, syncStudioFromIdeas]);
+  }, [topic, finishLoading, syncStudioFromIdeas, isComposingNew, isComposePlaceholder]);
 
   const getCategoryFromIndex = (index: number) => {
     const categoryMap = ['Technology', 'Social Impact', 'Economic Analysis', 'Historical', 'Future Analysis'];
@@ -1143,6 +1213,13 @@ return;
     try {
       const raw = await ApiService.generateScript(payload);
       const normalized = normalizeScriptData(raw);
+
+      const universalId = await saveScriptToUniversal(normalized, {
+        title: idea.title,
+        topic,
+        userId: session.user.id,
+      });
+
       markIdeaScriptGenerated(
         topic,
         {
@@ -1153,6 +1230,7 @@ return;
           videoLength: videoLengths[idea.id],
         },
         normalized,
+        universalId,
       );
       try {
         const safeKey = idea.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
@@ -1163,6 +1241,7 @@ return;
             params: payload,
             timestamp: Date.now(),
             pageTitle: idea.title,
+            universalScriptId: universalId,
           }),
         );
         localStorage.setItem('script_latest_key', `script_${safeKey}`);
@@ -1170,6 +1249,8 @@ return;
 
       setActiveScriptData(normalized);
       setActiveScriptIdeaTitle(idea.title);
+      setActiveScriptDuration(Number(videoLengths[idea.id] || payload.time || 10));
+      setActiveUniversalScriptId(universalId);
       setStudioTab('script');
       setSidebarRefresh((n) => n + 1);
       try {
@@ -1198,9 +1279,17 @@ return;
   const selectIdeaScript = (idea: ScriptIdea) => {
     const rec = getTopicRecord(topic);
     const fromStudio = rec?.scripts[String(idea.id)];
+    const storedLen = rec?.ideas.find((i) => i.id === idea.id)?.videoLength;
+    const durationFromIdea = Number(videoLengths[idea.id] || storedLen || 10);
     if (fromStudio?.data) {
       setActiveScriptData(fromStudio.data);
       setActiveScriptIdeaTitle(fromStudio.ideaTitle);
+      setActiveUniversalScriptId(fromStudio.universalScriptId ?? null);
+      setActiveScriptDuration(
+        Number.isFinite(durationFromIdea) && durationFromIdea > 0
+          ? durationFromIdea
+          : Number(fromStudio.data.metrics?.videoLength || 10) || 10,
+      );
       setStudioTab('script');
       return;
     }
@@ -1212,6 +1301,15 @@ return;
         if (parsed?.data) {
           setActiveScriptData(parsed.data);
           setActiveScriptIdeaTitle(idea.title);
+          setActiveUniversalScriptId(parsed.universalScriptId ?? null);
+          const fromParams = Number(parsed?.params?.time);
+          setActiveScriptDuration(
+            Number.isFinite(fromParams) && fromParams > 0
+              ? fromParams
+              : Number.isFinite(durationFromIdea) && durationFromIdea > 0
+                ? durationFromIdea
+                : 10,
+          );
           setStudioTab('script');
         }
       }
@@ -1219,106 +1317,82 @@ return;
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-[#f5f6f8] flex">
-      <div className="hidden lg:flex h-full">
-        <StudioSidebar
-          activeTopic={topic}
-          refreshKey={sidebarRefresh}
-          activeView={sideView}
-          onSelectView={setSideView}
-        />
-      </div>
-
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileNavOpen(false)} />
-          <div className="absolute inset-y-0 left-0 h-full shadow-xl">
-            <StudioSidebar
-              activeTopic={topic}
-              refreshKey={sidebarRefresh}
-              activeView={sideView}
-              onSelectView={(v) => {
-                setSideView(v);
-                setMobileNavOpen(false);
+    <StudioShell
+      activeTopic={isComposingNew || isComposePlaceholder ? undefined : topic}
+      refreshKey={sidebarRefresh}
+      padded={false}
+      contentScroll={false}
+      onNewTopic={enterComposeNew}
+      topBar={
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search a topic (e.g. 'productivity for developers')"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSearchSubmit();
+                }
               }}
+              className="pl-10 pr-4 py-5 rounded-full border-gray-200 bg-white text-sm"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleSearchSubmit}
+            className="flex items-center gap-2 rounded-full bg-[#3d3d3a] hover:bg-[#1d1d1f] text-white text-sm font-semibold px-4 py-2.5 transition-colors flex-shrink-0"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Generate ideas</span>
+            <span className="sm:hidden">Go</span>
+          </button>
+        </div>
+      }
+    >
+      <div className="flex flex-col h-full min-h-0">
+        {isComposingNew || isComposePlaceholder ? (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+              <NewTopicPrompt onFocusSearch={() => searchInputRef.current?.focus()} />
+            </div>
+          </div>
+        ) : (
+          <>
+        {/* Fixed topic + stage tabs */}
+        <div className="flex-shrink-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-200/80 shadow-sm">
+          <div className="max-w-8xl mx-auto px-4 sm:px-6 pt-5 pb-4">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1d1d1f] flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
+                  Current topic
+                </p>
+                <h1
+                  className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
+                  style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+                >
+                  {topic}
+                </h1>
+              </div>
+            </div>
+            <StudioStageNav
+              active={studioTab}
+              onChange={setStudioTab}
+              completed={stageCompleted}
             />
           </div>
         </div>
-      )}
 
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        <div className="flex-shrink-0 border-b border-gray-200/80 bg-white/80 backdrop-blur-md px-4 sm:px-6 py-3">
-          <div className="flex items-center gap-3 max-w-5xl mx-auto">
-            <button
-              type="button"
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
-              onClick={() => setMobileNavOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search a topic (e.g. 'productivity for developers')"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleSearchSubmit();
-                  }
-                }}
-                className="pl-10 pr-4 py-5 rounded-full border-gray-200 bg-white text-sm"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={handleSearchSubmit}
-              className="flex items-center gap-2 rounded-full bg-[#3d3d3a] hover:bg-[#1d1d1f] text-white text-sm font-semibold px-4 py-2.5 transition-colors flex-shrink-0"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Generate ideas</span>
-              <span className="sm:hidden">Go</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
+        {/* Scrollable panel content only */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-            {sideView ? (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setSideView(null)}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-[#1d1d1f] mb-5 transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Back to topic
-                </button>
-                {sideView === 'content-vault' ? (
-                  <ContentVaultPanel embedded />
-                ) : (
-                  <ProfileWorkspace
-                    embedded
-                    forcedTab={sideView as ProfileTabId}
-                  />
-                )}
-              </div>
-            ) : (
-              <>
-            <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">Topic</p>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#1d1d1f] mb-5 break-words">{topic}</h1>
-
-            <div className="mb-6">
-              <StudioStageNav
-                active={studioTab}
-                onChange={setStudioTab}
-                completed={stageCompleted}
-              />
-            </div>
-
             {studioTab === 'ideas' && (
               <>
                 {isLoading ? null : error && (
@@ -1485,6 +1559,9 @@ return;
               <StudioScriptPanel
                 data={activeScriptData}
                 ideaTitle={activeScriptIdeaTitle}
+                topic={topic}
+                durationMinutes={activeScriptDuration}
+                universalScriptId={activeUniversalScriptId}
               />
             )}
 
@@ -1497,14 +1574,14 @@ return;
             )}
 
             {studioTab === 'broll' && <StudioBRollPanel />}
-              </>
-            )}
           </div>
         </div>
+          </>
+        )}
       </div>
 
       <GenerationProgressOverlay
-        isOpen={isLoading}
+        isOpen={isLoading && !isComposingNew && !isComposePlaceholder}
         ready={fetchReady}
         onFinished={handleProgressFinished}
         subtext={`Usually under 5 minutes. We're analysing "${topic}" in the background.`}
@@ -1698,6 +1775,6 @@ return;
           </div>
         </div>
       )}
-    </div>
+    </StudioShell>
   );
 }

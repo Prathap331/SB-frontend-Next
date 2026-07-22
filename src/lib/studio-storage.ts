@@ -26,6 +26,8 @@ export interface StudioTopicRecord {
     data: GeneratedScriptData;
     ideaTitle: string;
     generatedAt: number;
+    /** scripts_universal row id — used to delete on unlock */
+    universalScriptId?: string | null;
   }>;
 }
 
@@ -149,6 +151,7 @@ export function markIdeaScriptGenerated(
   topic: string,
   idea: StudioIdea,
   scriptData: GeneratedScriptData,
+  universalScriptId?: string | null,
 ): StudioTopicRecord | null {
   const existing = getTopicRecord(topic) ?? {
     topic: topic.trim(),
@@ -177,6 +180,7 @@ export function markIdeaScriptGenerated(
         data: scriptData,
         ideaTitle: idea.title,
         generatedAt: Date.now(),
+        universalScriptId: universalScriptId ?? null,
       },
     },
   };

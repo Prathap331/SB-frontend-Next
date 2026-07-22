@@ -228,6 +228,8 @@ export type GeneratedScriptData = {
   sources?: string[];
   /** New: books referenced during research */
   books?: BookReference[];
+  /** Thumbnail payload from /generate-script (text overlays or image data) */
+  thumbnail?: unknown;
   structure?: Array<{
       name: string;
       percentage: number;

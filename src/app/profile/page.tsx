@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
+import StudioShell from '@/components/studio/StudioShell';
 import { User, Edit, Save, FileText, CreditCard, Crown, Calendar, DollarSign, Download, ExternalLink, LogOut, Menu, X, Video, Upload, CheckCircle2, AlertCircle, Loader2, FileIcon, Info, Lock, Eye, EyeOff, Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import {
@@ -66,7 +67,7 @@ type ProfileWorkspaceProps = {
 };
 
 const PROFILE_TABS: ProfileTabId[] = [
-  'profile', 'scripts', 'thumbnails', 'channel', 'subscription', 'billing', 'password',
+  'profile', 'thumbnails', 'channel', 'subscription', 'billing', 'password',
 ];
 
 export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspaceProps) {
@@ -75,8 +76,16 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
     if (forcedTab && PROFILE_TABS.includes(forcedTab)) return forcedTab;
     if (typeof window === 'undefined') return 'profile';
     const tab = new URLSearchParams(window.location.search).get('tab');
+    if (tab === 'scripts') return 'profile';
     return tab && PROFILE_TABS.includes(tab as ProfileTabId) ? (tab as ProfileTabId) : 'profile';
   });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('tab') === 'scripts') {
+      router.replace('/my-scripts');
+    }
+  }, [router]);
 
   useEffect(() => {
     if (forcedTab && PROFILE_TABS.includes(forcedTab)) setActiveTab(forcedTab);
@@ -530,7 +539,7 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
         if (!session) return;
         const { data, error } = await supabase
           .from('scripts_assigned')
-          .select('id, title, topic, estimated_word_count, status, created_at, is_public')
+          .select('id, title, topic, script, metrics, created_at')
           .eq('userId', session.user.id)
           .order('created_at', { ascending: false });
         if (!error && data) {
@@ -615,7 +624,6 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
 
   const menuItems = [
     { id: 'profile', label: 'Basic Details', icon: User },
-    { id: 'scripts', label: 'My Scripts', icon: FileText },
     { id: 'thumbnails', label: 'Thumbnail Photos', icon: Camera },
     { id: 'channel', label: 'Channel memory', icon: Video },
     { id: 'subscription', label: 'Subscription', icon: Crown },
@@ -1612,6 +1620,31 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
   );
 }
 
+function ProfileInStudio() {
+  const searchParams = useSearchParams();
+  const tab = searchParams.get('tab');
+  const forcedTab: ProfileTabId =
+    tab && PROFILE_TABS.includes(tab as ProfileTabId)
+      ? (tab as ProfileTabId)
+      : 'profile';
+
+  return (
+    <StudioShell>
+      <ProfileWorkspace embedded forcedTab={forcedTab} />
+    </StudioShell>
+  );
+}
+
 export default function Profile() {
-  return <ProfileWorkspace />;
+  return (
+    <Suspense
+      fallback={
+        <div className="h-screen flex items-center justify-center bg-[#f5f6f8]">
+          <Loader2 className="w-6 h-6 animate-spin text-[#1d1d1f]" />
+        </div>
+      }
+    >
+      <ProfileInStudio />
+    </Suspense>
+  );
 }

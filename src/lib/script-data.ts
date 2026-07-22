@@ -62,6 +62,8 @@ export function normalizeScriptData(raw: any): GeneratedScriptData {
     books,
     analysis,
     youtube_metadata,
+    metrics: metrics ?? raw?.metrics,
+    thumbnail: raw?.thumbnail ?? youtube_metadata?.thumbnail_text ?? null,
     structure: Array.isArray(raw?.structure) ? raw.structure : [],
   };
 }

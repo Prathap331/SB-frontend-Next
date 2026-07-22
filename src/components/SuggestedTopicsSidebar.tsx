@@ -10,9 +10,7 @@ type ScriptRow = {
   title: string | null;
   script: string | null;
   topic: string | null;
-  duration: number | null;
-  category: string | null;
-  subcategories: string[] | null;
+  metrics?: { videoLength?: number; totalWords?: number } | null;
 };
 
 const SCROLL_STEP = 160;
@@ -25,12 +23,11 @@ export default function SuggestedTopicsSidebar() {
   const [scripts, setScripts] = useState<ScriptRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch scripts from Supabase
   useEffect(() => {
     const fetch = async () => {
       const { data, error } = await supabase
         .from('scripts_universal')
-        .select('id, title, script, topic, duration, category, subcategories')
+        .select('id, title, script, topic, metrics')
         .order('created_at', { ascending: false })
         .limit(20);
       if (!error && data) setScripts(data as ScriptRow[]);
@@ -64,7 +61,6 @@ export default function SuggestedTopicsSidebar() {
 
   return (
     <div className="flex flex-col gap-2 w-full">
-      {/* Label */}
       <div className="flex items-center justify-between px-0.5 mb-1">
         <p className="text-[18px] font-semibold tracking-widest text-black  rounded-md uppercase">
           Content Vault
@@ -77,7 +73,6 @@ export default function SuggestedTopicsSidebar() {
         </button>
       </div>
 
-      {/* Up arrow */}
       <button
         onClick={() => scroll('up')}
         aria-label="Scroll up"
@@ -88,14 +83,12 @@ export default function SuggestedTopicsSidebar() {
         <ChevronUp className="w-3.5 h-3.5 text-[#1d1d1f]" />
       </button>
 
-      {/* Cards track */}
       <div
         ref={trackRef}
-        className="flex flex-col gap-3 overflow-y-auto"
-        style={{ maxHeight: 'calc(100vh - 220px)', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        className="flex flex-col gap-2.5 overflow-y-auto max-h-[420px] pr-0.5"
+        style={{ scrollbarWidth: 'thin' }}
       >
         {loading ? (
-          /* Skeleton */
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="w-full bg-white border border-gray-200/80 rounded-xl p-3.5 animate-pulse">
               <div className="h-3 bg-gray-100 rounded mb-2 w-4/5" />
@@ -109,42 +102,34 @@ export default function SuggestedTopicsSidebar() {
             <p className="text-[10px] text-[#6e6e73]">No scripts yet</p>
           </div>
         ) : (
-          scripts.map(s => (
-            <button
-              key={s.id}
-              onClick={() => handleClick(s.id)}
-              className="group w-full text-left bg-white border border-gray-200/80 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-150 flex-shrink-0"
-            >
-              <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-1.5 group-hover:text-black">
-                {s.title || s.topic || 'Untitled Script'}
-              </p>
-              <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-3 mb-2">
-                {s.script ? s.script.slice(0, 160).replace(/\*+/g, '').trim() + '…' : 'No preview available.'}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {s.duration && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-100 border border-green-200 px-2 py-0.5 rounded-full">
-                    <Clock className="w-3 h-3" />
-                    {s.duration} min
-                  </span>
-                )}
-                {s.category && (
-                  <span className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-2 py-0.5 rounded-full">
-                    {s.category}
-                  </span>
-                )}
-                {(s.subcategories ?? []).map(sub => (
-                  <span key={sub} className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-2 py-0.5 rounded-full">
-                    {sub}
-                  </span>
-                ))}
-              </div>
-            </button>
-          ))
+          scripts.map((s) => {
+            const duration = s.metrics?.videoLength;
+            return (
+              <button
+                key={s.id}
+                onClick={() => handleClick(s.id)}
+                className="group w-full text-left bg-white border border-gray-200/80 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-150 flex-shrink-0"
+              >
+                <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-1.5 group-hover:text-black">
+                  {s.title || s.topic || 'Untitled Script'}
+                </p>
+                <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-3 mb-2">
+                  {s.script ? s.script.slice(0, 160).replace(/\*+/g, '').trim() + '…' : 'No preview available.'}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {duration != null && duration > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-100 border border-green-200 px-2 py-0.5 rounded-full">
+                      <Clock className="w-3 h-3" />
+                      {Math.round(duration * 10) / 10} min
+                    </span>
+                  )}
+                </div>
+              </button>
+            );
+          })
         )}
       </div>
 
-      {/* Down arrow */}
       <button
         onClick={() => scroll('down')}
         aria-label="Scroll down"

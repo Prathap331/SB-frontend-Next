@@ -10,9 +10,7 @@ type ScriptRow = {
   title: string | null;
   topic: string | null;
   script: string | null;
-  duration: number | null;
-  category: string | null;
-  subcategories: string[] | null;
+  metrics?: { videoLength?: number; totalWords?: number } | null;
 };
 
 const CARD_GAP = 16;
@@ -29,7 +27,7 @@ export default function SuggestedTopics() {
     const load = async () => {
       const { data, error } = await supabase
         .from('scripts_universal')
-        .select('id, title, topic, script, duration, category, subcategories')
+        .select('id, title, topic, script, metrics')
         .order('created_at', { ascending: false })
         .limit(20);
       if (!error && data) setScripts(data as ScriptRow[]);
@@ -92,7 +90,6 @@ export default function SuggestedTopics() {
 
   return (
     <div className="max-w-8xl mx-auto relative">
-      {/* Left arrow */}
       <button
         onClick={() => scroll('left')}
         aria-label="Scroll left"
@@ -103,7 +100,6 @@ export default function SuggestedTopics() {
         <ChevronLeft className="w-4 h-4 text-[#1d1d1f]" />
       </button>
 
-      {/* Right arrow */}
       <button
         onClick={() => scroll('right')}
         aria-label="Scroll right"
@@ -114,44 +110,36 @@ export default function SuggestedTopics() {
         <ChevronRight className="w-4 h-4 text-[#1d1d1f]" />
       </button>
 
-      {/* Track */}
       <div
         ref={trackRef}
         className="flex gap-4 pb-3 pt-1 overflow-x-auto snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {scripts.map(s => (
-          <button
-            key={s.id}
-            onClick={() => router.push(`/script?scriptId=${s.id}`)}
-            className="group flex-shrink-0 snap-start w-64 sm:w-72 text-left bg-white border border-gray-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 hover:-translate-y-0.5 focus:outline-none"
-          >
-            <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-2 group-hover:text-black line-clamp-2">
-              {s.title || s.topic || 'Untitled Script'}
-            </p>
-            <p className="text-[11px] text-[#6e6e73] font-light leading-relaxed line-clamp-3 mb-3">
-              {s.script ? s.script.slice(0, 200).replace(/\*+/g, '').trim() + '…' : 'No preview available.'}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {s.duration && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                  <Clock className="w-3 h-3" />
-                  {s.duration} min
-                </span>
-              )}
-              {s.category && (
-                <span className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-2 py-0.5 rounded-full">
-                  {s.category}
-                </span>
-              )}
-              {(s.subcategories ?? []).map(sub => (
-                <span key={sub} className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-2 py-0.5 rounded-full">
-                  {sub}
-                </span>
-              ))}
-            </div>
-          </button>
-        ))}
+        {scripts.map((s) => {
+          const duration = s.metrics?.videoLength;
+          return (
+            <button
+              key={s.id}
+              onClick={() => router.push(`/script?scriptId=${s.id}`)}
+              className="group flex-shrink-0 snap-start w-64 sm:w-72 text-left bg-white border border-gray-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 hover:-translate-y-0.5 focus:outline-none"
+            >
+              <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-2 group-hover:text-black line-clamp-2">
+                {s.title || s.topic || 'Untitled Script'}
+              </p>
+              <p className="text-[11px] text-[#6e6e73] font-light leading-relaxed line-clamp-3 mb-3">
+                {s.script ? s.script.slice(0, 200).replace(/\*+/g, '').trim() + '…' : 'No preview available.'}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {duration != null && duration > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                    <Clock className="w-3 h-3" />
+                    {Math.round(duration * 10) / 10} min
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -20,6 +20,12 @@ import { supabase } from '@/lib/supabaseClient';
 import { unwrapScriptJson, normalizeScriptData } from '@/lib/script-data';
 import { markIdeaScriptGenerated } from '@/lib/studio-storage';
 import { getBackendUrl } from '@/lib/backend';
+import { STORYBIT_PRODUCTION_GUIDE } from '@/lib/production-guide';
+import {
+  buildScriptTableRow,
+  moveScriptToAssigned,
+  saveScriptToUniversal,
+} from '@/lib/script-persistence';
 import nlp from 'compromise';
 
 // Accent colors cycled across the SEO option cards (option 1 / 2 / 3)
@@ -36,64 +42,6 @@ const SCRIPT_GENERATION_STEPS = [
   'Generating your script for YouTube',
   'Finishing',
 ];
-
-const STORYBIT_PRODUCTION_GUIDE = {
-  optimized: {
-    title: 'What Storybit AI Already Optimized For You',
-    items: [
-      {
-        title: 'AI-Engineered Narrative Architecture',
-        description:
-          'Your script is built using advanced narrative storytelling, curiosity loops, emotional payoffs, and retention frameworks that maximize Audience Retention, Watch Time, and overall Viewer Satisfaction—the strongest ranking signals in YouTube\'s recommendation system.',
-      },
-      {
-        title: 'Discovery & SEO Optimization Completed',
-        description:
-          'Titles, descriptions, keywords, search intent, and metadata are strategically aligned to improve Search, Browse, Suggested Videos, and AI-powered content discovery while maintaining complete relevance between viewer expectation and content delivery.',
-      },
-      {
-        title: 'Research Intelligence Already Done',
-        description:
-          'Every script is synthesized from published books, historical records, research papers, credible news, and authoritative sources, eliminating days of research while delivering factual, structured, production-ready documentary storytelling you can confidently publish.',
-      },
-    ],
-  },
-  nextSteps: {
-    title: 'Your Next Steps to Maximize Reach',
-    items: [
-      {
-        title: 'Your Presentation Creates Viewer Satisfaction',
-        description:
-          'The script captures attention; your delivery builds emotional connection. Natural pacing, vocal variation, confident storytelling, and authentic personality significantly improve Audience Retention, Viewer Satisfaction, and Returning Viewer signals measured by YouTube AI.',
-      },
-      {
-        title: 'Every Scene Must Visually Validate the Story',
-        description:
-          'Support narration using historical photographs, newspaper archives, official documents, maps, timelines, charts, screenshots, and event footage. Visual evidence continuously rewards attention, improves perceived quality, and strengthens long-duration viewer engagement.',
-      },
-      {
-        title: 'Edit for Continuous Attention, Not Video Length',
-        description:
-          'Remove every unnecessary pause, repetition, or static scene. Maintain rapid visual progression using B-roll, motion graphics, captions, zooms, sound design, and transitions to continuously reinforce positive Audience Retention signals.',
-      },
-      {
-        title: 'Optimize for Session Watch Time',
-        description:
-          'End your video with a compelling curiosity bridge, end screens, playlists, and related recommendations. YouTube strongly rewards creators who extend overall viewing sessions, not just individual video watch time.',
-      },
-      {
-        title: 'Audio Quality Outranks Camera Quality',
-        description:
-          'A smartphone, natural lighting, tripod, and external microphone are enough. Crystal-clear audio consistently outperforms expensive cameras because poor sound creates immediate abandonment and negative Viewer Satisfaction signals.',
-      },
-      {
-        title: 'Let Analytics Train the Algorithm',
-        description:
-          'After publishing, analyze Audience Retention, Click-Through Rate (CTR), Session Watch Time, Returning Viewers, and traffic sources. Every upload teaches YouTube\'s AI exactly which audience should receive your future recommendations.',
-      },
-    ],
-  },
-} as const;
 
 /**
  * Normalizes a /generate-script response (or a Supabase row) into
@@ -261,7 +209,10 @@ function saveScriptToStorage(topic: string | undefined, ideaTitle: string | unde
 }
 
 /** Persist generated script into studio localStorage when launched from studio flow. */
-function syncScriptToStudioStorage(normalizedScriptData: GeneratedScriptData): void {
+function syncScriptToStudioStorage(
+  normalizedScriptData: GeneratedScriptData,
+  universalScriptId?: string | null,
+): void {
   try {
     const searchTopic = sessionStorage.getItem('studio_search_topic');
     const ideaRaw = sessionStorage.getItem('studio_selected_idea');
@@ -273,7 +224,7 @@ function syncScriptToStudioStorage(normalizedScriptData: GeneratedScriptData): v
       description: string;
       category: string;
     };
-    markIdeaScriptGenerated(searchTopic, idea, normalizedScriptData);
+    markIdeaScriptGenerated(searchTopic, idea, normalizedScriptData, universalScriptId);
     window.dispatchEvent(new Event('studio-storage-updated'));
   } catch {
     // Never break the script page if studio sync fails
@@ -336,6 +287,7 @@ export default function ScriptPage() {
   // Selected idea to report as "unused" if the user leaves without unlocking.
   const pendingUnusedIdeaRef = React.useRef<UnusedIdeasPayload | null>(null);
   const authTokenRef         = React.useRef<string | null>(null);
+  const userIdRef            = React.useRef<string | null>(null);
   const unusedIdeaSentRef    = React.useRef(false);
 
   const handleProgressFinished = useCallback(() => {
@@ -365,6 +317,8 @@ export default function ScriptPage() {
       }
 
       setShouldRender(true);
+      userIdRef.current = session.user.id;
+      authTokenRef.current = session.access_token;
 
     const run = async () => {
       const userId = session.user.id;
@@ -379,7 +333,7 @@ export default function ScriptPage() {
         // 1. Try user's unlocked scripts table (show fully unlocked)
         const { data: row } = await supabase
           .from('scripts_assigned')
-          .select('id, title, topic, script, estimated_word_count, source_urls, analysis, structure, seo, duration')
+          .select('id, title, topic, script, youtube_metadata, thumbnail, metrics, sources, books, structure')
           .eq('id', scriptId)
           .maybeSingle();
 
@@ -387,12 +341,11 @@ export default function ScriptPage() {
           const normalized: GeneratedScriptData = {
             ...normalizeScriptData(row),
             title: row.title ?? row.topic ?? 'Script',
-            seo:   row.seo ?? {},
           };
           setData(normalized);
           setPageTitle(row.title || row.topic || 'Script');
           setScriptTopic(row.topic ?? undefined);
-          setScriptDuration(row.duration ?? undefined);
+          setScriptDuration(row.metrics?.videoLength ?? undefined);
           setIsUnlocked(true);
           setScriptSaved(true);
           finishLoading();
@@ -402,7 +355,7 @@ export default function ScriptPage() {
         // 2. Try scripts_universal (show locked — user must unlock to save to their account)
         const { data: uRow, error: uErr } = await supabase
           .from('scripts_universal')
-          .select('id, title, topic, script, estimated_word_count, source_urls, analysis, structure, seo, duration')
+          .select('id, title, topic, script, youtube_metadata, thumbnail, metrics, sources, books, structure')
           .eq('id', scriptId)
           .maybeSingle();
 
@@ -415,12 +368,11 @@ export default function ScriptPage() {
         const uNormalized: GeneratedScriptData = {
           ...normalizeScriptData(uRow),
           title: uRow.title ?? uRow.topic ?? 'Script',
-          seo:   uRow.seo ?? {},
         };
         setData(uNormalized);
         setPageTitle(uRow.title || uRow.topic || 'Script');
         setScriptTopic(uRow.topic ?? undefined);
-        setScriptDuration(uRow.duration ?? undefined);
+        setScriptDuration(uRow.metrics?.videoLength ?? undefined);
         universalScriptIdRef.current = uRow.id; // remember for delete-on-unlock
         finishLoading();
         return;
@@ -542,7 +494,14 @@ const normalized: GeneratedScriptData = normalizeScriptData(json);
 const scriptTitle = normalized.title || topic || 'Generated Script';
 
 saveScriptToStorage(payload.title, payload.title, normalized, payload, scriptTitle);
-syncScriptToStudioStorage(normalized);
+
+const universalId = await saveScriptToUniversal(normalized, {
+  title: scriptTitle,
+  topic: payload.title || topic,
+  userId: session.user.id,
+});
+if (universalId) universalScriptIdRef.current = universalId;
+syncScriptToStudioStorage(normalized, universalId);
 
 setData(normalized);
             if (payload.time) setScriptDuration(payload.time);
@@ -614,7 +573,14 @@ console.log("📦 Script API Response:", json);
           normalized.title || params.title || "Generated Script";
         
         saveScriptToStorage(params.title, params.title, normalized, params, scriptTitle);
-        syncScriptToStudioStorage(normalized);
+
+        const universalId = await saveScriptToUniversal(normalized, {
+          title: scriptTitle,
+          topic: params.title,
+          userId: session.user.id,
+        });
+        if (universalId) universalScriptIdRef.current = universalId;
+        syncScriptToStudioStorage(normalized, universalId);
 
         setData(normalized);
         setPageTitle(scriptTitle);
@@ -651,6 +617,7 @@ console.log("📦 Script API Response:", json);
   }, [router, finishLoading]);
 
   const [showSourcesDialog, setShowSourcesDialog] = useState(false);
+  const [sidePanelMode, setSidePanelMode] = useState<'sources' | 'books'>('sources');
   const [contentTab, setContentTab] = useState<1|2|3|4>(1);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -783,16 +750,6 @@ console.log("📦 Script API Response:", json);
   useEffect(() => { scriptTopicRef.current    = scriptTopic;    }, [scriptTopic]);
   useEffect(() => { pageTitleRef.current      = pageTitle;      }, [pageTitle]);
 
-  async function generateHash(text: string) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  
-    return Array.from(new Uint8Array(hashBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-  }
-
   // Helper: POST to scripts_universal using fetch keepalive (safe during page unload)
   const saveToUniversalScripts = React.useCallback(async () => {
     const d = dataRef.current;
@@ -801,41 +758,31 @@ console.log("📦 Script API Response:", json);
 if (params.get('from') === 'suggested') {
   return;
 }
-    if (!d || isUnlockedRef.current || scriptSavedRef.current) return;
+    // Already saved on generate, or unlocked / assigned — skip unload duplicate
+    if (!d || isUnlockedRef.current || scriptSavedRef.current || universalScriptIdRef.current) return;
+    const userId = userIdRef.current;
+    if (!userId) return;
     const topic = scriptTopicRef.current
       ?? new URLSearchParams(window.location.search).get('topic')
       ?? pageTitleRef.current;
     const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
     const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-    const hash = await generateHash(d.script);
+    const row = buildScriptTableRow(d, {
+      title: d.title || pageTitleRef.current || topic || undefined,
+      topic: topic || undefined,
+      userId,
+    });
     fetch(
-      `${supabaseUrl}/rest/v1/scripts_universal?on_conflict=script_hash`,
+      `${supabaseUrl}/rest/v1/scripts_universal`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'apikey': supabaseKey,
           'Authorization': `Bearer ${supabaseKey}`,
-          'Prefer': 'resolution=merge-duplicates',
+          'Prefer': 'return=minimal',
         },
-        body: JSON.stringify({
-          script_hash: hash,
-          title: d.title || pageTitleRef.current || topic,
-          topic: topic,
-          script: d.script,
-          estimated_word_count: d.estimated_word_count ?? d.metrics?.totalWords ?? 0,
-          duration:      scriptDurationRef.current ?? null,
-          source_urls:   d.sources ?? d.source_urls ?? [],
-          analysis:      d.analysis      ?? {},
-          structure:     d.structure     ?? [],
-          seo: {
-            ...(d.seo ?? {}),
-            ...(d.youtube_metadata ? { youtube_metadata: d.youtube_metadata } : {}),
-            ...(d.books?.length ? { books: d.books } : {}),
-          },
-          category:      d.category      ?? null,
-          subcategories: d.subcategories ?? [],
-        }),
+        body: JSON.stringify(row),
         keepalive: true,
       }
     ).catch(() => {});
@@ -951,7 +898,7 @@ if (params.get('from') === 'suggested') {
           if (key) localStorage.setItem(`${key}_unlocked`, 'true');
         } catch {}
 
-        // Save script to Supabase scripts table (once only)
+        // Save script to scripts_assigned and remove from scripts_universal
         if (!scriptSaved && data) {
           setScriptSaved(true);
 
@@ -959,49 +906,20 @@ if (params.get('from') === 'suggested') {
             scriptTopic ??
             new URLSearchParams(window.location.search).get("topic") ??
             pageTitle;
-        
-          // INSERT into scripts table
-          const { error: insertError } = await supabase
-            .from("scripts_assigned")
-            .insert({
-              userId: session.user.id,
-              title: data.title || pageTitle || topic,
-              topic: topic,
-              script: data.script,
-              estimated_word_count: data.estimated_word_count ?? data.metrics?.totalWords ?? 0,
-              duration: scriptDuration ?? null,
-              source_urls: data.sources ?? data.source_urls ?? [],
-              analysis: data.analysis ?? {},
-              structure: data.structure ?? [],
-              seo: {
-                ...(data.seo ?? {}),
-                ...(data.youtube_metadata ? { youtube_metadata: data.youtube_metadata } : {}),
-                ...(data.books?.length ? { books: data.books } : {}),
-              },
-              status: "published",
-              thumbnail_url: null,
-              youtube_url: null,
-              views: 0,
-              likes: 0,
-              is_public: true,
-              category:      data.category      ?? null,
-              subcategories: data.subcategories ?? [],
-            });
-        
-          if (insertError) {
-            console.error("[scripts save]", insertError.message);
+
+          const result = await moveScriptToAssigned({
+            userId: session.user.id,
+            data,
+            title: data.title || pageTitle || topic || undefined,
+            topic: topic || undefined,
+            universalScriptId: universalScriptIdRef.current,
+          });
+
+          if (!result.ok) {
+            console.error("[scripts save]", result.error);
             return;
           }
-        
-          // DELETE from scripts_universal by exact ID (only when script was loaded from there)
-          if (universalScriptIdRef.current) {
-            const { error: deleteError } = await supabase
-              .from('scripts_universal')
-              .delete()
-              .eq('id', universalScriptIdRef.current);
-            if (deleteError) console.error('[scripts_universal delete]', deleteError.message);
-            else universalScriptIdRef.current = null;
-          }
+          universalScriptIdRef.current = null;
         }
       } else {
         setShowInsufficientPopup(true);
@@ -1056,6 +974,7 @@ if (params.get('from') === 'suggested') {
   /* ---------------- DOWNLOAD PDF ---------------- */
 
   const handleDownload = async () => {
+    if (!isUnlocked) return;
     const element = document.getElementById("script-content");
   
     if (!element) {
@@ -1101,7 +1020,7 @@ if (params.get('from') === 'suggested') {
   /* ---------------- TELEPROMPTER ---------------- */
 
   const handleTeleprompter = () => {
-    if (!data) return;
+    if (!isUnlocked || !data) return;
     sessionStorage.setItem("teleprompter_script", data.script || "");
     router.push("/teleprompter");
   };
@@ -1525,30 +1444,41 @@ if (params.get('from') === 'suggested') {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setShowSourcesDialog(true)}
-                    className="flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+                    onClick={() => { setSidePanelMode('sources'); setShowSourcesDialog(true); }}
+                    disabled={!isUnlocked}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#f5f5f7]"
                   >
                     <LinkIcon className="w-3.5 h-3.5" />
                     Sources
                   </button>
                   <button
+                    onClick={() => { setSidePanelMode('books'); setShowSourcesDialog(true); }}
+                    disabled={!isUnlocked}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#f5f5f7]"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Books
+                  </button>
+                  <button
                     onClick={handleTranslate}
-                    disabled={isTranslating}
-                    className="flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                    disabled={isTranslating || !isUnlocked}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {isTranslating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                     Translate
                   </button>
                   <button
                     onClick={handleTeleprompter}
-                    className="flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+                    disabled={!isUnlocked}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#f5f5f7]"
                   >
                     <Monitor className="w-3.5 h-3.5" />
                     Teleprompter
                   </button>
                   <button
                     onClick={handleDownload}
-                    className="flex items-center gap-1.5 text-[11px] font-medium text-white bg-[#1d1d1f] hover:bg-black px-3 py-1.5 rounded-lg transition-colors"
+                    disabled={!isUnlocked}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-white bg-[#1d1d1f] hover:bg-black px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#1d1d1f]"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Download
@@ -1732,14 +1662,20 @@ if (params.get('from') === 'suggested') {
 
       <Footer />
 
-      {/* Sources Side Panel */}
+      {/* Sources / Books Side Panel */}
       <div className={`fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white border-l border-gray-200 shadow-2xl z-50 transition-transform duration-300 ease-in-out ${showSourcesDialog ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-[#1d1d1f]">
-              {data.source_urls?.length || 0} Sources{books.length > 0 ? ` · ${books.length} Books` : ''}
+              {sidePanelMode === 'books'
+                ? `${books.length} Book${books.length === 1 ? '' : 's'}`
+                : `${(data?.sources ?? data?.source_urls)?.length || 0} Source${((data?.sources ?? data?.source_urls)?.length || 0) === 1 ? '' : 's'}`}
             </h2>
-            <p className="text-[11px] text-[#6e6e73] font-light">Research references used in this script</p>
+            <p className="text-[11px] text-[#6e6e73] font-light">
+              {sidePanelMode === 'books'
+                ? 'Books referenced during research'
+                : 'Research sources used in this script'}
+            </p>
           </div>
           <button onClick={() => setShowSourcesDialog(false)} className="w-8 h-8 rounded-full bg-[#f5f5f7] hover:bg-gray-200 flex items-center justify-center transition-colors">
             <X className="w-4 h-4 text-[#1d1d1f]" />
@@ -1747,51 +1683,52 @@ if (params.get('from') === 'suggested') {
         </div>
         <ScrollArea className="h-[calc(100vh-73px)]">
           <div className="px-4 py-4 space-y-3">
-            {data.source_urls && data.source_urls.length > 0 ? (
-              data.source_urls.map((url, index) => {
-                // New responses return bare domains (e.g. "finance.yahoo.com") — make them linkable
-                const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-                let domain = '';
-                let domainInitial = '?';
-                try {
-                  if (url) {
-                    domain = new URL(href).hostname.replace('www.', '');
-                    domainInitial = domain.charAt(0).toUpperCase();
-                  }
-                } catch {
-                  domain = url || 'Unknown source';
-                  domainInitial = domain.charAt(0).toUpperCase();
-                }
-                return (
-                  <a key={index} href={href} target="_blank" rel="noopener noreferrer"
-                    className="flex items-start gap-3 bg-[#f5f5f7] hover:bg-gray-100 rounded-2xl p-4 transition-colors group border border-gray-100"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-[#1d1d1f] font-semibold text-sm flex-shrink-0 shadow-sm">
-                      {domainInitial}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] text-[#6e6e73] mb-0.5 font-light">{domain}</p>
-                      <p className="text-xs font-medium text-[#1d1d1f] line-clamp-2 group-hover:text-blue-600 transition-colors break-all">{url}</p>
-                      <div className="flex items-center gap-1 mt-1.5 text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                        Visit source <ExternalLink className="w-3 h-3" />
-                      </div>
-                    </div>
-                  </a>
-                );
-              })
-            ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <LinkIcon className="w-10 h-10 text-gray-200 mb-3" />
-                <p className="text-sm text-[#6e6e73]">No sources available</p>
-              </div>
+            {sidePanelMode === 'sources' && (
+              <>
+                {(data?.sources ?? data?.source_urls)?.length ? (
+                  (data?.sources ?? data?.source_urls ?? []).map((url, index) => {
+                    const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+                    let domain = '';
+                    let domainInitial = '?';
+                    try {
+                      if (url) {
+                        domain = new URL(href).hostname.replace('www.', '');
+                        domainInitial = domain.charAt(0).toUpperCase();
+                      }
+                    } catch {
+                      domain = url || 'Unknown source';
+                      domainInitial = domain.charAt(0).toUpperCase();
+                    }
+                    return (
+                      <a key={index} href={href} target="_blank" rel="noopener noreferrer"
+                        className="flex items-start gap-3 bg-[#f5f5f7] hover:bg-gray-100 rounded-2xl p-4 transition-colors group border border-gray-100"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-[#1d1d1f] font-semibold text-sm flex-shrink-0 shadow-sm">
+                          {domainInitial}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-[#6e6e73] mb-0.5 font-light">{domain}</p>
+                          <p className="text-xs font-medium text-[#1d1d1f] line-clamp-2 group-hover:text-blue-600 transition-colors break-all">{url}</p>
+                          <div className="flex items-center gap-1 mt-1.5 text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            Visit source <ExternalLink className="w-3 h-3" />
+                          </div>
+                        </div>
+                      </a>
+                    );
+                  })
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <LinkIcon className="w-10 h-10 text-gray-200 mb-3" />
+                    <p className="text-sm text-[#6e6e73]">No sources available</p>
+                  </div>
+                )}
+              </>
             )}
 
-            {/* Books referenced during research */}
-            {books.length > 0 && (
-              <div className="pt-4">
-                <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-3 px-1">Books Referenced</p>
-                <div className="space-y-3">
-                  {books.map((book, index) => (
+            {sidePanelMode === 'books' && (
+              <>
+                {books.length > 0 ? (
+                  books.map((book, index) => (
                     <div key={index} className="flex items-start gap-3 bg-[#f5f5f7] rounded-2xl p-4 border border-gray-100">
                       <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <BookOpen className="w-4 h-4 text-[#1d1d1f]" />
@@ -1801,9 +1738,14 @@ if (params.get('from') === 'suggested') {
                         <p className="text-[11px] text-[#6e6e73] mt-0.5 font-light">{book.author}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <BookOpen className="w-10 h-10 text-gray-200 mb-3" />
+                    <p className="text-sm text-[#6e6e73]">No books referenced</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </ScrollArea>
