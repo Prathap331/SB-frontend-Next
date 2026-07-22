@@ -121,6 +121,7 @@ export interface UnusedIdeasPayload {
   topic: string;
   topic_summary?: string | null;
   ideas: UnusedIdea[];
+  userId: string;
 }
 
 export interface SignUpRequest {
@@ -674,16 +675,16 @@ export class ApiService {
   }
 
   /**
-   * Fire-and-forget keepalive POST of unused ideas to /save_ideas.
+   * Fire-and-forget keepalive POST of unused ideas to /save-ideas.
    * Synchronous so it survives page unload (tab close / SPA navigation).
-   * The payload mirrors the /generate-ideas response shape:
-   * { topic, topic_summary, ideas: [{ title, description }] }.
+   * The payload mirrors the /generate-ideas response shape plus userId:
+   * { topic, topic_summary, ideas: [{ title, description }], userId }.
    */
   static sendUnusedIdeasKeepalive(
     payload: UnusedIdeasPayload,
     token?: string | null,
   ): void {
-    if (!payload?.ideas?.length) return;
+    if (!payload?.ideas?.length || !payload.userId) return;
 
     const headers: HeadersInit = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -705,12 +706,38 @@ export class ApiService {
    * Safe to call from normal user interactions (e.g. selecting an idea).
    */
   static async sendUnusedIdeas(payload: UnusedIdeasPayload): Promise<void> {
-    if (!payload?.ideas?.length) return;
+    if (!payload?.ideas?.length || !payload.userId) return;
     try {
       const token = await this.getAuthToken();
       this.sendUnusedIdeasKeepalive(payload, token);
     } catch {
       // fire-and-forget
+    }
+  }
+
+  /**
+   * Persist a full generate-ideas response via /save-ideas (awaits completion).
+   */
+  static async saveIdeas(payload: UnusedIdeasPayload): Promise<void> {
+    if (!payload?.ideas?.length || !payload.userId) {
+      throw new Error('saveIdeas requires userId and at least one idea');
+    }
+
+    const token = await this.getAuthToken();
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${this.BASE_URL}/save-ideas`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(
+        `save-ideas failed: ${response.status} ${response.statusText}${errorText ? ` — ${errorText}` : ''}`,
+      );
     }
   }
 

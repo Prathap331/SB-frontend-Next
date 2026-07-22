@@ -14,8 +14,6 @@ type Props = {
   padded?: boolean;
   /** When false, the main area does not scroll — children manage their own scroll */
   contentScroll?: boolean;
-  /** Stay in studio and reset to “search a new topic” (search page) */
-  onNewTopic?: () => void;
 };
 
 /**
@@ -29,7 +27,6 @@ export default function StudioShell({
   topBar,
   padded = true,
   contentScroll = true,
-  onNewTopic,
 }: Props) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -38,7 +35,6 @@ export default function StudioShell({
       activeTopic={activeTopic}
       refreshKey={refreshKey}
       onNavigate={() => setMobileNavOpen(false)}
-      onNewTopic={onNewTopic}
     />
   );
 

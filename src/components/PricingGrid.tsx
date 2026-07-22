@@ -1,80 +1,151 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PricingCard from './PricingCard';
-import { pricingPlans, PricingPlan } from './pricingPlans';
 import { supabase } from '@/lib/supabaseClient';
-import { Crown, Zap, Target } from 'lucide-react';
-import { LucideIcon } from 'lucide-react';
+import {
+  type BillingCycle,
+  type DBSubscriptionPlan,
+  type PricingPlan,
+  mapDbPlan,
+  maxAnnualDiscountLabel,
+} from './pricingPlans';
 
-const PLAN_ICONS: Record<string, LucideIcon> = { free: Target, plus: Zap, pro: Crown };
-const PLAN_BUTTONS: Record<string, string> = { free: 'Get Started', plus: 'Choose Plus', pro: 'Choose Pro' };
-const PLAN_DESCRIPTIONS: Record<string, string> = {
-  free: 'Perfect for trying out our AI scriptwriting',
-  plus: 'Great for regular content creators',
-  pro: 'For professional content creators and teams',
-};
+const SELECT_COLS =
+  'id, plan_name, plan_details, plan_amount, mins, gst, tagline, badge, cta_text, plan_amount_original, annual_amount, annual_discount_rate, credits_label';
 
-type DBPlan = {
-  id: number;
-  plan_name: string;
-  plan_details: string[] | string;
-  plan_amount: number;
-  mins: number;
-};
-
-function buildPlan(row: DBPlan): PricingPlan {
-  const key = row.plan_name.toLowerCase();
-  const isFree = row.plan_amount === 0;
-  const features = Array.isArray(row.plan_details)
-    ? row.plan_details
-    : JSON.parse(row.plan_details as string);
-  return {
-    name: row.plan_name,
-    price: isFree ? '₹0' : `₹${row.plan_amount}`,
-    period: isFree ? 'One-time' : '/month',
-    description: PLAN_DESCRIPTIONS[key] ?? '',
-    features,
-    limitations: [],
-    buttonText: PLAN_BUTTONS[key] ?? `Choose ${row.plan_name}`,
-    buttonVariant: isFree ? 'outline' : 'default',
-    popular: key === 'plus',
-    icon: PLAN_ICONS[key] ?? Target,
-    amount: row.plan_amount,
-    targetTier: key,
-  };
-}
+/** Fallback select if new columns are not migrated yet */
+const SELECT_COLS_LEGACY = 'id, plan_name, plan_details, plan_amount, mins, gst';
 
 export default function PricingGrid() {
-  const [plans, setPlans] = useState<PricingPlan[]>(pricingPlans);
+  const [plans, setPlans] = useState<PricingPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [billing, setBilling] = useState<BillingCycle>('annual');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchPlans = async () => {
-      const { data, error } = await supabase
+      setLoading(true);
+      setError(null);
+
+      let { data, error: fetchErr } = await supabase
         .from('subscriptions_plan')
-        .select('id, plan_name, plan_details, plan_amount, mins')
+        .select(SELECT_COLS)
         .order('id', { ascending: true });
-      if (!error && data && data.length > 0) {
-        setPlans((data as DBPlan[]).map(buildPlan));
+
+      // New columns missing → retry with legacy columns only
+      if (fetchErr) {
+        console.warn('[pricing] full select failed, retrying legacy:', fetchErr.message);
+        const legacy = await supabase
+          .from('subscriptions_plan')
+          .select(SELECT_COLS_LEGACY)
+          .order('id', { ascending: true });
+        data = legacy.data;
+        fetchErr = legacy.error;
       }
+
+      if (cancelled) return;
+
+      if (fetchErr) {
+        console.error('[pricing]', fetchErr.message);
+        setError('Could not load plans. Please try again.');
+        setPlans([]);
+        setLoading(false);
+        return;
+      }
+
+      if (!data?.length) {
+        setError('No subscription plans found.');
+        setPlans([]);
+        setLoading(false);
+        return;
+      }
+
+      setPlans((data as DBSubscriptionPlan[]).map(mapDbPlan));
+      setLoading(false);
     };
-    fetchPlans();
+
+    void fetchPlans();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const defaultIndex = plans.findIndex(p => p.popular);
+  const defaultIndex = useMemo(
+    () => Math.max(0, plans.findIndex((p) => p.popular)),
+    [plans],
+  );
+
+  const saveLabel = maxAnnualDiscountLabel(plans);
+  const hasAnnual = plans.some((p) => p.annualAmount != null && p.annualAmount > 0);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-[#1d1d1f] animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || plans.length === 0) {
+    return (
+      <div className="max-w-md mx-auto text-center py-12 px-4">
+        <p className="text-sm text-[#6e6e73]">{error || 'No plans available.'}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-      {plans.map((plan, index) => (
-        <PricingCard
-          key={plan.name}
-          plan={plan}
-          isHighlighted={hoveredIndex === null ? index === defaultIndex : hoveredIndex === index}
-          onMouseEnter={() => setHoveredIndex(index)}
-          onMouseLeave={() => setHoveredIndex(null)}
-        />
-      ))}
+    <div>
+      {hasAnnual && (
+        <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
+          <div className="inline-flex items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setBilling('monthly')}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+                billing === 'monthly'
+                  ? 'bg-[#1d1d1f] text-white'
+                  : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setBilling('annual')}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+                billing === 'annual'
+                  ? 'bg-[#1d1d1f] text-white'
+                  : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+              }`}
+            >
+              Annual
+            </button>
+          </div>
+          {saveLabel && (
+            <span className="inline-flex items-center rounded-full border border-gray-300 bg-white text-[#1d1d1f] text-xs font-semibold px-3 py-1">
+              {saveLabel}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch">
+        {plans.map((plan, index) => (
+          <PricingCard
+            key={plan.id}
+            plan={plan}
+            billing={hasAnnual ? billing : 'monthly'}
+            isHighlighted={hoveredIndex === null ? index === defaultIndex : hoveredIndex === index}
+            onMouseEnter={() => setHoveredIndex(index)}
+            onMouseLeave={() => setHoveredIndex(null)}
+          />
+        ))}
+      </div>
     </div>
   );
 }

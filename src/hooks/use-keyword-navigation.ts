@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import {
   buildLandingPath,
   buildSearchPath,
+  DEFAULT_SEARCH_SLUG,
   getLandingSlugFromPathname,
   getSearchSlugFromPathname,
 } from '@/lib/keyword-routes';
@@ -17,6 +18,8 @@ export function useKeywordNavigation() {
     landingSlug,
     searchSlug,
     homePath: `/${landingSlug}`,
+    /** Studio compose home — /content-ideas (no topic selected) */
+    studioHomePath: `/${DEFAULT_SEARCH_SLUG}`,
     landingPath: (path: string) => buildLandingPath(path, landingSlug),
     searchPath: (topic: string) => buildSearchPath(topic, searchSlug),
   };

@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Search,
-  Plus,
   Crown,
   LogOut,
   Camera,
@@ -20,11 +19,10 @@ import { supabase } from '@/lib/supabaseClient';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 import { stripKeywordPrefix } from '@/lib/keyword-routes';
 import {
-  getRecentTopics,
-  countCompletedStages,
+  fetchRecentTopics,
   TOTAL_STAGES,
-  type StudioTopicRecord,
-} from '@/lib/studio-storage';
+  type RecentTopicItem,
+} from '@/lib/recent-topics';
 import type { ProfileTabId } from '@/app/profile/page';
 
 const AVATAR_COLORS = [
@@ -92,46 +90,59 @@ type Props = {
   refreshKey?: number;
   /** Called after a nav click (e.g. close mobile drawer) */
   onNavigate?: () => void;
-  /** When set (search workspace), stay on page and show new-topic prompt */
-  onNewTopic?: () => void;
 };
 
 export default function StudioSidebar({
   activeTopic,
   refreshKey = 0,
   onNavigate,
-  onNewTopic,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { searchPath, homePath, landingPath } = useKeywordNavigation();
-  const [recent, setRecent] = useState<StudioTopicRecord[]>([]);
+  const { searchPath, studioHomePath, landingPath } = useKeywordNavigation();
+  const [recent, setRecent] = useState<RecentTopicItem[]>([]);
   const [userName, setUserName] = useState('Creator');
   const [plan, setPlan] = useState('Free plan');
   const [creditsLeft, setCreditsLeft] = useState(0);
   const [creditsTotal, setCreditsTotal] = useState(50);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const activeView = useMemo(
     () => studioViewFromLocation(pathname, searchParams),
     [pathname, searchParams],
   );
 
-  const reloadRecent = () => setRecent(getRecentTopics());
-
+  // Load recent topics directly from saved_ideas (scoped by auth userId)
   useEffect(() => {
-    reloadRecent();
-  }, [activeTopic, refreshKey]);
+    let cancelled = false;
 
-  useEffect(() => {
-    const onStorage = () => reloadRecent();
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('studio-storage-updated', onStorage);
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('studio-storage-updated', onStorage);
+    const load = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+
+      if (!session?.user?.id) {
+        setRecent([]);
+        setUserId(null);
+        return;
+      }
+
+      const uid = session.user.id;
+      setUserId(uid);
+
+      const list = await fetchRecentTopics(uid);
+      if (!cancelled) setRecent(list);
     };
-  }, []);
+
+    void load();
+
+    const onUpdated = () => { void load(); };
+    window.addEventListener('studio-storage-updated', onUpdated);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('studio-storage-updated', onUpdated);
+    };
+  }, [activeTopic, refreshKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +150,7 @@ export default function StudioSidebar({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session || cancelled) return;
       const uid = session.user.id;
+      setUserId(uid);
       const meta = session.user.user_metadata ?? {};
       const metaName = meta.full_name || meta.name;
       if (metaName) setUserName(metaName);
@@ -195,7 +207,7 @@ export default function StudioSidebar({
       <div className="px-5 pt-5 pb-4">
         <button
           type="button"
-          onClick={() => { onNavigate?.(); router.push(homePath); }}
+          onClick={() => { onNavigate?.(); router.push(studioHomePath); }}
           className="flex items-center gap-2.5 text-left hover:opacity-80 transition-opacity"
         >
           <Image
@@ -211,31 +223,6 @@ export default function StudioSidebar({
         <p className="text-[11px] text-gray-500 mt-1 font-medium tracking-wide">AI Creator Studio</p>
       </div>
 
-      <div className="px-4 mb-4">
-        <button
-          type="button"
-          onClick={() => {
-            onNavigate?.();
-            if (onNewTopic) {
-              onNewTopic();
-              return;
-            }
-            // From vault / profile / pricing → open last topic in compose mode
-            const target = activeTopic || recent[0]?.topic;
-            if (target) {
-              router.push(`${searchPath(target)}?new=1`);
-              return;
-            }
-            // No history — open studio compose shell (no landing redirect)
-            router.push(`${searchPath('__compose__')}?new=1`);
-          }}
-          className="w-full flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-[#1d1d1f] shadow-sm hover:bg-gray-50 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New topic
-        </button>
-      </div>
-
       {/* Scrollable middle */}
       <div className="flex-1 overflow-y-auto px-3 pb-3" style={{ scrollbarWidth: 'thin' }}>
         <p className="px-2 mb-2 text-[10px] font-semibold tracking-widest text-gray-400 uppercase">
@@ -247,11 +234,13 @@ export default function StudioSidebar({
           )}
           {recent.map((rec) => {
             const active = !activeView && rec.topic.toLowerCase() === (activeTopic ?? '').toLowerCase();
-            const stages = countCompletedStages(rec);
-            const date = new Date(rec.updatedAt).toLocaleDateString();
+            const stages = rec.stagesCompleted;
+            const date = rec.createdAt
+              ? new Date(rec.createdAt).toLocaleDateString()
+              : null;
             return (
               <button
-                key={rec.topic}
+                key={rec.id}
                 type="button"
                 onClick={() => {
                   onNavigate?.();
@@ -269,7 +258,7 @@ export default function StudioSidebar({
                     {rec.topic}
                   </p>
                   <p className={`text-[11px] mt-0.5 ${active ? 'text-[#5b9af5]' : 'text-gray-400'}`}>
-                    {date} · {stages}/{TOTAL_STAGES} stages
+                    {date ? `${date} · ` : ''}{rec.ideasCount} ideas · {stages}/{TOTAL_STAGES} stages
                   </p>
                 </div>
               </button>

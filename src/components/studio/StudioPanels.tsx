@@ -68,7 +68,7 @@ export function StudioStageNav({
             key={id}
             type="button"
             onClick={() => onChange(id)}
-            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium border transition-all ${
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium border transition-all ${
               isActive
                 ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
                 : 'bg-white text-[#1d1d1f] border-gray-200 hover:border-gray-300'
@@ -258,12 +258,15 @@ export function StudioScriptPanel({
   topic,
   durationMinutes,
   universalScriptId,
+  initiallyUnlocked = false,
 }: {
   data?: GeneratedScriptData | null;
   ideaTitle?: string;
   topic?: string;
   durationMinutes?: number;
   universalScriptId?: string | null;
+  /** True when script was loaded from scripts_assigned (already unlocked) */
+  initiallyUnlocked?: boolean;
 }) {
   const router = useRouter();
   const [activeSegment, setActiveSegment] = useState(0);
@@ -272,8 +275,9 @@ export function StudioScriptPanel({
 
   const [showSourcesPanel, setShowSourcesPanel] = useState(false);
   const [panelFocus, setPanelFocus] = useState<'sources' | 'books'>('sources');
+  const [panelTopPx, setPanelTopPx] = useState(208);
 
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(!!initiallyUnlocked);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [scriptSaved, setScriptSaved] = useState(false);
   const [showInsufficientPopup, setShowInsufficientPopup] = useState(false);
@@ -304,12 +308,21 @@ export function StudioScriptPanel({
     setFeedbackError('');
     setScriptSaved(false);
     setShowSourcesPanel(false);
+
+    if (initiallyUnlocked) {
+      setIsUnlocked(true);
+      try {
+        localStorage.setItem(unlockKey, 'true');
+      } catch { /* ignore */ }
+      return;
+    }
+
     try {
       setIsUnlocked(localStorage.getItem(unlockKey) === 'true');
     } catch {
       setIsUnlocked(false);
     }
-  }, [data?.script, unlockKey]);
+  }, [data?.script, unlockKey, initiallyUnlocked]);
 
   useEffect(() => {
     if (!showSourcesPanel) return;
@@ -319,6 +332,22 @@ export function StudioScriptPanel({
       document.body.style.overflow = prev;
     };
   }, [showSourcesPanel]);
+
+  // Keep Sources/Books panel below the Content Ideas stage tabs
+  useEffect(() => {
+    const measure = () => {
+      const el = document.getElementById('studio-stage-header');
+      if (!el) {
+        setPanelTopPx(208);
+        return;
+      }
+      const bottom = Math.ceil(el.getBoundingClientRect().bottom);
+      setPanelTopPx(Math.max(bottom, 120));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [showSourcesPanel, data?.script]);
 
   const scrollToSegment = (index: number) => {
     if (!isUnlocked) return;
@@ -488,11 +517,7 @@ export function StudioScriptPanel({
                   {structureSegments.map((seg, index) => (
                     <div key={index} className="flex items-start gap-3">
                       <div className="flex flex-col items-center flex-shrink-0">
-                        <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors ${
-                            isUnlocked && activeSegment === index ? 'bg-amber-500 text-white' : 'bg-[#1d1d1f] text-white'
-                          }`}
-                        >
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold bg-[#1d1d1f] text-white">
                           {index + 1}
                         </div>
                         {index < structureSegments.length - 1 && (
@@ -503,17 +528,11 @@ export function StudioScriptPanel({
                         type="button"
                         onClick={() => scrollToSegment(index)}
                         disabled={!isUnlocked}
-                        className={`flex-1 text-left rounded-xl px-3 py-2 border min-w-0 mb-2 transition-all duration-200 ${
-                          isUnlocked && activeSegment === index
-                            ? 'bg-amber-50 border-amber-200 shadow-sm'
-                            : 'bg-[#f5f5f7] border-gray-100'
-                        } ${isUnlocked ? 'hover:border-gray-300 hover:bg-white' : 'cursor-default opacity-80'}`}
+                        className={`flex-1 text-left rounded-xl px-3 py-2 border min-w-0 mb-2 bg-[#f5f5f7] border-gray-100 transition-all duration-200 ${
+                          isUnlocked ? 'hover:border-gray-300 hover:bg-white' : 'cursor-default opacity-80'
+                        }`}
                       >
-                        <p
-                          className={`font-medium text-xs break-words ${
-                            isUnlocked && activeSegment === index ? 'text-amber-800' : 'text-[#1d1d1f]'
-                          }`}
-                        >
+                        <p className="font-medium text-xs break-words text-[#1d1d1f]">
                           {seg.name}
                         </p>
                         <p className="text-[10px] text-[#6e6e73] mt-0.5 font-light">
@@ -608,9 +627,7 @@ export function StudioScriptPanel({
                       ref={(el) => {
                         segmentRefs.current[i] = el;
                       }}
-                      className={`rounded-2xl transition-all duration-500 px-3 -mx-3 ${
-                        isUnlocked && activeSegment === i ? 'bg-amber-50 ring-2 ring-amber-200' : ''
-                      }`}
+                      className="px-3 -mx-3"
                     >
                       {formatScriptNodes(chunk || '')}
                     </div>
@@ -773,16 +790,18 @@ export function StudioScriptPanel({
 
       {showSourcesPanel && (
         <div
-          className="fixed inset-0 z-40 bg-black/20"
+          className="fixed inset-x-0 bottom-0 z-40 bg-black/20"
+          style={{ top: panelTopPx }}
           onClick={() => setShowSourcesPanel(false)}
           aria-hidden
         />
       )}
 
       <div
-        className={`fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white border-l border-gray-200 shadow-2xl z-50 transition-transform duration-300 ease-in-out ${
+        className={`fixed right-0 bottom-0 w-full sm:w-[400px] bg-white border-l border-t border-gray-200 shadow-2xl z-50 transition-transform duration-300 ease-in-out ${
           showSourcesPanel ? 'translate-x-0' : 'translate-x-full'
         }`}
+        style={{ top: panelTopPx }}
       >
         <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
           <div>
@@ -805,7 +824,7 @@ export function StudioScriptPanel({
             <X className="w-4 h-4 text-[#1d1d1f]" />
           </button>
         </div>
-        <ScrollArea className="h-[calc(100vh-73px)]">
+        <ScrollArea className="h-[calc(100%-73px)]">
           <div className="px-4 py-4 space-y-3">
             {panelFocus === 'sources' && (
               <>

@@ -36,7 +36,7 @@ function UserAvatar({ name, size = 'sm' }: { name: string; size?: 'sm' | 'md' })
 }
 
 const Header = () => {
-  const { homePath } = useKeywordNavigation();
+  const { studioHomePath } = useKeywordNavigation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -187,7 +187,7 @@ const Header = () => {
     >
       <div className="max-w-8xl mx-auto px-8   h-14 flex items-center justify-between">
         {/* Logo */}
-        <PrefixedLink href={homePath} className="flex items-center hover:opacity-75 transition-opacity duration-200">
+        <PrefixedLink href={studioHomePath} raw className="flex items-center hover:opacity-75 transition-opacity duration-200">
           <Image
             src="/header-logo.png"
             alt="Storio — AI YouTube script generator"

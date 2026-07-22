@@ -6,7 +6,7 @@ import PrefixedLink from '@/components/PrefixedLink';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 
 const Footer = () => {
-  const { homePath } = useKeywordNavigation();
+  const { studioHomePath } = useKeywordNavigation();
 
   return (
     <footer className="bg-[#1d1d1f] text-white">
@@ -15,7 +15,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-10 lg:gap-16">
           {/* Brand */}
           <div className="sm:col-span-2 md:col-span-1">
-            <PrefixedLink href={homePath} className="inline-block hover:opacity-80 transition-opacity mb-4">
+            <PrefixedLink href={studioHomePath} raw className="inline-block hover:opacity-80 transition-opacity mb-4">
               <Image
                 src="/footer-logo.png"
                 alt="Storio — AI YouTube script generator"

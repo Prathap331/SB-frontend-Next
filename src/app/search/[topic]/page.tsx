@@ -32,16 +32,13 @@ import {
   StudioMetadataPanel,
   StudioThumbnailsPanel,
   StudioBRollPanel,
-  ideaHook,
   type StudioTab,
 } from '@/components/studio/StudioPanels';
 import {
-  upsertTopicIdeas,
-  markIdeaPendingScript,
-  markIdeaScriptGenerated,
-  syncScriptsFromLegacyCache,
-  getTopicRecord,
-} from '@/lib/studio-storage';
+  saveTopicIdeasToDb,
+  loadTopicWorkspace,
+  type MergedIdea,
+} from '@/lib/recent-topics';
 import { normalizeScriptData } from '@/lib/script-data';
 import { saveScriptToUniversal } from '@/lib/script-persistence';
 
@@ -106,25 +103,7 @@ interface PipelineCacheItem {
   timestamp: number;
 }
 
-const getFromLocalStorage = (topic: string): CacheItem | null => {
-  try {
-    const item = localStorage.getItem(`topic_ideas_${topic}`);
-    if (!item) return null;
-    const parsed = JSON.parse(item) as CacheItem;
-    if (Date.now() - parsed.timestamp > CACHE_DURATION) {
-      localStorage.removeItem(`topic_ideas_${topic}`);
-      return null;
-    }
-    // Discard stale entries cached from failed API calls (old fallback/sample data)
-    if (parsed.error || !parsed.scriptIdeas?.length) {
-      localStorage.removeItem(`topic_ideas_${topic}`);
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-};
+const getFromLocalStorage = (_topic: string): CacheItem | null => null;
 
 const getPipelineFromLocalStorage = (topic: string): PipelineCacheItem | null => {
   try {
@@ -205,15 +184,6 @@ const fetchVideoMeta = async (url: string) => {
 
 const saveToCache = (topic: string, data: CacheItem) => {
   resultsCache.set(topic, data);
-  try {
-    localStorage.setItem(`topic_ideas_${topic}`, JSON.stringify(data));
-  } catch {
-    const keys = Object.keys(localStorage).filter(k => k.startsWith('topic_ideas_'));
-    if (keys.length > 0) {
-      localStorage.removeItem(keys[0]);
-      try { localStorage.setItem(`topic_ideas_${topic}`, JSON.stringify(data)); } catch { /* ignore */ }
-    }
-  }
 };
 
 const savePipelineToCache = (topic: string, data: TSSResponse) => {
@@ -241,11 +211,15 @@ const cleanupCache = () => {
   try {
     const keys = Object.keys(localStorage);
     const topicKeys = keys.filter(k =>
-  k.startsWith('topic_ideas_') ||
-  k.startsWith('topic_pipeline_') ||
-  k.startsWith('topic_eci_') // ✅ ADD THIS
-);
+      k.startsWith('topic_pipeline_') ||
+      k.startsWith('topic_eci_') ||
+      k.startsWith('topic_ideas_') // prune legacy idea cache
+    );
     topicKeys.forEach(key => {
+      if (key.startsWith('topic_ideas_')) {
+        localStorage.removeItem(key);
+        return;
+      }
       const item = localStorage.getItem(key);
       if (item) {
         const parsed = JSON.parse(item) as { timestamp: number };
@@ -585,10 +559,17 @@ export default function SearchTopicPage() {
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
   const [studioTab, setStudioTab] = useState<StudioTab>('ideas');
   const [generatedIdeaIds, setGeneratedIdeaIds] = useState<Set<number>>(new Set());
+  const [ideaScripts, setIdeaScripts] = useState<Record<number, {
+    data: GeneratedScriptData;
+    ideaTitle: string;
+    universalScriptId?: string | null;
+    fromAssigned?: boolean;
+  }>>({});
   const [activeScriptData, setActiveScriptData] = useState<GeneratedScriptData | null>(null);
   const [activeScriptIdeaTitle, setActiveScriptIdeaTitle] = useState<string>('');
   const [activeScriptDuration, setActiveScriptDuration] = useState<number>(10);
   const [activeUniversalScriptId, setActiveUniversalScriptId] = useState<string | null>(null);
+  const [activeScriptFromAssigned, setActiveScriptFromAssigned] = useState(false);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [scriptGenReady, setScriptGenReady] = useState(false);
   const [scriptGenError, setScriptGenError] = useState<string | null>(null);
@@ -711,43 +692,63 @@ useEffect(() => {
   //     .finally(() => setIsEciLoading(false));
   // }, [topic, activeTab]);
 
-  const syncStudioFromIdeas = useCallback((
-    ideas: ScriptIdea[],
-    summary: string | null,
-    relatedIdeas: SimilarPastIdea[],
-  ) => {
-    if (!topic || !ideas.length) return;
-    upsertTopicIdeas({
-      topic,
-      ideas: ideas.map((i) => ({
-        id: i.id,
-        title: i.title,
-        description: i.description,
-        category: i.category,
-      })),
-      topicSummary: summary,
-      similarPastIdeas: relatedIdeas,
-    });
-    syncScriptsFromLegacyCache(topic);
-    const rec = getTopicRecord(topic);
-    if (rec) {
-      setGeneratedIdeaIds(new Set(rec.ideas.filter((i) => i.hasScript).map((i) => i.id)));
-      const selected =
-        (rec.selectedIdeaId != null && rec.scripts[String(rec.selectedIdeaId)]) ||
-        Object.values(rec.scripts)[0];
-      if (selected?.data) {
-        setActiveScriptData(selected.data);
-        setActiveScriptIdeaTitle(selected.ideaTitle);
-        setActiveUniversalScriptId(selected.universalScriptId ?? null);
-        const ideaMeta = rec.ideas.find((i) => i.title === selected.ideaTitle);
-        const mins = Number(ideaMeta?.videoLength || selected.data.metrics?.videoLength || 10);
-        setActiveScriptDuration(Number.isFinite(mins) && mins > 0 ? mins : 10);
+  const applyMergedIdeas = useCallback((ideas: MergedIdea[]) => {
+    setScriptIdeas(ideas.map(({ id, title, description, category }) => ({
+      id, title, description, category,
+    })));
+
+    const generated = new Set<number>();
+    const scripts: Record<number, {
+      data: GeneratedScriptData;
+      ideaTitle: string;
+      universalScriptId?: string | null;
+      fromAssigned?: boolean;
+    }> = {};
+
+    for (const idea of ideas) {
+      if (idea.generated && idea.script) {
+        generated.add(idea.id);
+        scripts[idea.id] = {
+          data: idea.script,
+          ideaTitle: idea.title,
+          universalScriptId: idea.fromAssigned ? null : (idea.scriptRowId ?? null),
+          fromAssigned: !!idea.fromAssigned,
+        };
       }
     }
+
+    setGeneratedIdeaIds(generated);
+    setIdeaScripts(scripts);
+
+    const first = ideas.find((i) => i.generated && i.script);
+    if (first?.script) {
+      setActiveScriptData(first.script);
+      setActiveScriptIdeaTitle(first.title);
+      setActiveUniversalScriptId(first.fromAssigned ? null : (first.scriptRowId ?? null));
+      setActiveScriptFromAssigned(!!first.fromAssigned);
+      const mins = Number(first.script.metrics?.videoLength || 10);
+      setActiveScriptDuration(Number.isFinite(mins) && mins > 0 ? mins : 10);
+    } else {
+      setActiveScriptData(null);
+      setActiveScriptIdeaTitle('');
+      setActiveScriptDuration(10);
+      setActiveUniversalScriptId(null);
+      setActiveScriptFromAssigned(false);
+    }
+  }, []);
+
+  const persistNewIdeas = useCallback(async (
+    ideas: ScriptIdea[],
+    summary: string | null = null,
+  ) => {
+    if (!topic || !ideas.length) return;
+    const { data: { session } } = await sbClient.auth.getSession();
+    await saveTopicIdeasToDb(topic, ideas, {
+      topicSummary: summary,
+      userId: session?.user?.id ?? null,
+    });
+    // Keep idea cards; scripts will merge on next load from DB
     setSidebarRefresh((n) => n + 1);
-    try {
-      window.dispatchEvent(new Event('studio-storage-updated'));
-    } catch { /* ignore */ }
   }, [topic]);
 
   const newTopicParam = searchParams.get('new');
@@ -775,7 +776,8 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newTopicParam, isComposePlaceholder, topic]);
 
-  // Sync local studio state when the URL topic changes (not while composing on it)
+  // Sync search box / compose flag when URL topic changes — do NOT wipe script state here
+  // (async load below restores ideas + locked/unlocked scripts from Supabase)
   useEffect(() => {
     if (isComposePlaceholder) return;
     if (composeOnTopicRef.current === topic) return;
@@ -784,46 +786,7 @@ useEffect(() => {
     setIsComposingNew(false);
     setSearchQuery(topic);
     setStudioTab('ideas');
-
-    const rec = getTopicRecord(topic);
-    if (rec) {
-      setGeneratedIdeaIds(new Set(rec.ideas.filter((i) => i.hasScript).map((i) => i.id)));
-      syncScriptsFromLegacyCache(topic);
-      const synced = getTopicRecord(topic);
-      const selected =
-        (synced?.selectedIdeaId != null && synced.scripts[String(synced.selectedIdeaId)]) ||
-        (synced ? Object.values(synced.scripts)[0] : undefined);
-      if (selected?.data) {
-        setActiveScriptData(selected.data);
-        setActiveScriptIdeaTitle(selected.ideaTitle);
-        setActiveUniversalScriptId(selected.universalScriptId ?? null);
-        const ideaMeta = synced?.ideas.find((i) => i.title === selected.ideaTitle);
-        const mins = Number(ideaMeta?.videoLength || selected.data.metrics?.videoLength || 10);
-        setActiveScriptDuration(Number.isFinite(mins) && mins > 0 ? mins : 10);
-      } else {
-        setActiveScriptData(null);
-        setActiveScriptIdeaTitle('');
-        setActiveScriptDuration(10);
-        setActiveUniversalScriptId(null);
-      }
-    } else {
-      setGeneratedIdeaIds(new Set());
-      setActiveScriptData(null);
-      setActiveScriptIdeaTitle('');
-      setActiveScriptDuration(10);
-      setActiveUniversalScriptId(null);
-    }
   }, [topic, isComposePlaceholder]);
-
-  const enterComposeNew = useCallback(() => {
-    composeOnTopicRef.current = topic;
-    setIsComposingNew(true);
-    setSearchQuery('');
-    setIsLoading(false);
-    setFetchReady(false);
-    setError(null);
-    window.setTimeout(() => searchInputRef.current?.focus(), 50);
-  }, [topic]);
 
   const handleSearchSubmit = () => {
     const trimmed = searchQuery.trim();
@@ -863,44 +826,57 @@ useEffect(() => {
       }
 
       setFetchReady(false);
+      setIsLoading(true);
 
-      // 1. Memory cache hit
-      const memCached = resultsCache.get(topic);
-      if (memCached && Date.now() - memCached.timestamp < CACHE_DURATION) {
-        console.log('[script-ideas] memory cache hit:', topic);
-        setScriptIdeas(memCached.scriptIdeas);
-        setSimilarPastIdeas(memCached.similarPastIdeas);
-        setTopicSummary(memCached.topicSummary);
-        setError(memCached.error);
-        if (!memCached.error && memCached.scriptIdeas.length) {
-          syncStudioFromIdeas(memCached.scriptIdeas, memCached.topicSummary, memCached.similarPastIdeas ?? []);
-        }
+      const { data: { session } } = await sbClient.auth.getSession();
+      if (cancelled) return;
+      const userId = session?.user?.id ?? null;
+
+      // Always prefer Supabase: saved_ideas + scripts_universal/assigned (locked or unlocked)
+      const workspace = await loadTopicWorkspace(topic, userId);
+      if (cancelled) return;
+
+      if (workspace && workspace.ideas.length > 0) {
+        console.log(
+          '[script-ideas] supabase workspace hit:',
+          topic,
+          'ideas=',
+          workspace.ideas.length,
+          'generated=',
+          workspace.ideas.filter((i) => i.generated).length,
+        );
+        applyMergedIdeas(workspace.ideas);
+        const mem = resultsCache.get(topic);
+        setSimilarPastIdeas(mem?.similarPastIdeas ?? []);
+        setTopicSummary(mem?.topicSummary ?? null);
+        setError(null);
+        saveToCache(topic, {
+          scriptIdeas: workspace.ideas.map(({ id, title, description, category }) => ({
+            id, title, description, category,
+          })),
+          similarPastIdeas: mem?.similarPastIdeas ?? [],
+          topicSummary: mem?.topicSummary ?? null,
+          error: null,
+          timestamp: Date.now(),
+        });
+        setSidebarRefresh((n) => n + 1);
         finishLoading();
         return;
       }
 
-      // 2. localStorage cache hit
-      const lsCached = getFromLocalStorage(topic);
-      if (lsCached) {
-        console.log('[script-ideas] localStorage cache hit:', topic);
-        resultsCache.set(topic, lsCached);
-        setScriptIdeas(lsCached.scriptIdeas);
-        setSimilarPastIdeas(lsCached.similarPastIdeas ?? []);
-        setTopicSummary(lsCached.topicSummary ?? null);
-        setError(lsCached.error);
-        if (!lsCached.error && lsCached.scriptIdeas.length) {
-          syncStudioFromIdeas(lsCached.scriptIdeas, lsCached.topicSummary ?? null, lsCached.similarPastIdeas ?? []);
-        }
-        finishLoading();
-        return;
-      }
-
-      // 3. Another mount is already fetching — await its promise then read from cache.
-      //    This is how React Strict Mode's second mount safely shares the first mount's request.
+      // 2. Another mount is already fetching — await then re-check DB / memory
       if (inFlightIdeas.has(topic)) {
         await inFlightIdeas.get(topic);
         if (cancelled) return;
-        const result = resultsCache.get(topic) ?? getFromLocalStorage(topic);
+        const again = await loadTopicWorkspace(topic, userId);
+        if (cancelled) return;
+        if (again?.ideas.length) {
+          applyMergedIdeas(again.ideas);
+          setError(null);
+          finishLoading();
+          return;
+        }
+        const result = resultsCache.get(topic);
         if (result) {
           setScriptIdeas(result.scriptIdeas);
           setSimilarPastIdeas(result.similarPastIdeas ?? []);
@@ -911,27 +887,28 @@ useEffect(() => {
         return;
       }
 
-      // 4. This mount owns the fetch. Create a shared promise other mounts can await.
+      // 3. Generate ideas via API and persist to saved_ideas
       let settleFetch!: () => void;
       inFlightIdeas.set(topic, new Promise<void>(res => { settleFetch = res; }));
 
       initialLoadStartRef.current = Date.now();
-      setIsLoading(true);
-      setFetchReady(false);
       setError(null);
       setScriptIdeas([]);
       setSimilarPastIdeas([]);
+      setGeneratedIdeaIds(new Set());
+      setIdeaScripts({});
+      setActiveScriptData(null);
+      setActiveScriptFromAssigned(false);
 
       const maxWaitMs = 300000;
       const retryDelayMs = 5000;
 
-      const applyResult = (
+      const applyResult = async (
         ideas: ScriptIdea[],
         err: string | null,
         summary: string | null = null,
         relatedIdeas: SimilarPastIdea[] = []
       ) => {
-        // Only cache successful results — never persist errors/empty fallbacks
         if (!err) {
           saveToCache(topic, {
             scriptIdeas: ideas,
@@ -940,12 +917,12 @@ useEffect(() => {
             error: err,
             timestamp: Date.now(),
           });
-          syncStudioFromIdeas(ideas, summary, relatedIdeas);
+          await persistNewIdeas(ideas, summary);
         }
 
         inFlightIdeas.delete(topic);
         settleFetch();
-      
+
         setScriptIdeas(ideas);
         setSimilarPastIdeas(relatedIdeas);
         setError(err);
@@ -957,23 +934,23 @@ useEffect(() => {
         try {
           const response = await ApiService.processTopic(topic);
 
-const ideas: ScriptIdea[] = (response.ideas ?? []).map((idea, idx) => ({
-  id: idx + 1,
-  title: idea,
-  description:
-    (response.descriptions ?? [])[idx] ||
-    "No description available.",
-  category: getCategoryFromIndex(idx),
-}));
+          const ideas: ScriptIdea[] = (response.ideas ?? []).map((idea, idx) => ({
+            id: idx + 1,
+            title: idea,
+            description:
+              (response.descriptions ?? [])[idx] ||
+              "No description available.",
+            category: getCategoryFromIndex(idx),
+          }));
 
-applyResult(
-  ideas,
-  null,
-  response.topic_summary ?? null,
-  response.similar_past_ideas ?? []
-);
+          await applyResult(
+            ideas,
+            null,
+            response.topic_summary ?? null,
+            response.similar_past_ideas ?? []
+          );
 
-return;
+          return;
         } catch (err) {
           const elapsed = Date.now() - (initialLoadStartRef.current ?? Date.now());
           const message = err instanceof Error ? err.message : String(err);
@@ -990,7 +967,7 @@ return;
             ? 'Server temporarily unavailable. Please try again.'
             : message || 'API temporarily unavailable. Please try again.';
 
-          applyResult([], errorMessage);
+          await applyResult([], errorMessage);
           return;
         }
       }
@@ -998,7 +975,7 @@ return;
 
     run();
     return () => { cancelled = true; };
-  }, [topic, finishLoading, syncStudioFromIdeas, isComposingNew, isComposePlaceholder]);
+  }, [topic, finishLoading, persistNewIdeas, applyMergedIdeas, isComposingNew, isComposePlaceholder]);
 
   const getCategoryFromIndex = (index: number) => {
     const categoryMap = ['Technology', 'Social Impact', 'Economic Analysis', 'Historical', 'Future Analysis'];
@@ -1166,17 +1143,11 @@ return;
       ApiService.sendUnusedIdeas({
         topic,
         topic_summary: topicSummary,
+        userId: session.user.id,
         ideas: unusedIdeas,
       });
     }
 
-    markIdeaPendingScript(topic, {
-      id: idea.id,
-      title: idea.title,
-      description: idea.description,
-      category: idea.category,
-      videoLength: videoLengths[idea.id],
-    }, videoLengths[idea.id]);
     setGeneratedIdeaIds((prev) => new Set(prev).add(idea.id));
     setSidebarRefresh((n) => n + 1);
     try {
@@ -1189,6 +1160,7 @@ return;
         JSON.stringify({
           topic,
           topic_summary: topicSummary,
+          userId: session.user.id,
           ideas: [{ title: idea.title, description: idea.description }],
         }),
       );
@@ -1220,18 +1192,16 @@ return;
         userId: session.user.id,
       });
 
-      markIdeaScriptGenerated(
-        topic,
-        {
-          id: idea.id,
-          title: idea.title,
-          description: idea.description,
-          category: idea.category,
-          videoLength: videoLengths[idea.id],
+      setIdeaScripts((prev) => ({
+        ...prev,
+        [idea.id]: {
+          data: normalized,
+          ideaTitle: idea.title,
+          universalScriptId: universalId,
         },
-        normalized,
-        universalId,
-      );
+      }));
+      setGeneratedIdeaIds((prev) => new Set(prev).add(idea.id));
+
       try {
         const safeKey = idea.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
         localStorage.setItem(
@@ -1251,6 +1221,7 @@ return;
       setActiveScriptIdeaTitle(idea.title);
       setActiveScriptDuration(Number(videoLengths[idea.id] || payload.time || 10));
       setActiveUniversalScriptId(universalId);
+      setActiveScriptFromAssigned(false);
       setStudioTab('script');
       setSidebarRefresh((n) => n + 1);
       try {
@@ -1277,18 +1248,17 @@ return;
   };
 
   const selectIdeaScript = (idea: ScriptIdea) => {
-    const rec = getTopicRecord(topic);
-    const fromStudio = rec?.scripts[String(idea.id)];
-    const storedLen = rec?.ideas.find((i) => i.id === idea.id)?.videoLength;
-    const durationFromIdea = Number(videoLengths[idea.id] || storedLen || 10);
-    if (fromStudio?.data) {
-      setActiveScriptData(fromStudio.data);
-      setActiveScriptIdeaTitle(fromStudio.ideaTitle);
-      setActiveUniversalScriptId(fromStudio.universalScriptId ?? null);
+    const fromMap = ideaScripts[idea.id];
+    const durationFromIdea = Number(videoLengths[idea.id] || 10);
+    if (fromMap?.data) {
+      setActiveScriptData(fromMap.data);
+      setActiveScriptIdeaTitle(fromMap.ideaTitle);
+      setActiveUniversalScriptId(fromMap.universalScriptId ?? null);
+      setActiveScriptFromAssigned(!!fromMap.fromAssigned);
       setActiveScriptDuration(
         Number.isFinite(durationFromIdea) && durationFromIdea > 0
           ? durationFromIdea
-          : Number(fromStudio.data.metrics?.videoLength || 10) || 10,
+          : Number(fromMap.data.metrics?.videoLength || 10) || 10,
       );
       setStudioTab('script');
       return;
@@ -1302,6 +1272,7 @@ return;
           setActiveScriptData(parsed.data);
           setActiveScriptIdeaTitle(idea.title);
           setActiveUniversalScriptId(parsed.universalScriptId ?? null);
+          setActiveScriptFromAssigned(false);
           const fromParams = Number(parsed?.params?.time);
           setActiveScriptDuration(
             Number.isFinite(fromParams) && fromParams > 0
@@ -1322,7 +1293,6 @@ return;
       refreshKey={sidebarRefresh}
       padded={false}
       contentScroll={false}
-      onNewTopic={enterComposeNew}
       topBar={
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="relative flex-1">
@@ -1356,15 +1326,67 @@ return;
     >
       <div className="flex flex-col h-full min-h-0">
         {isComposingNew || isComposePlaceholder ? (
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-              <NewTopicPrompt onFocusSearch={() => searchInputRef.current?.focus()} />
+          <>
+            <div id="studio-stage-header" className="flex-shrink-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-200/80 shadow-sm">
+              <div className="max-w-8xl mx-auto px-4 sm:px-6 pt-5 pb-4">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1d1d1f] flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <Sparkles className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
+                      Content ideas
+                    </p>
+                    <h1
+                      className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
+                      style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+                    >
+                      Start a new topic
+                    </h1>
+                  </div>
+                </div>
+                <StudioStageNav
+                  active={studioTab}
+                  onChange={setStudioTab}
+                  completed={{
+                    ideas: false,
+                    script: false,
+                    metadata: false,
+                    thumbnails: false,
+                    broll: false,
+                  }}
+                />
+              </div>
             </div>
-          </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+                {studioTab === 'ideas' ? (
+                  <NewTopicPrompt onFocusSearch={() => searchInputRef.current?.focus()} />
+                ) : (
+                  <div className="bg-white border border-gray-200 rounded-2xl text-center py-14 px-6">
+                    <p className="text-sm text-gray-500">
+                      Search a topic first to unlock {studioTab === 'script' ? 'scripts' : studioTab === 'metadata' ? 'metadata' : studioTab === 'thumbnails' ? 'thumbnails' : 'B-roll'}.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStudioTab('ideas');
+                        searchInputRef.current?.focus();
+                      }}
+                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black"
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                      Go to Content Ideas
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
         ) : (
           <>
         {/* Fixed topic + stage tabs */}
-        <div className="flex-shrink-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-200/80 shadow-sm">
+        <div id="studio-stage-header" className="flex-shrink-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-200/80 shadow-sm">
           <div className="max-w-8xl mx-auto px-4 sm:px-6 pt-5 pb-4">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1d1d1f] flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -1400,14 +1422,13 @@ return;
                 )}
 
                 {!isLoading && !error && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
                     {scriptIdeas.map((statement) => {
                       const generated = generatedIdeaIds.has(statement.id);
-                      const hook = ideaHook(statement.description);
                       return (
                         <div
                           key={statement.id}
-                          className={`relative rounded-2xl border p-5 transition-all ${
+                          className={`relative flex flex-col h-full rounded-2xl border p-5 transition-all ${
                             generated
                               ? 'bg-[#eef4ff] border-[#1a3a6b] border-2 shadow-sm'
                               : 'bg-white border-gray-200 hover:shadow-md'
@@ -1421,36 +1442,40 @@ return;
                           <h3 className="text-base font-bold text-[#1d1d1f] leading-snug pr-8 mb-2">
                             {statement.title}
                           </h3>
-                          <p className="text-sm text-[#6e6e73] leading-relaxed mb-3">
+                          <p className="text-sm text-[#6e6e73] leading-relaxed flex-1 min-h-0">
                             {statement.description}
                           </p>
-                          
-                          <div className="flex flex-wrap items-end justify-between gap-3">
-                            <div>
-                              <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
-                                Length (min)
-                              </label>
-                              <Input
-                                type="number"
-                                placeholder="8"
-                                value={videoLengths[statement.id] || ''}
-                                onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
-                                className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
-                                min={1}
-                                max={60}
-                              />
-                            </div>
-                            <div className="flex gap-2">
-                              {generated && (
+
+                          <div className="mt-auto pt-5 flex flex-wrap items-end justify-between gap-3">
+                            <div className="flex items-end">
+                              {generated ? (
                                 <button
                                   type="button"
                                   onClick={() => selectIdeaScript(statement)}
                                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-[#1d1d1f] hover:bg-gray-50"
                                 >
                                   <FileText className="w-3.5 h-3.5" />
-                                  View
+                                  View Script
                                 </button>
+                              ) : (
+                                <span className="w-[1px]" aria-hidden />
                               )}
+                            </div>
+                            <div className="flex flex-wrap items-end gap-3 ml-auto">
+                              <div>
+                                <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
+                                  Length (min)
+                                </label>
+                                <Input
+                                  type="number"
+                                  placeholder="8"
+                                  value={videoLengths[statement.id] || ''}
+                                  onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
+                                  className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
+                                  min={1}
+                                  max={60}
+                                />
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => openFaceChoice(statement)}
@@ -1492,7 +1517,7 @@ return;
                               {Math.round(pastTopic.similarity * 100)}% match
                             </span>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
                             {pastTopic.ideas.map((idea, idx) => {
                               const ideaId = 10000 + groupIdx * 100 + idx;
                               const relatedIdea: ScriptIdea = {
@@ -1505,7 +1530,7 @@ return;
                               return (
                                 <div
                                   key={`${pastTopic.id}-${idx}`}
-                                  className={`relative rounded-2xl border p-5 ${
+                                  className={`relative flex flex-col h-full rounded-2xl border p-5 ${
                                     generated
                                       ? 'bg-[#eef4ff] border-[#1a3a6b] border-2'
                                       : 'bg-white border-gray-200'
@@ -1517,31 +1542,47 @@ return;
                                     </div>
                                   )}
                                   <h3 className="text-base font-bold text-[#1d1d1f] mb-2 pr-8">{idea.title}</h3>
-                                  <p className="text-sm text-[#6e6e73] mb-4">{idea.description}</p>
-                                  <div className="flex flex-wrap items-end justify-between gap-3">
-                                    <div>
-                                      <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
-                                        Length (min)
-                                      </label>
-                                      <Input
-                                        type="number"
-                                        placeholder="8"
-                                        value={videoLengths[ideaId] || ''}
-                                        onChange={(e) => handleVideoLengthChange(ideaId, e.target.value)}
-                                        className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
-                                        min={1}
-                                        max={60}
-                                      />
+                                  <p className="text-sm text-[#6e6e73] flex-1 min-h-0">{idea.description}</p>
+                                  <div className="mt-auto pt-5 flex flex-wrap items-end justify-between gap-3">
+                                    <div className="flex items-end">
+                                      {generated ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => selectIdeaScript(relatedIdea)}
+                                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-[#1d1d1f] hover:bg-gray-50"
+                                        >
+                                          <FileText className="w-3.5 h-3.5" />
+                                          View
+                                        </button>
+                                      ) : (
+                                        <span className="w-[1px]" aria-hidden />
+                                      )}
                                     </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => openFaceChoice(relatedIdea)}
-                                      disabled={!videoLengths[ideaId]?.trim()}
-                                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed"
-                                    >
-                                      <FileText className="w-3.5 h-3.5" />
-                                      Generate script
-                                    </button>
+                                    <div className="flex flex-wrap items-end gap-3 ml-auto">
+                                      <div>
+                                        <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
+                                          Length (min)
+                                        </label>
+                                        <Input
+                                          type="number"
+                                          placeholder="8"
+                                          value={videoLengths[ideaId] || ''}
+                                          onChange={(e) => handleVideoLengthChange(ideaId, e.target.value)}
+                                          className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
+                                          min={1}
+                                          max={60}
+                                        />
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => openFaceChoice(relatedIdea)}
+                                        disabled={!videoLengths[ideaId]?.trim()}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed"
+                                      >
+                                        <FileText className="w-3.5 h-3.5" />
+                                        Generate script
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -1562,6 +1603,7 @@ return;
                 topic={topic}
                 durationMinutes={activeScriptDuration}
                 universalScriptId={activeUniversalScriptId}
+                initiallyUnlocked={activeScriptFromAssigned}
               />
             )}
 

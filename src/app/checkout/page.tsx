@@ -44,13 +44,17 @@ type DBPlanRow = {
   plan_name: string;
   plan_amount: number;
   mins: number;
-  gst: number
+  gst: number | null;
+  tagline?: string | null;
+  annual_amount?: number | null;
+  plan_amount_original?: number | null;
 };
 
 function CheckoutInner() {
   const router = useRouter();
   const params = useSearchParams();
   const tier = params.get('tier') ?? '';
+  const billing = (params.get('billing') === 'annual' ? 'annual' : 'monthly') as 'monthly' | 'annual';
 
   const [dbPlan, setDbPlan] = useState<DBPlanRow | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
@@ -71,12 +75,22 @@ function CheckoutInner() {
   useEffect(() => {
     if (!tier) { setLoadingPlan(false); return; }
     const fetchPlan = async () => {
-      const { data } = await supabase
+      const full = await supabase
         .from('subscriptions_plan')
-        .select('plan_name, plan_amount, mins, gst')
+        .select('plan_name, plan_amount, mins, gst, tagline, annual_amount, plan_amount_original')
         .ilike('plan_name', tier)
         .maybeSingle();
-      setDbPlan(data ?? null);
+
+      if (full.error) {
+        const legacy = await supabase
+          .from('subscriptions_plan')
+          .select('plan_name, plan_amount, mins, gst')
+          .ilike('plan_name', tier)
+          .maybeSingle();
+        setDbPlan(legacy.data ?? null);
+      } else {
+        setDbPlan(full.data ?? null);
+      }
       setLoadingPlan(false);
     };
     fetchPlan();
@@ -111,18 +125,19 @@ function CheckoutInner() {
 
   const planKey        = tier.toLowerCase();
   const planName       = dbPlan.plan_name;
-  const planAmount     = dbPlan.plan_amount;
-  const planPrice      = planAmount === 0 ? '₹0' : `₹${planAmount}`;
-  const planPeriod     = planAmount === 0 ? 'One-time' : '/month';
+  const isAnnual       = billing === 'annual' && dbPlan.annual_amount != null && Number(dbPlan.annual_amount) > 0;
+  const planAmount     = isAnnual ? Number(dbPlan.annual_amount) : Number(dbPlan.plan_amount);
+  const planPrice      = planAmount === 0 ? '₹0' : `₹${planAmount.toLocaleString('en-IN')}`;
+  const planPeriod     = planAmount === 0 ? 'One-time' : isAnnual ? '/year' : '/month';
   const planMins       = dbPlan.mins;
-  const plangst        = dbPlan.gst;
-  const planDesc       = PLAN_DESCRIPTIONS[planKey] ?? '';
-  const planValidity   = PLAN_VALIDITY[planKey] ?? '30 days';
+  const plangst        = dbPlan.gst ?? 0;
+  const planDesc       = (dbPlan.tagline || '').trim() || (PLAN_DESCRIPTIONS[planKey] ?? '');
+  const planValidity   = isAnnual ? '365 days' : (PLAN_VALIDITY[planKey] ?? '30 days');
   const IconComponent  = PLAN_ICONS[planKey] ?? Target;
-  const nextBillingDate = addDays(30);
+  const nextBillingDate = addDays(isAnnual ? 365 : 30);
 
-  const totalgst = (plangst * planAmount)/100
-  const totalAmount = totalgst + planAmount
+  const totalgst = (plangst * planAmount) / 100;
+  const totalAmount = totalgst + planAmount;
 
   const handlePay = async () => {
     if (!phone.trim() || !address.trim()) {
@@ -262,11 +277,12 @@ function CheckoutInner() {
             {/* Details grid */}
             <div className="space-y-0 divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
               {[
-                { label: 'Script generation', value: `${planMins} minutes` },
+                { label: 'Credits / month', value: `${planMins.toLocaleString('en-IN')} credits` },
+                { label: 'Billing', value: isAnnual ? 'Annual' : 'Monthly' },
                 { label: 'Validity',           value: planValidity },
                 { label: 'Next billing date',  value: nextBillingDate,
                   icon: <Calendar className="w-3.5 h-3.5 text-[#6e6e73]" /> },
-                { label: 'Auto billing',       value: 'Renews automatically each month',
+                { label: 'Auto billing',       value: isAnnual ? 'Renews automatically each year' : 'Renews automatically each month',
                   icon: <RefreshCw className="w-3.5 h-3.5 text-[#6e6e73]" /> },
               ].map(row => (
                 <div key={row.label} className="flex items-center justify-between px-4 py-3 bg-[#f5f5f7]">

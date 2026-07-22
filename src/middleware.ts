@@ -85,7 +85,8 @@ export function middleware(request: NextRequest) {
   // Search keyword slug
   if (first && isSearchKeywordSlug(first)) {
     const rest = segments.slice(1);
-    const topic = rest.length > 0 ? rest.join('/') : DEFAULT_SEARCH_SLUG;
+    // Bare /content-ideas (etc.) → compose studio home — no topic active
+    const topic = rest.length > 0 ? rest.join('/') : '__compose__';
     const url = request.nextUrl.clone();
     url.pathname = `/search/${decodeURIComponent(topic)}`;
     const response = NextResponse.rewrite(url);

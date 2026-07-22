@@ -2,6 +2,7 @@
 
 import StudioShell from '@/components/studio/StudioShell';
 import PricingGrid from '@/components/PricingGrid';
+import CreditsHowItWorks from '@/components/CreditsHowItWorks';
 import ContactSalesButton from '@/components/ContactSalesButton';
 
 export default function Pricing() {
@@ -24,6 +25,8 @@ export default function Pricing() {
       </div>
 
       <PricingGrid />
+
+      <CreditsHowItWorks />
 
       <div className="mt-12 sm:mt-16 text-center bg-white border border-gray-200/80 rounded-2xl px-6 py-8 shadow-sm">
         <h2

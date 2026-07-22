@@ -18,7 +18,6 @@ import { ApiFailCard } from '@/components/ApiFailCard';
 import { ApiService, GenerationParams, GeneratedScriptData, UnusedIdeasPayload } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
 import { unwrapScriptJson, normalizeScriptData } from '@/lib/script-data';
-import { markIdeaScriptGenerated } from '@/lib/studio-storage';
 import { getBackendUrl } from '@/lib/backend';
 import { STORYBIT_PRODUCTION_GUIDE } from '@/lib/production-guide';
 import {
@@ -208,23 +207,12 @@ function saveScriptToStorage(topic: string | undefined, ideaTitle: string | unde
   }
 }
 
-/** Persist generated script into studio localStorage when launched from studio flow. */
+/** Notify studio sidebar after a script is generated (scripts live in Supabase). */
 function syncScriptToStudioStorage(
-  normalizedScriptData: GeneratedScriptData,
-  universalScriptId?: string | null,
+  _normalizedScriptData: GeneratedScriptData,
+  _universalScriptId?: string | null,
 ): void {
   try {
-    const searchTopic = sessionStorage.getItem('studio_search_topic');
-    const ideaRaw = sessionStorage.getItem('studio_selected_idea');
-    if (!searchTopic || !ideaRaw) return;
-
-    const idea = JSON.parse(ideaRaw) as {
-      id: number;
-      title: string;
-      description: string;
-      category: string;
-    };
-    markIdeaScriptGenerated(searchTopic, idea, normalizedScriptData, universalScriptId);
     window.dispatchEvent(new Event('studio-storage-updated'));
   } catch {
     // Never break the script page if studio sync fails
@@ -1402,7 +1390,7 @@ if (params.get('from') === 'suggested') {
                     {structureSegments.map((seg, index) => (
                       <div key={index} className="flex items-start gap-3">
                         <div className="flex flex-col items-center flex-shrink-0">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors ${activeSegment === index ? 'bg-amber-500 text-white' : 'bg-[#1d1d1f] text-white'}`}>
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold bg-[#1d1d1f] text-white">
                             {index + 1}
                           </div>
                           {index < structureSegments.length - 1 && <div className="w-px bg-gray-200 flex-1 mt-1 min-h-[10px]" />}
@@ -1410,13 +1398,9 @@ if (params.get('from') === 'suggested') {
                         <button
                           type="button"
                           onClick={() => scrollToSegment(index)}
-                          className={`flex-1 text-left rounded-xl px-3 py-2 border min-w-0 mb-2 transition-all duration-200 ${
-                            activeSegment === index
-                              ? 'bg-amber-50 border-amber-200 shadow-sm'
-                              : 'bg-[#f5f5f7] border-gray-100 hover:border-gray-300 hover:bg-white'
-                          }`}
+                          className="flex-1 text-left rounded-xl px-3 py-2 border min-w-0 mb-2 bg-[#f5f5f7] border-gray-100 hover:border-gray-300 hover:bg-white transition-all duration-200"
                         >
-                          <p className={`font-medium text-xs break-words ${activeSegment === index ? 'text-amber-800' : 'text-[#1d1d1f]'}`}>{seg.name}</p>
+                          <p className="font-medium text-xs break-words text-[#1d1d1f]">{seg.name}</p>
                           <p className="text-[10px] text-[#6e6e73] mt-0.5 font-light">{seg.percentage}% of script</p>
                         </button>
                       </div>
@@ -1504,11 +1488,7 @@ if (params.get('from') === 'suggested') {
                       <div
                         key={i}
                         ref={el => { segmentRefs.current[i] = el; }}
-                        className={`rounded-2xl transition-all duration-500 px-3 -mx-3 ${
-                          activeSegment === i
-                            ? 'bg-amber-50 ring-2 ring-amber-200'
-                            : ''
-                        }`}
+                        className="px-3 -mx-3"
                       >
                         {formatScript(chunk || '')}
                       </div>
