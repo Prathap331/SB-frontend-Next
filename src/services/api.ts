@@ -179,8 +179,6 @@ export interface GenerationParams {
   description: string;
   /** Video length in minutes */
   time: number;
-  /** true = script/thumbnails use the user's photos, false = faceless channel */
-  isFace: boolean;
 }
 
 /** SEO block returned by /generate-script as `youtube_metadata` */
@@ -751,7 +749,6 @@ export class ApiService {
         title: params.title,
         description: params.description,
         time: params.time,
-        isFace: params.isFace,
       };
       console.log('Making API request to:', apiUrl);
       console.log('Request payload:', body);

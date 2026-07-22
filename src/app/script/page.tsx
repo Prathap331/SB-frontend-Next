@@ -382,7 +382,6 @@ export default function ScriptPage() {
               title: String(raw.title || raw.topic || raw.ideaTitle || ''),
               description: String(raw.description || ''),
               time: Number(raw.time ?? raw.duration_minutes ?? 10),
-              isFace: Boolean(raw.isFace ?? false),
             };
             if (!params.title) params = null;
           } catch {
@@ -461,7 +460,6 @@ export default function ScriptPage() {
             title: topic || 'Untitled',
             description: topic || '',
             time: duration ? parseInt(duration, 10) : 10,
-            isFace: false,
           };
           // show summary immediately
           try {

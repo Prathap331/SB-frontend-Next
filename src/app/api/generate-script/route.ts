@@ -43,12 +43,20 @@ export async function POST(request: NextRequest) {
       controller?.abort();
     }, 300000); // 5 minutes
 
+    // Forward only the generate-script contract fields (no isFace)
+    const forwardBody = {
+      userId: body?.userId,
+      title: body?.title,
+      description: body?.description,
+      time: body?.time,
+    };
+
     console.log('[generate-script] Calling backend:', API_URL);
 
     const response = await fetch(API_URL, {
       method: 'POST',
       headers,
-      body: JSON.stringify(body),
+      body: JSON.stringify(forwardBody),
       signal: controller.signal,
     });
 

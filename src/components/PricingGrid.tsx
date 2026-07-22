@@ -43,7 +43,7 @@ export default function PricingGrid() {
           .from('subscriptions_plan')
           .select(SELECT_COLS_LEGACY)
           .order('id', { ascending: true });
-        data = legacy.data;
+        data = legacy.data as typeof data;
         fetchErr = legacy.error;
       }
 

@@ -520,10 +520,9 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
     id: string;
     title: string | null;
     topic: string | null;
-    estimated_word_count: number;
-    status: string;
+    script: string | null;
+    metrics?: { totalWords?: number; videoLength?: number } | null;
     created_at: string;
-    is_public: boolean;
   };
 
   const [myScripts, setMyScripts] = useState<ScriptRow[]>([]);
@@ -957,7 +956,7 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
                     </div>
                   ) : (
                     myScripts.map(script => {
-                      const isPublished = script.status === 'published' || script.is_public;
+                      const wordCount = script.metrics?.totalWords ?? 0;
                       const dateStr = script.created_at
                         ? new Date(script.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                         : '—';
@@ -969,16 +968,11 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
                             </p>
                             <div className="flex flex-wrap items-center gap-3 mt-1.5">
                               <span className="text-[11px] text-[#6e6e73] font-light">{dateStr}</span>
-                              {script.estimated_word_count > 0 && (
+                              {wordCount > 0 && (
                                 <span className="text-[11px] text-[#6e6e73] font-light">
-                                  {script.estimated_word_count.toLocaleString()} words
+                                  {wordCount.toLocaleString()} words
                                 </span>
                               )}
-                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                isPublished ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'
-                              }`}>
-                                {isPublished ? 'Published' : script.status ?? 'Draft'}
-                              </span>
                             </div>
                           </div>
                           <button
