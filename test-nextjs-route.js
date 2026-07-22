@@ -62,7 +62,11 @@ async function testAllRoutes() {
   console.log('==================================');
   console.log('Make sure dev server is running: npm run dev\n');
   
-  const baseUrl = 'https://storybit-backend.onrender.com/';
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || '').replace(/\/$/, '');
+  if (!baseUrl) {
+    console.error('Set NEXT_PUBLIC_API_URL in .env before running this script.');
+    process.exit(1);
+  }
   
   // Test all routes simultaneously
   const tests = await Promise.all([

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getBackendUrl } from '@/lib/backend';
 
 // Ensure this route is treated as a dynamic route
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes for Vercel/Next.js
 
-const API_URL = process.env.API_URL || 'https://storybit-backend.onrender.com';
+const API_URL = getBackendUrl();
 
 // Add GET method for health check
 export async function GET() {

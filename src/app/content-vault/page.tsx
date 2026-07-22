@@ -27,7 +27,7 @@ const DURATION_RANGES = [
   { label: '15+ min',    min: 15, max: Infinity },
 ];
 
-export default function AllScriptsPage() {
+export function ContentVaultPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const [scripts, setScripts]   = useState<ScriptRow[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -90,15 +90,11 @@ export default function AllScriptsPage() {
   const clearFilters = () => { setDurationFilter(''); setCategoryFilter(''); setSubcategoryFilter(''); };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      <Header />
-
-      <main className="max-w-screen-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-
+    <div>
         {/* Page header */}
         <div className="mb-6">
           <h1
-            className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-[#1d1d1f] mb-1"
+            className={`${embedded ? 'text-2xl' : 'text-2xl sm:text-3xl md:text-4xl'} font-semibold tracking-tight text-[#1d1d1f] mb-1`}
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
           >
             Content Vault
@@ -177,7 +173,7 @@ export default function AllScriptsPage() {
 
         {/* ── Grid ── */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${embedded ? 'lg:grid-cols-2 xl:grid-cols-3' : 'lg:grid-cols-3 xl:grid-cols-4'} gap-4`}>
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="bg-white border border-gray-200/80 rounded-2xl p-5 animate-pulse">
                 <div className="h-4 bg-gray-100 rounded mb-3 w-4/5" />
@@ -198,7 +194,7 @@ export default function AllScriptsPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${embedded ? 'lg:grid-cols-2 xl:grid-cols-3' : 'lg:grid-cols-3 xl:grid-cols-4'} gap-4`}>
             {paginated.map(s => (
               <button
                 key={s.id}
@@ -282,9 +278,19 @@ export default function AllScriptsPage() {
             </button>
           </div>
         )}
-      </main>
+    </div>
+  );
+}
 
+export default function AllScriptsPage() {
+  return (
+    <div className="min-h-screen bg-[#f5f5f7]">
+      <Header />
+      <main className="max-w-screen-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <ContentVaultPanel />
+      </main>
       <Footer />
     </div>
   );
 }
+

@@ -1,5 +1,7 @@
 // Payment service for Razorpay integration
 
+import { getBackendUrl } from '@/lib/backend';
+
 export interface CreateOrderRequest {
   amount: number;
   currency: string;
@@ -82,7 +84,7 @@ export async function checkServerHealth(
     }
 
     try {
-      const response = await fetch('https://storybit-backend.onrender.com/', {
+      const response = await fetch(`${getBackendUrl()}/`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -121,7 +123,7 @@ export async function createOrder(amount: number, targetTier: string): Promise<C
     throw new Error('User not authenticated. Please login first.');
   }
 
-  const response = await fetch('https://storybit-backend.onrender.com/payments/create-order', {
+  const response = await fetch(`${getBackendUrl()}/payments/create-order`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

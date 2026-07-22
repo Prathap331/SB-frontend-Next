@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getBackendUrl } from '@/lib/backend';
 
 // This endpoint receives webhooks from Razorpay
 // Note: In production, you should verify the webhook signature using Razorpay's webhook secret
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
       // Forward to your backend for processing
       // The backend should verify the payment and update user's subscription
       try {
-        const backendUrl = 'https://storybit-backend.onrender.com/payments/webhook';
+        const backendUrl = `${getBackendUrl()}/payments/webhook`;
         const response = await fetch(backendUrl, {
           method: 'POST',
           headers: {

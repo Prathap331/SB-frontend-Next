@@ -1,14 +1,12 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertCircle, Clock, TrendingUp, TrendingDown, Search, Activity, Flame, Radio, Shield, Layers, Rocket, Target, BarChart3, Zap, Globe, Eye, Trophy, Lightbulb, Sparkles, ChevronRight, Filter, ArrowUpRight, Link2 } from 'lucide-react';
+import {
+  Loader2, Search, Globe, Sparkles, Link2,
+  Check, FileText, Menu, AlertCircle, ArrowLeft,
+} from 'lucide-react';
 import {
   Youtube,
   User2,
@@ -18,17 +16,42 @@ import {
   Upload,
   ImageOff,
 } from 'lucide-react';
-import { ApiService, TSSResponse, ECIResponse, SimilarPastIdea } from '@/services/api';
+import { ApiService, TSSResponse, ECIResponse, SimilarPastIdea, GeneratedScriptData } from '@/services/api';
 import {
   MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, PHOTO_SLOTS, PhotoKey,
 } from '@/lib/thumbnails';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import ECIExactReplica from '@/components/ECIExactReplica';
-import SuggestedTopicsSidebar from '@/components/SuggestedTopicsSidebar';
 import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
 import { ApiFailCard } from '@/components/ApiFailCard';
 import { supabase as sbClient } from '@/lib/supabaseClient';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
+import StudioSidebar, { type StudioSideView } from '@/components/studio/StudioSidebar';
+import {
+  StudioStageNav,
+  StudioScriptPanel,
+  StudioMetadataPanel,
+  StudioThumbnailsPanel,
+  StudioBRollPanel,
+  ideaHook,
+  type StudioTab,
+} from '@/components/studio/StudioPanels';
+import {
+  upsertTopicIdeas,
+  markIdeaPendingScript,
+  markIdeaScriptGenerated,
+  syncScriptsFromLegacyCache,
+  getTopicRecord,
+} from '@/lib/studio-storage';
+import { normalizeScriptData } from '@/lib/script-data';
+import { ProfileWorkspace, type ProfileTabId } from '@/app/profile/page';
+import { ContentVaultPanel } from '@/app/content-vault/page';
+
+const SCRIPT_GENERATION_STEPS = [
+  'Understanding your topic',
+  'Web searching for factual information',
+  'Analysing the data',
+  'Generating your script for YouTube',
+  'Finishing',
+];
 
 interface VideoItem {
   url: string;
@@ -517,7 +540,7 @@ const TSSCard: React.FC<TSSCardProps> = ({
 export default function SearchTopicPage() {
   const params = useParams();
   const router = useRouter();
-  const { searchPath, landingPath } = useKeywordNavigation();
+  const { searchPath } = useKeywordNavigation();
   // Read raw param and decode safely so UI shows spaces (not "%20")
   const rawTopic = Array.isArray(params?.topic) ? params.topic[0] : params?.topic ?? '';
   const topic = (() => {
@@ -552,6 +575,16 @@ export default function SearchTopicPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
+  const [studioTab, setStudioTab] = useState<StudioTab>('ideas');
+  const [generatedIdeaIds, setGeneratedIdeaIds] = useState<Set<number>>(new Set());
+  const [activeScriptData, setActiveScriptData] = useState<GeneratedScriptData | null>(null);
+  const [activeScriptIdeaTitle, setActiveScriptIdeaTitle] = useState<string>('');
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [scriptGenReady, setScriptGenReady] = useState(false);
+  const [scriptGenError, setScriptGenError] = useState<string | null>(null);
+  const [sidebarRefresh, setSidebarRefresh] = useState(0);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sideView, setSideView] = useState<StudioSideView>(null);
 
   // Mobile suggested scripts from Supabase (same fields as desktop Content Vault sidebar)
   type MobileScriptRow = {
@@ -672,8 +705,65 @@ useEffect(() => {
   //     .finally(() => setIsEciLoading(false));
   // }, [topic, activeTab]);
 
+  const syncStudioFromIdeas = useCallback((
+    ideas: ScriptIdea[],
+    summary: string | null,
+    relatedIdeas: SimilarPastIdea[],
+  ) => {
+    if (!topic || !ideas.length) return;
+    upsertTopicIdeas({
+      topic,
+      ideas: ideas.map((i) => ({
+        id: i.id,
+        title: i.title,
+        description: i.description,
+        category: i.category,
+      })),
+      topicSummary: summary,
+      similarPastIdeas: relatedIdeas,
+    });
+    syncScriptsFromLegacyCache(topic);
+    const rec = getTopicRecord(topic);
+    if (rec) {
+      setGeneratedIdeaIds(new Set(rec.ideas.filter((i) => i.hasScript).map((i) => i.id)));
+      const selected =
+        (rec.selectedIdeaId != null && rec.scripts[String(rec.selectedIdeaId)]) ||
+        Object.values(rec.scripts)[0];
+      if (selected?.data) {
+        setActiveScriptData(selected.data);
+        setActiveScriptIdeaTitle(selected.ideaTitle);
+      }
+    }
+    setSidebarRefresh((n) => n + 1);
+    try {
+      window.dispatchEvent(new Event('studio-storage-updated'));
+    } catch { /* ignore */ }
+  }, [topic]);
+
   useEffect(() => {
     setSearchQuery(topic);
+    setStudioTab('ideas');
+    setSideView(null);
+    const rec = getTopicRecord(topic);
+    if (rec) {
+      setGeneratedIdeaIds(new Set(rec.ideas.filter((i) => i.hasScript).map((i) => i.id)));
+      syncScriptsFromLegacyCache(topic);
+      const synced = getTopicRecord(topic);
+      const selected =
+        (synced?.selectedIdeaId != null && synced.scripts[String(synced.selectedIdeaId)]) ||
+        (synced ? Object.values(synced.scripts)[0] : undefined);
+      if (selected?.data) {
+        setActiveScriptData(selected.data);
+        setActiveScriptIdeaTitle(selected.ideaTitle);
+      } else {
+        setActiveScriptData(null);
+        setActiveScriptIdeaTitle('');
+      }
+    } else {
+      setGeneratedIdeaIds(new Set());
+      setActiveScriptData(null);
+      setActiveScriptIdeaTitle('');
+    }
   }, [topic]);
 
   const handleSearchSubmit = () => {
@@ -685,6 +775,11 @@ useEffect(() => {
   const handleProgressFinished = useCallback(() => {
     setIsLoading(false);
     setFetchReady(false);
+  }, []);
+
+  const handleScriptProgressFinished = useCallback(() => {
+    setIsGeneratingScript(false);
+    setScriptGenReady(false);
   }, []);
 
   const finishLoading = useCallback(() => {
@@ -707,6 +802,9 @@ useEffect(() => {
         setSimilarPastIdeas(memCached.similarPastIdeas);
         setTopicSummary(memCached.topicSummary);
         setError(memCached.error);
+        if (!memCached.error && memCached.scriptIdeas.length) {
+          syncStudioFromIdeas(memCached.scriptIdeas, memCached.topicSummary, memCached.similarPastIdeas ?? []);
+        }
         finishLoading();
         return;
       }
@@ -720,6 +818,9 @@ useEffect(() => {
         setSimilarPastIdeas(lsCached.similarPastIdeas ?? []);
         setTopicSummary(lsCached.topicSummary ?? null);
         setError(lsCached.error);
+        if (!lsCached.error && lsCached.scriptIdeas.length) {
+          syncStudioFromIdeas(lsCached.scriptIdeas, lsCached.topicSummary ?? null, lsCached.similarPastIdeas ?? []);
+        }
         finishLoading();
         return;
       }
@@ -769,6 +870,7 @@ useEffect(() => {
             error: err,
             timestamp: Date.now(),
           });
+          syncStudioFromIdeas(ideas, summary, relatedIdeas);
         }
 
         inFlightIdeas.delete(topic);
@@ -826,7 +928,7 @@ return;
 
     run();
     return () => { cancelled = true; };
-  }, [topic, finishLoading]);
+  }, [topic, finishLoading, syncStudioFromIdeas]);
 
   const getCategoryFromIndex = (index: number) => {
     const categoryMap = ['Technology', 'Social Impact', 'Economic Analysis', 'Historical', 'Future Analysis'];
@@ -972,46 +1074,20 @@ return;
   };
 
   const proceedGeneration = async (idea: ScriptIdea, isFace: boolean) => {
-    const payload = {
-      topic: idea.title,
-      // userId: user?.id || "",
-  
-      duration_minutes: Number(videoLengths[idea.id] || 10),
+    const { data: { session } } = await sbClient.auth.getSession();
+    if (!session) {
+      router.push('/auth');
+      return;
+    }
 
+    const payload = {
+      userId: session.user.id,
+      title: idea.title,
+      description: idea.description,
+      time: Number(videoLengths[idea.id] || 10),
       isFace,
-  
-      context: {
-        topic: idea.title,
-  
-        selected_idea_id: String(idea.id),
-  
-        selected_angle_id: String(idea.id),
-  
-        selected_idea: idea,
-  
-        gap_context: {},
-  
-        db_context: "",
-  
-        web_context: "",
-  
-        social_data: [],
-  
-        news_data: [],
-  
-        tss_scores: tssData || {},
-  
-        csi_scores: eciData || {},
-  
-        csi_quality: {},
-  
-        pipeline_assembled_at: new Date().toISOString(),
-  
-        seo_output: {},
-      },
     };
-  
-    // All ideas except the one the user selected are "unused" → send to backend.
+
     const unusedIdeas = scriptIdeas
       .filter((i) => i.id !== idea.id)
       .map((i) => ({ title: i.title, description: i.description }));
@@ -1024,508 +1100,408 @@ return;
       });
     }
 
-    // Stash the selected idea so the script page can report it as unused
-    // if the user leaves without unlocking the generated script.
+    markIdeaPendingScript(topic, {
+      id: idea.id,
+      title: idea.title,
+      description: idea.description,
+      category: idea.category,
+      videoLength: videoLengths[idea.id],
+    }, videoLengths[idea.id]);
+    setGeneratedIdeaIds((prev) => new Set(prev).add(idea.id));
+    setSidebarRefresh((n) => n + 1);
+    try {
+      window.dispatchEvent(new Event('studio-storage-updated'));
+    } catch { /* ignore */ }
+
     try {
       sessionStorage.setItem(
-        "pending_unused_idea",
+        'pending_unused_idea',
         JSON.stringify({
           topic,
           topic_summary: topicSummary,
           ideas: [{ title: idea.title, description: idea.description }],
-        })
+        }),
+      );
+      sessionStorage.setItem('studio_search_topic', topic);
+      sessionStorage.setItem(
+        'studio_selected_idea',
+        JSON.stringify({
+          id: idea.id,
+          title: idea.title,
+          description: idea.description,
+          category: idea.category,
+        }),
       );
     } catch (err) {
       console.error(err);
     }
 
+    setScriptGenError(null);
+    setScriptGenReady(false);
+    setIsGeneratingScript(true);
+
     try {
-      sessionStorage.setItem(
-        "generate_params",
-        JSON.stringify(payload)
+      const raw = await ApiService.generateScript(payload);
+      const normalized = normalizeScriptData(raw);
+      markIdeaScriptGenerated(
+        topic,
+        {
+          id: idea.id,
+          title: idea.title,
+          description: idea.description,
+          category: idea.category,
+          videoLength: videoLengths[idea.id],
+        },
+        normalized,
       );
-    } catch (err) {
-      console.error(err);
+      try {
+        const safeKey = idea.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+        localStorage.setItem(
+          `script_${safeKey}`,
+          JSON.stringify({
+            data: normalized,
+            params: payload,
+            timestamp: Date.now(),
+            pageTitle: idea.title,
+          }),
+        );
+        localStorage.setItem('script_latest_key', `script_${safeKey}`);
+      } catch { /* ignore */ }
+
+      setActiveScriptData(normalized);
+      setActiveScriptIdeaTitle(idea.title);
+      setStudioTab('script');
+      setSidebarRefresh((n) => n + 1);
+      try {
+        window.dispatchEvent(new Event('studio-storage-updated'));
+      } catch { /* ignore */ }
+      setScriptGenReady(true);
+    } catch (e: any) {
+      console.error(e);
+      setScriptGenError(e?.message || 'Failed to generate script. Please try again.');
+      setScriptGenReady(true);
     }
-  
-    router.push(`/script/${encodeURIComponent(idea.title)}`);
   };
 
   const handleVideoLengthChange = (id: number, value: string) => {
     setVideoLengths((prev) => ({ ...prev, [id]: value }));
   };
 
+  const stageCompleted = {
+    ideas: scriptIdeas.length > 0,
+    script: !!activeScriptData?.script,
+    metadata: !!(activeScriptData?.youtube_metadata?.titles?.length || activeScriptData?.youtube_metadata?.descriptions?.length || activeScriptData?.youtube_metadata?.hashtags?.length),
+    thumbnails: !!(activeScriptData?.youtube_metadata?.thumbnail_text?.length),
+    broll: false,
+  };
+
+  const selectIdeaScript = (idea: ScriptIdea) => {
+    const rec = getTopicRecord(topic);
+    const fromStudio = rec?.scripts[String(idea.id)];
+    if (fromStudio?.data) {
+      setActiveScriptData(fromStudio.data);
+      setActiveScriptIdeaTitle(fromStudio.ideaTitle);
+      setStudioTab('script');
+      return;
+    }
+    try {
+      const safeKey = idea.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      const raw = localStorage.getItem(`script_${safeKey}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.data) {
+          setActiveScriptData(parsed.data);
+          setActiveScriptIdeaTitle(idea.title);
+          setStudioTab('script');
+        }
+      }
+    } catch { /* ignore */ }
+  };
+
   return (
-    <div className="min-h-screen bg-[#E9EBF0]/20">
-      <Header />
-
-      
-
-      {/* ── Page-level flex: main content | desktop sidebar ── */}
-  <div className="flex w-full items-start gap-0">
-
-        {/* ── Main content ── */}
-        <div className="flex-1 min-w-0">
-
-
-          
-      {/* Search Section */}
-      <div className="container  mx-auto px-4 lg:px-8  py-6 sm:py-4">
-        <div className="w-full shadow-lg border border-gray-400 rounded-full">
-          <div className="relative flex items-center rounded-full">
-                 <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 z-10" />
-                 <Input
-                   type="text"
-                   placeholder="Search for topics, current events, and documentary ideas"
-                   value={searchQuery}
-                   onChange={(e) => setSearchQuery(e.target.value)}
-                   onKeyDown={(e) => {
-                     if (e.key === 'Enter') {
-                       e.preventDefault();
-                       handleSearchSubmit();
-                     }
-                   }}
-                   className="pl-10 sm:pl-12 md:pl-14 pr-20 sm:pr-24 md:pr-32 py-4 sm:py-5 md:py-7 text-xs sm:text-sm md:text-lg rounded-full border-0 bg-white text-black placeholder-gray-500 focus:bg-white focus:ring-2 focus:ring-gray-400 font-sans w-full"
-                 />
-                 <button
-                   onClick={handleSearchSubmit}
-                   className="absolute right-1.5 sm:right-2 top-1/2 transform -translate-y-1/2 rounded-full bg-black text-white hover:bg-gray-800 hover:shadow-xl hover:scale-105 px-3 sm:px-4 md:px-6 py-2 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-lg font-medium font-sans transition-all duration-300 ease-in-out"
-                 >
-                   <span className="hidden sm:inline">Generate Ideas</span>
-                   <span className="sm:hidden">Generate</span>
-                 </button>
-          </div>
-        </div>
+    <div className="h-screen overflow-hidden bg-[#f5f6f8] flex">
+      <div className="hidden lg:flex h-full">
+        <StudioSidebar
+          activeTopic={topic}
+          refreshKey={sidebarRefresh}
+          activeView={sideView}
+          onSelectView={setSideView}
+        />
       </div>
 
-      {/* Topic Summary */}
-{topicSummary && (
-  <div className="container mx-auto px-4 lg:px-8 pb-2">
-     <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 flex flex-col gap-3 items-start shadow-sm">
-      <div className="flex items-center gap-3">
-      <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-        <Globe className="w-3.5 h-3.5 text-indigo-500" />
-      </div>
-      <p className="text-lg text-[#3d3d3a] font-semibold leading-relaxed">Topic Summary</p>
-      </div>
-
-
-      <p className="text-md text-[#3d3d3a] font-[500] leading-relaxed">{topicSummary}</p>
-    </div>
-  </div>
-)}
-
-{/* <div className="container mx-auto px-4 lg:px-8 pb-2">
-    <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 flex flex-col gap-3 items-start shadow-sm">
-      <div className="flex items-center gap-3">
-      <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-        <Globe className="w-3.5 h-3.5 text-indigo-500" />
-      </div>
-      <p className="text-lg text-[#3d3d3a] font-semibold leading-relaxed">Topic Summary</p>
-      </div>
-
-
-      <p className="text-md text-[#3d3d3a] font-[500] leading-relaxed">We trace the money trail behind the Ketan Agarwal murder—insurance policies, debt write-offs, business takeovers—to expose the person who gained the most from his death. This financial forensics investigation reveals a suspect hidden in plain sight, completely overlooked by mainstream coverage.</p>
-    </div>
-  </div> */}
-
-{/*       
-      <section className="container  mx-auto px-4 lg:px-8 py-6 sm:py-4">
-        <Card className="shadow-xl border border-gray-200 bg-white overflow-hidden flex flex-col">
-          <CardHeader className="pb-3 px-2 sm:px-8">
-            <div className="overflow-x-auto scrollbar-none">
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mt-4 w-fit max-w-full flex-wrap sm:flex-nowrap">
-                {([
-                  { key: 'tss' as const, label: 'Trend Strength Score',          icon: TrendingUp },
-                  { key: 'eci' as const, label: 'Evergreen Content Intelligence', icon: Activity   },
-                ]).map(({ key, label, icon: Icon }) => (
-                  <button key={key} onClick={() => setActiveTab(key)}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
-                      activeTab === key ? 'bg-white text-[#1d1d1f] shadow-sm font-semibold' : 'text-gray-500 hover:text-[#1d1d1f]'
-                    }`}>
-                    <Icon className="w-3.5 h-3.5 flex-shrink-0" />{label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="overflow-y-auto pb-6 px-2 sm:px-8">
-
-           
-            {activeTab === 'tss' && isTssLoading && (
-              <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <Loader2 className="w-7 h-7 animate-spin text-[#1d1d1f]" />
-                <p className="text-sm text-[#6e6e73] font-light">Fetching trend signals…</p>
-              </div>
-            )}
-
-{activeTab === 'tss' && !isTssLoading && tssData && (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-    {mapTssToCards(tssData).map((card, i) => (
-      <TSSCard key={i} {...card} />
-    ))}
-  </div>
-)}
-
-            {activeTab === 'tss' && !isTssLoading && !tssData && (
-              <div className="flex flex-col items-center justify-center py-16 text-center gap-3 px-6">
-                <Activity className="w-8 h-8 text-gray-300" />
-                <p className="text-sm text-[#6e6e73]">No trend data available for this topic yet.</p>
-              </div>
-            )}
-
-        
-            {activeTab === 'eci' && eciData && (
-  <ECIExactReplica data={eciData} />
-)}
-
-            {activeTab === 'eci' && !isEciLoading && !eciData && (
-              <div className="flex flex-col items-center justify-center py-16 text-center gap-3 px-6">
-                <Sparkles className="w-8 h-8 text-gray-300" />
-                <p className="text-sm text-[#6e6e73]">No evergreen data available for this topic yet.</p>
-              </div>
-            )}
-
-          </CardContent>
-        </Card>
-      </section> */}
-  
-
-
-
-
-
-      {/* ── Content Ideas Section ── */}
-      <div className="container  px-4 lg:px-8 py-8 sm:py-12">
-      <div className="bg-gray-100 rounded-3xl relative">
-          {/* Header — full width, sticky */}
-          <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-1 min-w-0">
-              <div className='flex gap-4'>
-
-              <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0">
-                <Lightbulb className="w-6 h-6 text-orange-500" />
-              </div>
-              <div className='sm:hidden'>
-                <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">AI-generated</p>
-                <h2 className="text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
-                  Content Ideas
-                </h2>
-              </div>
-              </div>
-
-
-              <div className="min-w-0">
-                <p className="hidden  sm:block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">AI-generated</p>
-                <h2 className="hidden sm:block text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
-                  Content Ideas
-                </h2>
-
-                  <span className="inline-flex items-center gap-1.5 bg-[#1d1d1f] text-white text-sm font-semibold px-3 py-0.5 rounded-full">
-                    <Sparkles className="w-3 h-3 text-orange-400" />
-                    {topic}
-                  </span>
-
-                
-                <p className="text-sm text-[#6e6e73] mt-1">Choose a perspective and generate a full youtube content in seconds</p>
-              </div>
-            </div>
-            {!isLoading && (
-              <div className="flex-shrink-0 self-start sm:self-center">
-                <span className="inline-flex items-center gap-1.5 bg-[#f5f5f7] text-[#6e6e73] text-xs font-medium px-3 py-1.5 rounded-full">
-                  <Filter className="w-3 h-3" />
-                  {scriptIdeas.length} idea{scriptIdeas.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Ideas list */}
-          <div className="px-4 pb-8">
-            <div className="flex-1 min-w-0">
-
-              {isLoading ? null : error && (
-                <ApiFailCard onRetry={() => window.location.reload()} />
-              )}
-
-    
-              {!isLoading && (
-                <div className="space-y-4">
-                  {scriptIdeas.map((statement, idx) => (
-                    <div
-                      key={statement.id}
-                      className="bg-white border border-gray-200/80 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
-                    >
-                      <div className="px-6 pt-5 pb-4 border-b border-gray-100">
-                        <div className="flex flex-col sm:flex-row items-start gap-4">
-                          <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <span className="text-xs font-black text-orange-500">{String(idx + 1).padStart(2, '0')}</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                              <span className="inline-flex items-center gap-1 bg-[#f5f5f7] text-[#6e6e73] text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full uppercase">
-                                {statement.category}
-                              </span>
-                              <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                                <TrendingUp className="w-2.5 h-2.5" />
-                                Trending
-                              </span>
-                            </div>
-                            <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f] leading-snug">{statement.title}</h3>
-                          </div>
-                        </div>
-                        <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed sm:pl-12  ">{statement.description}</p>
-                      </div>
-                      <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-[#fafafa]">
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Clock className="w-3.5 h-3.5 text-[#6e6e73]" />
-                          <label className="text-xs font-medium text-[#6e6e73]">Length (min)</label>
-                          <Input
-                            type="number"
-                            placeholder="10"
-                            value={videoLengths[statement.id] || ''}
-                            onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
-                            className="w-16 h-7 text-xs rounded-lg border-gray-200 bg-white text-center"
-                            min={1}
-                            max={60}
-                          />
-                        </div>
-                        <div className="sm:ml-auto">
-                          <button
-                            onClick={() => openFaceChoice(statement)}
-                            disabled={!videoLengths[statement.id]?.trim()}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
-                          >
-                            <Sparkles className="w-3.5 h-3.5 text-orange-400" />
-                            Generate Content
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  {scriptIdeas.length === 0 && !error && (
-                    <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm text-center py-14">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-[#f5f5f7] flex items-center justify-center">
-                          <Filter className="w-5 h-5 text-[#6e6e73]" />
-                        </div>
-                        <p className="text-sm text-[#6e6e73]">No ideas match this category</p>
-                        <button className="text-xs font-semibold text-[#1d1d1f] border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-[#f5f5f7] transition-colors">
-                          Show all
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            
-
-            
-
-          </div>
-        </div>
-      </div>
-
-      {/* ── Related Topic Ideas Section ── */}
-      {(isLoading || similarPastIdeas.length > 0) && (
-        <div className="container px-4 lg:px-8 pb-8 sm:pb-12">
-          <div className="bg-gray-100 rounded-3xl relative">
-            <div className="sticky top-14 z-10 bg-white border border-gray-200/80 rounded-3xl shadow-sm px-8 py-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-1 min-w-0">
-
-                <div className='flex gap-4'>
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center flex-shrink-0">
-                  <Link2 className="w-6 h-6 text-indigo-500" />
-                </div>
-
-                <div className='sm:hidden'>
-                  <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">From past searches</p>
-                  <h2 className="text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
-                    Related Topic Ideas
-                  </h2>
-                </div>
-</div>
-
-
-                <div className="min-w-0">
-                  <p className="hidden sm:block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-0.5">From past searches</p>
-                  <h2 className="hidden sm:block text-xl sm:text-2xl font-bold text-[#1d1d1f] leading-tight flex flex-wrap items-center gap-2">
-                    Related Topic Ideas
-                  </h2>
-                    <span className="inline-flex items-center gap-1.5 bg-[#1d1d1f] text-white text-sm font-semibold px-3 py-0.5 rounded-full">
-                      <Sparkles className="w-3 h-3 text-indigo-400" />
-                      {topic}
-                    </span>
-                  <p className="text-sm text-[#6e6e73] mt-1">Ideas from similar topics you&apos;ve explored before</p>
-                </div>
-              </div>
-              {!isLoading && (
-                <div className="flex-shrink-0 self-start sm:self-center">
-                  <span className="inline-flex items-center gap-1.5 bg-[#f5f5f7] text-[#6e6e73] text-xs font-medium px-3 py-1.5 rounded-full">
-                    <Filter className="w-3 h-3" />
-                    {similarPastIdeas.reduce((sum, g) => sum + g.ideas.length, 0)} idea{similarPastIdeas.reduce((sum, g) => sum + g.ideas.length, 0) !== 1 ? 's' : ''}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="px-4 pb-8">
-              {!isLoading && (
-                <div className="space-y-8">
-                  {similarPastIdeas.map((pastTopic, groupIdx) => (
-                    <div key={pastTopic.id}>
-                      <div className="flex flex-wrap items-center gap-3 mb-4 px-2">
-                        <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 text-xs font-semibold px-3 py-1 rounded-full border border-indigo-100">
-                          <Globe className="w-3 h-3" />
-                          {pastTopic.topic}
-                        </span>
-                        <span className="inline-flex items-center gap-1 bg-[#f5f5f7] text-[#6e6e73] text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                          {Math.round(pastTopic.similarity * 100)}% match
-                        </span>
-                      </div>
-
-                      <div className="space-y-4">
-                        {pastTopic.ideas.map((idea, idx) => {
-                          const ideaId = 10000 + groupIdx * 100 + idx;
-                          const relatedIdea: ScriptIdea = {
-                            id: ideaId,
-                            title: idea.title,
-                            description: idea.description,
-                            category: pastTopic.topic,
-                          };
-
-                          return (
-                            <div
-                              key={`${pastTopic.id}-${idx}`}
-                              className="bg-white border border-gray-200/80 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
-                            >
-                              <div className="px-6 pt-5 pb-4 border-b border-gray-100">
-                                <div className="flex flex-col sm:flex-row items-start gap-4">
-                                  <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                    <span className="text-xs font-black text-indigo-500">{String(idx + 1).padStart(2, '0')}</span>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                                      <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full uppercase">
-                                        Related
-                                      </span>
-                                    </div>
-                                    <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f] leading-snug">{idea.title}</h3>
-                                  </div>
-                                </div>
-                                <p className="mt-3 text-sm text-[#6e6e73] leading-relaxed sm:pl-12">{idea.description}</p>
-                              </div>
-                              <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-[#fafafa]">
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  <Clock className="w-3.5 h-3.5 text-[#6e6e73]" />
-                                  <label className="text-xs font-medium text-[#6e6e73]">Length (min)</label>
-                                  <Input
-                                    type="number"
-                                    placeholder="10"
-                                    value={videoLengths[ideaId] || ''}
-                                    onChange={(e) => handleVideoLengthChange(ideaId, e.target.value)}
-                                    className="w-16 h-7 text-xs rounded-lg border-gray-200 bg-white text-center"
-                                    min={1}
-                                    max={60}
-                                  />
-                                </div>
-                                <div className="sm:ml-auto">
-                                  <button
-                                    onClick={() => openFaceChoice(relatedIdea)}
-                                    disabled={!videoLengths[ideaId]?.trim()}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
-                                  >
-                                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                                    Generate Content
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileNavOpen(false)} />
+          <div className="absolute inset-y-0 left-0 h-full shadow-xl">
+            <StudioSidebar
+              activeTopic={topic}
+              refreshKey={sidebarRefresh}
+              activeView={sideView}
+              onSelectView={(v) => {
+                setSideView(v);
+                setMobileNavOpen(false);
+              }}
+            />
           </div>
         </div>
       )}
 
-
-
-        {/* ── Mobile: horizontal suggested scripts slider (lg+ hidden) ── */}
-        <div className="lg:hidden px-4 sm:px-6 py-6 border-t border-gray-100">
-          <div className="flex items-center gap-3 mb-3">
-            <p className="text-[10px] font-semibold tracking-widest text-[#6e6e73] uppercase">
-              Content Vault
-            </p>
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        <div className="flex-shrink-0 border-b border-gray-200/80 bg-white/80 backdrop-blur-md px-4 sm:px-6 py-3">
+          <div className="flex items-center gap-3 max-w-5xl mx-auto">
             <button
-              onClick={() => router.push(landingPath('/content-vault'))}
-              className="flex items-center gap-1 text-[10px] font-medium text-[#1d1d1f] bg-white border border-gray-200 hover:border-gray-400 px-2.5 py-1 rounded-full transition-all"
+              type="button"
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open menu"
             >
-              View all <ArrowUpRight className="w-3 h-3" />
+              <Menu className="w-5 h-5" />
             </button>
-          </div>
-          <div
-            className="flex gap-3 overflow-x-auto pb-2"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            {mobileSuggested.map(s => (
-              <button
-                key={s.id}
-                onClick={() => router.push(`/script?scriptId=${s.id}`)}
-                className="group flex-shrink-0 w-52 text-left bg-white border border-gray-200/80 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-150"
-              >
-                <p className="text-xs font-semibold text-[#1d1d1f] leading-snug mb-1.5 line-clamp-2 group-hover:text-black">
-                  {s.title || s.topic || 'Untitled Script'}
-                </p>
-                <p className="text-[10px] text-[#6e6e73] font-light leading-relaxed line-clamp-2 mb-2">
-                  {s.script ? s.script.slice(0, 120).replace(/\*+/g, '').trim() + '…' : ''}
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {s.duration != null && s.duration > 0 && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full">
-                      <Clock className="w-2.5 h-2.5" />
-                      {s.duration} min
-                    </span>
-                  )}
-                  {s.category && (
-                    <span className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-1.5 py-0.5 rounded-full">
-                      {s.category}
-                    </span>
-                  )}
-                  {(s.subcategories ?? []).slice(0, 2).map(sub => (
-                    <span
-                      key={sub}
-                      className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-1.5 py-0.5 rounded-full"
-                    >
-                      {sub}
-                    </span>
-                  ))}
-                </div>
-              </button>
-            ))}
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search a topic (e.g. 'productivity for developers')"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSearchSubmit();
+                  }
+                }}
+                className="pl-10 pr-4 py-5 rounded-full border-gray-200 bg-white text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSearchSubmit}
+              className="flex items-center gap-2 rounded-full bg-[#3d3d3a] hover:bg-[#1d1d1f] text-white text-sm font-semibold px-4 py-2.5 transition-colors flex-shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Generate ideas</span>
+              <span className="sm:hidden">Go</span>
+            </button>
           </div>
         </div>
 
-        
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+            {sideView ? (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setSideView(null)}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-[#1d1d1f] mb-5 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to topic
+                </button>
+                {sideView === 'content-vault' ? (
+                  <ContentVaultPanel embedded />
+                ) : (
+                  <ProfileWorkspace
+                    embedded
+                    forcedTab={sideView as ProfileTabId}
+                  />
+                )}
+              </div>
+            ) : (
+              <>
+            <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">Topic</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#1d1d1f] mb-5 break-words">{topic}</h1>
 
+            <div className="mb-6">
+              <StudioStageNav
+                active={studioTab}
+                onChange={setStudioTab}
+                completed={stageCompleted}
+              />
+            </div>
 
-        </div>{/* end main content */}
+            {studioTab === 'ideas' && (
+              <>
+                {isLoading ? null : error && (
+                  <ApiFailCard onRetry={() => window.location.reload()} />
+                )}
 
-        {/* ── Desktop sidebar: sticky for the whole page ── */}
-        <aside className="hidden lg:block flex-shrink-0 w-80 self-start sticky top-[72px] h-[calc(100vh-72px)] overflow-y-auto pt-6 pr-4 pb-6"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          <SuggestedTopicsSidebar />
-        </aside>
+                {!isLoading && !error && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {scriptIdeas.map((statement) => {
+                      const generated = generatedIdeaIds.has(statement.id);
+                      const hook = ideaHook(statement.description);
+                      return (
+                        <div
+                          key={statement.id}
+                          className={`relative rounded-2xl border p-5 transition-all ${
+                            generated
+                              ? 'bg-[#eef4ff] border-[#1a3a6b] border-2 shadow-sm'
+                              : 'bg-white border-gray-200 hover:shadow-md'
+                          }`}
+                        >
+                          {generated && (
+                            <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-[#1d1d1f] flex items-center justify-center">
+                              <Check className="w-3.5 h-3.5 text-white" />
+                            </div>
+                          )}
+                          <h3 className="text-base font-bold text-[#1d1d1f] leading-snug pr-8 mb-2">
+                            {statement.title}
+                          </h3>
+                          <p className="text-sm text-[#6e6e73] leading-relaxed mb-3">
+                            {statement.description}
+                          </p>
+                          
+                          <div className="flex flex-wrap items-end justify-between gap-3">
+                            <div>
+                              <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
+                                Length (min)
+                              </label>
+                              <Input
+                                type="number"
+                                placeholder="8"
+                                value={videoLengths[statement.id] || ''}
+                                onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
+                                className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
+                                min={1}
+                                max={60}
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              {generated && (
+                                <button
+                                  type="button"
+                                  onClick={() => selectIdeaScript(statement)}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-[#1d1d1f] hover:bg-gray-50"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  View
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => openFaceChoice(statement)}
+                                disabled={!videoLengths[statement.id]?.trim()}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                Generate script
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-      </div>{/* end page-level flex */}
+                {!isLoading && scriptIdeas.length === 0 && !error && (
+                  <div className="bg-white border border-gray-200 rounded-2xl text-center py-14">
+                    <p className="text-sm text-gray-500">No ideas yet for this topic.</p>
+                  </div>
+                )}
+
+                {!isLoading && similarPastIdeas.length > 0 && (
+                  <div className="mt-10">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Link2 className="w-4 h-4 text-indigo-500" />
+                      <h2 className="text-lg font-bold text-[#1d1d1f]">Related topic ideas</h2>
+                    </div>
+                    <div className="space-y-6">
+                      {similarPastIdeas.map((pastTopic, groupIdx) => (
+                        <div key={pastTopic.id}>
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 text-xs font-semibold px-3 py-1 rounded-full border border-indigo-100">
+                              <Globe className="w-3 h-3" />
+                              {pastTopic.topic}
+                            </span>
+                            <span className="text-[10px] font-semibold text-gray-400">
+                              {Math.round(pastTopic.similarity * 100)}% match
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {pastTopic.ideas.map((idea, idx) => {
+                              const ideaId = 10000 + groupIdx * 100 + idx;
+                              const relatedIdea: ScriptIdea = {
+                                id: ideaId,
+                                title: idea.title,
+                                description: idea.description,
+                                category: pastTopic.topic,
+                              };
+                              const generated = generatedIdeaIds.has(ideaId);
+                              return (
+                                <div
+                                  key={`${pastTopic.id}-${idx}`}
+                                  className={`relative rounded-2xl border p-5 ${
+                                    generated
+                                      ? 'bg-[#eef4ff] border-[#1a3a6b] border-2'
+                                      : 'bg-white border-gray-200'
+                                  }`}
+                                >
+                                  {generated && (
+                                    <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-[#1d1d1f] flex items-center justify-center">
+                                      <Check className="w-3.5 h-3.5 text-white" />
+                                    </div>
+                                  )}
+                                  <h3 className="text-base font-bold text-[#1d1d1f] mb-2 pr-8">{idea.title}</h3>
+                                  <p className="text-sm text-[#6e6e73] mb-4">{idea.description}</p>
+                                  <div className="flex flex-wrap items-end justify-between gap-3">
+                                    <div>
+                                      <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
+                                        Length (min)
+                                      </label>
+                                      <Input
+                                        type="number"
+                                        placeholder="8"
+                                        value={videoLengths[ideaId] || ''}
+                                        onChange={(e) => handleVideoLengthChange(ideaId, e.target.value)}
+                                        className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
+                                        min={1}
+                                        max={60}
+                                      />
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => openFaceChoice(relatedIdea)}
+                                      disabled={!videoLengths[ideaId]?.trim()}
+                                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                      <FileText className="w-3.5 h-3.5" />
+                                      Generate script
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {studioTab === 'script' && (
+              <StudioScriptPanel
+                data={activeScriptData}
+                ideaTitle={activeScriptIdeaTitle}
+              />
+            )}
+
+            {studioTab === 'metadata' && (
+              <StudioMetadataPanel data={activeScriptData} />
+            )}
+
+            {studioTab === 'thumbnails' && (
+              <StudioThumbnailsPanel data={activeScriptData} />
+            )}
+
+            {studioTab === 'broll' && <StudioBRollPanel />}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
       <GenerationProgressOverlay
         isOpen={isLoading}
@@ -1533,6 +1509,33 @@ return;
         onFinished={handleProgressFinished}
         subtext={`Usually under 5 minutes. We're analysing "${topic}" in the background.`}
       />
+
+      <GenerationProgressOverlay
+        isOpen={isGeneratingScript}
+        ready={scriptGenReady}
+        onFinished={handleScriptProgressFinished}
+        steps={SCRIPT_GENERATION_STEPS}
+        subtext="Usually under 5 minutes. We'll keep working in the background."
+      />
+
+      {scriptGenError && !isGeneratingScript && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] max-w-md w-[calc(100%-2rem)]">
+          <div className="bg-white border border-red-200 shadow-lg rounded-2xl px-4 py-3 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-[#1d1d1f]">Script generation failed</p>
+              <p className="text-xs text-[#6e6e73] mt-0.5 break-words">{scriptGenError}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setScriptGenError(null)}
+              className="text-xs font-semibold text-gray-500 hover:text-[#1d1d1f]"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Face choice popup ── */}
       {faceChoiceIdea && !showPhotoPopup && (
@@ -1695,8 +1698,6 @@ return;
           </div>
         </div>
       )}
-
-        <Footer />
     </div>
   );
 }

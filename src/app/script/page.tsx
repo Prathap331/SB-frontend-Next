@@ -17,6 +17,9 @@ import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
 import { ApiFailCard } from '@/components/ApiFailCard';
 import { ApiService, GenerationParams, GeneratedScriptData, UnusedIdeasPayload } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
+import { unwrapScriptJson, normalizeScriptData } from '@/lib/script-data';
+import { markIdeaScriptGenerated } from '@/lib/studio-storage';
+import { getBackendUrl } from '@/lib/backend';
 import nlp from 'compromise';
 
 // Accent colors cycled across the SEO option cards (option 1 / 2 / 3)
@@ -92,76 +95,13 @@ const STORYBIT_PRODUCTION_GUIDE = {
   },
 } as const;
 
-// Unwrap JSON envelope if backend returned {"script": "..."} as raw string
-function unwrapScriptJson(text: string): string {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith('{')) return trimmed;
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (typeof parsed.script === 'string') return parsed.script;
-  } catch {
-    const m = trimmed.match(/"script"\s*:\s*"([\s\S]*)"/);
-    if (m) return m[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
-  }
-  return trimmed;
-}
-
-// Extract the script text from a raw API/DB payload
-function extractScriptText(raw: any): string {
-  if (!raw) return '';
-  if (typeof raw === 'object') {
-    const s = raw.script || '';
-    return typeof s === 'string' ? unwrapScriptJson(s) : '';
-  }
-  if (typeof raw === 'string') return unwrapScriptJson(raw);
-  return '';
-}
-
 /**
  * Normalizes a /generate-script response (or a Supabase row) into
  * GeneratedScriptData, bridging the new structure
  * (youtube_metadata / metrics / sources / books) with legacy fields
  * (seo / analysis / source_urls) so both old and new payloads render.
  */
-function normalizeScriptData(raw: any): GeneratedScriptData {
-  const metrics = raw?.metrics ?? undefined;
-
-  // New responses put SEO data in youtube_metadata; DB rows persist it under seo.youtube_metadata
-  const youtube_metadata = raw?.youtube_metadata ?? raw?.seo?.youtube_metadata ?? undefined;
-
-  const sources: string[] =
-    Array.isArray(raw?.sources) && raw.sources.length > 0
-      ? raw.sources
-      : Array.isArray(raw?.source_urls)
-        ? raw.source_urls
-        : [];
-
-  const books = Array.isArray(raw?.books) && raw.books.length > 0
-    ? raw.books
-    : Array.isArray(raw?.seo?.books)
-      ? raw.seo.books
-      : [];
-
-  const analysis = raw?.analysis ?? {
-    examples_count:       metrics?.generalExamples ?? 0,
-    research_facts_count: metrics?.researchFacts ?? 0,
-    proverbs_count:       metrics?.proverbs_count ?? 0,
-    emotional_depth:      metrics?.emotionalDepth != null ? String(metrics.emotionalDepth) : '',
-    history:              metrics?.historical_facts ?? metrics?.history ?? 0,
-  };
-
-  return {
-    ...raw,
-    script: extractScriptText(raw),
-    estimated_word_count: raw?.estimated_word_count ?? metrics?.totalWords ?? 0,
-    source_urls: sources,
-    sources,
-    books,
-    analysis,
-    youtube_metadata,
-    structure: Array.isArray(raw?.structure) ? raw.structure : [],
-  };
-}
+// normalizeScriptData / extractScriptText / unwrapScriptJson live in @/lib/script-data
 
 function cleanScriptText(text: string): string {
   if (!text) return '';
@@ -320,6 +260,26 @@ function saveScriptToStorage(topic: string | undefined, ideaTitle: string | unde
   }
 }
 
+/** Persist generated script into studio localStorage when launched from studio flow. */
+function syncScriptToStudioStorage(normalizedScriptData: GeneratedScriptData): void {
+  try {
+    const searchTopic = sessionStorage.getItem('studio_search_topic');
+    const ideaRaw = sessionStorage.getItem('studio_selected_idea');
+    if (!searchTopic || !ideaRaw) return;
+
+    const idea = JSON.parse(ideaRaw) as {
+      id: number;
+      title: string;
+      description: string;
+      category: string;
+    };
+    markIdeaScriptGenerated(searchTopic, idea, normalizedScriptData);
+    window.dispatchEvent(new Event('studio-storage-updated'));
+  } catch {
+    // Never break the script page if studio sync fails
+  }
+}
+
 // Load script from localStorage - only returns exact matches, no fallback to latest
 function loadScriptFromStorage(topic?: string, ideaTitle?: string): CachedScriptData | null {
   try {
@@ -331,7 +291,8 @@ function loadScriptFromStorage(topic?: string, ideaTitle?: string): CachedScript
       const now = Date.now();
       if (cached.timestamp && now - cached.timestamp < CACHE_DURATION) {
         // Double-check that cached params match what we're looking for
-        if (cached.params.topic === topic && cached.params.ideaTitle === ideaTitle) {
+        const cachedTitle = cached.params.title;
+        if (cachedTitle === topic || cachedTitle === ideaTitle) {
           return cached;
         } else {
           // Mismatch - remove invalid cache
@@ -474,7 +435,16 @@ export default function ScriptPage() {
         paramsJson = sessionStorage.getItem('generate_params');
         if (paramsJson) {
           try {
-            params = JSON.parse(paramsJson);
+            const raw = JSON.parse(paramsJson) as Record<string, unknown>;
+            // Normalize to current /generate-script contract
+            params = {
+              userId: String(raw.userId || session.user.id),
+              title: String(raw.title || raw.topic || raw.ideaTitle || ''),
+              description: String(raw.description || ''),
+              time: Number(raw.time ?? raw.duration_minutes ?? 10),
+              isFace: Boolean(raw.isFace ?? false),
+            };
+            if (!params.title) params = null;
           } catch {
             // Invalid params, will handle below
           }
@@ -499,10 +469,10 @@ export default function ScriptPage() {
             const cached = loadScriptFromStorage(topic, undefined);
             if (cached) {
               // Verify the cached script matches the topic
-              if (cached.params.topic === topic) {
+              if (cached.params.title === topic) {
                 setData(cached.data);
-                setScriptDuration(cached.params.duration_minutes);
-                setScriptTopic(cached.params.topic);
+                setScriptDuration(cached.params.time);
+                setScriptTopic(cached.params.title);
                 if (cached.pageTitle) setPageTitle(cached.pageTitle);
                 // Restore unlock state if previously unlocked
                 const cacheKey = getStorageKey(topic, undefined);
@@ -523,8 +493,8 @@ export default function ScriptPage() {
               const now = Date.now();
               if (cached.timestamp && now - cached.timestamp < CACHE_DURATION) {
                 setData(cached.data);
-                setScriptDuration(cached.params?.duration_minutes);
-                setScriptTopic(cached.params?.topic);
+                setScriptDuration(cached.params?.time);
+                setScriptTopic(cached.params?.title);
                 if (cached.pageTitle) setPageTitle(cached.pageTitle);
                 // Restore unlock state if previously unlocked
                 if (localStorage.getItem(`${latestKey}_unlocked`) === 'true') setIsUnlocked(true);
@@ -543,13 +513,15 @@ export default function ScriptPage() {
         // Also try reading from URL query (for older flows like /script/:id?duration=...)
         const search = window.location.search;
         const urlParams = new URLSearchParams(search);
-        if (urlParams.has('topic') || urlParams.has('duration')) {
+        if (urlParams.has('topic') || urlParams.has('duration') || urlParams.has('time')) {
           const topic = urlParams.get('topic') || undefined;
-          const duration = urlParams.get('duration') || undefined;
+          const duration = urlParams.get('time') || urlParams.get('duration') || undefined;
           const payload: GenerationParams = {
-            topic: topic,
-            duration_minutes: duration ? parseInt(duration) : undefined,
             userId: session.user.id,
+            title: topic || 'Untitled',
+            description: topic || '',
+            time: duration ? parseInt(duration, 10) : 10,
+            isFace: false,
           };
           // show summary immediately
           try {
@@ -569,11 +541,12 @@ const normalized: GeneratedScriptData = normalizeScriptData(json);
 
 const scriptTitle = normalized.title || topic || 'Generated Script';
 
-saveScriptToStorage(payload.topic, payload.ideaTitle, normalized, payload, scriptTitle);
+saveScriptToStorage(payload.title, payload.title, normalized, payload, scriptTitle);
+syncScriptToStudioStorage(normalized);
 
 setData(normalized);
-            if (payload.duration_minutes) setScriptDuration(payload.duration_minutes);
-            if (payload.topic) setScriptTopic(payload.topic);
+            if (payload.time) setScriptDuration(payload.time);
+            if (payload.title) setScriptTopic(payload.title);
             setPageTitle(scriptTitle);
             finishLoading();
             return;
@@ -617,8 +590,8 @@ setData(normalized);
         return;
       }
 
-      if (params.ideaTitle) {
-        setPageTitle(params.ideaTitle);
+      if (params.title) {
+        setPageTitle(params.title);
       }
 
       try {
@@ -634,18 +607,20 @@ try {
   throw error;
 }
 console.log("📦 Script API Response:", json);
-        // Use the title from response if available, otherwise use ideaTitle or topic
+        // Use the title from response if available, otherwise use request title
         const normalized: GeneratedScriptData = normalizeScriptData(json);
         
         const scriptTitle =
-          normalized.title || params.ideaTitle || params.topic || "Generated Script";
+          normalized.title || params.title || "Generated Script";
         
-        saveScriptToStorage(params.topic, params.ideaTitle, normalized, params, scriptTitle);
+        saveScriptToStorage(params.title, params.title, normalized, params, scriptTitle);
+        syncScriptToStudioStorage(normalized);
 
         setData(normalized);
         setPageTitle(scriptTitle);
         // Capture duration before clearing sessionStorage
-        if (params.duration_minutes) setScriptDuration(params.duration_minutes);
+        if (params.time) setScriptDuration(params.time);
+        if (params.title) setScriptTopic(params.title);
         // optionally clear params so reload won't re-run (but we keep localStorage for reloads)
         try {
           sessionStorage.removeItem('generate_params');
@@ -939,7 +914,7 @@ if (params.get('from') === 'suggested') {
       // Use duration captured into state at script-load time
       const duration = scriptDuration;
 
-      const res = await fetch('https://storybit-backend.onrender.com/unlock', {
+      const res = await fetch(`${getBackendUrl()}/unlock`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

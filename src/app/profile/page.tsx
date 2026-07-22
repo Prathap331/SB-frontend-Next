@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabaseClient';
 import {
   MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, PHOTO_SLOTS, PhotoKey,
 } from '@/lib/thumbnails';
+import { getBackendUrl } from '@/lib/backend';
 
 type ProfileData = {
   name: string;
@@ -48,9 +49,38 @@ const ALL_CATEGORIES = [
   'Legal Breakdowns', 'Criminal Insights', 'Legal Rights', 'Future Tech', 'Science & Tech',
 ];
 
-export default function Profile() {
+export type ProfileTabId =
+  | 'profile'
+  | 'scripts'
+  | 'thumbnails'
+  | 'channel'
+  | 'subscription'
+  | 'billing'
+  | 'password';
+
+type ProfileWorkspaceProps = {
+  /** When true, render only the active tab content (no Header/nav/Footer) — used by studio sidebar */
+  embedded?: boolean;
+  /** Force a single tab when embedded */
+  forcedTab?: ProfileTabId;
+};
+
+const PROFILE_TABS: ProfileTabId[] = [
+  'profile', 'scripts', 'thumbnails', 'channel', 'subscription', 'billing', 'password',
+];
+
+export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspaceProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState<ProfileTabId>(() => {
+    if (forcedTab && PROFILE_TABS.includes(forcedTab)) return forcedTab;
+    if (typeof window === 'undefined') return 'profile';
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return tab && PROFILE_TABS.includes(tab as ProfileTabId) ? (tab as ProfileTabId) : 'profile';
+  });
+
+  useEffect(() => {
+    if (forcedTab && PROFILE_TABS.includes(forcedTab)) setActiveTab(forcedTab);
+  }, [forcedTab]);
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState<ProfileData>(emptyProfile);
   const [editData, setEditData] = useState<ProfileData>(emptyProfile);
@@ -209,7 +239,7 @@ export default function Profile() {
         fileSize: channelFile.size,
       });
   
-      const res = await fetch('https://storybit-backend.onrender.com/upload', {
+      const res = await fetch(`${getBackendUrl()}/upload`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -633,7 +663,7 @@ export default function Profile() {
       <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-2">
         <nav className="space-y-0.5">
           {menuItems.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => { setActiveTab(id); setIsMobileNavOpen(false); }}
+            <button key={id} onClick={() => { setActiveTab(id as ProfileTabId); setIsMobileNavOpen(false); }}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-sm transition-all ${activeTab === id ? 'bg-[#1d1d1f] text-white font-medium' : 'text-[#1d1d1f] hover:bg-[#f5f5f7]'}`}>
               <Icon className="w-4 h-4 flex-shrink-0" />{label}
             </button>
@@ -660,27 +690,31 @@ export default function Profile() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      <Header />
+    <div className={embedded ? '' : 'min-h-screen bg-[#f5f5f7]'}>
+      {!embedded && <Header />}
 
-      <div className="max-w-screen-8xl mx-auto px-4 sm:px-6 lg:px-10 py-10">
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] mb-1"
-            style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}>
-            My Profile
-          </h1>
-          <p className="text-sm text-[#6e6e73] font-light">Manage your account settings and content</p>
-        </div>
+      <div className={embedded ? '' : 'max-w-screen-8xl mx-auto px-4 sm:px-6 lg:px-10 py-10'}>
+        {!embedded && (
+          <div className="mb-8">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f] mb-1"
+              style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}>
+              My Profile
+            </h1>
+            <p className="text-sm text-[#6e6e73] font-light">Manage your account settings and content</p>
+          </div>
+        )}
 
         {/* Mobile nav toggle */}
-        <div className="mb-4 flex lg:hidden">
-          <button onClick={() => setIsMobileNavOpen(true)} className="flex items-center gap-2 text-sm font-medium text-[#1d1d1f] bg-white border border-gray-200 px-4 py-2 rounded-xl">
-            <Menu className="w-4 h-4" /> Menu
-          </button>
-        </div>
+        {!embedded && (
+          <div className="mb-4 flex lg:hidden">
+            <button onClick={() => setIsMobileNavOpen(true)} className="flex items-center gap-2 text-sm font-medium text-[#1d1d1f] bg-white border border-gray-200 px-4 py-2 rounded-xl">
+              <Menu className="w-4 h-4" /> Menu
+            </button>
+          </div>
+        )}
 
         {/* Mobile drawer */}
-        {isMobileNavOpen && (
+        {!embedded && isMobileNavOpen && (
           <>
             <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={() => setIsMobileNavOpen(false)} />
             <div className="fixed top-0 left-0 bottom-0 z-50 w-[min(288px,85vw)] bg-[#f5f5f7] shadow-2xl p-4 flex flex-col gap-4 overflow-y-auto">
@@ -695,12 +729,18 @@ export default function Profile() {
           </>
         )}
 
-        <div className="flex flex-col lg:flex-row gap-5">
-          {/* Sidebar */}
-          <div className="hidden lg:block w-56 flex-shrink-0">{nav}</div>
+        <div className={embedded ? '' : 'flex flex-col lg:flex-row gap-5'}>
+          {/* Sidebar — hidden in studio embedded mode */}
+          {!embedded && (
+            <div className="hidden lg:block w-56 flex-shrink-0">{nav}</div>
+          )}
 
           {/* Content */}
-<div className="flex-1 min-w-0 max-h-[900px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pr-2">
+          <div className={
+            embedded
+              ? 'w-full min-w-0'
+              : 'flex-1 min-w-0 max-h-[900px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pr-2'
+          }>
 
             {/* Profile */}
             {activeTab === 'profile' && (
@@ -1567,7 +1607,11 @@ export default function Profile() {
         </div>
       </div>
 
-      <Footer />
+      {!embedded && <Footer />}
     </div>
   );
+}
+
+export default function Profile() {
+  return <ProfileWorkspace />;
 }

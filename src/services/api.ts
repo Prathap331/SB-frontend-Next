@@ -173,13 +173,13 @@ export interface SignUpResponse {
 }
 
 export interface GenerationParams {
-  topic?: string;
-  ideaTitle?: string;
-  duration_minutes?: number;
-  length?: number;
-  userId?: string;
+  userId: string;
+  title: string;
+  description: string;
+  /** Video length in minutes */
+  time: number;
   /** true = script/thumbnails use the user's photos, false = faceless channel */
-  isFace?: boolean;
+  isFace: boolean;
 }
 
 /** SEO block returned by /generate-script as `youtube_metadata` */
@@ -492,9 +492,13 @@ export interface TrendingTopic {
   regular_tittle: string;
 }
 
+import { getBackendUrl } from '@/lib/backend';
+
 export class ApiService {
-  // Use Next.js API routes in both development and production
-  private static readonly BASE_URL = 'https://storybit-backend.onrender.com';
+  // Backend base URL from NEXT_PUBLIC_API_URL
+  private static get BASE_URL() {
+    return getBackendUrl();
+  }
 
   private static sanitizeTopic(input: string): string {
     return input
@@ -713,13 +717,20 @@ export class ApiService {
 
     try {
       const apiUrl = `${this.BASE_URL}/generate-script`;
+      const body = {
+        userId: params.userId,
+        title: params.title,
+        description: params.description,
+        time: params.time,
+        isFace: params.isFace,
+      };
       console.log('Making API request to:', apiUrl);
-      console.log('Request payload:', params);
+      console.log('Request payload:', body);
 
       // No timeout — generation can take as long as needed
       const response = await this.authorizedFetch(
         apiUrl,
-        { method: 'POST', body: JSON.stringify(params) },
+        { method: 'POST', body: JSON.stringify(body) },
       );
       console.log('API Response status:', response.status);
 

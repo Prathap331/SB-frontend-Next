@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabaseClient';
 import {
   MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, PHOTO_SLOTS, PhotoKey,
 } from '@/lib/thumbnails';
+import { getBackendUrl } from '@/lib/backend';
 import Header from '@/components/Header';
 
 type CBStep = 1 | 2 | 3 | 4;
@@ -277,7 +278,7 @@ export default function AuthCallback() {
         const uploadForm = new FormData();
         uploadForm.append('file', channelFile);
         uploadForm.append('userId', userId);
-        const res = await fetch('https://storybit-backend.onrender.com/upload', {
+        const res = await fetch(`${getBackendUrl()}/upload`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}` },
           body: uploadForm,

@@ -1,7 +1,11 @@
 // Test script to verify backend API endpoints
 // Run with: node test-api.js
 
-const API_URL = process.env.API_URL || 'https://storybit-backend.onrender.com';
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || '').replace(/\/$/, '');
+if (!API_URL) {
+  console.error('Set NEXT_PUBLIC_API_URL in .env before running this script.');
+  process.exit(1);
+}
 
 async function testProcessTopic() {
   console.log('\n=== Testing Process Topic API ===');
