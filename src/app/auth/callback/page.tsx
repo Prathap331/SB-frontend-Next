@@ -11,6 +11,7 @@ import {
   MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, PHOTO_SLOTS, PhotoKey,
 } from '@/lib/thumbnails';
 import { getBackendUrl } from '@/lib/backend';
+import { buildStudioHomePath } from '@/lib/keyword-routes';
 import Header from '@/components/Header';
 
 type CBStep = 1 | 2 | 3 | 4;
@@ -133,7 +134,7 @@ export default function AuthCallback() {
           localStorage.removeItem('post_auth_redirect');
           router.replace(redirect);
         } else {
-          router.replace('/');
+          router.replace(buildStudioHomePath());
         }
         return;
       }
@@ -292,7 +293,7 @@ export default function AuthCallback() {
         setUploadStatus('success');
       }
       setStatus('redirecting');
-      router.replace('/');
+      router.replace(buildStudioHomePath());
     } catch (e: any) {
       setError(e?.message || 'Something went wrong.');
       setIsSaving(false);

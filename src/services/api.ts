@@ -5,6 +5,47 @@ export interface ProcessTopicRequest {
   topic: string;
 }
 
+// ── B-Roll (Pexels proxy) ─────────────────────────────────────────────────────
+
+export type BrollOrientation = 'landscape' | 'portrait' | 'square';
+/** Pexels size: large = 4K, medium = Full HD (1080p), small = HD */
+export type BrollSize = 'large' | 'medium' | 'small';
+
+export interface BrollSearchPayload {
+  query: string;
+  per_page?: number;
+  page?: number;
+  orientation?: BrollOrientation | '';
+  size?: BrollSize | '';
+}
+
+export interface BrollVideoFile {
+  quality: string | null;
+  width: number;
+  height: number;
+  file_type: string;
+  link: string;
+}
+
+export interface BrollVideo {
+  id: number;
+  url: string;
+  width: number;
+  height: number;
+  duration: number;
+  thumbnail: string;
+  user: { name: string; url: string };
+  video_files: BrollVideoFile[];
+}
+
+export interface BrollSearchResponse {
+  query: string;
+  page: number;
+  per_page: number;
+  total_results: number;
+  videos: BrollVideo[];
+}
+
 // ── Pipeline Metrics ──────────────────────────────────────────────────────────
 
 export interface PlatformWeight {
@@ -181,6 +222,42 @@ export interface GenerationParams {
   time: number;
 }
 
+/** Payload for POST /generate-thumbnail */
+export interface GenerateThumbnailPayload {
+  userId: string;
+  title: string;
+  description: string;
+  isFace: boolean;
+  script: string;
+  thumbnail_text: string[];
+}
+
+export interface GenerateThumbnailResult {
+  /** Single object or array — stored as-is into thumbnail-generated jsonb */
+  thumbnail: {
+    prompt: string | null;
+    public_url: string | null;
+    error: string | null;
+  } | Array<{
+    prompt: string | null;
+    public_url: string | null;
+    error: string | null;
+  }>;
+  token_usage?: {
+    calls?: Array<{
+      label: string;
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+    }>;
+    total_input_tokens?: number;
+    total_output_tokens?: number;
+    total_tokens?: number;
+  };
+  remaining_credits?: number;
+  message?: string;
+}
+
 /** SEO block returned by /generate-script as `youtube_metadata` */
 export interface YoutubeMetadata {
   titles?: string[];
@@ -229,6 +306,19 @@ export type GeneratedScriptData = {
   books?: BookReference[];
   /** Thumbnail payload from /generate-script (text overlays or image data) */
   thumbnail?: unknown;
+  /**
+   * AI image from /generate-thumbnail, persisted on scripts_assigned
+   * as jsonb column `thumbnail-generated` (object or array).
+   */
+  thumbnail_generated?: {
+    prompt: string | null;
+    public_url: string | null;
+    error: string | null;
+  } | Array<{
+    prompt: string | null;
+    public_url: string | null;
+    error: string | null;
+  }> | null;
   structure?: Array<{
       name: string;
       percentage: number;
@@ -789,6 +879,42 @@ export class ApiService {
     }
   }
 
+  /** Generate a YouTube thumbnail image via /generate-thumbnail (20 credits). */
+  static async generateThumbnail(
+    payload: GenerateThumbnailPayload,
+  ): Promise<GenerateThumbnailResult> {
+    const url = `${this.BASE_URL}/generate-thumbnail`;
+    const body: GenerateThumbnailPayload = {
+      userId: payload.userId,
+      title: payload.title,
+      description: payload.description,
+      isFace: payload.isFace,
+      script: payload.script,
+      thumbnail_text: payload.thumbnail_text,
+    };
+
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      let message = `Thumbnail generation failed: ${response.status}`;
+      try {
+        const parsed = JSON.parse(errorText);
+        message = parsed?.message || parsed?.error || message;
+      } catch {
+        if (errorText) message = errorText;
+      }
+      const err = new Error(message) as Error & { status?: number };
+      err.status = response.status;
+      throw err;
+    }
+
+    return (await response.json()) as GenerateThumbnailResult;
+  }
+
   static async pipelineMetrics(topic: string): Promise<TSSResponse> {
     const url = `${this.BASE_URL}/pipeline-metrics`;
     try {
@@ -827,6 +953,32 @@ export class ApiService {
       console.error('[eci] error:', err);
       throw err;
     }
+  }
+
+  /** Search stock B-roll videos (Pexels-backed). */
+  static async searchBroll(payload: BrollSearchPayload): Promise<BrollSearchResponse> {
+    const url = `${this.BASE_URL}/search-pexels-videos`;
+    const body: BrollSearchPayload = {
+      query: payload.query.trim(),
+      per_page: payload.per_page ?? 15,
+      page: payload.page ?? 1,
+      ...(payload.orientation ? { orientation: payload.orientation } : {}),
+      ...(payload.size ? { size: payload.size } : {}),
+    };
+
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(
+        `broll search failed: ${response.status} ${response.statusText}${errorText ? ` — ${errorText}` : ''}`,
+      );
+    }
+
+    return (await response.json()) as BrollSearchResponse;
   }
 
  // ── Trending topics (/trending-data) — category based ───────────────────────

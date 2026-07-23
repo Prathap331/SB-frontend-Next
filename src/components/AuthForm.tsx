@@ -12,7 +12,7 @@ const inputClass =
 
 export default function AuthForm() {
   const router = useRouter();
-  const { homePath } = useKeywordNavigation();
+  const { studioHomePath } = useKeywordNavigation();
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showPassword1, setShowPassword1] = useState(false);
@@ -76,7 +76,7 @@ export default function AuthForm() {
         localStorage.removeItem('post_auth_redirect');
         router.push(redirect);
       } else {
-        router.push(homePath);
+        router.push(studioHomePath);
       }
     } catch (err) {
       setMessage({ text: err instanceof Error ? err.message : 'Something went wrong.', type: 'error' });

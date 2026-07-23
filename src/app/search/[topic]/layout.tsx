@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { createPageMetadata } from '@/lib/seo';
+import { isStudioComposeTopic, DEFAULT_SEARCH_SLUG } from '@/lib/keyword-routes';
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -9,6 +10,16 @@ type LayoutProps = {
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
   const { topic } = await params;
   const decodedTopic = decodeURIComponent(topic).trim();
+
+  if (isStudioComposeTopic(decodedTopic)) {
+    return createPageMetadata({
+      title: 'Content Ideas — AI YouTube Topic Research',
+      description:
+        'Search a topic and generate research-backed YouTube content ideas with Storio AI.',
+      path: `/${DEFAULT_SEARCH_SLUG}/app`,
+      keywords: 'YouTube content ideas, AI script generator, topic research',
+    });
+  }
 
   return createPageMetadata({
     title: `${decodedTopic} — YouTube Script Ideas & AI Generator`,

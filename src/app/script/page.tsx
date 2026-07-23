@@ -15,7 +15,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
 import { ApiFailCard } from '@/components/ApiFailCard';
-import { ApiService, GenerationParams, GeneratedScriptData, UnusedIdeasPayload } from '@/services/api';
+import { ApiService, GenerationParams, GeneratedScriptData } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
 import { unwrapScriptJson, normalizeScriptData } from '@/lib/script-data';
 import { getBackendUrl } from '@/lib/backend';
@@ -24,6 +24,7 @@ import {
   buildScriptTableRow,
   moveScriptToAssigned,
   saveScriptToUniversal,
+  SCRIPT_ROW_SELECT,
 } from '@/lib/script-persistence';
 import nlp from 'compromise';
 
@@ -268,15 +269,12 @@ export default function ScriptPage() {
   const scriptSavedRef       = React.useRef(false);
   const scriptDurationRef    = React.useRef<number | undefined>(undefined);
   const scriptTopicRef       = React.useRef<string | undefined>(undefined);
+  const scriptDescriptionRef = React.useRef<string | undefined>(undefined);
   const pageTitleRef         = React.useRef('Generated Script');
   // ID of the scripts_universal row (set when loaded via ?scriptId= from that table)
   const universalScriptIdRef = React.useRef<string | null>(null);
 
-  // Selected idea to report as "unused" if the user leaves without unlocking.
-  const pendingUnusedIdeaRef = React.useRef<UnusedIdeasPayload | null>(null);
-  const authTokenRef         = React.useRef<string | null>(null);
   const userIdRef            = React.useRef<string | null>(null);
-  const unusedIdeaSentRef    = React.useRef(false);
 
   const handleProgressFinished = useCallback(() => {
     setIsLoading(false);
@@ -306,7 +304,6 @@ export default function ScriptPage() {
 
       setShouldRender(true);
       userIdRef.current = session.user.id;
-      authTokenRef.current = session.access_token;
 
     const run = async () => {
       const userId = session.user.id;
@@ -321,7 +318,7 @@ export default function ScriptPage() {
         // 1. Try user's unlocked scripts table (show fully unlocked)
         const { data: row } = await supabase
           .from('scripts_assigned')
-          .select('id, title, topic, script, youtube_metadata, thumbnail, metrics, sources, books, structure')
+          .select(SCRIPT_ROW_SELECT)
           .eq('id', scriptId)
           .maybeSingle();
 
@@ -333,6 +330,7 @@ export default function ScriptPage() {
           setData(normalized);
           setPageTitle(row.title || row.topic || 'Script');
           setScriptTopic(row.topic ?? undefined);
+          setScriptDescription((row as { description?: string }).description ?? undefined);
           setScriptDuration(row.metrics?.videoLength ?? undefined);
           setIsUnlocked(true);
           setScriptSaved(true);
@@ -343,7 +341,7 @@ export default function ScriptPage() {
         // 2. Try scripts_universal (show locked — user must unlock to save to their account)
         const { data: uRow, error: uErr } = await supabase
           .from('scripts_universal')
-          .select('id, title, topic, script, youtube_metadata, thumbnail, metrics, sources, books, structure')
+          .select(SCRIPT_ROW_SELECT)
           .eq('id', scriptId)
           .maybeSingle();
 
@@ -360,6 +358,7 @@ export default function ScriptPage() {
         setData(uNormalized);
         setPageTitle(uRow.title || uRow.topic || 'Script');
         setScriptTopic(uRow.topic ?? undefined);
+        setScriptDescription((uRow as { description?: string }).description ?? undefined);
         setScriptDuration(uRow.metrics?.videoLength ?? undefined);
         universalScriptIdRef.current = uRow.id; // remember for delete-on-unlock
         finishLoading();
@@ -412,6 +411,7 @@ export default function ScriptPage() {
                 setData(cached.data);
                 setScriptDuration(cached.params.time);
                 setScriptTopic(cached.params.title);
+                if (cached.params.description) setScriptDescription(cached.params.description);
                 if (cached.pageTitle) setPageTitle(cached.pageTitle);
                 // Restore unlock state if previously unlocked
                 const cacheKey = getStorageKey(topic, undefined);
@@ -434,6 +434,7 @@ export default function ScriptPage() {
                 setData(cached.data);
                 setScriptDuration(cached.params?.time);
                 setScriptTopic(cached.params?.title);
+                if (cached.params?.description) setScriptDescription(cached.params.description);
                 if (cached.pageTitle) setPageTitle(cached.pageTitle);
                 // Restore unlock state if previously unlocked
                 if (localStorage.getItem(`${latestKey}_unlocked`) === 'true') setIsUnlocked(true);
@@ -484,6 +485,7 @@ saveScriptToStorage(payload.title, payload.title, normalized, payload, scriptTit
 const universalId = await saveScriptToUniversal(normalized, {
   title: scriptTitle,
   topic: payload.title || topic,
+  description: payload.description,
   userId: session.user.id,
 });
 if (universalId) universalScriptIdRef.current = universalId;
@@ -492,6 +494,7 @@ syncScriptToStudioStorage(normalized, universalId);
 setData(normalized);
             if (payload.time) setScriptDuration(payload.time);
             if (payload.title) setScriptTopic(payload.title);
+            if (payload.description) setScriptDescription(payload.description);
             setPageTitle(scriptTitle);
             finishLoading();
             return;
@@ -563,6 +566,7 @@ console.log("📦 Script API Response:", json);
         const universalId = await saveScriptToUniversal(normalized, {
           title: scriptTitle,
           topic: params.title,
+          description: params.description,
           userId: session.user.id,
         });
         if (universalId) universalScriptIdRef.current = universalId;
@@ -573,6 +577,7 @@ console.log("📦 Script API Response:", json);
         // Capture duration before clearing sessionStorage
         if (params.time) setScriptDuration(params.time);
         if (params.title) setScriptTopic(params.title);
+        if (params.description) setScriptDescription(params.description);
         // optionally clear params so reload won't re-run (but we keep localStorage for reloads)
         try {
           sessionStorage.removeItem('generate_params');
@@ -673,6 +678,7 @@ console.log("📦 Script API Response:", json);
   const [showProductionGuidePopup, setShowProductionGuidePopup] = useState(false);
   const [scriptDuration, setScriptDuration] = useState<number | undefined>();
   const [scriptTopic, setScriptTopic] = useState<string | undefined>();
+  const [scriptDescription, setScriptDescription] = useState<string | undefined>();
   const [scriptSaved, setScriptSaved] = useState(false); // prevent duplicate saves
 
   // ── Exit feedback (shown when user tries to leave without unlocking) ────────
@@ -734,6 +740,7 @@ console.log("📦 Script API Response:", json);
   useEffect(() => { scriptSavedRef.current = scriptSaved;   }, [scriptSaved]);
   useEffect(() => { scriptDurationRef.current = scriptDuration; }, [scriptDuration]);
   useEffect(() => { scriptTopicRef.current    = scriptTopic;    }, [scriptTopic]);
+  useEffect(() => { scriptDescriptionRef.current = scriptDescription; }, [scriptDescription]);
   useEffect(() => { pageTitleRef.current      = pageTitle;      }, [pageTitle]);
 
   // Helper: POST to scripts_universal using fetch keepalive (safe during page unload)
@@ -756,6 +763,7 @@ if (params.get('from') === 'suggested') {
     const row = buildScriptTableRow(d, {
       title: d.title || pageTitleRef.current || topic || undefined,
       topic: topic || undefined,
+      description: scriptDescriptionRef.current || undefined,
       userId,
     });
     fetch(
@@ -786,57 +794,12 @@ if (params.get('from') === 'suggested') {
     return () => window.removeEventListener('pagehide', handler);
   }, [saveToUniversalScripts]);
 
-  // ── Unused idea reporting ──────────────────────────────────────────────────
-  // Load the idea the user selected from the search page (fresh generate flow
-  // only). If the user leaves this page without unlocking, that idea is reported
-  // to /save_ideas. Vault/suggested loads (scriptId / from=suggested) are not
-  // part of the generate flow, so any stale pending idea is cleared.
+  // ── Selected-idea session (for studio continuity) ──────────────────────────
+  // Clear any legacy pending_unused_idea — writing a single idea to /save-ideas
+  // was overwriting the full topic idea list in saved_ideas.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const isSuggested =
-      params.get('from') === 'suggested' || !!params.get('scriptId');
-
-    if (isSuggested) {
-      try { sessionStorage.removeItem('pending_unused_idea'); } catch {}
-      return;
-    }
-
-    try {
-      const raw = sessionStorage.getItem('pending_unused_idea');
-      if (raw) pendingUnusedIdeaRef.current = JSON.parse(raw);
-    } catch {
-      // ignore malformed data
-    }
-
-    // Capture the auth token so the unload handler can send it synchronously.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      authTokenRef.current = session?.access_token ?? null;
-    });
-  }, []);
-
-  // Report the selected idea as unused — only if it was never unlocked.
-  const sendPendingUnusedIdea = React.useCallback(() => {
-    if (unusedIdeaSentRef.current) return;
-    if (isUnlockedRef.current) return; // unlocked → idea was used
-    const payload = pendingUnusedIdeaRef.current;
-    if (!payload?.ideas?.length) return;
-
-    unusedIdeaSentRef.current = true;
-    ApiService.sendUnusedIdeasKeepalive(payload, authTokenRef.current);
     try { sessionStorage.removeItem('pending_unused_idea'); } catch {}
   }, []);
-
-  // Report on SPA navigation away (component unmount)
-  useEffect(() => {
-    return () => { sendPendingUnusedIdea(); };
-  }, [sendPendingUnusedIdea]);
-
-  // Report on tab close / browser refresh (keepalive fetch survives unload)
-  useEffect(() => {
-    const handler = () => { sendPendingUnusedIdea(); };
-    window.addEventListener('pagehide', handler);
-    return () => window.removeEventListener('pagehide', handler);
-  }, [sendPendingUnusedIdea]);
 
   const handleUnlock = async () => {
     setIsUnlocking(true);
@@ -864,17 +827,14 @@ if (params.get('from') === 'suggested') {
         isUnlockedRef.current = true;
         setShowProductionGuidePopup(true);
 
-        // Script was unlocked → the selected idea was used, don't report it.
-        pendingUnusedIdeaRef.current = null;
-        unusedIdeaSentRef.current = true;
+        // Script was unlocked → clear any legacy unused-idea markers
         try { sessionStorage.removeItem('pending_unused_idea'); } catch {}
       
         // UPDATE CREDITS IMMEDIATELY
         if (json.remaining_credits !== undefined) {
           setCredits(json.remaining_credits);
-
-          window.dispatchEvent(new Event("creditsUpdated"));
         }
+        window.dispatchEvent(new Event('creditsUpdated'));
 
 
 
@@ -893,11 +853,21 @@ if (params.get('from') === 'suggested') {
             new URLSearchParams(window.location.search).get("topic") ??
             pageTitle;
 
+          let ideaDescription = scriptDescription;
+          try {
+            const raw = sessionStorage.getItem('studio_selected_idea');
+            if (raw && !ideaDescription) {
+              const parsed = JSON.parse(raw);
+              if (parsed?.description) ideaDescription = String(parsed.description);
+            }
+          } catch { /* ignore */ }
+
           const result = await moveScriptToAssigned({
             userId: session.user.id,
             data,
             title: data.title || pageTitle || topic || undefined,
             topic: topic || undefined,
+            description: ideaDescription || undefined,
             universalScriptId: universalScriptIdRef.current,
           });
 

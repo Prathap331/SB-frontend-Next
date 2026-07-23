@@ -1,4 +1,11 @@
 import type { GeneratedScriptData } from '@/services/api';
+import {
+  normalizeGeneratedThumbnail,
+  normalizeScriptCategory,
+  normalizeScriptSubcategories,
+  readThumbnailGeneratedColumn,
+  toThumbnailGeneratedJson,
+} from '@/lib/script-persistence';
 
 export function unwrapScriptJson(text: string): string {
   const trimmed = text.trim();
@@ -53,6 +60,21 @@ export function normalizeScriptData(raw: any): GeneratedScriptData {
     history:              metrics?.historical_facts ?? metrics?.history ?? 0,
   };
 
+  const thumbnailGeneratedRaw =
+    readThumbnailGeneratedColumn(raw as Record<string, unknown>) ??
+    raw?.thumbnail_generated ??
+    null;
+
+  let thumbnail_generated: GeneratedScriptData['thumbnail_generated'] = null;
+  if (thumbnailGeneratedRaw != null) {
+    if (Array.isArray(thumbnailGeneratedRaw)) {
+      thumbnail_generated = thumbnailGeneratedRaw as GeneratedScriptData['thumbnail_generated'];
+    } else {
+      const item = normalizeGeneratedThumbnail(thumbnailGeneratedRaw);
+      thumbnail_generated = item ? toThumbnailGeneratedJson(item) : null;
+    }
+  }
+
   return {
     ...raw,
     script: extractScriptText(raw),
@@ -64,6 +86,14 @@ export function normalizeScriptData(raw: any): GeneratedScriptData {
     youtube_metadata,
     metrics: metrics ?? raw?.metrics,
     thumbnail: raw?.thumbnail ?? youtube_metadata?.thumbnail_text ?? null,
+    thumbnail_generated: thumbnail_generated ?? undefined,
     structure: Array.isArray(raw?.structure) ? raw.structure : [],
+    category: normalizeScriptCategory(raw?.category) ?? undefined,
+    subcategories: (() => {
+      const fromApi = normalizeScriptSubcategories(raw?.subcategories);
+      if (fromApi.length) return fromApi;
+      const fromDb = normalizeScriptSubcategories(raw?.sub_category);
+      return fromDb.length ? fromDb : undefined;
+    })(),
   };
 }

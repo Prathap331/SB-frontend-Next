@@ -7,7 +7,7 @@ import ContactSalesButton from '@/components/ContactSalesButton';
 
 export default function Pricing() {
   return (
-    <StudioShell>
+    <StudioShell requireAuth={false}>
       <div className="text-center mb-8 sm:mb-10">
         <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full mb-4 shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />

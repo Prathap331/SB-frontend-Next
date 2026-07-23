@@ -19,12 +19,12 @@ function exampleTotal(minutes: number, withThumbnail: boolean): number {
 
 export default function CreditsHowItWorks() {
   return (
-    <section className="mt-10 sm:mt-12 max-w-6xl mx-auto">
+    <section
+      className="mt-10 sm:mt-12 max-w-6xl mx-auto"
+      style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+    >
       <div className="rounded-3xl border border-gray-200 bg-[#1d1d1f] text-white px-6 sm:px-8 py-8 sm:py-10 shadow-sm">
-        <h2
-          className="text-xl sm:text-2xl font-semibold tracking-tight mb-2"
-          style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
-        >
+        <h2 className="text-xl sm:text-2xl font-semibold tracking-tight mb-2">
           How credits work
         </h2>
         <p className="text-sm sm:text-base text-white/60 font-light max-w-2xl mb-6 leading-relaxed">
@@ -34,13 +34,13 @@ export default function CreditsHowItWorks() {
 
         <div className="grid sm:grid-cols-2 gap-3 mb-4">
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5">
-            <span className="text-sm font-medium text-white/90 font-mono">Script generation</span>
+            <span className="text-sm font-medium text-white/90">Script generation</span>
             <span className="text-sm font-semibold text-white whitespace-nowrap">
               {CREDITS_PER_SCRIPT_MINUTE} credits / min
             </span>
           </div>
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5">
-            <span className="text-sm font-medium text-white/90 font-mono">Thumbnail (optional)</span>
+            <span className="text-sm font-medium text-white/90">Thumbnail (optional)</span>
             <span className="text-sm font-semibold text-white whitespace-nowrap">
               {CREDITS_PER_THUMBNAIL} credits / image
             </span>
@@ -56,7 +56,7 @@ export default function CreditsHowItWorks() {
             return (
               <div
                 key={`${minutes}-${withThumbnail}`}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-mono"
+                className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm"
               >
                 <span className="text-white/55">{label}</span>
                 <span className="text-white/40"> → </span>

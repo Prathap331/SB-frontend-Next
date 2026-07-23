@@ -146,7 +146,8 @@ export default function StudioSidebar({
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const loadCredits = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session || cancelled) return;
       const uid = session.user.id;
@@ -183,8 +184,17 @@ export default function StudioSidebar({
 
       if (sub?.credits != null) setCreditsLeft(sub.credits);
       else if (profile?.credits_remaining != null) setCreditsLeft(profile.credits_remaining);
-    })();
-    return () => { cancelled = true; };
+    };
+
+    void loadCredits();
+
+    const onCreditsUpdated = () => { void loadCredits(); };
+    window.addEventListener('creditsUpdated', onCreditsUpdated);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('creditsUpdated', onCreditsUpdated);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -220,7 +230,6 @@ export default function StudioSidebar({
             priority
           />
         </button>
-        <p className="text-[11px] text-gray-500 mt-1 font-medium tracking-wide">AI Creator Studio</p>
       </div>
 
       {/* Scrollable middle */}

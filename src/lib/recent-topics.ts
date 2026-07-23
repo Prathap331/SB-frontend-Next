@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { GeneratedScriptData } from '@/services/api';
 import { ApiService } from '@/services/api';
 import { normalizeScriptData } from '@/lib/script-data';
+import { SCRIPT_ROW_SELECT } from '@/lib/script-persistence';
 
 export const TOTAL_STAGES = 5;
 
@@ -52,9 +53,14 @@ type ScriptDbRow = {
   id: string;
   title: string | null;
   topic: string | null;
+  description?: string | null;
   script: string | null;
   youtube_metadata?: unknown;
   thumbnail?: unknown;
+  'thumbnail-generated'?: unknown;
+  thumbnail_generated?: unknown;
+  category?: unknown;
+  sub_category?: unknown;
   metrics?: GeneratedScriptData['metrics'] | null;
   sources?: string[] | null;
   books?: GeneratedScriptData['books'] | null;
@@ -101,6 +107,8 @@ function rowToScriptData(row: ScriptDbRow): GeneratedScriptData {
     title: row.title ?? undefined,
     youtube_metadata: row.youtube_metadata,
     thumbnail: row.thumbnail,
+    'thumbnail-generated':
+      row['thumbnail-generated'] ?? row.thumbnail_generated ?? null,
     metrics: row.metrics,
     sources: row.sources,
     books: row.books,
@@ -273,13 +281,13 @@ async function fetchScriptsForTopic(
   const [assigned, universal] = await Promise.all([
     supabase
       .from('scripts_assigned')
-      .select('id, title, topic, script, youtube_metadata, thumbnail, metrics, sources, books, structure')
+      .select(SCRIPT_ROW_SELECT)
       .eq('userId', userId)
       .order('created_at', { ascending: false })
       .limit(300),
     supabase
       .from('scripts_universal')
-      .select('id, title, topic, script, youtube_metadata, thumbnail, metrics, sources, books, structure')
+      .select(SCRIPT_ROW_SELECT)
       .eq('userId', userId)
       .order('created_at', { ascending: false })
       .limit(300),
@@ -325,19 +333,45 @@ function mergeIdeasWithScripts(
     if (key) generatedScripts[key] = script;
   }
 
-  return ideas.map((idea) => {
+  const ideaTitleKeys = new Set(
+    ideas.map((i) => i.title.trim().toLowerCase()).filter(Boolean),
+  );
+
+  const merged: MergedIdea[] = ideas.map((idea) => {
     const generated = generatedScripts[idea.title.trim().toLowerCase()];
     if (!generated) {
       return { ...idea, generated: false, script: null, scriptRowId: null, fromAssigned: false };
     }
     return {
       ...idea,
+      // Prefer idea description; fall back to script row description
+      description: idea.description || generated.description || idea.description,
       generated: true,
       script: rowToScriptData(generated),
       scriptRowId: generated.id,
       fromAssigned: !!generated.fromAssigned,
     };
   });
+
+  // Restore orphan scripts that exist for this topic but were dropped from saved_ideas
+  // (e.g. older /save-ideas overwrites that omitted the generated idea).
+  let nextId = Math.max(0, ...merged.map((i) => i.id), 0) + 1;
+  for (const script of scripts) {
+    const key = (script.title || '').trim().toLowerCase();
+    if (!key || ideaTitleKeys.has(key)) continue;
+    merged.push({
+      id: nextId++,
+      title: script.title || 'Untitled',
+      description: script.description?.trim() || 'No description available.',
+      category: 'General',
+      generated: true,
+      script: rowToScriptData(script),
+      scriptRowId: script.id,
+      fromAssigned: !!script.fromAssigned,
+    });
+  }
+
+  return merged;
 }
 
 /**
@@ -391,9 +425,14 @@ export async function loadTopicWorkspace(
       uid,
       ideas.map((i) => i.title),
     );
+    const merged = mergeIdeasWithScripts(ideas, scripts);
+    // Heal saved_ideas if older overwrites dropped generated ideas
+    if (merged.length > ideas.length) {
+      void saveTopicIdeasToDb(match.topic.trim(), merged, { userId: uid });
+    }
     return {
       topic: match.topic.trim(),
-      ideas: mergeIdeasWithScripts(ideas, scripts),
+      ideas: merged,
       createdAt: match.created_at ?? null,
     };
   }
@@ -405,9 +444,14 @@ export async function loadTopicWorkspace(
     ideas.map((i) => i.title),
   );
 
+  const merged = mergeIdeasWithScripts(ideas, scripts);
+  if (merged.length > ideas.length) {
+    void saveTopicIdeasToDb(trimmed, merged, { userId: uid });
+  }
+
   return {
     topic: trimmed,
-    ideas: mergeIdeasWithScripts(ideas, scripts),
+    ideas: merged,
     createdAt: row.created_at ?? null,
   };
 }

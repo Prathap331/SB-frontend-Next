@@ -134,7 +134,7 @@ export default function PricingGrid() {
         </div>
       )}
 
-      <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch">
+      <div className="grid md:grid-cols-3 gap-4 max-w-6xl mx-auto items-stretch">
         {plans.map((plan, index) => (
           <PricingCard
             key={plan.id}

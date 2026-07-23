@@ -150,10 +150,10 @@ export default function Home() {
             className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold tracking-tight text-[#1d1d1f] mb-4 sm:mb-6 leading-[1.08] sm:leading-[1.05]"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
           >
-            Write your YouTube
+            Generate Your YouTube Video Content
             <br className="hidden xs:block" />
-            {' '}content in{' '}
-            <span className="text-[#1d1d1f]">3 minutes.</span>
+            {' '} in{' '}
+            <span className="text-[#1d1d1f]">2 minutes.</span>
           </h1>
 
           <p

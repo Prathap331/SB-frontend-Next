@@ -10,7 +10,6 @@ import {
   Clapperboard,
   Check,
   Copy,
-  Film,
   Clock,
   Heart,
   Search,
@@ -47,7 +46,7 @@ const TABS: { id: StudioTab; label: string; icon: React.ComponentType<{ classNam
   { id: 'script', label: 'Full Script', icon: FileText },
   { id: 'metadata', label: 'Metadata', icon: Tag },
   { id: 'thumbnails', label: 'Thumbnails', icon: ImageIcon },
-  { id: 'broll', label: 'B-Roll', icon: Clapperboard },
+  { id: 'broll', label: 'B-Roll Videos', icon: Clapperboard },
 ];
 
 export function StudioStageNav({
@@ -126,63 +125,6 @@ function CopyBtn({ text }: { text: string; id?: string }) {
   );
 }
 
-function wrapCanvasText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let line = '';
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word;
-    if (ctx.measureText(test).width > maxWidth && line) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = test;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-function downloadThumbnailImage(text: string, index: number) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1280;
-  canvas.height = 720;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  gradient.addColorStop(0, '#1d1d1f');
-  gradient.addColorStop(1, '#3d3d3a');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = 'bold 72px system-ui, -apple-system, sans-serif';
-
-  const lines = wrapCanvasText(ctx, text.toUpperCase(), canvas.width - 160);
-  const lineHeight = 88;
-  const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
-  lines.forEach((line, i) => {
-    ctx.fillText(line, canvas.width / 2, startY + i * lineHeight);
-  });
-
-  canvas.toBlob((blob) => {
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `thumbnail-${index + 1}.png`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, 'image/png');
-}
-
 function formatScriptNodes(text: string): React.ReactNode[] {
   if (!text) return [];
   const scriptText = unwrapScriptJson(text)
@@ -255,18 +197,23 @@ function splitScriptByStructure(
 export function StudioScriptPanel({
   data,
   ideaTitle,
+  ideaDescription,
   topic,
   durationMinutes,
   universalScriptId,
   initiallyUnlocked = false,
+  onUnlocked,
 }: {
   data?: GeneratedScriptData | null;
   ideaTitle?: string;
+  ideaDescription?: string;
   topic?: string;
   durationMinutes?: number;
   universalScriptId?: string | null;
   /** True when script was loaded from scripts_assigned (already unlocked) */
   initiallyUnlocked?: boolean;
+  /** Fired after a successful unlock so sibling tabs (e.g. thumbnails) can update */
+  onUnlocked?: (info?: { assignedId?: string | null }) => void;
 }) {
   const router = useRouter();
   const [activeSegment, setActiveSegment] = useState(0);
@@ -427,14 +374,14 @@ export function StudioScriptPanel({
         setIsUnlocked(true);
         setShowProductionGuidePopup(true);
 
-        if (json.remaining_credits !== undefined) {
-          window.dispatchEvent(new Event('creditsUpdated'));
-        }
+        // Always refresh credits UI (sidebar / header) after unlock debit
+        window.dispatchEvent(new Event('creditsUpdated'));
 
         try {
           localStorage.setItem(unlockKey, 'true');
         } catch { /* ignore */ }
 
+        let assignedId: string | null = null;
         if (!scriptSaved && data) {
           setScriptSaved(true);
           const saveTopic = topic || ideaTitle || data.title || 'Untitled';
@@ -443,10 +390,13 @@ export function StudioScriptPanel({
             data,
             title: data.title || ideaTitle || saveTopic,
             topic: saveTopic,
+            description: ideaDescription,
             universalScriptId,
           });
           if (!result.ok) console.error('[scripts save]', result.error);
+          else assignedId = result.assignedId ?? null;
         }
+        onUnlocked?.({ assignedId });
       } else {
         setShowInsufficientPopup(true);
       }
@@ -1114,68 +1064,8 @@ export function StudioMetadataPanel({ data }: { data?: GeneratedScriptData | nul
   );
 }
 
-export function StudioThumbnailsPanel({ data }: { data?: GeneratedScriptData | null }) {
-  const { thumbnails, titles } = extractSeo(data);
-
-  if (!data || thumbnails.length === 0) {
-    return (
-      <EmptyState
-        title="No thumbnails yet"
-        body="Generate a script to get thumbnail text overlays for your video."
-      />
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {thumbnails.map((text, i) => (
-        <div key={i} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="aspect-video bg-gradient-to-br from-[#1d1d1f] to-[#3d3d3a] relative flex items-center justify-center p-6">
-            <p className="text-white text-center font-black text-lg sm:text-xl leading-tight drop-shadow-lg uppercase tracking-tight">
-              {text}
-            </p>
-            <span className="absolute bottom-2 right-2 text-[10px] text-white/50 font-medium">
-              16:9 preview
-            </span>
-          </div>
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400">
-                Thumbnail {i + 1}
-              </span>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-[10px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200"
-                onClick={() => downloadThumbnailImage(text, i)}
-              >
-                <Download className="w-3 h-3" />
-                Download
-              </button>
-            </div>
-            <p className="text-sm font-semibold text-[#1d1d1f]">{text}</p>
-            {titles[i] && (
-              <p className="text-xs text-gray-400 mt-1 line-clamp-2">{titles[i]}</p>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function StudioBRollPanel() {
-  return (
-    <div className="bg-white border border-dashed border-gray-300 rounded-2xl px-6 py-16 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-        <Film className="w-7 h-7 text-gray-400" />
-      </div>
-      <h3 className="text-lg font-bold text-[#1d1d1f] mb-2">B-Roll</h3>
-      <p className="text-sm text-gray-500 max-w-md mx-auto">
-        This feature will be added in the future.
-      </p>
-    </div>
-  );
-}
+export { StudioThumbnailsPanel } from './StudioThumbnailsPanel';
+export { StudioBRollPanel } from './StudioBRollPanel';
 
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (

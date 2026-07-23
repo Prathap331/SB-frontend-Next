@@ -70,6 +70,37 @@ const PROFILE_TABS: ProfileTabId[] = [
   'profile', 'thumbnails', 'channel', 'subscription', 'billing', 'password',
 ];
 
+const ACCOUNT_PAGE_META: Record<ProfileTabId, { title: string; subtitle: string }> = {
+  profile: {
+    title: 'Profile',
+    subtitle: 'Manage your personal information and social links',
+  },
+  scripts: {
+    title: 'My Scripts',
+    subtitle: "Scripts you've unlocked — ready to produce",
+  },
+  thumbnails: {
+    title: 'Thumbnail Photos',
+    subtitle: '2 HD photos of yourself, used to generate your video thumbnails',
+  },
+  channel: {
+    title: 'Channel Memory',
+    subtitle: 'Teach Storio your channel voice and style',
+  },
+  subscription: {
+    title: 'Subscription',
+    subtitle: 'View your plan, credits, and renewal details',
+  },
+  billing: {
+    title: 'Billing',
+    subtitle: 'Invoices and payment history for your account',
+  },
+  password: {
+    title: 'Update Password',
+    subtitle: 'Change your account password',
+  },
+};
+
 export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspaceProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<ProfileTabId>(() => {
@@ -748,14 +779,27 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
               ? 'w-full min-w-0'
               : 'flex-1 min-w-0 max-h-[900px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pr-2'
           }>
+            {embedded && (
+              <div className="mb-6 sm:mb-8">
+                <h1
+                  className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-[#1d1d1f] mb-2 leading-tight"
+                  style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+                >
+                  {ACCOUNT_PAGE_META[activeTab].title}
+                </h1>
+                <p className="text-base sm:text-lg text-[#6e6e73] font-light">
+                  {ACCOUNT_PAGE_META[activeTab].subtitle}
+                </p>
+              </div>
+            )}
 
             {/* Profile */}
             {activeTab === 'profile' && (
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                 <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-[#1d1d1f]">Profile Information</h2>
-                    <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Update your personal information and social links</p>
+                    <h2 className={`${embedded ? 'text-lg sm:text-xl' : 'text-sm'} font-semibold text-[#1d1d1f]`}>Profile Information</h2>
+                    <p className={`${embedded ? 'text-sm mt-1' : 'text-[11px] mt-0.5'} text-[#6e6e73] font-light`}>Update your personal information and social links</p>
                   </div>
                   {!isEditing ? (
                     <button
@@ -933,8 +977,8 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                 <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-semibold text-[#1d1d1f]">My Scripts</h2>
-                    <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">View and manage your generated scripts</p>
+                    <h2 className={`${embedded ? 'text-lg sm:text-xl' : 'text-sm'} font-semibold text-[#1d1d1f]`}>My Scripts</h2>
+                    <p className={`${embedded ? 'text-sm mt-1' : 'text-[11px] mt-0.5'} text-[#6e6e73] font-light`}>View and manage your generated scripts</p>
                   </div>
                   {!isLoadingScripts && myScripts.length > 0 && (
                     <span className="text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] px-2.5 py-1 rounded-full">
@@ -993,8 +1037,8 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
             {activeTab === 'subscription' && (
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                 <div className="px-6 py-5 border-b border-gray-100">
-                  <h2 className="text-sm font-semibold text-[#1d1d1f]">My Subscription</h2>
-                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Manage your subscription and usage</p>
+                  <h2 className={`${embedded ? 'text-lg sm:text-xl' : 'text-sm'} font-semibold text-[#1d1d1f]`}>My Subscription</h2>
+                  <p className={`${embedded ? 'text-sm mt-1' : 'text-[11px] mt-0.5'} text-[#6e6e73] font-light`}>Manage your subscription and usage</p>
                 </div>
                 <div className="px-6 py-5">
                   {isLoadingSub ? (
@@ -1160,8 +1204,8 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
             {activeTab === 'thumbnails' && (
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                 <div className="px-6 py-5 border-b border-gray-100">
-                  <h2 className="text-sm font-semibold text-[#1d1d1f]">Thumbnail Photos</h2>
-                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">2 HD photos of yourself, used to generate your video thumbnails</p>
+                  <h2 className={`${embedded ? 'text-lg sm:text-xl' : 'text-sm'} font-semibold text-[#1d1d1f]`}>Thumbnail Photos</h2>
+                  <p className={`${embedded ? 'text-sm mt-1' : 'text-[11px] mt-0.5'} text-[#6e6e73] font-light`}>Upload and manage photos for your video thumbnails</p>
                 </div>
 
                 <div className="px-6 py-5">
@@ -1283,8 +1327,8 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
               <div className="space-y-4">
                 <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                   <div className="px-6 py-5 border-b border-gray-100">
-                    <h2 className="text-sm font-semibold text-[#1d1d1f]">Channel memory</h2>
-                    <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Upload your channel style guide so AI writes scripts that sound like you</p>
+                    <h2 className={`${embedded ? 'text-lg sm:text-xl' : 'text-sm'} font-semibold text-[#1d1d1f]`}>Channel memory</h2>
+                    <p className={`${embedded ? 'text-sm mt-1' : 'text-[11px] mt-0.5'} text-[#6e6e73] font-light`}>Upload your channel style guide so AI writes scripts that sound like you</p>
                   </div>
 
                   <div className="px-6 py-5">
@@ -1486,8 +1530,8 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
             {activeTab === 'billing' && (
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                 <div className="px-6 py-5 border-b border-gray-100">
-                  <h2 className="text-sm font-semibold text-[#1d1d1f]">Billing History</h2>
-                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">All your past payments and invoices</p>
+                  <h2 className={`${embedded ? 'text-lg sm:text-xl' : 'text-sm'} font-semibold text-[#1d1d1f]`}>Billing History</h2>
+                  <p className={`${embedded ? 'text-sm mt-1' : 'text-[11px] mt-0.5'} text-[#6e6e73] font-light`}>All your past payments and invoices</p>
                 </div>
                 <div className="px-6 py-4 space-y-3">
                   {isLoadingSub ? (
@@ -1543,8 +1587,8 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
             {activeTab === 'password' && (
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                 <div className="px-6 py-5 border-b border-gray-100">
-                  <h2 className="text-sm font-semibold text-[#1d1d1f]">Update Password</h2>
-                  <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">Change your account password</p>
+                  <h2 className={`${embedded ? 'text-lg sm:text-xl' : 'text-sm'} font-semibold text-[#1d1d1f]`}>Update Password</h2>
+                  <p className={`${embedded ? 'text-sm mt-1' : 'text-[11px] mt-0.5'} text-[#6e6e73] font-light`}>Change your account password</p>
                 </div>
 
                 <div className="px-6 py-6 max-w-md">

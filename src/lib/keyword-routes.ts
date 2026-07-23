@@ -22,6 +22,20 @@ export type SearchKeywordSlug = (typeof SEARCH_KEYWORD_SLUGS)[number];
 export const DEFAULT_LANDING_SLUG: LandingKeywordSlug = 'ai-youtube-content-generator';
 export const DEFAULT_SEARCH_SLUG: SearchKeywordSlug = 'content-ideas';
 
+/** Studio compose / search-home topic segment → /content-ideas/app */
+export const STUDIO_HOME_TOPIC = 'app';
+
+export function isStudioComposeTopic(topic: string): boolean {
+  const t = decodeURIComponent(topic || '').trim();
+  return t === STUDIO_HOME_TOPIC || t === '__compose__';
+}
+
+export function buildStudioHomePath(
+  searchSlug: string = DEFAULT_SEARCH_SLUG,
+): string {
+  return `/${searchSlug}/${STUDIO_HOME_TOPIC}`;
+}
+
 const LANDING_SET = new Set<string>(LANDING_KEYWORD_SLUGS);
 const SEARCH_SET = new Set<string>(SEARCH_KEYWORD_SLUGS);
 

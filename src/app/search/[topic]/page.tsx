@@ -33,7 +33,11 @@ import {
   type MergedIdea,
 } from '@/lib/recent-topics';
 import { normalizeScriptData } from '@/lib/script-data';
-import { saveScriptToUniversal } from '@/lib/script-persistence';
+import {
+  normalizeGeneratedThumbnail,
+  saveScriptToUniversal,
+} from '@/lib/script-persistence';
+import { isStudioComposeTopic } from '@/lib/keyword-routes';
 
 const SCRIPT_GENERATION_STEPS = [
   'Understanding your topic',
@@ -520,7 +524,7 @@ export default function SearchTopicPage() {
       return rawTopic;
     }
   })();
-  const isComposePlaceholder = topic === '__compose__';
+  const isComposePlaceholder = isStudioComposeTopic(topic);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const composeOnTopicRef = useRef<string | null>(null);
@@ -555,13 +559,17 @@ export default function SearchTopicPage() {
   const [ideaScripts, setIdeaScripts] = useState<Record<number, {
     data: GeneratedScriptData;
     ideaTitle: string;
+    ideaDescription?: string;
+    scriptRowId?: string | null;
     universalScriptId?: string | null;
     fromAssigned?: boolean;
   }>>({});
   const [activeScriptData, setActiveScriptData] = useState<GeneratedScriptData | null>(null);
   const [activeScriptIdeaTitle, setActiveScriptIdeaTitle] = useState<string>('');
+  const [activeScriptIdeaDescription, setActiveScriptIdeaDescription] = useState<string>('');
   const [activeScriptDuration, setActiveScriptDuration] = useState<number>(10);
   const [activeUniversalScriptId, setActiveUniversalScriptId] = useState<string | null>(null);
+  const [activeScriptRowId, setActiveScriptRowId] = useState<string | null>(null);
   const [activeScriptFromAssigned, setActiveScriptFromAssigned] = useState(false);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [scriptGenReady, setScriptGenReady] = useState(false);
@@ -694,6 +702,8 @@ useEffect(() => {
     const scripts: Record<number, {
       data: GeneratedScriptData;
       ideaTitle: string;
+      ideaDescription?: string;
+      scriptRowId?: string | null;
       universalScriptId?: string | null;
       fromAssigned?: boolean;
     }> = {};
@@ -704,6 +714,8 @@ useEffect(() => {
         scripts[idea.id] = {
           data: idea.script,
           ideaTitle: idea.title,
+          ideaDescription: idea.description,
+          scriptRowId: idea.scriptRowId ?? null,
           universalScriptId: idea.fromAssigned ? null : (idea.scriptRowId ?? null),
           fromAssigned: !!idea.fromAssigned,
         };
@@ -717,6 +729,8 @@ useEffect(() => {
     if (first?.script) {
       setActiveScriptData(first.script);
       setActiveScriptIdeaTitle(first.title);
+      setActiveScriptIdeaDescription(first.description || '');
+      setActiveScriptRowId(first.scriptRowId ?? null);
       setActiveUniversalScriptId(first.fromAssigned ? null : (first.scriptRowId ?? null));
       setActiveScriptFromAssigned(!!first.fromAssigned);
       const mins = Number(first.script.metrics?.videoLength || 10);
@@ -724,7 +738,9 @@ useEffect(() => {
     } else {
       setActiveScriptData(null);
       setActiveScriptIdeaTitle('');
+      setActiveScriptIdeaDescription('');
       setActiveScriptDuration(10);
+      setActiveScriptRowId(null);
       setActiveUniversalScriptId(null);
       setActiveScriptFromAssigned(false);
     }
@@ -746,7 +762,7 @@ useEffect(() => {
 
   const newTopicParam = searchParams.get('new');
 
-  // Enter compose mode from ?new=1 or the __compose__ placeholder topic
+  // Enter compose mode from ?new=1 or the studio home topic (/content-ideas/app)
   useEffect(() => {
     if (newTopicParam !== '1' && !isComposePlaceholder) return;
 
@@ -996,18 +1012,8 @@ useEffect(() => {
       time: Number(videoLengths[idea.id] || 10),
     };
 
-    const unusedIdeas = scriptIdeas
-      .filter((i) => i.id !== idea.id)
-      .map((i) => ({ title: i.title, description: i.description }));
-
-    if (unusedIdeas.length > 0) {
-      ApiService.sendUnusedIdeas({
-        topic,
-        topic_summary: topicSummary,
-        userId: session.user.id,
-        ideas: unusedIdeas,
-      });
-    }
+    // Keep the full idea list in saved_ideas intact — never overwrite with a
+    // partial "unused ideas" payload (that was dropping the generated idea).
 
     setGeneratedIdeaIds((prev) => new Set(prev).add(idea.id));
     setSidebarRefresh((n) => n + 1);
@@ -1017,15 +1023,9 @@ useEffect(() => {
 
     try {
       sessionStorage.setItem(
-        'pending_unused_idea',
-        JSON.stringify({
-          topic,
-          topic_summary: topicSummary,
-          userId: session.user.id,
-          ideas: [{ title: idea.title, description: idea.description }],
-        }),
+        'studio_search_topic',
+        topic,
       );
-      sessionStorage.setItem('studio_search_topic', topic);
       sessionStorage.setItem(
         'studio_selected_idea',
         JSON.stringify({
@@ -1050,14 +1050,20 @@ useEffect(() => {
       const universalId = await saveScriptToUniversal(normalized, {
         title: idea.title,
         topic,
+        description: idea.description,
         userId: session.user.id,
       });
+
+      // Re-persist the full idea list so saved_ideas never loses the generated idea
+      await persistNewIdeas(scriptIdeas, topicSummary);
 
       setIdeaScripts((prev) => ({
         ...prev,
         [idea.id]: {
           data: normalized,
           ideaTitle: idea.title,
+          ideaDescription: idea.description,
+          scriptRowId: universalId,
           universalScriptId: universalId,
         },
       }));
@@ -1080,7 +1086,9 @@ useEffect(() => {
 
       setActiveScriptData(normalized);
       setActiveScriptIdeaTitle(idea.title);
+      setActiveScriptIdeaDescription(idea.description || '');
       setActiveScriptDuration(Number(videoLengths[idea.id] || payload.time || 10));
+      setActiveScriptRowId(universalId);
       setActiveUniversalScriptId(universalId);
       setActiveScriptFromAssigned(false);
       setStudioTab('script');
@@ -1110,7 +1118,10 @@ useEffect(() => {
     ideas: scriptIdeas.length > 0,
     script: !!activeScriptData?.script,
     metadata: !!(activeScriptData?.youtube_metadata?.titles?.length || activeScriptData?.youtube_metadata?.descriptions?.length || activeScriptData?.youtube_metadata?.hashtags?.length),
-    thumbnails: !!(activeScriptData?.youtube_metadata?.thumbnail_text?.length),
+    thumbnails: !!(
+      activeScriptData?.youtube_metadata?.thumbnail_text?.length ||
+      normalizeGeneratedThumbnail(activeScriptData?.thumbnail_generated)?.public_url
+    ),
     broll: false,
   };
 
@@ -1120,6 +1131,8 @@ useEffect(() => {
     if (fromMap?.data) {
       setActiveScriptData(fromMap.data);
       setActiveScriptIdeaTitle(fromMap.ideaTitle);
+      setActiveScriptIdeaDescription(fromMap.ideaDescription || idea.description || '');
+      setActiveScriptRowId(fromMap.scriptRowId ?? fromMap.universalScriptId ?? null);
       setActiveUniversalScriptId(fromMap.universalScriptId ?? null);
       setActiveScriptFromAssigned(!!fromMap.fromAssigned);
       setActiveScriptDuration(
@@ -1138,6 +1151,10 @@ useEffect(() => {
         if (parsed?.data) {
           setActiveScriptData(parsed.data);
           setActiveScriptIdeaTitle(idea.title);
+          setActiveScriptIdeaDescription(
+            idea.description || parsed?.params?.description || '',
+          );
+          setActiveScriptRowId(parsed.universalScriptId ?? null);
           setActiveUniversalScriptId(parsed.universalScriptId ?? null);
           setActiveScriptFromAssigned(false);
           const fromParams = Number(parsed?.params?.time);
@@ -1202,13 +1219,13 @@ useEffect(() => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
-                      Content ideas
+                      {studioTab === 'broll' ? '' : ''}
                     </p>
                     <h1
                       className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
                       style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
                     >
-                      Start a new topic
+                      {studioTab === 'broll' ? 'B-ROLL VIDEOS' : 'START A NEW TOPIC'}
                     </h1>
                   </div>
                 </div>
@@ -1229,10 +1246,18 @@ useEffect(() => {
               <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
                 {studioTab === 'ideas' ? (
                   <NewTopicPrompt onFocusSearch={() => searchInputRef.current?.focus()} />
+                ) : studioTab === 'broll' ? (
+                  <StudioBRollPanel />
                 ) : (
                   <div className="bg-white border border-gray-200 rounded-2xl text-center py-14 px-6">
                     <p className="text-sm text-gray-500">
-                      Search a topic first to unlock {studioTab === 'script' ? 'scripts' : studioTab === 'metadata' ? 'metadata' : studioTab === 'thumbnails' ? 'thumbnails' : 'B-roll'}.
+                      Generate full script to on selected ideas to generate{' '}
+                      {studioTab === 'script'
+                        ? 'scripts'
+                        : studioTab === 'metadata'
+                          ? 'metadata'
+                          : 'thumbnails'}
+                      .
                     </p>
                     <button
                       type="button"
@@ -1255,7 +1280,7 @@ useEffect(() => {
         {/* Fixed topic + stage tabs */}
         <div id="studio-stage-header" className="flex-shrink-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-200/80 shadow-sm">
           <div className="max-w-8xl mx-auto px-4 sm:px-6 pt-5 pb-4">
-            <div className="flex items-start gap-3 mb-4">
+            <div className="flex items-end gap-3 mb-4">
               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1d1d1f] flex items-center justify-center flex-shrink-0 shadow-sm">
                 <Sparkles className="w-5 h-5 text-amber-400" />
               </div>
@@ -1467,10 +1492,16 @@ useEffect(() => {
               <StudioScriptPanel
                 data={activeScriptData}
                 ideaTitle={activeScriptIdeaTitle}
+                ideaDescription={activeScriptIdeaDescription}
                 topic={topic}
                 durationMinutes={activeScriptDuration}
                 universalScriptId={activeUniversalScriptId}
                 initiallyUnlocked={activeScriptFromAssigned}
+                onUnlocked={({ assignedId } = {}) => {
+                  setActiveScriptFromAssigned(true);
+                  setActiveUniversalScriptId(null);
+                  if (assignedId) setActiveScriptRowId(assignedId);
+                }}
               />
             )}
 
@@ -1479,7 +1510,19 @@ useEffect(() => {
             )}
 
             {studioTab === 'thumbnails' && (
-              <StudioThumbnailsPanel data={activeScriptData} />
+              <StudioThumbnailsPanel
+                data={activeScriptData}
+                ideaTitle={activeScriptIdeaTitle}
+                ideaDescription={activeScriptIdeaDescription}
+                topic={topic}
+                scriptRowId={activeScriptRowId}
+                isUnlocked={activeScriptFromAssigned}
+                fromAssigned={activeScriptFromAssigned}
+                initialGeneratedThumbnail={
+                  normalizeGeneratedThumbnail(activeScriptData?.thumbnail_generated)
+                }
+                onGoToScript={() => setStudioTab('script')}
+              />
             )}
 
             {studioTab === 'broll' && <StudioBRollPanel />}

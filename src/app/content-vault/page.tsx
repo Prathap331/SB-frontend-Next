@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import { Clock, FileText, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import StudioShell from '@/components/studio/StudioShell';
 import { supabase } from '@/lib/supabaseClient';
+import {
+  normalizeScriptCategory,
+  normalizeScriptSubcategories,
+} from '@/lib/script-persistence';
 
 type ScriptRow = {
   id: string;
@@ -18,6 +22,8 @@ type ScriptRow = {
   sources?: string[] | null;
   books?: Array<{ title?: string; author?: string }> | null;
   structure?: Array<{ name: string; percentage: number }> | null;
+  category?: unknown;
+  sub_category?: unknown;
 };
 
 const PAGE_SIZE = 20;
@@ -35,6 +41,14 @@ function rowDuration(s: ScriptRow): number {
   return s.metrics?.videoLength ?? 0;
 }
 
+function rowCategory(s: ScriptRow): string | null {
+  return normalizeScriptCategory(s.category);
+}
+
+function rowSubcategories(s: ScriptRow): string[] {
+  return normalizeScriptSubcategories(s.sub_category);
+}
+
 async function fetchAllUniversalScripts(): Promise<ScriptRow[]> {
   const all: ScriptRow[] = [];
   let from = 0;
@@ -43,7 +57,9 @@ async function fetchAllUniversalScripts(): Promise<ScriptRow[]> {
     const to = from + FETCH_PAGE - 1;
     const { data, error } = await supabase
       .from('scripts_universal')
-      .select('id, title, topic, script, youtube_metadata, thumbnail, metrics, sources, books, structure, created_at')
+      .select(
+        `id, title, topic, script, youtube_metadata, thumbnail, metrics, sources, books, structure, created_at, category, sub_category, "thumbnail-generated"`,
+      )
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -69,6 +85,8 @@ export function ContentVaultPanel({ embedded = false }: { embedded?: boolean } =
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [page, setPage]         = useState(1);
   const [durationFilter, setDurationFilter] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [subCategoryFilter, setSubCategoryFilter] = useState<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -91,36 +109,75 @@ export function ContentVaultPanel({ embedded = false }: { embedded?: boolean } =
     return () => { cancelled = true; };
   }, []);
 
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of scripts) {
+      const c = rowCategory(s);
+      if (c) set.add(c);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [scripts]);
+
+  const subCategoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of scripts) {
+      const cat = rowCategory(s);
+      if (categoryFilter && cat !== categoryFilter) continue;
+      for (const sub of rowSubcategories(s)) set.add(sub);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [scripts, categoryFilter]);
+
   const filtered = useMemo(() => {
     return scripts.filter((s) => {
-      if (!durationFilter) return true;
-      const range = DURATION_RANGES.find((r) => r.label === durationFilter);
-      if (!range) return true;
-      const d = rowDuration(s);
-      return d >= range.min && d < range.max;
+      if (durationFilter) {
+        const range = DURATION_RANGES.find((r) => r.label === durationFilter);
+        if (range) {
+          const d = rowDuration(s);
+          if (!(d >= range.min && d < range.max)) return false;
+        }
+      }
+      if (categoryFilter) {
+        if (rowCategory(s) !== categoryFilter) return false;
+      }
+      if (subCategoryFilter) {
+        if (!rowSubcategories(s).includes(subCategoryFilter)) return false;
+      }
+      return true;
     });
-  }, [scripts, durationFilter]);
+  }, [scripts, durationFilter, categoryFilter, subCategoryFilter]);
 
-  useEffect(() => { setPage(1); }, [durationFilter]);
+  useEffect(() => { setPage(1); }, [durationFilter, categoryFilter, subCategoryFilter]);
+
+  useEffect(() => {
+    if (subCategoryFilter && !subCategoryOptions.includes(subCategoryFilter)) {
+      setSubCategoryFilter('');
+    }
+  }, [subCategoryOptions, subCategoryFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const activeFilterCount = durationFilter ? 1 : 0;
-  const clearFilters = () => setDurationFilter('');
+  const activeFilterCount =
+    (durationFilter ? 1 : 0) + (categoryFilter ? 1 : 0) + (subCategoryFilter ? 1 : 0);
+  const clearFilters = () => {
+    setDurationFilter('');
+    setCategoryFilter('');
+    setSubCategoryFilter('');
+  };
 
   return (
     <div>
       <div className="mb-6">
         <h1
-          className={`${embedded ? 'text-2xl' : 'text-2xl sm:text-3xl md:text-4xl'} font-semibold tracking-tight text-[#1d1d1f] mb-1`}
+          className={`${embedded ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl md:text-4xl'} font-semibold tracking-tight text-[#1d1d1f] mb-1`}
           style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
         >
           Content Vault
         </h1>
-        <p className="text-sm text-[#6e6e73] font-light">
+        <p className={`${embedded ? 'text-base sm:text-lg' : 'text-sm'} text-[#6e6e73] font-light`}>
           Create Faster with Ready Scripts
           {!loading && !fetchError && scripts.length > 0 && (
-            <span className="text-[#a1a1a6]"> · {scripts.length} available</span>
+            <span className="text-[#a1a1a6]"> · {filtered.length} shown</span>
           )}
         </p>
       </div>
@@ -133,6 +190,34 @@ export function ContentVaultPanel({ embedded = false }: { embedded?: boolean } =
 
       <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm px-5 py-4 mb-6">
         <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase">Category</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-[#f5f5f7] text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/15 min-w-[140px]"
+            >
+              <option value="">All categories</option>
+              {categoryOptions.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase">Sub-category</label>
+            <select
+              value={subCategoryFilter}
+              onChange={(e) => setSubCategoryFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-[#f5f5f7] text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/15 min-w-[160px]"
+            >
+              <option value="">All sub-categories</option>
+              {subCategoryOptions.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase">Duration</label>
             <select
@@ -185,15 +270,17 @@ export function ContentVaultPanel({ embedded = false }: { embedded?: boolean } =
         <div className={`grid grid-cols-1 sm:grid-cols-2 ${embedded ? 'lg:grid-cols-2 xl:grid-cols-3' : 'lg:grid-cols-3 xl:grid-cols-4'} gap-4`}>
           {paginated.map((s) => {
             const duration = rowDuration(s);
+            const category = rowCategory(s);
+            const subs = rowSubcategories(s);
             return (
               <button
                 key={s.id}
                 onClick={() => router.push(`/script?scriptId=${s.id}`)}
                 className="group text-left bg-white border border-gray-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 hover:-translate-y-0.5 focus:outline-none"
               >
-                {s.topic && (
+                {category && (
                   <span className="inline-flex max-w-full items-center mb-2.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200/80 text-[10px] font-bold tracking-wide text-amber-800 uppercase line-clamp-1">
-                    {s.topic}
+                    {category}
                   </span>
                 )}
                 <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-2 group-hover:text-black line-clamp-2">
@@ -208,6 +295,17 @@ export function ContentVaultPanel({ embedded = false }: { embedded?: boolean } =
                       <Clock className="w-3 h-3" />
                       {Math.round(duration * 10) / 10} min
                     </span>
+                  )}
+                  {subs.slice(0, 3).map((sub) => (
+                    <span
+                      key={sub}
+                      className="inline-flex items-center text-[10px] font-medium text-[#6e6e73] bg-[#f5f5f7] border border-gray-200 px-2 py-0.5 rounded-full"
+                    >
+                      {sub}
+                    </span>
+                  ))}
+                  {subs.length > 3 && (
+                    <span className="text-[10px] text-[#a1a1a6]">+{subs.length - 3}</span>
                   )}
                 </div>
                 <span className="text-[10px] text-[#a1a1a6] font-light">

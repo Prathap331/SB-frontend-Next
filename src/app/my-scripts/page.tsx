@@ -47,12 +47,12 @@ export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}
     <div>
       <div className="mb-6">
         <h1
-          className={`${embedded ? 'text-2xl' : 'text-2xl sm:text-3xl'} font-semibold tracking-tight text-[#1d1d1f] mb-1`}
+          className={`${embedded ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl'} font-semibold tracking-tight text-[#1d1d1f] mb-1`}
           style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
         >
           My Scripts
         </h1>
-        <p className="text-sm text-[#6e6e73] font-light">
+        <p className={`${embedded ? 'text-base sm:text-lg' : 'text-sm'} text-[#6e6e73] font-light`}>
           Scripts you&apos;ve unlocked — ready to produce
         </p>
       </div>

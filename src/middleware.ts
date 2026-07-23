@@ -85,8 +85,23 @@ export function middleware(request: NextRequest) {
   // Search keyword slug
   if (first && isSearchKeywordSlug(first)) {
     const rest = segments.slice(1);
-    // Bare /content-ideas (etc.) → compose studio home — no topic active
-    const topic = rest.length > 0 ? rest.join('/') : '__compose__';
+
+    // Bare /content-ideas → /content-ideas/app (compose / search home)
+    if (rest.length === 0) {
+      return NextResponse.redirect(
+        new URL(`/${first}/app${search}`, request.url),
+      );
+    }
+
+    // Legacy compose placeholder → /content-ideas/app
+    const firstTopic = decodeURIComponent(rest[0] || '');
+    if (rest.length === 1 && firstTopic === '__compose__') {
+      return NextResponse.redirect(
+        new URL(`/${first}/app${search}`, request.url),
+      );
+    }
+
+    const topic = rest.join('/');
     const url = request.nextUrl.clone();
     url.pathname = `/search/${decodeURIComponent(topic)}`;
     const response = NextResponse.rewrite(url);

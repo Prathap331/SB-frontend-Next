@@ -1,8 +1,12 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { Menu } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Loader2, Menu, Search, Sparkles } from 'lucide-react';
 import StudioSidebar from '@/components/studio/StudioSidebar';
+import { Input } from '@/components/ui/input';
+import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
+import { useRequireAuth } from '@/hooks/use-require-auth';
 
 type Props = {
   children: React.ReactNode;
@@ -14,7 +18,54 @@ type Props = {
   padded?: boolean;
   /** When false, the main area does not scroll — children manage their own scroll */
   contentScroll?: boolean;
+  /**
+   * Require a signed-in session (redirects to /auth).
+   * Default true — pass false for public studio pages like pricing.
+   */
+  requireAuth?: boolean;
 };
+
+function DefaultStudioSearchBar() {
+  const router = useRouter();
+  const { searchPath } = useKeywordNavigation();
+  const [query, setQuery] = useState('');
+
+  const submit = () => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    router.push(searchPath(trimmed));
+  };
+
+  return (
+    <div className="flex items-center gap-3 flex-1 min-w-0">
+      <div className="relative flex-1">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Input
+          type="text"
+          placeholder="Search a topic (e.g. 'productivity for developers')"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          className="pl-10 pr-4 py-5 rounded-full border-gray-200 bg-white text-sm"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={submit}
+        className="flex items-center gap-2 rounded-full bg-[#3d3d3a] hover:bg-[#1d1d1f] text-white text-sm font-semibold px-4 py-2.5 transition-colors flex-shrink-0"
+      >
+        <Sparkles className="w-3.5 h-3.5" />
+        <span className="hidden sm:inline">Generate ideas</span>
+        <span className="sm:hidden">Go</span>
+      </button>
+    </div>
+  );
+}
 
 /**
  * Shared studio chrome: left StudioSidebar + scrollable main panel.
@@ -27,8 +78,10 @@ export default function StudioShell({
   topBar,
   padded = true,
   contentScroll = true,
+  requireAuth = true,
 }: Props) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { ready, allowed } = useRequireAuth(requireAuth);
 
   const sidebar = (
     <StudioSidebar
@@ -37,6 +90,14 @@ export default function StudioShell({
       onNavigate={() => setMobileNavOpen(false)}
     />
   );
+
+  if (requireAuth && (!ready || !allowed)) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#f5f6f8]">
+        <Loader2 className="w-6 h-6 animate-spin text-[#6e6e73]" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen overflow-hidden bg-[#f5f6f8] flex">
@@ -66,9 +127,7 @@ export default function StudioShell({
             >
               <Menu className="w-5 h-5" />
             </button>
-            {topBar ?? (
-              <p className="text-sm font-medium text-[#6e6e73] truncate">AI Creator Studio</p>
-            )}
+            {topBar ?? <DefaultStudioSearchBar />}
           </div>
         </div>
 
