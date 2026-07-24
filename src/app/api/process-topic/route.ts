@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { topic } = body;
+    const { topic, userId } = body;
 
     if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
       return NextResponse.json(
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[generate-ideas] Processing topic:', topic);
+    console.log('[generate-ideas] Processing topic:', topic, 'userId:', userId ?? null);
 
     const authHeader = request.headers.get('Authorization');
     const headers: HeadersInit = {
@@ -68,10 +68,17 @@ export async function POST(request: NextRequest) {
     const backendUrl = `${API_URL}/generate-ideas`;
     console.log('[generate-ideas] Calling backend:', backendUrl);
 
+    const backendPayload: { topic: string; userId?: string } = {
+      topic: topic.trim(),
+    };
+    if (typeof userId === 'string' && userId.trim()) {
+      backendPayload.userId = userId.trim();
+    }
+
     const response = await fetch(backendUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ topic: topic.trim() }),
+      body: JSON.stringify(backendPayload),
       signal: controller.signal,
     });
 

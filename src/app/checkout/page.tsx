@@ -137,7 +137,7 @@ function CheckoutInner() {
   const nextBillingDate = addDays(isAnnual ? 365 : 30);
 
   const totalgst = (plangst * planAmount) / 100;
-  const totalAmount = totalgst + planAmount;
+  const totalAmount = Math.round(totalgst + planAmount);
 
   const handlePay = async () => {
     if (!phone.trim() || !address.trim()) {
@@ -396,10 +396,10 @@ function CheckoutInner() {
               <span className="text-[#6e6e73] font-light">storio {planName}</span>
               <span className="font-semibold text-[#1d1d1f]">{planPrice}</span>
             </div>
-            {/* <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-sm">
               <span className="text-[#6e6e73] font-light">GST</span>
               <span className="font-semibold text-[#1d1d1f]">{totalgst}</span>
-            </div> */}
+            </div>
 
             <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
               <span className="text-sm font-semibold text-[#1d1d1f]">Total now</span>

@@ -23,6 +23,7 @@ import { STORYBIT_PRODUCTION_GUIDE } from '@/lib/production-guide';
 import {
   buildScriptTableRow,
   moveScriptToAssigned,
+  normalizeGeneratedThumbnail,
   saveScriptToUniversal,
   SCRIPT_ROW_SELECT,
 } from '@/lib/script-persistence';
@@ -1106,6 +1107,8 @@ if (params.get('from') === 'suggested') {
     (ytMeta?.thumbnail_text?.length ? ytMeta.thumbnail_text : null)
     ?? (legacySeo?.thumbnail_brief ?? []).map((t: any) => t?.text_overlay).filter(Boolean);
 
+  const generatedThumbnail = normalizeGeneratedThumbnail(data.thumbnail_generated);
+
   const books = data.books ?? [];
 
   const handleCopy = (key: string, text: string) => {
@@ -1301,40 +1304,80 @@ if (params.get('from') === 'suggested') {
 
             {/* ── Tab 4: Thumbnails ── */}
             {contentTab === 4 && (
-              seoThumbnailTexts.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {seoThumbnailTexts.map((text, i) => {
-                    const meta = OPTION_META[i % OPTION_META.length];
-                    const copyKey = `thumb-${i}`;
-                    return (
-                      <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-gray-300 hover:bg-gray-50/60">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${meta.dot}`} />
-                            <span className={`text-[10px] font-bold tracking-widest uppercase ${meta.label}`}>Concept {i + 1}</span>
-                          </div>
-                          <button
-                            className="flex items-center gap-1 text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
-                            onClick={() => handleCopy(copyKey, text)}
-                          >
-                            {copiedKey === copyKey ? <><Check className="w-3 h-3 text-green-600" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
-                          </button>
-                        </div>
-                        {/* 16:9 thumbnail text preview */}
-                        <div className="aspect-video rounded-lg bg-gradient-to-br from-[#1d1d1f] to-[#3a3a3d] flex items-center justify-center px-4 mb-2.5">
-                          <p className="text-white font-extrabold text-base sm:text-lg text-center uppercase leading-tight tracking-wide drop-shadow-md">
-                            {text}
+              (generatedThumbnail?.public_url || seoThumbnailTexts.length > 0) ? (
+                <div className="space-y-4">
+                  {generatedThumbnail?.public_url && (
+                    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-[#1d1d1f]">Generated thumbnail</h3>
+                          <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">
+                            Saved on your unlocked script
                           </p>
                         </div>
-                        <p className="text-[10px] text-gray-500 leading-relaxed">Suggested text overlay for your thumbnail design.</p>
+                        <a
+                          href={generatedThumbnail.public_url}
+                          download
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1d1d1f] bg-[#f5f5f7] border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-200"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Download
+                        </a>
                       </div>
-                    );
-                  })}
+                      <div className="p-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={generatedThumbnail.public_url}
+                          alt="Generated thumbnail"
+                          className="w-full max-w-2xl mx-auto rounded-xl border border-gray-100 aspect-video object-cover"
+                        />
+                        {generatedThumbnail.prompt && (
+                          <p className="mt-3 text-xs text-[#6e6e73] leading-relaxed max-w-2xl mx-auto">
+                            {generatedThumbnail.prompt}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {seoThumbnailTexts.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {seoThumbnailTexts.map((text, i) => {
+                        const meta = OPTION_META[i % OPTION_META.length];
+                        const copyKey = `thumb-${i}`;
+                        return (
+                          <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-gray-300 hover:bg-gray-50/60">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${meta.dot}`} />
+                                <span className={`text-[10px] font-bold tracking-widest uppercase ${meta.label}`}>Concept {i + 1}</span>
+                              </div>
+                              <button
+                                className="flex items-center gap-1 text-[9px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200 transition-colors"
+                                onClick={() => handleCopy(copyKey, text)}
+                              >
+                                {copiedKey === copyKey ? <><Check className="w-3 h-3 text-green-600" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
+                              </button>
+                            </div>
+                            {/* 16:9 thumbnail text preview */}
+                            <div className="aspect-video rounded-lg bg-gradient-to-br from-[#1d1d1f] to-[#3a3a3d] flex items-center justify-center px-4 mb-2.5">
+                              <p className="text-white font-extrabold text-base sm:text-lg text-center uppercase leading-tight tracking-wide drop-shadow-md">
+                                {text}
+                              </p>
+                            </div>
+                            <p className="text-[10px] text-gray-500 leading-relaxed">Suggested text overlay for your thumbnail design.</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <ImageIcon className="w-8 h-8 text-gray-300 mb-2" />
-                  <p className="text-xs text-[#6e6e73]">No thumbnail text available</p>
+                  <p className="text-xs text-[#6e6e73]">No thumbnail available</p>
                 </div>
               )
             )}

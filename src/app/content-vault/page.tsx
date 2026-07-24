@@ -278,9 +278,9 @@ export function ContentVaultPanel({ embedded = false }: { embedded?: boolean } =
                 onClick={() => router.push(`/script?scriptId=${s.id}`)}
                 className="group text-left bg-white border border-gray-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 hover:-translate-y-0.5 focus:outline-none"
               >
-                {category && (
+                {s.topic && (
                   <span className="inline-flex max-w-full items-center mb-2.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200/80 text-[10px] font-bold tracking-wide text-amber-800 uppercase line-clamp-1">
-                    {category}
+                    {s.topic}
                   </span>
                 )}
                 <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-2 group-hover:text-black line-clamp-2">
@@ -294,6 +294,11 @@ export function ContentVaultPanel({ embedded = false }: { embedded?: boolean } =
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
                       <Clock className="w-3 h-3" />
                       {Math.round(duration * 10) / 10} min
+                    </span>
+                  )}
+                  {category && (
+                    <span className="inline-flex items-center text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                      {category}
                     </span>
                   )}
                   {subs.slice(0, 3).map((sub) => (
@@ -367,7 +372,7 @@ export function ContentVaultPanel({ embedded = false }: { embedded?: boolean } =
 
 export default function AllScriptsPage() {
   return (
-    <StudioShell>
+    <StudioShell requireAuth={false}>
       <ContentVaultPanel embedded />
     </StudioShell>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Search,
   Loader2,
@@ -31,7 +32,7 @@ import {
   type BrollSize,
   type BrollVideo,
 } from '@/services/api';
-type OrientationFilter = 'any' | BrollOrientation;
+import { supabase } from '@/lib/supabaseClient';type OrientationFilter = 'any' | BrollOrientation;
 type PeopleFilter = 'any' | '0' | '1' | '2' | '3+';
 type AgeFilter = 'any' | 'baby' | 'child' | 'teenager' | 'adult' | 'senior';
 type FpsFilter = 'any' | '24' | '25' | '30' | '50' | '60+';
@@ -93,6 +94,61 @@ function matchesResolution(video: BrollVideo, res: ResolutionFilter): boolean {
   return true;
 }
 
+type BrollVideoFileLink = BrollVideo['video_files'][number];
+
+const SAMPLE_MP4 =
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+
+const DEMO_BROLL_LABELS = [
+  'City traffic timelapse',
+  'Ocean waves coastline',
+  'Coffee steam close-up',
+  'Laptop coding desk',
+  'Forest sunlight rays',
+  'Busy kitchen cooking',
+  'Airplane takeoff sky',
+  'Rain on window glass',
+  'Gym workout training',
+  'Library books shelves',
+  'Mountain hiking trail',
+  'Street food market',
+  'Sunrise over fields',
+  'Office meeting room',
+  'Night city lights',
+];
+
+/** Example clips shown before the user runs a real search */
+function buildDemoBrollVideos(): BrollVideo[] {
+  return DEMO_BROLL_LABELS.map((label, i) => {
+    const id = 900_000 + i;
+    const landscape = i % 3 !== 2;
+    const width = landscape ? 1920 : 1080;
+    const height = landscape ? 1080 : 1920;
+    const duration = 8 + (i % 7) * 4;
+    const thumb = `https://picsum.photos/seed/storio-broll-${i}/${width}/${height}`;
+    return {
+      id,
+      url: `https://www.pexels.com/`,
+      width,
+      height,
+      duration,
+      thumbnail: thumb,
+      user: { name: label, url: 'https://www.pexels.com/' },
+      video_files: [
+        {
+          quality: 'hd',
+          width,
+          height,
+          file_type: 'video/mp4',
+          link: SAMPLE_MP4,
+        },
+      ],
+    };
+  });
+}
+
+const DEMO_BROLL_VIDEOS = buildDemoBrollVideos();
+
 function pickPreviewFile(video: BrollVideo): BrollVideoFileLink | null {
   const files = [...video.video_files].filter((f) => f.link);
   if (!files.length) return null;
@@ -134,8 +190,6 @@ function buildPageItems(current: number, total: number): Array<number | '…'> {
   }
   return items;
 }
-
-type BrollVideoFileLink = BrollVideo['video_files'][number];
 
 function FilterChip({
   label,
@@ -195,12 +249,14 @@ function FilterSection({
 }
 
 export function StudioBRollPanel() {
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [videos, setVideos] = useState<BrollVideo[]>([]);
-  const [totalResults, setTotalResults] = useState(0);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [videos, setVideos] = useState<BrollVideo[]>(DEMO_BROLL_VIDEOS);
+  const [totalResults, setTotalResults] = useState(DEMO_BROLL_VIDEOS.length);
   const [previewId, setPreviewId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -250,6 +306,16 @@ export function StudioBRollPanel() {
         setError('Enter a search term to find B-roll.');
         return;
       }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        try {
+          localStorage.setItem('post_auth_redirect', window.location.href);
+        } catch { /* ignore */ }
+        router.push('/auth');
+        return;
+      }
+
       setLoading(true);
       setError(null);
       try {
@@ -262,11 +328,14 @@ export function StudioBRollPanel() {
           per_page: PER_PAGE,
           orientation: orientationParam,
           size: sizeParam,
+          userId: session.user.id,
         });
+        setHasSearched(true);
         setVideos(res.videos ?? []);
         setTotalResults(res.total_results ?? 0);
         setPage(res.page ?? pageNum);
       } catch (err) {
+        setHasSearched(true);
         setVideos([]);
         setTotalResults(0);
         setError(err instanceof Error ? err.message : 'Failed to search B-roll.');
@@ -274,7 +343,7 @@ export function StudioBRollPanel() {
         setLoading(false);
       }
     },
-    [buildQuery, orientation, resolution],
+    [buildQuery, orientation, resolution, router],
   );
 
   const filteredVideos = useMemo(
@@ -675,12 +744,15 @@ export function StudioBRollPanel() {
             <>
               <div className="flex items-center justify-between text-sm text-gray-500">
                 <span>
-                  Showing {filteredVideos.length}
-                  {totalResults ? ` of ${totalResults.toLocaleString()}` : ''} results
+                  {hasSearched
+                    ? <>Showing {filteredVideos.length}{totalResults ? ` of ${totalResults.toLocaleString()}` : ''} results</>
+                    : <>Example clips · search to find footage for your video</>}
                 </span>
-                <span>
-                  Page {page} of {totalPages}
-                </span>
+                {hasSearched && (
+                  <span>
+                    Page {page} of {totalPages}
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -763,7 +835,7 @@ export function StudioBRollPanel() {
                 })}
               </div>
 
-              {totalPages > 1 && (
+              {hasSearched && totalPages > 1 && (
                 <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2">
                   <button
                     type="button"

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 
 export interface ProcessTopicRequest {
   topic: string;
+  userId?: string;
 }
 
 // ── B-Roll (Pexels proxy) ─────────────────────────────────────────────────────
@@ -17,6 +18,7 @@ export interface BrollSearchPayload {
   page?: number;
   orientation?: BrollOrientation | '';
   size?: BrollSize | '';
+  userId?: string;
 }
 
 export interface BrollVideoFile {
@@ -720,22 +722,36 @@ export class ApiService {
     };
   }
 
-  static async processTopic(topic: string, retryCount = 0): Promise<ProcessTopicResponse> {
+  static async processTopic(
+    topic: string,
+    userId?: string | null,
+    retryCount = 0,
+  ): Promise<ProcessTopicResponse> {
     const maxRetries = 2;
 
     try {
       const apiUrl = `${this.BASE_URL}/generate-ideas`;
       const safeTopic = this.sanitizeTopic(topic);
 
+      // Resolve userId from the active session when the caller did not pass one
+      let resolvedUserId = userId?.trim() || null;
+      if (!resolvedUserId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        resolvedUserId = session?.user?.id ?? null;
+      }
+
+      const payload: { topic: string; userId?: string } = { topic: safeTopic };
+      if (resolvedUserId) payload.userId = resolvedUserId;
+
       // No timeout — let the server respond however long it takes
       const response = await this.authorizedFetch(
         apiUrl,
-        { method: 'POST', body: JSON.stringify({ topic: safeTopic }) },
+        { method: 'POST', body: JSON.stringify(payload) },
       );
 
       // Immediate retry on 502 — no delay
       if (response.status === 502 && retryCount < maxRetries) {
-        return this.processTopic(topic, retryCount + 1);
+        return this.processTopic(topic, resolvedUserId, retryCount + 1);
       }
 
       if (!response.ok) {
@@ -958,12 +974,20 @@ export class ApiService {
   /** Search stock B-roll videos (Pexels-backed). */
   static async searchBroll(payload: BrollSearchPayload): Promise<BrollSearchResponse> {
     const url = `${this.BASE_URL}/search-pexels-videos`;
+
+    let userId = payload.userId?.trim() || null;
+    if (!userId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id ?? null;
+    }
+
     const body: BrollSearchPayload = {
       query: payload.query.trim(),
       per_page: payload.per_page ?? 15,
       page: payload.page ?? 1,
       ...(payload.orientation ? { orientation: payload.orientation } : {}),
       ...(payload.size ? { size: payload.size } : {}),
+      ...(userId ? { userId } : {}),
     };
 
     const response = await this.authorizedFetch(url, {
