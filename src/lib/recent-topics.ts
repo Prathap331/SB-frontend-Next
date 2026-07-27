@@ -34,6 +34,7 @@ export type TopicWorkspace = {
   topic: string;
   ideas: MergedIdea[];
   createdAt: string | null;
+  topicSummary?: string | null;
 };
 
 /**
@@ -47,6 +48,7 @@ type SavedIdeaRow = {
   topic: string;
   ideas: unknown;
   userId: string | null;
+  topic_summary?: string | null;
 };
 
 type ScriptDbRow = {
@@ -388,7 +390,7 @@ export async function loadTopicWorkspace(
 
   const { data, error } = await supabase
     .from('saved_ideas')
-    .select('id, created_at, topic, ideas, userId')
+    .select('id, created_at, topic, ideas, userId, topic_summary')
     .eq('userId', uid)
     .eq('topic', trimmed)
     .order('created_at', { ascending: false })
@@ -404,7 +406,7 @@ export async function loadTopicWorkspace(
     // Case-insensitive fallback: topic strings may differ in casing
     const { data: allForUser, error: listErr } = await supabase
       .from('saved_ideas')
-      .select('id, created_at, topic, ideas, userId')
+      .select('id, created_at, topic, ideas, userId, topic_summary')
       .eq('userId', uid)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -434,6 +436,7 @@ export async function loadTopicWorkspace(
       topic: match.topic.trim(),
       ideas: merged,
       createdAt: match.created_at ?? null,
+      topicSummary: match.topic_summary ?? null,
     };
   }
 
@@ -453,6 +456,7 @@ export async function loadTopicWorkspace(
     topic: trimmed,
     ideas: merged,
     createdAt: row.created_at ?? null,
+    topicSummary: row.topic_summary ?? null,
   };
 }
 

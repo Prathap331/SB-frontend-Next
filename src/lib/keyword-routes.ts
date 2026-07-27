@@ -22,35 +22,177 @@ export type SearchKeywordSlug = (typeof SEARCH_KEYWORD_SLUGS)[number];
 export const DEFAULT_LANDING_SLUG: LandingKeywordSlug = 'ai-youtube-content-generator';
 export const DEFAULT_SEARCH_SLUG: SearchKeywordSlug = 'content-ideas';
 
-/** Studio compose / search-home topic segment → /content-ideas/app */
+/** Studio compose / search-home topic segment (internal rewrite target) */
 export const STUDIO_HOME_TOPIC = 'app';
+
+/** Public studio base — all new-interface routes live under /app */
+export const APP_BASE = '/app';
+
+/** Cookie so /app/script/{idea} can rewrite onto the correct /search/{topic} */
+export const STUDIO_TOPIC_COOKIE = 'storio_studio_topic';
+
+export type StudioTabId = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll';
 
 export function isStudioComposeTopic(topic: string): boolean {
   const t = decodeURIComponent(topic || '').trim();
   return t === STUDIO_HOME_TOPIC || t === '__compose__';
 }
 
-export function buildStudioHomePath(
-  searchSlug: string = DEFAULT_SEARCH_SLUG,
+export function encodePathSegment(value: string): string {
+  return encodeURIComponent(value.trim());
+}
+
+export function decodePathSegment(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/** Studio compose home — /app/content-ideas */
+export function buildStudioHomePath(): string {
+  return `${APP_BASE}/content-ideas`;
+}
+
+/** Topic workspace — /app/content-ideas/{topic} */
+export function buildSearchPath(topic: string): string {
+  const trimmed = topic.trim();
+  if (!trimmed || isStudioComposeTopic(trimmed)) {
+    return buildStudioHomePath();
+  }
+  return `${APP_BASE}/content-ideas/${encodePathSegment(trimmed)}`;
+}
+
+export function studioTabFromPathname(pathname: string): StudioTabId | null {
+  const path = pathname.split('?')[0];
+  const lower = path.toLowerCase();
+
+  if (lower === `${APP_BASE}/content-ideas` || lower.startsWith(`${APP_BASE}/content-ideas/`)) {
+    return 'ideas';
+  }
+  if (lower.startsWith(`${APP_BASE}/script/`)) return 'script';
+  if (lower.startsWith(`${APP_BASE}/metadata/`)) return 'metadata';
+  if (lower.startsWith(`${APP_BASE}/thumbnail`)) return 'thumbnails';
+  if (lower === `${APP_BASE}/b-roll` || lower.startsWith(`${APP_BASE}/b-roll/`)) {
+    return 'broll';
+  }
+  return null;
+}
+
+/** Idea name (or topic) segment after the tab in /app/{tab}/{segment} */
+export function studioPathSegmentFromPathname(pathname: string): string | null {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments[0] !== 'app' || segments.length < 3) return null;
+  const tab = segments[1].toLowerCase();
+  if (
+    tab === 'content-ideas' ||
+    tab === 'script' ||
+    tab === 'metadata' ||
+    tab === 'thumbnail' ||
+    tab === 'thumbnails'
+  ) {
+    return decodePathSegment(segments.slice(2).join('/'));
+  }
+  return null;
+}
+
+/**
+ * Build studio tab URL:
+ * - ideas → /app/content-ideas/{topic}
+ * - script/metadata/thumbnails → /app/{tab}/{ideaName}
+ * - broll → /app/B-roll
+ */
+export function buildStudioTabPath(
+  tab: StudioTabId,
+  opts?: {
+    topic?: string | null;
+    ideaTitle?: string | null;
+    scriptId?: string | null;
+  },
 ): string {
-  return `/${searchSlug}/${STUDIO_HOME_TOPIC}`;
+  const topic = opts?.topic?.trim() || '';
+  const ideaTitle = opts?.ideaTitle?.trim() || '';
+  const scriptId = opts?.scriptId || null;
+
+  let path: string;
+  switch (tab) {
+    case 'ideas':
+      path =
+        topic && !isStudioComposeTopic(topic)
+          ? `${APP_BASE}/content-ideas/${encodePathSegment(topic)}`
+          : buildStudioHomePath();
+      break;
+    case 'script':
+      path = `${APP_BASE}/script/${encodePathSegment(ideaTitle || 'script')}`;
+      break;
+    case 'metadata':
+      path = `${APP_BASE}/metadata/${encodePathSegment(ideaTitle || 'script')}`;
+      break;
+    case 'thumbnails':
+      path = `${APP_BASE}/thumbnail/${encodePathSegment(ideaTitle || 'script')}`;
+      break;
+    case 'broll':
+      path = `${APP_BASE}/B-roll`;
+      break;
+  }
+
+  if (scriptId) {
+    return `${path}?scriptId=${encodeURIComponent(scriptId)}`;
+  }
+  return path;
+}
+
+/** Library / profile routes under /app */
+export function buildAppPath(path: string): string {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  if (normalized === '/' || normalized === '') return buildStudioHomePath();
+  if (normalized === APP_BASE || normalized.startsWith(`${APP_BASE}/`)) {
+    return normalized;
+  }
+  return `${APP_BASE}${normalized}`;
+}
+
+export function setStudioTopicCookie(topic: string) {
+  if (typeof document === 'undefined') return;
+  const trimmed = topic.trim();
+  if (!trimmed || isStudioComposeTopic(trimmed)) {
+    document.cookie = `${STUDIO_TOPIC_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+    return;
+  }
+  document.cookie = `${STUDIO_TOPIC_COOKIE}=${encodeURIComponent(trimmed)}; Path=/; Max-Age=86400; SameSite=Lax`;
+}
+
+export function readStudioTopicCookie(
+  cookieHeader: string | null | undefined,
+): string | null {
+  if (!cookieHeader) return null;
+  const match = cookieHeader
+    .split(';')
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${STUDIO_TOPIC_COOKIE}=`));
+  if (!match) return null;
+  const raw = match.slice(STUDIO_TOPIC_COOKIE.length + 1);
+  try {
+    const value = decodeURIComponent(raw).trim();
+    return value && !isStudioComposeTopic(value) ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 const LANDING_SET = new Set<string>(LANDING_KEYWORD_SLUGS);
 const SEARCH_SET = new Set<string>(SEARCH_KEYWORD_SLUGS);
 
 /** Routes that never get a landing-keyword prefix */
-const EXEMPT_PREFIX_PATHS = ['/search', '/script', '/api'];
+const EXEMPT_PREFIX_PATHS = ['/search', '/script', '/api', '/app', '/auth'];
 
-/** Top-level app routes redirected to /{landingSlug}/... when visited without a keyword */
+/** Top-level marketing / legal routes redirected to /{landingSlug}/... when bare */
 export const BARE_APP_SEGMENTS = new Set([
   'pricing',
   'blog',
   'scripts',
-  'content-vault',
-  'my-scripts',
   'auth',
-  'profile',
   'checkout',
   'teleprompter',
   'forgot-password',
@@ -58,6 +200,13 @@ export const BARE_APP_SEGMENTS = new Set([
   'terms-and-conditions',
   'cancellation-policy',
   'cancellation-and-refund-policy',
+]);
+
+/** Studio library routes that live under /app (not landing-prefixed) */
+export const APP_LIBRARY_SEGMENTS = new Set([
+  'content-vault',
+  'my-scripts',
+  'profile',
 ]);
 
 export function isLandingKeywordSlug(value: string): value is LandingKeywordSlug {
@@ -96,10 +245,13 @@ export function buildLandingPath(
 ): string {
   if (isExemptFromLandingPrefix(path)) return path;
 
-  if (path === '/' || path === '') return `/${landingSlug}`;
-
   const normalized = path.startsWith('/') ? path : `/${path}`;
   const segments = normalized.split('/').filter(Boolean);
+  if (segments[0] && APP_LIBRARY_SEGMENTS.has(segments[0])) {
+    return buildAppPath(normalized);
+  }
+
+  if (path === '/' || path === '') return `/${landingSlug}`;
 
   if (segments.length > 0 && isLandingKeywordSlug(segments[0])) {
     return normalized;
@@ -108,17 +260,14 @@ export function buildLandingPath(
   return `/${landingSlug}${normalized}`;
 }
 
-export function buildSearchPath(
-  topic: string,
-  searchSlug: string = DEFAULT_SEARCH_SLUG,
-): string {
-  const encoded = encodeURIComponent(topic);
-  return `/${searchSlug}/${encoded}`;
-}
-
 export function stripKeywordPrefix(pathname: string): string {
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) return '/';
+
+  if (segments[0] === 'app') {
+    const rest = segments.slice(1).join('/');
+    return rest ? `/${rest}` : '/';
+  }
 
   if (isKeywordSlug(segments[0])) {
     const rest = segments.slice(1).join('/');

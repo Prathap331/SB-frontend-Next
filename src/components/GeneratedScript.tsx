@@ -14,7 +14,6 @@ interface GeneratedScriptProps {
     examples_count: number;
     research_facts_count: number;
     proverbs_count: number;
-    emotional_depth: string;
   };
 }
 
@@ -166,10 +165,6 @@ export function GeneratedScript({
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Proverbs/Sayings</span>
               <Badge variant="secondary">{analysis.proverbs_count}</Badge>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Emotional Depth</span>
-              <Badge variant="secondary">{analysis.emotional_depth}</Badge>
             </div>
           </CardContent>
         </Card>

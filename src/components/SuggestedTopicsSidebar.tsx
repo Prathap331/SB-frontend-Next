@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronUp, ChevronDown, FileText, Clock, ArrowUpRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { buildStudioTabPath } from '@/lib/keyword-routes';
 
 type ScriptRow = {
   id: string;
@@ -55,8 +56,13 @@ export default function SuggestedTopicsSidebar() {
     trackRef.current?.scrollBy({ top: dir === 'down' ? SCROLL_STEP : -SCROLL_STEP, behavior: 'smooth' });
   };
 
-  const handleClick = (id: string) => {
-    router.push(`/script?scriptId=${id}`);
+  const handleClick = (id: string, title?: string | null, topic?: string | null) => {
+    router.push(
+      buildStudioTabPath('script', {
+        ideaTitle: title || topic || 'Script',
+        scriptId: id,
+      }),
+    );
   };
 
   return (
@@ -66,7 +72,7 @@ export default function SuggestedTopicsSidebar() {
           Content Vault
         </p>
         <button
-          onClick={() => router.push('/content-vault')}
+          onClick={() => router.push('/app/content-vault')}
           className="flex items-center gap-1 text-[14px] font-medium text-[#1d1d1f] hover:text-black transition-colors"
         >
           View all <ArrowUpRight className="w-3 h-3" />
@@ -107,7 +113,7 @@ export default function SuggestedTopicsSidebar() {
             return (
               <button
                 key={s.id}
-                onClick={() => handleClick(s.id)}
+                onClick={() => handleClick(s.id, s.title, s.topic)}
                 className="group w-full text-left bg-white border border-gray-200/80 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-150 flex-shrink-0"
               >
                 <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-1.5 group-hover:text-black">

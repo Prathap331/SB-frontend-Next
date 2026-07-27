@@ -21,6 +21,7 @@ import {
 import { supabase } from '@/lib/supabaseClient';
 import {
   normalizeGeneratedThumbnail,
+  normalizeGeneratedThumbnailList,
   saveGeneratedThumbnailToScript,
   type GeneratedThumbnailItem,
 } from '@/lib/script-persistence';
@@ -48,42 +49,6 @@ function extractThumbnailTexts(data?: GeneratedScriptData | null): string[] {
     (legacySeo?.thumbnail_brief ?? []).map((t: any) => t?.text_overlay).filter(Boolean) ??
     []
   );
-}
-
-function downloadTextPreview(text: string, index: number) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1280;
-  canvas.height = 720;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  grad.addColorStop(0, '#1d1d1f');
-  grad.addColorStop(1, '#3d3d3a');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 64px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let line = '';
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word;
-    if (ctx.measureText(test).width > 1000 && line) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = test;
-    }
-  }
-  if (line) lines.push(line);
-  const startY = canvas.height / 2 - ((lines.length - 1) * 72) / 2;
-  lines.forEach((l, i) => ctx.fillText(l, canvas.width / 2, startY + i * 72));
-  const a = document.createElement('a');
-  a.href = canvas.toDataURL('image/png');
-  a.download = `thumbnail-text-${index + 1}.png`;
-  a.click();
 }
 
 async function userHasThumbnailPhotos(userId: string): Promise<boolean> {
@@ -149,19 +114,19 @@ export function StudioThumbnailsPanel({
   const [showPhotoPopup, setShowPhotoPopup] = useState(false);
   const [checkingPhotos, setCheckingPhotos] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [pendingText, setPendingText] = useState<string | null>(null);
+  const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showInsufficient, setShowInsufficient] = useState(false);
-  const [generated, setGenerated] = useState<GeneratedThumbnailItem | null>(
-    () =>
-      initialGeneratedThumbnail ??
-      normalizeGeneratedThumbnail(data?.thumbnail_generated) ??
-      null,
-  );
+  const [generatedList, setGeneratedList] = useState<GeneratedThumbnailItem[]>(() => {
+    const fromData = normalizeGeneratedThumbnailList(data?.thumbnail_generated);
+    if (fromData.length) return fromData;
+    return initialGeneratedThumbnail?.public_url ? [initialGeneratedThumbnail] : [];
+  });
 
-  // Hydrate from script row when workspace reloads from Supabase
   useEffect(() => {
-    const fromData = normalizeGeneratedThumbnail(data?.thumbnail_generated);
-    if (fromData?.public_url) setGenerated(fromData);
+    const fromData = normalizeGeneratedThumbnailList(data?.thumbnail_generated);
+    if (fromData.length) setGeneratedList(fromData);
   }, [data?.thumbnail_generated]);
 
   const [pFiles, setPFiles] = useState<Partial<Record<PhotoKey, File>>>({});
@@ -170,16 +135,18 @@ export function StudioThumbnailsPanel({
   const [pUploading, setPUploading] = useState(false);
   const inputRefs = useRef<Partial<Record<PhotoKey, HTMLInputElement | null>>>({});
 
-  const openFacePopup = () => {
+  const openFacePopupForText = (text: string, index: number) => {
     if (!isUnlocked) {
       setError('Unlock the script first to generate a thumbnail.');
       return;
     }
     setError(null);
+    setPendingText(text);
+    setGeneratingIndex(index);
     setShowFacePopup(true);
   };
 
-  const runGenerate = async (isFace: boolean) => {
+  const runGenerate = async (isFace: boolean, thumbnailText: string) => {
     if (!isUnlocked) {
       setError('Unlock the script first to generate a thumbnail.');
       setShowFacePopup(false);
@@ -189,8 +156,9 @@ export function StudioThumbnailsPanel({
       setError('Generate a script first before creating a thumbnail.');
       return;
     }
-    if (!texts.length) {
-      setError('No thumbnail text available from metadata.');
+    const text = thumbnailText.trim();
+    if (!text) {
+      setError('No thumbnail text selected.');
       return;
     }
 
@@ -212,11 +180,14 @@ export function StudioThumbnailsPanel({
         description: ideaDescription || '',
         isFace,
         script: data.script,
-        thumbnail_text: texts,
+        thumbnail_text: text,
       });
 
       const thumbnailPayload = result.thumbnail;
-      const display = normalizeGeneratedThumbnail(thumbnailPayload);
+      const displayItems = normalizeGeneratedThumbnailList(thumbnailPayload);
+      const display =
+        displayItems[0] ?? normalizeGeneratedThumbnail(thumbnailPayload);
+
       if (display?.error) {
         throw new Error(display.error);
       }
@@ -224,7 +195,16 @@ export function StudioThumbnailsPanel({
         throw new Error('Thumbnail generation returned no image URL.');
       }
 
-      setGenerated(display);
+      const newItems = displayItems.length ? displayItems : [display];
+      setGeneratedList((prev) => {
+        const next = [...prev];
+        for (const item of newItems) {
+          if (item.public_url && !next.some((p) => p.public_url === item.public_url)) {
+            next.push(item);
+          }
+        }
+        return next;
+      });
 
       const saved = await saveGeneratedThumbnailToScript({
         scriptRowId,
@@ -242,13 +222,15 @@ export function StudioThumbnailsPanel({
           saved.error ||
             'Thumbnail generated but failed to save. Please try again.',
         );
-      } else {
-        // Keep in-memory script data in sync with what we persisted
-        if (data) {
-          (data as GeneratedScriptData).thumbnail_generated = Array.isArray(thumbnailPayload)
-            ? thumbnailPayload
-            : [display];
+      } else if (data) {
+        const existing = normalizeGeneratedThumbnailList(data.thumbnail_generated);
+        const merged = [...existing];
+        for (const item of newItems) {
+          if (item.public_url && !merged.some((p) => p.public_url === item.public_url)) {
+            merged.push(item);
+          }
         }
+        (data as GeneratedScriptData).thumbnail_generated = merged;
       }
 
       window.dispatchEvent(new Event('creditsUpdated'));
@@ -265,12 +247,21 @@ export function StudioThumbnailsPanel({
       }
     } finally {
       setGenerating(false);
+      setPendingText(null);
+      setGeneratingIndex(null);
     }
   };
 
   const handleFaceChoice = async (isFace: boolean) => {
+    const text = pendingText;
+    if (!text) {
+      setError('No thumbnail text selected.');
+      setShowFacePopup(false);
+      return;
+    }
+
     if (!isFace) {
-      await runGenerate(false);
+      await runGenerate(false, text);
       return;
     }
 
@@ -283,7 +274,7 @@ export function StudioThumbnailsPanel({
       }
       const hasPhotos = await userHasThumbnailPhotos(session.user.id);
       if (hasPhotos) {
-        await runGenerate(true);
+        await runGenerate(true, text);
       } else {
         setShowFacePopup(false);
         setShowPhotoPopup(true);
@@ -309,6 +300,11 @@ export function StudioThumbnailsPanel({
   };
 
   const uploadPhotosThenGenerate = async () => {
+    const text = pendingText;
+    if (!text) {
+      setPError('No thumbnail text selected.');
+      return;
+    }
     const entries = PHOTO_SLOTS.filter((s) => pFiles[s.key]);
     if (!entries.length) {
       setPError('Upload at least one photo to continue.');
@@ -344,7 +340,7 @@ export function StudioThumbnailsPanel({
       });
       if (dbErr) throw new Error(dbErr.message);
 
-      await runGenerate(true);
+      await runGenerate(true, text);
     } catch (err: any) {
       setPError(err?.message || 'Failed to upload photos.');
     } finally {
@@ -366,54 +362,28 @@ export function StudioThumbnailsPanel({
   return (
     <>
       <div className="space-y-5">
-        <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-[#1d1d1f] text-white text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 mb-2">
-              <Sparkles className="w-3 h-3 text-amber-300" />
-              {CREDITS_PER_THUMBNAIL} credits
-            </div>
-            <h2 className="text-lg sm:text-xl font-semibold text-[#1d1d1f] tracking-tight">
-              Generate AI thumbnail
-            </h2>
-            <p className="text-sm text-[#6e6e73] font-light mt-1 leading-relaxed max-w-xl">
-              {isUnlocked ? (
-                <>
-                  Turn your script&apos;s thumbnail text into a finished YouTube image. Each generation
-                  costs <span className="font-semibold text-[#1d1d1f]">{CREDITS_PER_THUMBNAIL} credits</span>
-                  {' '}— choose with your photo or a faceless style before we create it.
-                </>
-              ) : (
-                <>
-                  Unlock your script on the Full Script tab first. After unlock, you can generate an AI
-                  thumbnail for <span className="font-semibold text-[#1d1d1f]">{CREDITS_PER_THUMBNAIL} credits</span>.
-                </>
-              )}
-            </p>
+        <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white px-5 py-4">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-[#1d1d1f] text-white text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 mb-2">
+            <Sparkles className="w-3 h-3 text-amber-300" />
+            {CREDITS_PER_THUMBNAIL} credits
           </div>
-          {isUnlocked ? (
-            <button
-              type="button"
-              onClick={openFacePopup}
-              disabled={generating}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-semibold px-5 py-3 transition-colors disabled:opacity-60 flex-shrink-0"
-            >
-              {generating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <ImageIcon className="w-4 h-4" />
-              )}
-              {generating ? 'Generating…' : 'Generate thumbnail'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onGoToScript?.()}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#1d1d1f] bg-white hover:bg-[#f5f5f7] text-[#1d1d1f] text-sm font-semibold px-5 py-3 transition-colors flex-shrink-0"
-            >
-              <Lock className="w-4 h-4" />
-              Unlock script first
-            </button>
-          )}
+          <h2 className="text-lg sm:text-xl font-semibold text-[#1d1d1f] tracking-tight">
+            Generate AI thumbnail
+          </h2>
+          <p className="text-sm text-[#6e6e73] font-light mt-1 leading-relaxed max-w-xl">
+            {isUnlocked ? (
+              <>
+                Turn your script&apos;s thumbnail text into a finished YouTube image. Each generation
+                costs <span className="font-semibold text-[#1d1d1f]">{CREDITS_PER_THUMBNAIL} credits</span>
+                {' '}— choose a text option below, then pick with your photo or a faceless style.
+              </>
+            ) : (
+              <>
+                Unlock your script on the Full Script tab first. After unlock, you can generate an AI
+                thumbnail for <span className="font-semibold text-[#1d1d1f]">{CREDITS_PER_THUMBNAIL} credits</span>.
+              </>
+            )}
+          </p>
         </div>
 
         {!isUnlocked && (
@@ -428,7 +398,8 @@ export function StudioThumbnailsPanel({
               >
                 Full Script
               </button>{' '}
-              and unlock it to continue.
+              and unlock it to continue. Each generation costs{' '}
+              <span className="font-semibold text-[#1d1d1f]">{CREDITS_PER_THUMBNAIL} credits</span>.
             </span>
           </div>
         )}
@@ -440,78 +411,119 @@ export function StudioThumbnailsPanel({
           </div>
         )}
 
-        {generated?.public_url && (
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-[#1d1d1f]">Generated thumbnail</h3>
-                <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">
-                  Saved to your script · ready to download
-                </p>
-              </div>
-              <a
-                href={generated.public_url}
-                download
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1d1d1f] bg-[#f5f5f7] border border-gray-200 px-3 py-2 rounded-xl hover:bg-gray-200"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Download
-              </a>
+        <div>
+          <div className="flex items-end justify-between gap-3 mb-3">
+            <div>
+              <h3 className="text-sm font-bold text-[#1d1d1f]">Thumbnail text options</h3>
+              <p className="text-xs text-[#6e6e73] font-light mt-0.5">
+                Pick a text option and generate an AI thumbnail for {CREDITS_PER_THUMBNAIL} credits.
+              </p>
             </div>
-            <div className="p-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={generated.public_url}
-                alt="Generated thumbnail"
-                className="w-full max-w-2xl mx-auto rounded-xl border border-gray-100 aspect-video object-cover"
-              />
-              {generated.prompt && (
-                <p className="mt-3 text-xs text-[#6e6e73] leading-relaxed max-w-2xl mx-auto">
-                  {generated.prompt}
-                </p>
-              )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {texts.map((text, i) => {
+              const isThisGenerating = generating && generatingIndex === i;
+              return (
+                <div key={i} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+                  <div className="aspect-video bg-gradient-to-br from-[#1d1d1f] to-[#3d3d3a] relative flex items-center justify-center p-6">
+                    <p className="text-white text-center font-black text-lg sm:text-xl leading-tight drop-shadow-lg uppercase tracking-tight">
+                      {text}
+                    </p>
+                    <span className="absolute bottom-2 right-2 text-[10px] text-white/50 font-medium">
+                      16:9 preview
+                    </span>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400">
+                        Thumbnail {i + 1}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-[#1d1d1f] mb-3">{text}</p>
+                    {titles[i] && (
+                      <p className="text-xs text-gray-400 mb-3 line-clamp-2">{titles[i]}</p>
+                    )}
+                    {isUnlocked ? (
+                      <button
+                        type="button"
+                        onClick={() => openFacePopupForText(text, i)}
+                        disabled={generating}
+                        className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-[#1d1d1f] hover:bg-black text-white px-3 py-2 rounded-xl transition-colors disabled:opacity-60"
+                      >
+                        {isThisGenerating ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <ImageIcon className="w-3.5 h-3.5" />
+                        )}
+                        {isThisGenerating ? 'Generating…' : 'Generate thumbnail'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onGoToScript?.()}
+                        className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold border border-gray-200 bg-[#f5f5f7] hover:bg-gray-200 text-[#1d1d1f] px-3 py-2 rounded-xl transition-colors"
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        Unlock script first
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {generatedList.length > 0 && (
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-bold text-[#1d1d1f]">Generated thumbnails</h3>
+              <p className="text-xs text-[#6e6e73] font-light mt-0.5">
+                Saved to your script · {generatedList.length} image
+                {generatedList.length === 1 ? '' : 's'}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {generatedList.map((item, i) => (
+                <div
+                  key={`${item.public_url}-${i}`}
+                  className="bg-white border border-gray-200 rounded-2xl overflow-hidden"
+                >
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400">
+                      Generated {i + 1}
+                    </span>
+                    {item.public_url && (
+                      <a
+                        href={item.public_url}
+                        download
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#1d1d1f] bg-[#f5f5f7] border border-gray-200 px-2 py-1 rounded-md hover:bg-gray-200"
+                      >
+                        <Download className="w-3 h-3" />
+                        Download
+                      </a>
+                    )}
+                  </div>
+                  <div className="p-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.public_url || ''}
+                      alt={`Generated thumbnail ${i + 1}`}
+                      className="w-full rounded-xl border border-gray-100 aspect-video object-cover"
+                    />
+                    {item.prompt && (
+                      <p className="mt-3 text-xs text-[#6e6e73] leading-relaxed">
+                        {item.prompt}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
-
-        <div>
-          <h3 className="text-sm font-bold text-[#1d1d1f] mb-3">Thumbnail text options</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {texts.map((text, i) => (
-              <div key={i} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-                <div className="aspect-video bg-gradient-to-br from-[#1d1d1f] to-[#3d3d3a] relative flex items-center justify-center p-6">
-                  <p className="text-white text-center font-black text-lg sm:text-xl leading-tight drop-shadow-lg uppercase tracking-tight">
-                    {text}
-                  </p>
-                  <span className="absolute bottom-2 right-2 text-[10px] text-white/50 font-medium">
-                    16:9 preview
-                  </span>
-                </div>
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400">
-                      Thumbnail {i + 1}
-                    </span>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 text-[10px] bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded-md font-semibold hover:bg-gray-200"
-                      onClick={() => downloadTextPreview(text, i)}
-                    >
-                      <Download className="w-3 h-3" />
-                      Download
-                    </button>
-                  </div>
-                  <p className="text-sm font-semibold text-[#1d1d1f]">{text}</p>
-                  {titles[i] && (
-                    <p className="text-xs text-gray-400 mt-1 line-clamp-2">{titles[i]}</p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Face choice */}
@@ -520,7 +532,11 @@ export function StudioThumbnailsPanel({
           <div className="relative bg-white rounded-3xl shadow-2xl border border-gray-200/80 p-6 sm:p-8 max-w-lg w-full">
             <button
               type="button"
-              onClick={() => setShowFacePopup(false)}
+              onClick={() => {
+                setShowFacePopup(false);
+                setPendingText(null);
+                setGeneratingIndex(null);
+              }}
               className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-[#1d1d1f]"
               aria-label="Close"
             >
@@ -530,7 +546,10 @@ export function StudioThumbnailsPanel({
               How should this thumbnail look?
             </h2>
             <p className="text-sm text-[#6e6e73] font-light mt-1.5 mb-3 leading-relaxed">
-              Pick a style, then we&apos;ll generate your image from the script and thumbnail text.
+              Using text:{' '}
+              <span className="font-semibold text-[#1d1d1f]">
+                “{pendingText}”
+              </span>
             </p>
             <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex items-start gap-2">
               <Sparkles className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
@@ -583,7 +602,11 @@ export function StudioThumbnailsPanel({
           <div className="relative bg-white rounded-3xl shadow-2xl border border-gray-200/80 p-6 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <button
               type="button"
-              onClick={() => setShowPhotoPopup(false)}
+              onClick={() => {
+                setShowPhotoPopup(false);
+                setPendingText(null);
+                setGeneratingIndex(null);
+              }}
               className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-[#1d1d1f]"
               aria-label="Close"
             >

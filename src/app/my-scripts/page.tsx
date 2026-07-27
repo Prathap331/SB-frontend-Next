@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ExternalLink, FileText, Loader2, Clock } from 'lucide-react';
 import StudioShell from '@/components/studio/StudioShell';
 import { supabase } from '@/lib/supabaseClient';
+import { buildStudioTabPath } from '@/lib/keyword-routes';
 
 type ScriptRow = {
   id: string;
@@ -129,7 +130,14 @@ export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}
                   </div>
                   <button
                     type="button"
-                    onClick={() => router.push(`/script?scriptId=${script.id}`)}
+                    onClick={() =>
+                      router.push(
+                        buildStudioTabPath('script', {
+                          ideaTitle: script.title || script.topic || 'Script',
+                          scriptId: script.id,
+                        }),
+                      )
+                    }
                     className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-4 py-2 rounded-xl transition-colors flex-shrink-0"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />

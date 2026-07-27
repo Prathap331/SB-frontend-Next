@@ -72,7 +72,15 @@ const PrivacyPolicyPage = () => {
                 <li>Withdraw consent for data processing.</li>
                 <li>Request deletion of your account and associated data.</li>
               </ul>
-              <p className="mt-4">Contact: <strong>Support@storio.tech</strong></p>
+              <p className="mt-4">
+                Contact:{' '}
+                <a
+                  href="mailto:support@storio.tech?subject=Privacy%20inquiry%20%E2%80%94%20Storio"
+                  className="font-semibold text-black underline underline-offset-2 hover:opacity-80"
+                >
+                  support@storio.tech
+                </a>
+              </p>
             </div>
 
             <div>
@@ -80,7 +88,15 @@ const PrivacyPolicyPage = () => {
               <p className="mb-4">In compliance with Rule 5(9) of the SPDI Rules, the Grievance Officer for data protection issues is:</p>
               <ul className="list-none pl-4 space-y-1">
                 <li><strong>Name:</strong> Prathap Kothapalli</li>
-                <li><strong>Email:</strong> pj@storio.tech</li>
+                <li>
+                  <strong>Email:</strong>{' '}
+                  <a
+                    href="mailto:pj@storio.tech?subject=Grievance%20%E2%80%94%20Storio"
+                    className="underline underline-offset-2 hover:opacity-80"
+                  >
+                    pj@storio.tech
+                  </a>
+                </li>
                 <li><strong>Address:</strong> Flat no. 502, Meenakshi enclave MIG 891, KPHB phase 3, Hyderabad, 500072</li>
                 <li><strong>Response Time:</strong> Within 30 days of complaint receipt.</li>
               </ul>

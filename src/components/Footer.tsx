@@ -51,11 +51,11 @@ const Footer = () => {
             </h4>
             <div className="space-y-3">
               <a
-                href="mailto:Support@storio.tech"
+                href="mailto:support@storio.tech?subject=Support%20request%20%E2%80%94%20Storio"
                 className="flex items-center gap-2 text-sm text-[#6e6e73] hover:text-white transition-colors font-light"
               >
                 <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                Support@storio.tech
+                support@storio.tech
               </a>
               <a
                 href="tel:+919000449855"

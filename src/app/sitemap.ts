@@ -65,7 +65,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const topic = legacyPath.replace('/search/', '');
     return {
       ...entry,
-      url: absoluteUrl(`/content-ideas/${topic}`),
+      url: absoluteUrl(`/app/content-ideas/${encodeURIComponent(topic)}`),
     };
   });
 

@@ -13,9 +13,9 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
 
   if (isStudioComposeTopic(decodedTopic)) {
     return createPageMetadata({
-      title: 'Content Ideas — AI YouTube Topic Research',
+      title: ' Automated Youtube Script and Metadata, Thumbnail Generator ',
       description:
-        'Search a topic and generate research-backed YouTube content ideas with Storio AI.',
+        'Generate YouTube scripts, SEO-optimized titles/tags from search intelligence, and Thumbnails — all in one tool. Storio helps creators publish faster and rank higher.',
       path: `/${DEFAULT_SEARCH_SLUG}/app`,
       keywords: 'YouTube content ideas, AI script generator, topic research',
     });

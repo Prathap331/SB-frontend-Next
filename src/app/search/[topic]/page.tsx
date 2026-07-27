@@ -1,18 +1,18 @@
 ﻿'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import {
   Loader2, Search, Globe, Sparkles, Link2,
-  Check, FileText, AlertCircle,
+  Check, FileText, AlertCircle, BookOpen, ExternalLink, X,
 } from 'lucide-react';
 import {
   Youtube,
   User2,
   Newspaper,
 } from 'lucide-react';
-import { ApiService, TSSResponse, ECIResponse, SimilarPastIdea, GeneratedScriptData } from '@/services/api';
+import { ApiService, TSSResponse, ECIResponse, SimilarPastIdea, GeneratedScriptData, type BookReference } from '@/services/api';
 import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
 import { ApiFailCard } from '@/components/ApiFailCard';
 import { NewTopicPrompt } from '@/components/NewTopicPrompt';
@@ -27,6 +27,7 @@ import {
   StudioBRollPanel,
   type StudioTab,
 } from '@/components/studio/StudioPanels';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   saveTopicIdeasToDb,
   loadTopicWorkspace,
@@ -35,9 +36,17 @@ import {
 import { normalizeScriptData } from '@/lib/script-data';
 import {
   normalizeGeneratedThumbnail,
+  normalizeGeneratedThumbnailList,
   saveScriptToUniversal,
+  SCRIPT_ROW_SELECT,
 } from '@/lib/script-persistence';
-import { isStudioComposeTopic } from '@/lib/keyword-routes';
+import {
+  buildStudioTabPath,
+  isStudioComposeTopic,
+  setStudioTopicCookie,
+  studioPathSegmentFromPathname,
+  studioTabFromPathname,
+} from '@/lib/keyword-routes';
 
 const SCRIPT_GENERATION_STEPS = [
   'Understanding your topic',
@@ -77,7 +86,15 @@ const videoLinks: string[] = [
 
 
 // Cache both in memory and localStorage to persist between visits
-const resultsCache = new Map<string, { scriptIdeas: ScriptIdea[]; similarPastIdeas: SimilarPastIdea[]; topicSummary: string | null; error: string | null; timestamp: number }>();
+const resultsCache = new Map<string, {
+  scriptIdeas: ScriptIdea[];
+  similarPastIdeas: SimilarPastIdea[];
+  topicSummary: string | null;
+  sources: string[];
+  books: BookReference[];
+  error: string | null;
+  timestamp: number;
+}>();
 const pipelineCache = new Map<string, { data: TSSResponse; timestamp: number }>();
 const eciCache     = new Map<string, { data: ECIResponse;  timestamp: number }>();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
@@ -91,6 +108,8 @@ interface CacheItem {
   scriptIdeas: ScriptIdea[];
   similarPastIdeas: SimilarPastIdea[];
   topicSummary: string | null;
+  sources: string[];
+  books: BookReference[];
   error: string | null;
   timestamp: number;
 }
@@ -511,28 +530,38 @@ const TSSCard: React.FC<TSSCardProps> = ({
 export default function SearchTopicPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { searchPath } = useKeywordNavigation();
   // Read raw param and decode safely so UI shows spaces (not "%20")
   const rawTopic = Array.isArray(params?.topic) ? params.topic[0] : params?.topic ?? '';
-  const topic = (() => {
+  const topicFromRewrite = (() => {
     try {
-      // decodeURIComponent is safe if the value contains percent-escapes like %20
       return decodeURIComponent(rawTopic);
     } catch {
-      // If decoding fails (malformed percent-encoding), fall back to raw value
       return rawTopic;
     }
   })();
-  const isComposePlaceholder = isStudioComposeTopic(topic);
+  // Prefer topic from /app/content-ideas/{topic}; else middleware rewrite / cookie topic
+  const pathSegment = studioPathSegmentFromPathname(pathname);
+  const tabFromPath = studioTabFromPathname(pathname);
+  const topicFromContentIdeasPath =
+    tabFromPath === 'ideas' && pathSegment ? pathSegment : '';
+  const topic = topicFromContentIdeasPath || topicFromRewrite;
+  const ideaFromPath =
+    tabFromPath && tabFromPath !== 'ideas' && tabFromPath !== 'broll'
+      ? pathSegment
+      : null;
+  const scriptIdParam = searchParams.get('scriptId');
+  const isScriptViewerMode = !!scriptIdParam;
+  const isComposePlaceholder = isStudioComposeTopic(topic) && !isScriptViewerMode;
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const composeOnTopicRef = useRef<string | null>(null);
+  const loadedScriptIdRef = useRef<string | null>(null);
   const [isComposingNew, setIsComposingNew] = useState(
-    () => searchParams.get('new') === '1' || isComposePlaceholder,
+    () => !scriptIdParam && (searchParams.get('new') === '1' || isStudioComposeTopic(topic)),
   );
-
-
 
   const formatNumber = (n?: number) => {
     if (!n) return "—";
@@ -543,18 +572,23 @@ export default function SearchTopicPage() {
   
   const pct = (n?: number) => (n ? `${n.toFixed(1)}%` : "—");
 
-
-
-
   const [scriptIdeas, setScriptIdeas] = useState<ScriptIdea[]>([]);
   const [similarPastIdeas, setSimilarPastIdeas] = useState<SimilarPastIdea[]>([]);
   const [topicSummary, setTopicSummary] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [ideaSources, setIdeaSources] = useState<string[]>([]);
+  const [ideaBooks, setIdeaBooks] = useState<BookReference[]>([]);
+  const [ideasRefPanel, setIdeasRefPanel] = useState<'sources' | 'books' | null>(null);
+  const [ideasPanelTopPx, setIdeasPanelTopPx] = useState(208);
+  // Vault/my-scripts opens must not spin the ideas-generation overlay
+  const [isLoading, setIsLoading] = useState(() => !scriptIdParam);
   const [fetchReady, setFetchReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scriptViewerLoading, setScriptViewerLoading] = useState(() => !!scriptIdParam);
 
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
-  const [studioTab, setStudioTab] = useState<StudioTab>('ideas');
+  const initialTab = studioTabFromPathname(pathname) ?? (scriptIdParam ? 'script' : 'ideas');
+  const [studioTab, setStudioTabState] = useState<StudioTab>(initialTab);
+  const [ideasTabDisabled, setIdeasTabDisabled] = useState(!!scriptIdParam);
   const [generatedIdeaIds, setGeneratedIdeaIds] = useState<Set<number>>(new Set());
   const [ideaScripts, setIdeaScripts] = useState<Record<number, {
     data: GeneratedScriptData;
@@ -565,8 +599,11 @@ export default function SearchTopicPage() {
     fromAssigned?: boolean;
   }>>({});
   const [activeScriptData, setActiveScriptData] = useState<GeneratedScriptData | null>(null);
-  const [activeScriptIdeaTitle, setActiveScriptIdeaTitle] = useState<string>('');
+  const [activeScriptIdeaTitle, setActiveScriptIdeaTitle] = useState<string>(
+    () => (ideaFromPath && ideaFromPath !== 'script' ? ideaFromPath : ''),
+  );
   const [activeScriptIdeaDescription, setActiveScriptIdeaDescription] = useState<string>('');
+  const [activeScriptTopic, setActiveScriptTopic] = useState<string>('');
   const [activeScriptDuration, setActiveScriptDuration] = useState<number>(10);
   const [activeUniversalScriptId, setActiveUniversalScriptId] = useState<string | null>(null);
   const [activeScriptRowId, setActiveScriptRowId] = useState<string | null>(null);
@@ -575,6 +612,173 @@ export default function SearchTopicPage() {
   const [scriptGenReady, setScriptGenReady] = useState(false);
   const [scriptGenError, setScriptGenError] = useState<string | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
+
+  // Keep topic cookie so /app/script/{idea} rewrites onto the right /search/{topic}
+  useEffect(() => {
+    if (isScriptViewerMode) {
+      setStudioTopicCookie('');
+      return;
+    }
+    if (!isStudioComposeTopic(topic)) {
+      setStudioTopicCookie(topic);
+      try {
+        sessionStorage.setItem('studio_search_topic', topic);
+      } catch { /* ignore */ }
+    }
+  }, [topic, isScriptViewerMode]);
+
+  const navigateStudioTab = useCallback(
+    (
+      tab: StudioTab,
+      replace = false,
+      overrides?: { ideaTitle?: string | null },
+    ) => {
+      setStudioTabState(tab);
+      const ideaTitle =
+        overrides?.ideaTitle ?? (activeScriptIdeaTitle || ideaFromPath);
+      const href = buildStudioTabPath(tab, {
+        topic: isStudioComposeTopic(topic) ? null : topic,
+        ideaTitle,
+        scriptId: scriptIdParam,
+      });
+      if (replace) router.replace(href, { scroll: false });
+      else router.push(href, { scroll: false });
+    },
+    [router, topic, scriptIdParam, activeScriptIdeaTitle, ideaFromPath],
+  );
+
+  const setStudioTab = useCallback(
+    (tab: StudioTab, overrides?: { ideaTitle?: string | null }) => {
+      if (ideasTabDisabled && tab === 'ideas') return;
+      navigateStudioTab(tab, false, overrides);
+    },
+    [ideasTabDisabled, navigateStudioTab],
+  );
+
+  // Keep tab state in sync when the URL changes (back/forward, deep links)
+  useEffect(() => {
+    const fromUrl = studioTabFromPathname(pathname);
+    if (fromUrl && fromUrl !== studioTab) {
+      if (ideasTabDisabled && fromUrl === 'ideas') {
+        navigateStudioTab('script', true);
+        return;
+      }
+      setStudioTabState(fromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, ideasTabDisabled]);
+
+  // Open vault / my-scripts cards inside the studio — script only, no ideas API
+  useEffect(() => {
+    if (!scriptIdParam) {
+      loadedScriptIdRef.current = null;
+      setIdeasTabDisabled(false);
+      setScriptViewerLoading(false);
+      return;
+    }
+
+    setIdeasTabDisabled(true);
+    setIsComposingNew(false);
+    setIsLoading(false);
+
+    // Already loaded this script — show immediately (no spinner loop)
+    if (loadedScriptIdRef.current === scriptIdParam && activeScriptData) {
+      setScriptViewerLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setFetchReady(false);
+    setError(null);
+    setScriptViewerLoading(true);
+    setScriptIdeas([]);
+    setSimilarPastIdeas([]);
+    setStudioTabState(studioTabFromPathname(pathname) ?? 'script');
+
+    const load = async () => {
+      const applyRow = (
+        row: Record<string, any>,
+        fromAssigned: boolean,
+      ) => {
+        if (cancelled) return;
+        const title = row.title || row.topic || 'Script';
+        const normalized = {
+          ...normalizeScriptData(row),
+          title,
+        };
+        setActiveScriptData(normalized);
+        setActiveScriptIdeaTitle(title);
+        setActiveScriptIdeaDescription(row.description ?? '');
+        setActiveScriptTopic(row.topic || '');
+        setActiveScriptDuration(Number(row.metrics?.videoLength || 10) || 10);
+        setActiveScriptRowId(row.id);
+        setActiveUniversalScriptId(fromAssigned ? null : row.id);
+        setActiveScriptFromAssigned(fromAssigned);
+        setScriptIdeas([]);
+        setIsLoading(false);
+        setScriptViewerLoading(false);
+        loadedScriptIdRef.current = scriptIdParam;
+
+        // Only normalize placeholder /app/script/script?... → real title (no remount loop)
+        const currentIdea = studioPathSegmentFromPathname(pathname);
+        if (!currentIdea || currentIdea === 'script' || currentIdea === 'idea') {
+          router.replace(
+            buildStudioTabPath('script', {
+              ideaTitle: title,
+              scriptId: scriptIdParam,
+            }),
+            { scroll: false },
+          );
+        }
+      };
+
+      try {
+        const { data: assigned } = await sbClient
+          .from('scripts_assigned')
+          .select(SCRIPT_ROW_SELECT)
+          .eq('id', scriptIdParam)
+          .maybeSingle();
+
+        if (cancelled) return;
+
+        if (assigned) {
+          applyRow(assigned, true);
+          return;
+        }
+
+        const { data: universal, error: uErr } = await sbClient
+          .from('scripts_universal')
+          .select(SCRIPT_ROW_SELECT)
+          .eq('id', scriptIdParam)
+          .maybeSingle();
+
+        if (cancelled) return;
+
+        if (uErr || !universal) {
+          setError('Script not found.');
+          setScriptViewerLoading(false);
+          setIsLoading(false);
+          return;
+        }
+
+        applyRow(universal, false);
+      } catch (err) {
+        console.error('[script viewer]', err);
+        if (!cancelled) {
+          setError('Failed to load script.');
+          setScriptViewerLoading(false);
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+    // intentionally omit activeScriptData — only re-run when scriptId changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scriptIdParam]);
 
   // Mobile suggested scripts from Content Vault
   type MobileScriptRow = {
@@ -731,6 +935,7 @@ useEffect(() => {
       setActiveScriptData(first.script);
       setActiveScriptIdeaTitle(first.title);
       setActiveScriptIdeaDescription(first.description || '');
+      setActiveScriptTopic(topic);
       setActiveScriptRowId(first.scriptRowId ?? null);
       setActiveUniversalScriptId(first.fromAssigned ? null : (first.scriptRowId ?? null));
       setActiveScriptFromAssigned(!!first.fromAssigned);
@@ -740,12 +945,13 @@ useEffect(() => {
       setActiveScriptData(null);
       setActiveScriptIdeaTitle('');
       setActiveScriptIdeaDescription('');
+      setActiveScriptTopic('');
       setActiveScriptDuration(10);
       setActiveScriptRowId(null);
       setActiveUniversalScriptId(null);
       setActiveScriptFromAssigned(false);
     }
-  }, []);
+  }, [topic]);
 
   const persistNewIdeas = useCallback(async (
     ideas: ScriptIdea[],
@@ -763,8 +969,9 @@ useEffect(() => {
 
   const newTopicParam = searchParams.get('new');
 
-  // Enter compose mode from ?new=1 or the studio home topic (/content-ideas/app)
+  // Enter compose mode from ?new=1 or the studio home topic (/app/content-ideas)
   useEffect(() => {
+    if (isScriptViewerMode) return;
     if (newTopicParam !== '1' && !isComposePlaceholder) return;
 
     composeOnTopicRef.current = topic;
@@ -784,19 +991,20 @@ useEffect(() => {
     return () => window.clearTimeout(focusTimer);
     // intentionally omit router/searchPath — new function refs every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newTopicParam, isComposePlaceholder, topic]);
+  }, [newTopicParam, isComposePlaceholder, topic, isScriptViewerMode]);
 
   // Sync search box / compose flag when URL topic changes — do NOT wipe script state here
   // (async load below restores ideas + locked/unlocked scripts from Supabase)
   useEffect(() => {
+    if (isScriptViewerMode) return;
     if (isComposePlaceholder) return;
     if (composeOnTopicRef.current === topic) return;
 
     composeOnTopicRef.current = null;
     setIsComposingNew(false);
     setSearchQuery(topic);
-    setStudioTab('ideas');
-  }, [topic, isComposePlaceholder]);
+    setStudioTabState('ideas');
+  }, [topic, isComposePlaceholder, isScriptViewerMode]);
 
   const handleSearchSubmit = async () => {
     const trimmed = searchQuery.trim();
@@ -849,6 +1057,8 @@ useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
+      if (isScriptViewerMode || ideasTabDisabled) return;
+
       if (!topic || isComposingNew || isComposePlaceholder) {
         if (isComposingNew || isComposePlaceholder) {
           setIsLoading(false);
@@ -880,14 +1090,18 @@ useEffect(() => {
         applyMergedIdeas(workspace.ideas);
         const mem = resultsCache.get(topic);
         setSimilarPastIdeas(mem?.similarPastIdeas ?? []);
-        setTopicSummary(mem?.topicSummary ?? null);
+        setTopicSummary(workspace.topicSummary ?? mem?.topicSummary ?? null);
+        setIdeaSources(mem?.sources ?? []);
+        setIdeaBooks(mem?.books ?? []);
         setError(null);
         saveToCache(topic, {
           scriptIdeas: workspace.ideas.map(({ id, title, description, category }) => ({
             id, title, description, category,
           })),
           similarPastIdeas: mem?.similarPastIdeas ?? [],
-          topicSummary: mem?.topicSummary ?? null,
+          topicSummary: workspace.topicSummary ?? mem?.topicSummary ?? null,
+          sources: mem?.sources ?? [],
+          books: mem?.books ?? [],
           error: null,
           timestamp: Date.now(),
         });
@@ -904,6 +1118,11 @@ useEffect(() => {
         if (cancelled) return;
         if (again?.ideas.length) {
           applyMergedIdeas(again.ideas);
+          const mem = resultsCache.get(topic);
+          setSimilarPastIdeas(mem?.similarPastIdeas ?? []);
+          setTopicSummary(again.topicSummary ?? mem?.topicSummary ?? null);
+          setIdeaSources(mem?.sources ?? []);
+          setIdeaBooks(mem?.books ?? []);
           setError(null);
           finishLoading();
           return;
@@ -913,6 +1132,8 @@ useEffect(() => {
           setScriptIdeas(result.scriptIdeas);
           setSimilarPastIdeas(result.similarPastIdeas ?? []);
           setTopicSummary(result.topicSummary ?? null);
+          setIdeaSources(result.sources ?? []);
+          setIdeaBooks(result.books ?? []);
           setError(result.error);
           finishLoading();
         }
@@ -927,6 +1148,10 @@ useEffect(() => {
       setError(null);
       setScriptIdeas([]);
       setSimilarPastIdeas([]);
+      setTopicSummary(null);
+      setIdeaSources([]);
+      setIdeaBooks([]);
+      setIdeasRefPanel(null);
       setGeneratedIdeaIds(new Set());
       setIdeaScripts({});
       setActiveScriptData(null);
@@ -939,13 +1164,17 @@ useEffect(() => {
         ideas: ScriptIdea[],
         err: string | null,
         summary: string | null = null,
-        relatedIdeas: SimilarPastIdea[] = []
+        relatedIdeas: SimilarPastIdea[] = [],
+        sources: string[] = [],
+        books: BookReference[] = [],
       ) => {
         if (!err) {
           saveToCache(topic, {
             scriptIdeas: ideas,
             similarPastIdeas: relatedIdeas,
             topicSummary: summary,
+            sources,
+            books,
             error: err,
             timestamp: Date.now(),
           });
@@ -959,6 +1188,8 @@ useEffect(() => {
         setSimilarPastIdeas(relatedIdeas);
         setError(err);
         setTopicSummary(summary);
+        setIdeaSources(sources);
+        setIdeaBooks(books);
         finishLoading();
       };
 
@@ -979,7 +1210,9 @@ useEffect(() => {
             ideas,
             null,
             response.topic_summary ?? null,
-            response.similar_past_ideas ?? []
+            response.similar_past_ideas ?? [],
+            response.sources ?? [],
+            response.books ?? [],
           );
 
           return;
@@ -1007,7 +1240,7 @@ useEffect(() => {
 
     run();
     return () => { cancelled = true; };
-  }, [topic, finishLoading, persistNewIdeas, applyMergedIdeas, isComposingNew, isComposePlaceholder]);
+  }, [topic, finishLoading, persistNewIdeas, applyMergedIdeas, isComposingNew, isComposePlaceholder, isScriptViewerMode, ideasTabDisabled]);
 
   const getCategoryFromIndex = (index: number) => {
     const categoryMap = ['Technology', 'Social Impact', 'Economic Analysis', 'Historical', 'Future Analysis'];
@@ -1110,11 +1343,12 @@ useEffect(() => {
       setActiveScriptData(normalized);
       setActiveScriptIdeaTitle(idea.title);
       setActiveScriptIdeaDescription(idea.description || '');
+      setActiveScriptTopic(topic);
       setActiveScriptDuration(Number(videoLengths[idea.id] || payload.time || 10));
       setActiveScriptRowId(universalId);
       setActiveUniversalScriptId(universalId);
       setActiveScriptFromAssigned(false);
-      setStudioTab('script');
+      setStudioTab('script', { ideaTitle: idea.title });
       setSidebarRefresh((n) => n + 1);
       try {
         window.dispatchEvent(new Event('studio-storage-updated'));
@@ -1143,7 +1377,7 @@ useEffect(() => {
     metadata: !!(activeScriptData?.youtube_metadata?.titles?.length || activeScriptData?.youtube_metadata?.descriptions?.length || activeScriptData?.youtube_metadata?.hashtags?.length),
     thumbnails: !!(
       activeScriptData?.youtube_metadata?.thumbnail_text?.length ||
-      normalizeGeneratedThumbnail(activeScriptData?.thumbnail_generated)?.public_url
+      normalizeGeneratedThumbnailList(activeScriptData?.thumbnail_generated).length > 0
     ),
     broll: false,
   };
@@ -1155,6 +1389,7 @@ useEffect(() => {
       setActiveScriptData(fromMap.data);
       setActiveScriptIdeaTitle(fromMap.ideaTitle);
       setActiveScriptIdeaDescription(fromMap.ideaDescription || idea.description || '');
+      setActiveScriptTopic(topic);
       setActiveScriptRowId(fromMap.scriptRowId ?? fromMap.universalScriptId ?? null);
       setActiveUniversalScriptId(fromMap.universalScriptId ?? null);
       setActiveScriptFromAssigned(!!fromMap.fromAssigned);
@@ -1163,7 +1398,7 @@ useEffect(() => {
           ? durationFromIdea
           : Number(fromMap.data.metrics?.videoLength || 10) || 10,
       );
-      setStudioTab('script');
+      setStudioTab('script', { ideaTitle: fromMap.ideaTitle || idea.title });
       return;
     }
     try {
@@ -1177,6 +1412,7 @@ useEffect(() => {
           setActiveScriptIdeaDescription(
             idea.description || parsed?.params?.description || '',
           );
+          setActiveScriptTopic(topic);
           setActiveScriptRowId(parsed.universalScriptId ?? null);
           setActiveUniversalScriptId(parsed.universalScriptId ?? null);
           setActiveScriptFromAssigned(false);
@@ -1188,15 +1424,36 @@ useEffect(() => {
                 ? durationFromIdea
                 : 10,
           );
-          setStudioTab('script');
+          setStudioTab('script', { ideaTitle: idea.title });
         }
       }
     } catch { /* ignore */ }
   };
 
+  // Keep Sources/Books panel below the Content Ideas stage tabs
+  useEffect(() => {
+    if (!ideasRefPanel) return;
+    const measure = () => {
+      const el = document.getElementById('studio-stage-header');
+      if (!el) {
+        setIdeasPanelTopPx(208);
+        return;
+      }
+      const bottom = Math.ceil(el.getBoundingClientRect().bottom);
+      setIdeasPanelTopPx(Math.max(bottom, 120));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [ideasRefPanel, studioTab]);
+
   return (
     <StudioShell
-      activeTopic={isComposingNew || isComposePlaceholder ? undefined : topic}
+      activeTopic={
+        isComposingNew || isComposePlaceholder || isScriptViewerMode
+          ? undefined
+          : topic
+      }
       refreshKey={sidebarRefresh}
       padded={false}
       contentScroll={false}
@@ -1272,6 +1529,7 @@ useEffect(() => {
                 <StudioStageNav
                   active={studioTab}
                   onChange={setStudioTab}
+                  disabled={{ ideas: ideasTabDisabled }}
                   completed={{
                     ideas: false,
                     script: false,
@@ -1326,19 +1584,22 @@ useEffect(() => {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
-                  Current topic
+                  {isScriptViewerMode ? 'Script' : 'Current topic'}
                 </p>
                 <h1
                   className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
                   style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
                 >
-                  {topic}
+                  {isScriptViewerMode
+                    ? (activeScriptIdeaTitle || 'Script')
+                    : topic}
                 </h1>
               </div>
             </div>
             <StudioStageNav
               active={studioTab}
               onChange={setStudioTab}
+              disabled={{ ideas: ideasTabDisabled }}
               completed={stageCompleted}
             />
           </div>
@@ -1354,6 +1615,50 @@ useEffect(() => {
                 )}
 
                 {!isLoading && !error && (
+                  <>
+                    {(topicSummary || ideaSources.length > 0 || ideaBooks.length > 0) && (
+                      <div className="mb-5 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+                        {topicSummary && (
+                          <div className="mb-3">
+                            <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1.5">
+                              Topic summary
+                            </p>
+                            <p className="text-sm text-[#3d3d3a] leading-relaxed">
+                              {topicSummary}
+                            </p>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIdeasRefPanel('sources')}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-[#f5f5f7] hover:bg-gray-200 px-3 py-1.5 text-xs font-semibold text-[#1d1d1f] transition-colors"
+                          >
+                            <Link2 className="w-3.5 h-3.5" />
+                            Sources
+                            {ideaSources.length > 0 && (
+                              <span className="text-[10px] text-[#6e6e73] font-medium">
+                                ({ideaSources.length})
+                              </span>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIdeasRefPanel('books')}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-[#f5f5f7] hover:bg-gray-200 px-3 py-1.5 text-xs font-semibold text-[#1d1d1f] transition-colors"
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            Books
+                            {ideaBooks.length > 0 && (
+                              <span className="text-[10px] text-[#6e6e73] font-medium">
+                                ({ideaBooks.length})
+                              </span>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
                     {scriptIdeas.map((statement) => {
                       const generated = generatedIdeaIds.has(statement.id);
@@ -1400,7 +1705,7 @@ useEffect(() => {
                                 </label>
                                 <Input
                                   type="number"
-                                  placeholder="8"
+                                  placeholder="13-15"
                                   value={videoLengths[statement.id] || ''}
                                   onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
                                   className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
@@ -1423,6 +1728,7 @@ useEffect(() => {
                       );
                     })}
                   </div>
+                  </>
                 )}
 
                 {!isLoading && scriptIdeas.length === 0 && !error && (
@@ -1497,7 +1803,7 @@ useEffect(() => {
                                         </label>
                                         <Input
                                           type="number"
-                                          placeholder="8"
+                                          placeholder="13-15"
                                           value={videoLengths[ideaId] || ''}
                                           onChange={(e) => handleVideoLengthChange(ideaId, e.target.value)}
                                           className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
@@ -1529,20 +1835,26 @@ useEffect(() => {
             )}
 
             {studioTab === 'script' && (
-              <StudioScriptPanel
-                data={activeScriptData}
-                ideaTitle={activeScriptIdeaTitle}
-                ideaDescription={activeScriptIdeaDescription}
-                topic={topic}
-                durationMinutes={activeScriptDuration}
-                universalScriptId={activeUniversalScriptId}
-                initiallyUnlocked={activeScriptFromAssigned}
-                onUnlocked={({ assignedId } = {}) => {
-                  setActiveScriptFromAssigned(true);
-                  setActiveUniversalScriptId(null);
-                  if (assignedId) setActiveScriptRowId(assignedId);
-                }}
-              />
+              scriptViewerLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : (
+                <StudioScriptPanel
+                  data={activeScriptData}
+                  ideaTitle={activeScriptIdeaTitle}
+                  ideaDescription={activeScriptIdeaDescription}
+                  topic={activeScriptTopic || topic}
+                  durationMinutes={activeScriptDuration}
+                  universalScriptId={activeUniversalScriptId}
+                  initiallyUnlocked={activeScriptFromAssigned}
+                  onUnlocked={({ assignedId } = {}) => {
+                    setActiveScriptFromAssigned(true);
+                    setActiveUniversalScriptId(null);
+                    if (assignedId) setActiveScriptRowId(assignedId);
+                  }}
+                />
+              )
             )}
 
             {studioTab === 'metadata' && (
@@ -1554,7 +1866,7 @@ useEffect(() => {
                 data={activeScriptData}
                 ideaTitle={activeScriptIdeaTitle}
                 ideaDescription={activeScriptIdeaDescription}
-                topic={topic}
+                topic={activeScriptTopic || topic}
                 scriptRowId={activeScriptRowId}
                 isUnlocked={activeScriptFromAssigned}
                 fromAssigned={activeScriptFromAssigned}
@@ -1572,8 +1884,131 @@ useEffect(() => {
         )}
       </div>
 
+      {ideasRefPanel && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 bg-black/20"
+          style={{ top: ideasPanelTopPx }}
+          onClick={() => setIdeasRefPanel(null)}
+          aria-hidden
+        />
+      )}
+
+      <div
+        className={`fixed right-0 bottom-0 w-full sm:w-[400px] bg-white border-l border-t border-gray-200 shadow-2xl z-50 transition-transform duration-300 ease-in-out ${
+          ideasRefPanel ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        style={{ top: ideasPanelTopPx }}
+      >
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-[#1d1d1f]">
+              {ideasRefPanel === 'books'
+                ? `${ideaBooks.length} Book${ideaBooks.length === 1 ? '' : 's'}`
+                : `${ideaSources.length} Source${ideaSources.length === 1 ? '' : 's'}`}
+            </h2>
+            <p className="text-[11px] text-[#6e6e73] font-light">
+              {ideasRefPanel === 'books'
+                ? 'Books referenced while researching this topic'
+                : 'Research sources used to generate these ideas'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIdeasRefPanel(null)}
+            className="w-8 h-8 rounded-full bg-[#f5f5f7] hover:bg-gray-200 flex items-center justify-center transition-colors"
+          >
+            <X className="w-4 h-4 text-[#1d1d1f]" />
+          </button>
+        </div>
+        <ScrollArea className="h-[calc(100%-73px)]">
+          <div className="px-4 py-4 space-y-3">
+            {ideasRefPanel === 'sources' && (
+              <>
+                {ideaSources.length > 0 ? (
+                  ideaSources.map((url, index) => {
+                    const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+                    let domain = '';
+                    let domainInitial = '?';
+                    try {
+                      domain = new URL(href).hostname.replace('www.', '');
+                      domainInitial = domain.charAt(0).toUpperCase();
+                    } catch {
+                      domain = url || 'Unknown source';
+                      domainInitial = domain.charAt(0).toUpperCase();
+                    }
+                    return (
+                      <a
+                        key={`${url}-${index}`}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-start gap-3 bg-[#f5f5f7] hover:bg-gray-100 rounded-2xl p-4 transition-colors group border border-gray-100"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-[#1d1d1f] font-semibold text-sm flex-shrink-0 shadow-sm">
+                          {domainInitial}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-[#6e6e73] mb-0.5 font-light">{domain}</p>
+                          <p className="text-xs font-medium text-[#1d1d1f] line-clamp-2 group-hover:text-blue-600 transition-colors break-all">
+                            {url}
+                          </p>
+                          <div className="flex items-center gap-1 mt-1.5 text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            Visit source <ExternalLink className="w-3 h-3" />
+                          </div>
+                        </div>
+                      </a>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-[#6e6e73]">No sources available</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {ideasRefPanel === 'books' && (
+              <>
+                {ideaBooks.length > 0 ? (
+                  ideaBooks.map((book, index) => (
+                    <div
+                      key={`${book.title}-${index}`}
+                      className="flex items-start gap-3 bg-[#f5f5f7] rounded-2xl p-4 border border-gray-100"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <BookOpen className="w-4 h-4 text-[#1d1d1f]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[#1d1d1f] leading-snug">
+                          {book.title || 'Untitled book'}
+                        </p>
+                        {book.author && (
+                          <p className="text-xs text-[#6e6e73] font-light mt-0.5">
+                            {book.author}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-[#6e6e73]">No books referenced</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+
       <GenerationProgressOverlay
-        isOpen={isLoading && !isComposingNew && !isComposePlaceholder}
+        isOpen={
+          isLoading &&
+          !isComposingNew &&
+          !isComposePlaceholder &&
+          !isScriptViewerMode &&
+          !ideasTabDisabled
+        }
         ready={fetchReady}
         onFinished={handleProgressFinished}
         subtext={`Usually under 5 minutes. We're analysing "${topic}" in the background.`}

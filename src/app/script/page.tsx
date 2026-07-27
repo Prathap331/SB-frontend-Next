@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Loader2, FileText, Lightbulb, Heart, BookOpen, History,
+  Loader2, FileText, Lightbulb, BookOpen, History,
   Search, Link as LinkIcon, ExternalLink, Clock, Copy, Check, ImageIcon, Hash,
   Eye, Monitor, Download, X, Lock, Unlock, AlertCircle, Rocket, Target
 } from 'lucide-react';
@@ -23,7 +23,7 @@ import { STORYBIT_PRODUCTION_GUIDE } from '@/lib/production-guide';
 import {
   buildScriptTableRow,
   moveScriptToAssigned,
-  normalizeGeneratedThumbnail,
+  normalizeGeneratedThumbnailList,
   saveScriptToUniversal,
   SCRIPT_ROW_SELECT,
 } from '@/lib/script-persistence';
@@ -1078,7 +1078,6 @@ if (params.get('from') === 'suggested') {
   const metrics = [
     { icon: FileText,  label: 'Total Words',     value: m?.totalWords ?? data.estimated_word_count ?? 0 },
     { icon: Clock,     label: 'Video Length',    value: m?.videoLength != null ? `${Math.round(m.videoLength * 10) / 10} min` : '—' },
-    { icon: Heart,     label: 'Emotional Depth', value: m?.emotionalDepth ?? data.analysis?.emotional_depth ?? '—' },
     { icon: Search,    label: 'Research Facts',  value: m?.researchFacts ?? data.analysis?.research_facts_count ?? 0 },
     { icon: History,   label: 'Hist. Facts',     value: m?.historical_facts ?? data.analysis?.history ?? 0 },
     { icon: BookOpen,  label: 'Proverbs',        value: m?.proverbs_count ?? data.analysis?.proverbs_count ?? 0 },
@@ -1107,7 +1106,7 @@ if (params.get('from') === 'suggested') {
     (ytMeta?.thumbnail_text?.length ? ytMeta.thumbnail_text : null)
     ?? (legacySeo?.thumbnail_brief ?? []).map((t: any) => t?.text_overlay).filter(Boolean);
 
-  const generatedThumbnail = normalizeGeneratedThumbnail(data.thumbnail_generated);
+  const generatedThumbnails = normalizeGeneratedThumbnailList(data.thumbnail_generated);
 
   const books = data.books ?? [];
 
@@ -1143,7 +1142,7 @@ if (params.get('from') === 'suggested') {
         </div>
 
         {/* Metrics strip */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
+        <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
           {metrics.map(({ icon: Icon, label, value }) => (
             <div key={label} className="bg-white rounded-2xl border border-gray-200/80 p-3 text-center shadow-sm">
               <Icon className="w-4 h-4 mx-auto mb-1.5 text-[#6e6e73]" />
@@ -1304,41 +1303,52 @@ if (params.get('from') === 'suggested') {
 
             {/* ── Tab 4: Thumbnails ── */}
             {contentTab === 4 && (
-              (generatedThumbnail?.public_url || seoThumbnailTexts.length > 0) ? (
+              (generatedThumbnails.length > 0 || seoThumbnailTexts.length > 0) ? (
                 <div className="space-y-4">
-                  {generatedThumbnail?.public_url && (
-                    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
-                        <div>
-                          <h3 className="text-sm font-semibold text-[#1d1d1f]">Generated thumbnail</h3>
-                          <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">
-                            Saved on your unlocked script
-                          </p>
-                        </div>
-                        <a
-                          href={generatedThumbnail.public_url}
-                          download
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1d1d1f] bg-[#f5f5f7] border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-200"
+                  {generatedThumbnails.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {generatedThumbnails.map((thumb, ti) => (
+                        <div
+                          key={`${thumb.public_url}-${ti}`}
+                          className="rounded-xl border border-gray-200 bg-white overflow-hidden"
                         >
-                          <Download className="w-3.5 h-3.5" />
-                          Download
-                        </a>
-                      </div>
-                      <div className="p-4">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={generatedThumbnail.public_url}
-                          alt="Generated thumbnail"
-                          className="w-full max-w-2xl mx-auto rounded-xl border border-gray-100 aspect-video object-cover"
-                        />
-                        {generatedThumbnail.prompt && (
-                          <p className="mt-3 text-xs text-[#6e6e73] leading-relaxed max-w-2xl mx-auto">
-                            {generatedThumbnail.prompt}
-                          </p>
-                        )}
-                      </div>
+                          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+                            <div>
+                              <h3 className="text-sm font-semibold text-[#1d1d1f]">
+                                Generated thumbnail {ti + 1}
+                              </h3>
+                              <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">
+                                Saved on your unlocked script
+                              </p>
+                            </div>
+                            {thumb.public_url && (
+                              <a
+                                href={thumb.public_url}
+                                download
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1d1d1f] bg-[#f5f5f7] border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-200"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                Download
+                              </a>
+                            )}
+                          </div>
+                          <div className="p-4">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={thumb.public_url || ''}
+                              alt={`Generated thumbnail ${ti + 1}`}
+                              className="w-full rounded-xl border border-gray-100 aspect-video object-cover"
+                            />
+                            {thumb.prompt && (
+                              <p className="mt-3 text-xs text-[#6e6e73] leading-relaxed">
+                                {thumb.prompt}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
 

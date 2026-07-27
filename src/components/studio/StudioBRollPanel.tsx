@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Search,
@@ -32,7 +32,9 @@ import {
   type BrollSize,
   type BrollVideo,
 } from '@/services/api';
-import { supabase } from '@/lib/supabaseClient';type OrientationFilter = 'any' | BrollOrientation;
+import { supabase } from '@/lib/supabaseClient';
+
+type OrientationFilter = 'any' | BrollOrientation;
 type PeopleFilter = 'any' | '0' | '1' | '2' | '3+';
 type AgeFilter = 'any' | 'baby' | 'child' | 'teenager' | 'adult' | 'senior';
 type FpsFilter = 'any' | '24' | '25' | '30' | '50' | '60+';
@@ -96,58 +98,8 @@ function matchesResolution(video: BrollVideo, res: ResolutionFilter): boolean {
 
 type BrollVideoFileLink = BrollVideo['video_files'][number];
 
-const SAMPLE_MP4 =
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
-
-const DEMO_BROLL_LABELS = [
-  'City traffic timelapse',
-  'Ocean waves coastline',
-  'Coffee steam close-up',
-  'Laptop coding desk',
-  'Forest sunlight rays',
-  'Busy kitchen cooking',
-  'Airplane takeoff sky',
-  'Rain on window glass',
-  'Gym workout training',
-  'Library books shelves',
-  'Mountain hiking trail',
-  'Street food market',
-  'Sunrise over fields',
-  'Office meeting room',
-  'Night city lights',
-];
-
-/** Example clips shown before the user runs a real search */
-function buildDemoBrollVideos(): BrollVideo[] {
-  return DEMO_BROLL_LABELS.map((label, i) => {
-    const id = 900_000 + i;
-    const landscape = i % 3 !== 2;
-    const width = landscape ? 1920 : 1080;
-    const height = landscape ? 1080 : 1920;
-    const duration = 8 + (i % 7) * 4;
-    const thumb = `https://picsum.photos/seed/storio-broll-${i}/${width}/${height}`;
-    return {
-      id,
-      url: `https://www.pexels.com/`,
-      width,
-      height,
-      duration,
-      thumbnail: thumb,
-      user: { name: label, url: 'https://www.pexels.com/' },
-      video_files: [
-        {
-          quality: 'hd',
-          width,
-          height,
-          file_type: 'video/mp4',
-          link: SAMPLE_MP4,
-        },
-      ],
-    };
-  });
-}
-
-const DEMO_BROLL_VIDEOS = buildDemoBrollVideos();
+const SAMPLE_QUERY = 'cinematic b-roll nature city lifestyle';
+const SAMPLE_CACHE_KEY = 'storio_broll_samples_v1';
 
 function pickPreviewFile(video: BrollVideo): BrollVideoFileLink | null {
   const files = [...video.video_files].filter((f) => f.link);
@@ -157,6 +109,28 @@ function pickPreviewFile(video: BrollVideo): BrollVideoFileLink | null {
     files.find((f) => (f.height ?? 0) >= 540 && (f.height ?? 0) <= 1080) ??
     files.sort((a, b) => (a.width ?? 0) - (b.width ?? 0))[0];
   return preferred ?? null;
+}
+
+function readCachedSamples(): BrollVideo[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = sessionStorage.getItem(SAMPLE_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.videos) ? parsed.videos : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedSamples(videos: BrollVideo[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(
+      SAMPLE_CACHE_KEY,
+      JSON.stringify({ videos, timestamp: Date.now() }),
+    );
+  } catch { /* ignore */ }
 }
 
 const PER_PAGE = 15;
@@ -252,11 +226,11 @@ export function StudioBRollPanel() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
-  const [videos, setVideos] = useState<BrollVideo[]>(DEMO_BROLL_VIDEOS);
-  const [totalResults, setTotalResults] = useState(DEMO_BROLL_VIDEOS.length);
+  const [videos, setVideos] = useState<BrollVideo[]>([]);
+  const [totalResults, setTotalResults] = useState(0);
   const [previewId, setPreviewId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -281,6 +255,61 @@ export function StudioBRollPanel() {
 
   const toggleSection = (key: string) =>
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  // Prefetch real Pexels sample clips so every card has a unique hover preview
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSamples = async () => {
+      const cached = readCachedSamples();
+      if (cached.length > 0) {
+        if (!cancelled) {
+          setVideos(cached);
+          setTotalResults(cached.length);
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          if (!cancelled) {
+            setVideos([]);
+            setTotalResults(0);
+            setLoading(false);
+          }
+          return;
+        }
+
+        const res = await ApiService.searchBroll({
+          query: SAMPLE_QUERY,
+          page: 1,
+          per_page: PER_PAGE,
+          userId: session.user.id,
+        });
+        if (cancelled) return;
+        const list = (res.videos ?? []).filter((v) => pickPreviewFile(v));
+        setVideos(list);
+        setTotalResults(list.length || res.total_results || 0);
+        writeCachedSamples(list);
+      } catch (err) {
+        console.error('[broll samples]', err);
+        if (!cancelled) {
+          setVideos([]);
+          setTotalResults(0);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void loadSamples();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const buildQuery = useCallback(() => {
     const parts = [query.trim()].filter(Boolean);
@@ -713,12 +742,18 @@ export function StudioBRollPanel() {
                 <Film className="w-7 h-7 text-gray-400" />
               </div>
               <h3 className="text-lg font-bold text-[#1d1d1f] mb-2">
-                {videos.length > 0 ? 'No matches for these filters' : 'Search B-Roll'}
+                {videos.length > 0
+                  ? 'No matches for these filters'
+                  : hasSearched
+                    ? 'No B-roll found'
+                    : 'No sample clips yet'}
               </h3>
               <p className="text-sm text-gray-500 max-w-md mx-auto">
                 {videos.length > 0
                   ? 'Try widening duration, frame rate, or resolution filters.'
-                  : 'Find stock footage for your video. Use filters for orientation, people, duration, frame rate, and resolution.'}
+                  : hasSearched
+                    ? 'Try a different search term or filters.'
+                    : 'Sign in and open B-roll to load sample footage you can preview on hover.'}
               </p>
             </div>
           )}
@@ -746,7 +781,7 @@ export function StudioBRollPanel() {
                 <span>
                   {hasSearched
                     ? <>Showing {filteredVideos.length}{totalResults ? ` of ${totalResults.toLocaleString()}` : ''} results</>
-                    : <>Example clips · search to find footage for your video</>}
+                    : <>Sample B-roll · hover to preview · search for more</>}
                 </span>
                 {hasSearched && (
                   <span>
@@ -765,12 +800,13 @@ export function StudioBRollPanel() {
                       className="bg-white border border-gray-200 rounded-2xl overflow-hidden group"
                     >
                       <div
-                        className="relative aspect-video bg-gray-100 cursor-pointer"
+                        className="relative aspect-video bg-gray-100 cursor-pointer overflow-hidden"
                         onMouseEnter={() => setPreviewId(video.id)}
                         onMouseLeave={() => setPreviewId(null)}
                       >
                         {isPreview && preview ? (
                           <video
+                            key={preview.link}
                             src={preview.link}
                             poster={video.thumbnail}
                             className="absolute inset-0 w-full h-full object-cover"
@@ -778,6 +814,10 @@ export function StudioBRollPanel() {
                             loop
                             autoPlay
                             playsInline
+                            preload="auto"
+                            onLoadedData={(e) => {
+                              void e.currentTarget.play().catch(() => {});
+                            }}
                           />
                         ) : (
                           // eslint-disable-next-line @next/next/no-img-element

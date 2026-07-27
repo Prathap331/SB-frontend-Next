@@ -11,7 +11,6 @@ import {
   Check,
   Copy,
   Clock,
-  Heart,
   Search,
   History,
   BookOpen,
@@ -53,29 +52,39 @@ export function StudioStageNav({
   active,
   onChange,
   completed,
+  disabled,
 }: {
   active: StudioTab;
   onChange: (tab: StudioTab) => void;
   completed?: Partial<Record<StudioTab, boolean>>;
+  /** Tabs that cannot be selected (e.g. Content Ideas when opening a vault script) */
+  disabled?: Partial<Record<StudioTab, boolean>>;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
       {TABS.map(({ id, label, icon: Icon }) => {
         const isActive = active === id;
+        const isDisabled = !!disabled?.[id];
         return (
           <button
             key={id}
             type="button"
-            onClick={() => onChange(id)}
+            disabled={isDisabled}
+            onClick={() => {
+              if (!isDisabled) onChange(id);
+            }}
+            title={isDisabled ? 'Not available for this script' : undefined}
             className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium border transition-all ${
-              isActive
-                ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
-                : 'bg-white text-[#1d1d1f] border-gray-200 hover:border-gray-300'
+              isDisabled
+                ? 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed opacity-60'
+                : isActive
+                  ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
+                  : 'bg-white text-[#1d1d1f] border-gray-200 hover:border-gray-300'
             }`}
           >
             <Icon className="w-3.5 h-3.5" />
             {label}
-            {completed?.[id] && !isActive && (
+            {completed?.[id] && !isActive && !isDisabled && (
               <Check className="w-3.5 h-3.5 text-green-500" />
             )}
           </button>
@@ -424,7 +433,6 @@ export function StudioScriptPanel({
       label: 'Video Length',
       value: m?.videoLength != null ? `${Math.round(m.videoLength * 10) / 10} min` : '—',
     },
-    { icon: Heart, label: 'Emotional Depth', value: m?.emotionalDepth ?? data.analysis?.emotional_depth ?? '—' },
     { icon: Search, label: 'Research Facts', value: m?.researchFacts ?? data.analysis?.research_facts_count ?? 0 },
     { icon: History, label: 'Hist. Facts', value: m?.historical_facts ?? data.analysis?.history ?? 0 },
     { icon: BookOpen, label: 'Proverbs', value: m?.proverbs_count ?? data.analysis?.proverbs_count ?? 0 },
@@ -444,7 +452,7 @@ export function StudioScriptPanel({
         <p className="text-sm text-[#6e6e73] font-light mt-0.5">Research-backed script · ready to record</p>
       </div>
 
-      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {metrics.map(({ icon: Icon, label, value }) => (
           <div key={label} className="bg-white rounded-2xl border border-gray-200/80 p-3 text-center shadow-sm">
             <Icon className="w-4 h-4 mx-auto mb-1.5 text-[#6e6e73]" />

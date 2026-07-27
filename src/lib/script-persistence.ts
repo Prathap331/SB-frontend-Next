@@ -123,6 +123,39 @@ export function normalizeGeneratedThumbnail(
   return null;
 }
 
+/** All thumbnail items from jsonb (object, array, or nested). */
+export function normalizeGeneratedThumbnailList(
+  raw: unknown,
+): GeneratedThumbnailItem[] {
+  if (raw == null) return [];
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('http')) {
+      return [{ prompt: null, public_url: trimmed, error: null }];
+    }
+    try {
+      return normalizeGeneratedThumbnailList(JSON.parse(trimmed));
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => normalizeGeneratedThumbnail(item))
+      .filter((item): item is GeneratedThumbnailItem => !!item?.public_url);
+  }
+  if (typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    if (obj.thumbnail != null) {
+      return normalizeGeneratedThumbnailList(obj.thumbnail);
+    }
+    const one = normalizeGeneratedThumbnail(raw);
+    return one?.public_url ? [one] : [];
+  }
+  return [];
+}
+
 /**
  * Persist shape for jsonb: keep arrays as-is; wrap a single object in an array
  * so the column consistently holds a thumbnail array.
@@ -410,8 +443,26 @@ export async function saveGeneratedThumbnailToScript(opts: {
 
   const assignedId = matched.id as string;
 
-  // 3) Update the matched row (scoped to this userId)
-  const updateBody = { [THUMBNAIL_GENERATED_COLUMN]: payload };
+  // 3) Append to existing thumbnails — never overwrite prior generations
+  const { data: existingRow } = await supabase
+    .from('scripts_assigned')
+    .select(`"${THUMBNAIL_GENERATED_COLUMN}"`)
+    .eq('id', assignedId)
+    .eq('userId', userId)
+    .maybeSingle();
+
+  const existing = normalizeGeneratedThumbnailList(
+    readThumbnailGeneratedColumn(existingRow as Record<string, unknown> | null),
+  );
+  const incoming = payload.filter((t) => !!t?.public_url);
+  const merged = [...existing];
+  for (const item of incoming) {
+    if (!merged.some((e) => e.public_url && e.public_url === item.public_url)) {
+      merged.push(item);
+    }
+  }
+
+  const updateBody = { [THUMBNAIL_GENERATED_COLUMN]: merged };
 
   const { data: updated, error } = await supabase
     .from('scripts_assigned')
@@ -426,12 +477,11 @@ export async function saveGeneratedThumbnailToScript(opts: {
     return { ok: false, error: error.message, assignedId };
   }
 
-  const expectedUrl = payload.find((t) => t.public_url)?.public_url ?? null;
+  const expectedUrl = incoming.find((t) => t.public_url)?.public_url ?? null;
 
   const isSavedPayload = (row: Record<string, unknown> | null | undefined) => {
-    const saved = readThumbnailGeneratedColumn(row);
-    const savedUrl = normalizeGeneratedThumbnail(saved)?.public_url;
-    return !!(savedUrl && expectedUrl && savedUrl === expectedUrl);
+    const savedList = normalizeGeneratedThumbnailList(readThumbnailGeneratedColumn(row));
+    return !!(expectedUrl && savedList.some((t) => t.public_url === expectedUrl));
   };
 
   if (updated?.id && isSavedPayload(updated as Record<string, unknown>)) {

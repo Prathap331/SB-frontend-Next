@@ -148,11 +148,18 @@ export interface SimilarPastIdea {
   similarity: number;
 }
 
+export interface BookReference {
+  title: string;
+  author: string;
+}
+
 export interface ProcessTopicResponse {
   ideas: string[];
   descriptions: string[];
-  topic_summary?: string;
+  topic_summary?: string | null;
   similar_past_ideas?: SimilarPastIdea[];
+  sources?: string[];
+  books?: BookReference[];
 }
 
 export interface UnusedIdea {
@@ -231,7 +238,8 @@ export interface GenerateThumbnailPayload {
   description: string;
   isFace: boolean;
   script: string;
-  thumbnail_text: string[];
+  /** Thumbnail overlay text for this generation (single option) */
+  thumbnail_text: string;
 }
 
 export interface GenerateThumbnailResult {
@@ -269,11 +277,6 @@ export interface YoutubeMetadata {
   thumbnail_text?: string[];
 }
 
-export interface BookReference {
-  title: string;
-  author: string;
-}
-
 export type GeneratedScriptData = {
   script: string;
   estimated_word_count?: number;
@@ -283,14 +286,12 @@ export type GeneratedScriptData = {
     examples_count: number;
     research_facts_count: number;
     proverbs_count: number;
-    emotional_depth: string;
     history: number;
   };
   title?: string;
   metrics?: {
     totalWords?: number;
     videoLength?: number;
-    emotionalDepth?: number;
     generalExamples?: number;
     proverbs_count?: number;
     historical_facts?: number;
@@ -708,6 +709,8 @@ export class ApiService {
         similar_past_ideas: Array.isArray(data?.similar_past_ideas)
           ? data.similar_past_ideas
           : [],
+        sources: Array.isArray(data?.sources) ? data.sources : [],
+        books: Array.isArray(data?.books) ? data.books : [],
       };
     }
 
@@ -719,6 +722,8 @@ export class ApiService {
       similar_past_ideas: Array.isArray(data?.similar_past_ideas)
         ? data.similar_past_ideas
         : [],
+      sources: Array.isArray(data?.sources) ? data.sources : [],
+      books: Array.isArray(data?.books) ? data.books : [],
     };
   }
 

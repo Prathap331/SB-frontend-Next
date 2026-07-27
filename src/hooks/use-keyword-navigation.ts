@@ -2,11 +2,14 @@
 
 import { usePathname } from 'next/navigation';
 import {
+  buildAppPath,
   buildLandingPath,
   buildSearchPath,
   buildStudioHomePath,
+  buildStudioTabPath,
   getLandingSlugFromPathname,
   getSearchSlugFromPathname,
+  type StudioTabId,
 } from '@/lib/keyword-routes';
 
 export function useKeywordNavigation() {
@@ -18,9 +21,14 @@ export function useKeywordNavigation() {
     landingSlug,
     searchSlug,
     homePath: `/${landingSlug}`,
-    /** Studio compose home — /content-ideas/app */
-    studioHomePath: buildStudioHomePath(searchSlug),
+    /** Studio compose home — /app/content-ideas */
+    studioHomePath: buildStudioHomePath(),
     landingPath: (path: string) => buildLandingPath(path, landingSlug),
-    searchPath: (topic: string) => buildSearchPath(topic, searchSlug),
+    searchPath: (topic: string) => buildSearchPath(topic),
+    appPath: (path: string) => buildAppPath(path),
+    studioTabPath: (
+      tab: StudioTabId,
+      opts?: { topic?: string | null; scriptId?: string | null },
+    ) => buildStudioTabPath(tab, opts),
   };
 }

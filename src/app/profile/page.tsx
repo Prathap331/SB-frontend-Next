@@ -11,6 +11,7 @@ import {
   MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, PHOTO_SLOTS, PhotoKey,
 } from '@/lib/thumbnails';
 import { getBackendUrl } from '@/lib/backend';
+import { buildStudioTabPath } from '@/lib/keyword-routes';
 
 type ProfileData = {
   name: string;
@@ -114,7 +115,7 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (new URLSearchParams(window.location.search).get('tab') === 'scripts') {
-      router.replace('/my-scripts');
+      router.replace('/app/my-scripts');
     }
   }, [router]);
 
@@ -1020,7 +1021,14 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
                             </div>
                           </div>
                           <button
-                            onClick={() => router.push(`/script?scriptId=${script.id}`)}
+                            onClick={() =>
+                              router.push(
+                                buildStudioTabPath('script', {
+                                  ideaTitle: script.title || script.topic || 'Script',
+                                  scriptId: script.id,
+                                }),
+                              )
+                            }
                             className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-4 py-2 rounded-xl transition-colors flex-shrink-0"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />View Script

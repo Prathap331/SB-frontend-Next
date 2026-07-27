@@ -38,7 +38,16 @@ const CancellationAndRefundPolicyPage = () => {
               <h2 className="text-2xl font-semibold mb-3 text-black">3.3. Refund Process</h2>
               <ul className="list-disc list-inside pl-4 space-y-2">
                 <li>Refunds will be initiated to the <strong>original payment method</strong> within <strong>7–10 business days</strong> post-approval.</li>
-                <li>To claim a refund, email <strong>Support@storio.tech</strong> with your account details and proof of issue (e.g., screenshots, downtime logs).</li>
+                <li>
+                  To claim a refund, email{' '}
+                  <a
+                    href="mailto:support@storio.tech?subject=Refund%20request%20%E2%80%94%20Storio"
+                    className="font-semibold text-black underline underline-offset-2 hover:opacity-80"
+                  >
+                    support@storio.tech
+                  </a>{' '}
+                  with your account details and proof of issue (e.g., screenshots, downtime logs).
+                </li>
               </ul>
             </div>
 

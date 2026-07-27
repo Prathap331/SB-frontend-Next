@@ -53,21 +53,21 @@ const PROFILE_TABS: ProfileTabId[] = [
   'profile', 'thumbnails', 'channel', 'subscription', 'billing', 'password',
 ];
 
-/** Canonical href for each studio view (landing-prefix applied at navigate time) */
+/** Canonical href for each studio view (under /app for library pages) */
 export function hrefForStudioView(view: Exclude<StudioSideView, null>): string {
   switch (view) {
     case 'content-vault':
-      return '/content-vault';
+      return '/app/content-vault';
     case 'my-scripts':
-      return '/my-scripts';
+      return '/app/my-scripts';
     case 'pricing':
       return '/pricing';
     case 'profile':
-      return '/profile';
+      return '/app/profile';
     case 'scripts':
-      return '/my-scripts';
+      return '/app/my-scripts';
     default:
-      return `/profile?tab=${view}`;
+      return `/app/profile?tab=${view}`;
   }
 }
 
@@ -211,7 +211,9 @@ export default function StudioSidebar({
 
   const go = (view: Exclude<StudioSideView, null>) => {
     onNavigate?.();
-    router.push(landingPath(hrefForStudioView(view)));
+    const href = hrefForStudioView(view);
+    // Library / profile already include /app; pricing still uses landing prefix
+    router.push(href.startsWith('/app') ? href : landingPath(href));
   };
 
   const isLoggedIn = !!userId;

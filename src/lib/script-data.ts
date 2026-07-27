@@ -56,7 +56,6 @@ export function normalizeScriptData(raw: any): GeneratedScriptData {
     examples_count:       metrics?.generalExamples ?? 0,
     research_facts_count: metrics?.researchFacts ?? 0,
     proverbs_count:       metrics?.proverbs_count ?? 0,
-    emotional_depth:      metrics?.emotionalDepth != null ? String(metrics.emotionalDepth) : '',
     history:              metrics?.historical_facts ?? metrics?.history ?? 0,
   };
 

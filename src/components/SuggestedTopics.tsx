@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, FileText, Clock } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { buildStudioTabPath } from '@/lib/keyword-routes';
 
 type ScriptRow = {
   id: string;
@@ -120,7 +121,14 @@ export default function SuggestedTopics() {
           return (
             <button
               key={s.id}
-              onClick={() => router.push(`/script?scriptId=${s.id}`)}
+              onClick={() =>
+                router.push(
+                  buildStudioTabPath('script', {
+                    ideaTitle: s.title || s.topic || 'Script',
+                    scriptId: s.id,
+                  }),
+                )
+              }
               className="group flex-shrink-0 snap-start w-64 sm:w-72 text-left bg-white border border-gray-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 hover:-translate-y-0.5 focus:outline-none"
             >
               <p className="text-sm font-semibold text-[#1d1d1f] leading-snug mb-2 group-hover:text-black line-clamp-2">

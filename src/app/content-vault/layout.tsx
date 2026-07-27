@@ -5,7 +5,7 @@ export const metadata: Metadata = createPageMetadata({
   title: 'Content Vault — Ready-to-Use youtube contents',
   description:
     'Browse Storio’s Content Vault of AI-generated youtube contents across categories. Discover topics and generate your next video script faster.',
-  path: '/content-vault',
+  path: '/app/content-vault',
   keywords:
     'youtube content examples, AI Content Vault, video script templates, storio scripts library',
 });

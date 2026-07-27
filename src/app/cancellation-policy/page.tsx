@@ -26,7 +26,7 @@ const sections = [
   },
   {
     title: 'Contact us',
-    body: `If you have questions about billing or need help cancelling, reach us at  Support@storio.tech ,We aim to respond within one business day.`,
+    body: null as string | null,
   },
 ];
 
@@ -71,7 +71,20 @@ export default async function CancellationPolicy({
           {sections.map((s, i) => (
             <div key={i} className="px-6 sm:px-8 py-6">
               <h2 className="text-sm font-semibold text-[#1d1d1f] mb-2">{s.title}</h2>
-              <p className="text-sm text-[#6e6e73] font-light leading-relaxed">{s.body}</p>
+              {s.body ? (
+                <p className="text-sm text-[#6e6e73] font-light leading-relaxed">{s.body}</p>
+              ) : (
+                <p className="text-sm text-[#6e6e73] font-light leading-relaxed">
+                  If you have questions about billing or need help cancelling, reach us at{' '}
+                  <a
+                    href="mailto:support@storio.tech?subject=Cancellation%20help%20%E2%80%94%20Storio"
+                    className="font-semibold text-[#1d1d1f] underline underline-offset-2 hover:opacity-80"
+                  >
+                    support@storio.tech
+                  </a>
+                  . We aim to respond within one business day.
+                </p>
+              )}
             </div>
           ))}
         </div>
