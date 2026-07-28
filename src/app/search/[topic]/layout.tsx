@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
 
   if (isStudioComposeTopic(decodedTopic)) {
     return createPageMetadata({
-      title: ' Automated Youtube Script and Metadata, Thumbnail Generator ',
+      title: 'Storio AI - Automated Youtube Script and Metadata, Thumbnail Generator ',
       description:
         'Generate YouTube scripts, SEO-optimized titles/tags from search intelligence, and Thumbnails — all in one tool. Storio helps creators publish faster and rank higher.',
       path: `/${DEFAULT_SEARCH_SLUG}/app`,
@@ -22,8 +22,8 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   }
 
   return createPageMetadata({
-    title: `${decodedTopic} — YouTube Script Ideas & AI Generator`,
-    description: `Generate research-backed YouTube Content about "${decodedTopic}" with Storio AI. Explore topic insights, trends, and script ideas in minutes.`,
+    title: `Storio AI - Automated Youtube Script and Metadata, Thumbnail Generator `,
+    description: `Generate YouTube scripts, SEO-optimized titles/tags from search intelligence, and Thumbnails — all in one tool. Storio helps creators publish faster and rank higher.`,
     path: `/search/${encodeURIComponent(decodedTopic)}`,
     keywords: `${decodedTopic}, YouTube script ideas, AI script generator, ${decodedTopic} video script`,
   });

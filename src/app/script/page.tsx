@@ -377,11 +377,15 @@ export default function ScriptPage() {
           try {
             const raw = JSON.parse(paramsJson) as Record<string, unknown>;
             // Normalize to current /generate-script contract
+            const title = String(raw.title || raw.ideaTitle || '');
+            const topicValue = String(raw.topic || '');
             params = {
               userId: String(raw.userId || session.user.id),
-              title: String(raw.title || raw.topic || raw.ideaTitle || ''),
+              title: title || topicValue,
               description: String(raw.description || ''),
+              topic: topicValue || title,
               time: Number(raw.time ?? raw.duration_minutes ?? 10),
+              language: String(raw.language || 'english'),
             };
             if (!params.title) params = null;
           } catch {
@@ -410,7 +414,9 @@ export default function ScriptPage() {
               // Verify the cached script matches the topic
               if (cached.params.title === topic) {
                 setData(cached.data);
-                setScriptDuration(cached.params.time);
+                setScriptDuration(
+                  cached.data?.metrics?.videoLength ?? cached.params.time,
+                );
                 setScriptTopic(cached.params.title);
                 if (cached.params.description) setScriptDescription(cached.params.description);
                 if (cached.pageTitle) setPageTitle(cached.pageTitle);
@@ -433,7 +439,9 @@ export default function ScriptPage() {
               const now = Date.now();
               if (cached.timestamp && now - cached.timestamp < CACHE_DURATION) {
                 setData(cached.data);
-                setScriptDuration(cached.params?.time);
+                setScriptDuration(
+                  cached.data?.metrics?.videoLength ?? cached.params?.time,
+                );
                 setScriptTopic(cached.params?.title);
                 if (cached.params?.description) setScriptDescription(cached.params.description);
                 if (cached.pageTitle) setPageTitle(cached.pageTitle);
@@ -461,7 +469,9 @@ export default function ScriptPage() {
             userId: session.user.id,
             title: topic || 'Untitled',
             description: topic || '',
+            topic: topic || '',
             time: duration ? parseInt(duration, 10) : 10,
+            language: urlParams.get('language') || 'english',
           };
           // show summary immediately
           try {
@@ -493,7 +503,9 @@ if (universalId) universalScriptIdRef.current = universalId;
 syncScriptToStudioStorage(normalized, universalId);
 
 setData(normalized);
-            if (payload.time) setScriptDuration(payload.time);
+            setScriptDuration(
+              normalized.metrics?.videoLength ?? payload.time ?? undefined,
+            );
             if (payload.title) setScriptTopic(payload.title);
             if (payload.description) setScriptDescription(payload.description);
             setPageTitle(scriptTitle);
@@ -575,8 +587,8 @@ console.log("📦 Script API Response:", json);
 
         setData(normalized);
         setPageTitle(scriptTitle);
-        // Capture duration before clearing sessionStorage
-        if (params.time) setScriptDuration(params.time);
+        // Prefer actual Video Length from metrics over requested generate time
+        setScriptDuration(normalized.metrics?.videoLength ?? params.time ?? undefined);
         if (params.title) setScriptTopic(params.title);
         if (params.description) setScriptDescription(params.description);
         // optionally clear params so reload won't re-run (but we keep localStorage for reloads)
@@ -808,8 +820,15 @@ if (params.get('from') === 'suggested') {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push('/auth'); return; }
 
-      // Use duration captured into state at script-load time
-      const duration = scriptDuration;
+      // Charge unlock against actual Video Length (metrics), not the requested generate time
+      const fromMetrics = Number(data?.metrics?.videoLength);
+      const fromState = Number(scriptDuration);
+      const duration =
+        Number.isFinite(fromMetrics) && fromMetrics > 0
+          ? fromMetrics
+          : Number.isFinite(fromState) && fromState > 0
+            ? fromState
+            : 10;
 
       const res = await fetch(`${getBackendUrl()}/unlock`, {
         method: 'POST',

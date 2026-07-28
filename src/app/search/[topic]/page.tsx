@@ -47,6 +47,17 @@ import {
   studioPathSegmentFromPathname,
   studioTabFromPathname,
 } from '@/lib/keyword-routes';
+import {
+  DEFAULT_SCRIPT_LANGUAGE,
+  SCRIPT_LANGUAGES,
+} from '@/lib/script-languages';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const SCRIPT_GENERATION_STEPS = [
   'Understanding your topic',
@@ -586,6 +597,8 @@ export default function SearchTopicPage() {
   const [scriptViewerLoading, setScriptViewerLoading] = useState(() => !!scriptIdParam);
 
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
+  const [languageDialogIdea, setLanguageDialogIdea] = useState<ScriptIdea | null>(null);
+  const [selectedScriptLanguage, setSelectedScriptLanguage] = useState(DEFAULT_SCRIPT_LANGUAGE);
   const initialTab = studioTabFromPathname(pathname) ?? (scriptIdParam ? 'script' : 'ideas');
   const [studioTab, setStudioTabState] = useState<StudioTab>(initialTab);
   const [ideasTabDisabled, setIdeasTabDisabled] = useState(!!scriptIdParam);
@@ -1249,7 +1262,19 @@ useEffect(() => {
 
 
   // ── Script generation ─────────────────────────────────────────────────────
-  const startScriptGeneration = async (idea: ScriptIdea) => {
+  const openLanguageDialog = (idea: ScriptIdea) => {
+    if (!videoLengths[idea.id]?.trim()) {
+      console.warn('No length specified for this script');
+      return;
+    }
+    setSelectedScriptLanguage(DEFAULT_SCRIPT_LANGUAGE);
+    setLanguageDialogIdea(idea);
+  };
+
+  const startScriptGeneration = async (
+    idea: ScriptIdea,
+    language: string = DEFAULT_SCRIPT_LANGUAGE,
+  ) => {
     if (!videoLengths[idea.id]) {
       console.warn('No length specified for this script');
       return;
@@ -1265,7 +1290,9 @@ useEffect(() => {
       userId: session.user.id,
       title: idea.title,
       description: idea.description,
+      topic,
       time: Number(videoLengths[idea.id] || 10),
+      language,
     };
 
     // Keep the full idea list in saved_ideas intact — never overwrite with a
@@ -1344,7 +1371,12 @@ useEffect(() => {
       setActiveScriptIdeaTitle(idea.title);
       setActiveScriptIdeaDescription(idea.description || '');
       setActiveScriptTopic(topic);
-      setActiveScriptDuration(Number(videoLengths[idea.id] || payload.time || 10));
+      {
+        const mins = Number(
+          normalized.metrics?.videoLength ?? videoLengths[idea.id] ?? payload.time ?? 10,
+        );
+        setActiveScriptDuration(Number.isFinite(mins) && mins > 0 ? mins : 10);
+      }
       setActiveScriptRowId(universalId);
       setActiveUniversalScriptId(universalId);
       setActiveScriptFromAssigned(false);
@@ -1384,7 +1416,15 @@ useEffect(() => {
 
   const selectIdeaScript = (idea: ScriptIdea) => {
     const fromMap = ideaScripts[idea.id];
-    const durationFromIdea = Number(videoLengths[idea.id] || 10);
+    const durationFromInput = Number(videoLengths[idea.id]);
+    const resolveDuration = (metricsVideoLength?: number | null, fallback?: number) => {
+      const fromMetrics = Number(metricsVideoLength);
+      if (Number.isFinite(fromMetrics) && fromMetrics > 0) return fromMetrics;
+      if (Number.isFinite(durationFromInput) && durationFromInput > 0) return durationFromInput;
+      const fromFallback = Number(fallback);
+      if (Number.isFinite(fromFallback) && fromFallback > 0) return fromFallback;
+      return 10;
+    };
     if (fromMap?.data) {
       setActiveScriptData(fromMap.data);
       setActiveScriptIdeaTitle(fromMap.ideaTitle);
@@ -1393,11 +1433,7 @@ useEffect(() => {
       setActiveScriptRowId(fromMap.scriptRowId ?? fromMap.universalScriptId ?? null);
       setActiveUniversalScriptId(fromMap.universalScriptId ?? null);
       setActiveScriptFromAssigned(!!fromMap.fromAssigned);
-      setActiveScriptDuration(
-        Number.isFinite(durationFromIdea) && durationFromIdea > 0
-          ? durationFromIdea
-          : Number(fromMap.data.metrics?.videoLength || 10) || 10,
-      );
+      setActiveScriptDuration(resolveDuration(fromMap.data.metrics?.videoLength));
       setStudioTab('script', { ideaTitle: fromMap.ideaTitle || idea.title });
       return;
     }
@@ -1416,13 +1452,8 @@ useEffect(() => {
           setActiveScriptRowId(parsed.universalScriptId ?? null);
           setActiveUniversalScriptId(parsed.universalScriptId ?? null);
           setActiveScriptFromAssigned(false);
-          const fromParams = Number(parsed?.params?.time);
           setActiveScriptDuration(
-            Number.isFinite(fromParams) && fromParams > 0
-              ? fromParams
-              : Number.isFinite(durationFromIdea) && durationFromIdea > 0
-                ? durationFromIdea
-                : 10,
+            resolveDuration(parsed?.data?.metrics?.videoLength, parsed?.params?.time),
           );
           setStudioTab('script', { ideaTitle: idea.title });
         }
@@ -1715,7 +1746,7 @@ useEffect(() => {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => startScriptGeneration(statement)}
+                                onClick={() => openLanguageDialog(statement)}
                                 disabled={!videoLengths[statement.id]?.trim()}
                                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                               >
@@ -1813,7 +1844,7 @@ useEffect(() => {
                                       </div>
                                       <button
                                         type="button"
-                                        onClick={() => startScriptGeneration(relatedIdea)}
+                                        onClick={() => openLanguageDialog(relatedIdea)}
                                         disabled={!videoLengths[ideaId]?.trim()}
                                         className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed"
                                       >
@@ -2040,6 +2071,76 @@ useEffect(() => {
           </div>
         </div>
       )}
+
+      <Dialog
+        open={!!languageDialogIdea}
+        onOpenChange={(open) => {
+          if (!open) setLanguageDialogIdea(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md rounded-2xl border-gray-200 p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-3">
+            <DialogTitle className="text-lg font-bold text-[#1d1d1f]">
+              Choose script language
+            </DialogTitle>
+            <p className="text-sm text-gray-500 pt-1">
+              Which language should we write this script in?
+            </p>
+          </DialogHeader>
+          <div className="px-6 pb-2">
+            <div className="grid grid-cols-2 gap-2 max-h-[min(50vh,22rem)] overflow-y-auto pr-1">
+              {SCRIPT_LANGUAGES.map((lang) => {
+                const selected = selectedScriptLanguage === lang.value;
+                return (
+                  <button
+                    key={lang.value}
+                    type="button"
+                    onClick={() => setSelectedScriptLanguage(lang.value)}
+                    className={`rounded-xl border px-3 py-3 text-left transition-colors ${
+                      selected
+                        ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
+                        : 'border-gray-200 bg-white text-[#1d1d1f] hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="block text-base font-semibold leading-snug">
+                      {lang.label}
+                    </span>
+                    <span
+                      className={`block text-[11px] mt-0.5 capitalize ${
+                        selected ? 'text-white/70' : 'text-gray-400'
+                      }`}
+                    >
+                      {lang.value}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <DialogFooter className="px-6 py-4 border-t border-gray-100 sm:justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setLanguageDialogIdea(null)}
+              className="text-sm font-medium text-gray-500 hover:text-[#1d1d1f] px-2 py-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const idea = languageDialogIdea;
+                if (!idea) return;
+                setLanguageDialogIdea(null);
+                void startScriptGeneration(idea, selectedScriptLanguage);
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Generate
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </StudioShell>
   );
 }

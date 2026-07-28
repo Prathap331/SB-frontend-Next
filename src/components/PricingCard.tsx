@@ -6,15 +6,17 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import {
   type BillingCycle,
+  type PricingCurrency,
   type PricingPlan,
   annualSavings,
   displayPrice,
-  formatInr,
+  formatMoney,
 } from './pricingPlans';
 
 interface PricingCardProps {
   plan: PricingPlan;
   billing: BillingCycle;
+  currency: PricingCurrency;
   isHighlighted: boolean;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
@@ -23,6 +25,7 @@ interface PricingCardProps {
 export default function PricingCard({
   plan,
   billing,
+  currency,
   isHighlighted,
   onMouseEnter,
   onMouseLeave,
@@ -31,8 +34,16 @@ export default function PricingCard({
   const IconComponent = plan.icon;
   const price = displayPrice(plan, billing);
   const savings = billing === 'annual' ? annualSavings(plan) : null;
+  const money = (n: number) => formatMoney(n, currency);
 
   const handlePlanSelection = async () => {
+    if (!plan.priceAvailable) {
+      toast.error('Price unavailable', {
+        description: 'USD pricing is not set for this plan yet.',
+        duration: 3000,
+      });
+      return;
+    }
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       toast.error('Authentication Required', {
@@ -49,6 +60,7 @@ export default function PricingCard({
     const q = new URLSearchParams({
       tier: plan.targetTier,
       billing,
+      currency,
     });
     router.push(`/checkout?${q.toString()}`);
   };
@@ -107,30 +119,40 @@ export default function PricingCard({
       )}
 
       <div className="mb-1 flex flex-wrap items-end gap-x-2 gap-y-1">
-        {price.struck != null && (
+        {!plan.priceAvailable ? (
           <span
-            className={`text-xl font-semibold line-through decoration-2 ${
-              isHighlighted ? 'text-white/35' : 'text-gray-400'
-            }`}
+            className={`text-2xl font-bold tracking-tight ${isHighlighted ? 'text-white/70' : 'text-[#6e6e73]'}`}
           >
-            {formatInr(price.struck)}
+            Price unavailable
           </span>
+        ) : (
+          <>
+            {price.struck != null && (
+              <span
+                className={`text-xl font-semibold line-through decoration-2 ${
+                  isHighlighted ? 'text-white/35' : 'text-gray-400'
+                }`}
+              >
+                {money(price.struck)}
+              </span>
+            )}
+            <span
+              className={`text-4xl font-bold tracking-tight ${isHighlighted ? 'text-white' : 'text-[#1d1d1f]'}`}
+            >
+              {price.isFree ? money(0) : money(price.main)}
+            </span>
+            <span
+              className={`text-sm mb-1.5 font-light ${isHighlighted ? 'text-white/55' : 'text-[#6e6e73]'}`}
+            >
+              {price.period}
+            </span>
+          </>
         )}
-        <span
-          className={`text-4xl font-bold tracking-tight ${isHighlighted ? 'text-white' : 'text-[#1d1d1f]'}`}
-        >
-          {price.isFree ? '₹0' : formatInr(price.main)}
-        </span>
-        <span
-          className={`text-sm mb-1.5 font-light ${isHighlighted ? 'text-white/55' : 'text-[#6e6e73]'}`}
-        >
-          {price.period}
-        </span>
       </div>
 
-      {billing === 'annual' && plan.annualAmount != null && savings != null ? (
+      {plan.priceAvailable && billing === 'annual' && plan.annualAmount != null && savings != null ? (
         <p className={`text-sm font-medium mb-5 ${isHighlighted ? 'text-white/70' : 'text-[#6e6e73]'}`}>
-          {formatInr(plan.annualAmount)} billed annually · save {formatInr(savings)}/yr
+          {money(plan.annualAmount)} billed annually · save {money(savings)}/yr
         </p>
       ) : (
         <div className="mb-5 h-5" aria-hidden />
@@ -139,7 +161,8 @@ export default function PricingCard({
       <button
         type="button"
         onClick={handlePlanSelection}
-        className={`w-full py-2.5 rounded-xl text-sm font-semibold mb-6 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${ctaClass}`}
+        disabled={!plan.priceAvailable && plan.targetTier !== 'free'}
+        className={`w-full py-2.5 rounded-xl text-sm font-semibold mb-6 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 ${ctaClass}`}
       >
         {plan.ctaText}
       </button>

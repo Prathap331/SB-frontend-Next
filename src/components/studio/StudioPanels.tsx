@@ -364,9 +364,15 @@ export function StudioScriptPanel({
         return;
       }
 
+      // Charge unlock against actual Video Length (metrics), not the requested generate time
+      const fromMetrics = Number(data?.metrics?.videoLength);
+      const fromProp = Number(durationMinutes);
       const duration =
-        durationMinutes ??
-        (data?.metrics?.videoLength != null ? Math.round(data.metrics.videoLength) : 10);
+        Number.isFinite(fromMetrics) && fromMetrics > 0
+          ? fromMetrics
+          : Number.isFinite(fromProp) && fromProp > 0
+            ? fromProp
+            : 10;
 
       const res = await fetch(`${getBackendUrl()}/unlock`, {
         method: 'POST',
@@ -545,16 +551,6 @@ export function StudioScriptPanel({
                   <Monitor className="w-3.5 h-3.5" />
                   Teleprompter
                 </button>
-                {isUnlocked ? <CopyBtn text={data.script} /> : (
-                  <button
-                    type="button"
-                    disabled
-                    className={`${toolbarBtn} disabled:opacity-40 disabled:cursor-not-allowed`}
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={handleDownloadScript}

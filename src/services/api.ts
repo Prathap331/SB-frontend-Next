@@ -227,8 +227,12 @@ export interface GenerationParams {
   userId: string;
   title: string;
   description: string;
+  /** Search / idea topic the script belongs to */
+  topic: string;
   /** Video length in minutes */
   time: number;
+  /** Script language as English name, e.g. "english", "telugu" */
+  language: string;
 }
 
 /** Payload for POST /generate-thumbnail */
@@ -859,7 +863,9 @@ export class ApiService {
         userId: params.userId,
         title: params.title,
         description: params.description,
+        topic: params.topic,
         time: params.time,
+        language: params.language || 'english',
       };
       console.log('Making API request to:', apiUrl);
       console.log('Request payload:', body);

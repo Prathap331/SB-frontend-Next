@@ -5,10 +5,10 @@ export const SITE_URL =
 
 export const SITE_NAME = 'Storio';
 
-export const DEFAULT_TITLE = 'Storio — Write Your YouTube Script in 3 Minutes';
+export const DEFAULT_TITLE = 'Storio — Automated Youtube Script and Metadata, Thumbnail Generator ';
 
 export const DEFAULT_DESCRIPTION =
-  'AI that transforms your ideas into engaging, factual, research-backed YouTube Content. Generate scripts in 3 minutes with Storio.';
+  'Generate YouTube scripts, SEO-optimized titles/tags from search intelligence, and Thumbnails — all in one tool. Storio helps creators publish faster and rank higher.';
 
 export const DEFAULT_KEYWORDS = [
   'AI scriptwriter',

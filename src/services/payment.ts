@@ -115,9 +115,12 @@ export async function checkServerHealth(
 }
 
 // Create order on backend
-// Note: Backend expects amount in rupees (e.g., 500 for ₹500)
-// Backend will convert to paise internally and return the paise amount in response
-export async function createOrder(amount: number, targetTier: string): Promise<CreateOrderResponse> {
+// amount is in major units (INR rupees or USD dollars); backend converts to minor units
+export async function createOrder(
+  amount: number,
+  targetTier: string,
+  currency: 'INR' | 'USD' = 'INR',
+): Promise<CreateOrderResponse> {
   const token = getAuthToken();
   if (!token) {
     throw new Error('User not authenticated. Please login first.');
@@ -130,8 +133,8 @@ export async function createOrder(amount: number, targetTier: string): Promise<C
       'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify({
-      amount: amount, // Amount in INR rupees (backend converts to paise)
-      currency: 'INR',
+      amount,
+      currency,
       target_tier: targetTier,
     }),
   });
@@ -154,6 +157,7 @@ export async function initiatePayment(
   orderId: string,
   keyId: string,
   amount: number,
+  currency: 'INR' | 'USD',
   onSuccess: (paymentId: string, orderId: string) => void,
   onFailure: (error: string) => void
 ): Promise<void> {
@@ -167,7 +171,7 @@ export async function initiatePayment(
   const options = {
     key: keyId,
     amount: amount,
-    currency: 'INR',
+    currency,
     name: 'storio AI',
     description: 'Subscription Payment',
     order_id: orderId,
@@ -200,25 +204,25 @@ export async function initiatePayment(
 
 // Complete payment flow
 export async function processPayment(
-  amount: number, // Amount in INR rupees (e.g., 1250 for ₹1250)
+  amount: number, // Major units: INR rupees or USD dollars
   targetTier: string,
   onSuccess: (paymentId: string, orderId: string) => void,
-  onFailure: (error: string) => void
+  onFailure: (error: string) => void,
+  currency: 'INR' | 'USD' = 'INR',
 ): Promise<void> {
   try {
     // Step 0: Check if server is ready (waits for status 200)
     await checkServerHealth();
     
     // Step 1: Create order on backend
-    // Backend will convert rupees to paise and return order details
-    const orderData = await createOrder(amount, targetTier);
+    const orderData = await createOrder(amount, targetTier, currency);
     
-    // Step 2: Open Razorpay checkout
-    // amount is in INR; Razorpay requires paise (multiply by 100)
+    // Step 2: Open Razorpay checkout (amount from backend is in minor units)
     await initiatePayment(
       orderData.order_id,
       orderData.key_id,
       orderData.amount,
+      (orderData.currency as 'INR' | 'USD') || currency,
       onSuccess,
       onFailure
     );

@@ -48,6 +48,10 @@ type DBPlanRow = {
   tagline?: string | null;
   annual_amount?: number | null;
   plan_amount_original?: number | null;
+  usd_planamount?: number | null;
+  usd_annualamount?: number | null;
+  usd_gst?: number | null;
+  usd_planamountoriginal?: number | null;
 };
 
 function CheckoutInner() {
@@ -55,6 +59,7 @@ function CheckoutInner() {
   const params = useSearchParams();
   const tier = params.get('tier') ?? '';
   const billing = (params.get('billing') === 'annual' ? 'annual' : 'monthly') as 'monthly' | 'annual';
+  const currency = (params.get('currency') === 'USD' ? 'USD' : 'INR') as 'INR' | 'USD';
 
   const [dbPlan, setDbPlan] = useState<DBPlanRow | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
@@ -75,21 +80,17 @@ function CheckoutInner() {
   useEffect(() => {
     if (!tier) { setLoadingPlan(false); return; }
     const fetchPlan = async () => {
-      const full = await supabase
+      const { data, error } = await supabase
         .from('subscriptions_plan')
-        .select('plan_name, plan_amount, mins, gst, tagline, annual_amount, plan_amount_original')
+        .select('plan_name, plan_amount, mins, gst, tagline, annual_amount, plan_amount_original, usd_planamount, usd_annualamount, usd_gst, usd_planamountoriginal')
         .ilike('plan_name', tier)
         .maybeSingle();
 
-      if (full.error) {
-        const legacy = await supabase
-          .from('subscriptions_plan')
-          .select('plan_name, plan_amount, mins, gst')
-          .ilike('plan_name', tier)
-          .maybeSingle();
-        setDbPlan(legacy.data ?? null);
+      if (error) {
+        console.error('[checkout] plan fetch failed:', error.message);
+        setDbPlan(null);
       } else {
-        setDbPlan(full.data ?? null);
+        setDbPlan(data ?? null);
       }
       setLoadingPlan(false);
     };
@@ -123,21 +124,87 @@ function CheckoutInner() {
 
   if (loadingPlan || !dbPlan) return null;
 
-  const planKey        = tier.toLowerCase();
-  const planName       = dbPlan.plan_name;
-  const isAnnual       = billing === 'annual' && dbPlan.annual_amount != null && Number(dbPlan.annual_amount) > 0;
-  const planAmount     = isAnnual ? Number(dbPlan.annual_amount) : Number(dbPlan.plan_amount);
-  const planPrice      = planAmount === 0 ? '₹0' : `₹${planAmount.toLocaleString('en-IN')}`;
-  const planPeriod     = planAmount === 0 ? 'One-time' : isAnnual ? '/year' : '/month';
-  const planMins       = dbPlan.mins;
-  const plangst        = dbPlan.gst ?? 0;
-  const planDesc       = (dbPlan.tagline || '').trim() || (PLAN_DESCRIPTIONS[planKey] ?? '');
-  const planValidity   = isAnnual ? '365 days' : (PLAN_VALIDITY[planKey] ?? '30 days');
-  const IconComponent  = PLAN_ICONS[planKey] ?? Target;
+  const planKey = tier.toLowerCase();
+  const planName = dbPlan.plan_name;
+  const isUsd = currency === 'USD';
+
+  const formatPrice = (amount: number) => {
+    if (amount === 0) return isUsd ? '$0' : '₹0';
+    if (isUsd) {
+      const rounded = Math.round(amount * 100) / 100;
+      return `$${rounded.toLocaleString('en-US', {
+        minimumFractionDigits: Number.isInteger(rounded) ? 0 : 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+    return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+  };
+
+  // Resolve amounts from the selected currency columns only (no cross-currency fallback)
+  let planAmount: number | null = null;
+  let plangst = 0;
+  let priceAvailable = true;
+
+  if (isUsd) {
+    const usdMonthly = dbPlan.usd_planamount != null ? Number(dbPlan.usd_planamount) : null;
+    const usdAnnual = dbPlan.usd_annualamount != null ? Number(dbPlan.usd_annualamount) : null;
+    const usdGst = dbPlan.usd_gst != null ? Number(dbPlan.usd_gst) : null;
+    const wantAnnual = billing === 'annual' && usdAnnual != null && usdAnnual > 0;
+
+    if (usdMonthly == null && !(wantAnnual && usdAnnual != null)) {
+      priceAvailable = false;
+      planAmount = null;
+    } else {
+      planAmount = wantAnnual ? Number(usdAnnual) : Number(usdMonthly);
+      plangst = usdGst ?? 0;
+    }
+  } else {
+    const wantAnnual =
+      billing === 'annual' &&
+      dbPlan.annual_amount != null &&
+      Number(dbPlan.annual_amount) > 0;
+    planAmount = wantAnnual ? Number(dbPlan.annual_amount) : Number(dbPlan.plan_amount);
+    plangst = dbPlan.gst ?? 0;
+  }
+
+  const isAnnual =
+    billing === 'annual' &&
+    planAmount != null &&
+    (isUsd
+      ? dbPlan.usd_annualamount != null && Number(dbPlan.usd_annualamount) > 0
+      : dbPlan.annual_amount != null && Number(dbPlan.annual_amount) > 0);
+
+  if (!priceAvailable || planAmount == null || !Number.isFinite(planAmount)) {
+    return (
+      <div className="min-h-screen bg-[#f5f5f7]">
+        <Header />
+        <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
+          <p className="text-base font-semibold text-[#1d1d1f]">USD pricing unavailable</p>
+          <p className="text-sm text-[#6e6e73]">
+            This plan does not have USD amounts configured. Please go back and choose INR, or contact support.
+          </p>
+          <Link href="/pricing" className="inline-flex text-sm font-semibold text-[#1d1d1f] underline">
+            Back to Pricing
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const planPrice = formatPrice(planAmount);
+  const planPeriod = planAmount === 0 ? 'One-time' : isAnnual ? '/year' : '/month';
+  const planMins = dbPlan.mins;
+  const planDesc = (dbPlan.tagline || '').trim() || (PLAN_DESCRIPTIONS[planKey] ?? '');
+  const planValidity = isAnnual ? '365 days' : (PLAN_VALIDITY[planKey] ?? '30 days');
+  const IconComponent = PLAN_ICONS[planKey] ?? Target;
   const nextBillingDate = addDays(isAnnual ? 365 : 30);
 
   const totalgst = (plangst * planAmount) / 100;
-  const totalAmount = Math.round(totalgst + planAmount);
+  const totalAmount = isUsd
+    ? Math.round((totalgst + planAmount) * 100) / 100
+    : Math.round(totalgst + planAmount);
+  const totalGstDisplay = formatPrice(totalgst);
+  const totalAmountDisplay = formatPrice(totalAmount);
 
   const handlePay = async () => {
     if (!phone.trim() || !address.trim()) {
@@ -162,7 +229,14 @@ function CheckoutInner() {
             await fetch('/api/send-payment-email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: user.email, planName, amount: totalAmount, mins: planMins, gst: totalgst }),
+              body: JSON.stringify({
+                email: user.email,
+                planName,
+                amount: totalAmount,
+                mins: planMins,
+                gst: totalgst,
+                currency,
+              }),
             });
           }
           setIsProcessing(false);
@@ -177,6 +251,7 @@ function CheckoutInner() {
             toast.error('Payment failed', { description: error, duration: 5000 });
           }
         },
+        currency,
       );
     } catch (err: any) {
       setIsProcessing(false);
@@ -397,13 +472,13 @@ function CheckoutInner() {
               <span className="font-semibold text-[#1d1d1f]">{planPrice}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-[#6e6e73] font-light">GST</span>
-              <span className="font-semibold text-[#1d1d1f]">{totalgst}</span>
+              <span className="text-[#6e6e73] font-light">{isUsd ? 'Tax' : 'GST'}</span>
+              <span className="font-semibold text-[#1d1d1f]">{totalGstDisplay}</span>
             </div>
 
             <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
               <span className="text-sm font-semibold text-[#1d1d1f]">Total now</span>
-              <span className="text-lg font-bold text-[#1d1d1f]">{totalAmount}</span>
+              <span className="text-lg font-bold text-[#1d1d1f]">{totalAmountDisplay}</span>
             </div>
             <p className="text-[11px] text-[#6e6e73] leading-relaxed">
               By completing this purchase you agree to our{' '}
@@ -432,7 +507,7 @@ function CheckoutInner() {
           {isProcessing ? (
             <><Loader2 className="w-4 h-4 animate-spin" />Processing payment…</>
           ) : (
-            <>Complete purchase · {totalAmount}</>
+            <>Complete purchase · {totalAmountDisplay}</>
           )}
         </button>
 
