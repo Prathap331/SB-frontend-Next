@@ -5,7 +5,8 @@ export const SITE_URL =
 
 export const SITE_NAME = 'Storio';
 
-export const DEFAULT_TITLE = 'Storio — Automated Youtube Script and Metadata, Thumbnail Generator ';
+export const DEFAULT_TITLE =
+  'Storio — Automated Youtube Script and Metadata, Thumbnail Generator ';
 
 export const DEFAULT_DESCRIPTION =
   'Generate YouTube scripts, SEO-optimized titles/tags from search intelligence, and Thumbnails — all in one tool. Storio helps creators publish faster and rank higher.';
@@ -23,15 +24,25 @@ export const DEFAULT_KEYWORDS = [
   'video content automation',
 ].join(', ');
 
-/** Primary OG image — JPEG under 100KB, 1200×630 (WhatsApp-safe) */
-export const OG_IMAGE_PATH = '/og-image.jpg';
-export const OG_IMAGE_PNG_PATH = '/og-image.png';
+/**
+ * Cache-bust query so WhatsApp / Facebook re-fetch after OG asset changes.
+ * Bump when replacing share images.
+ */
+export const OG_IMAGE_VERSION = '3';
+
+/** Primary landscape OG — 1200×630 JPEG (WhatsApp large preview / mobile) */
+export const OG_IMAGE_PATH = `/og-image.jpg?v=${OG_IMAGE_VERSION}`;
+/** Square OG — 1200×1200 (WhatsApp desktop compact thumbnail; no side-crop) */
+export const OG_IMAGE_SQUARE_PATH = `/og-image-square.jpg?v=${OG_IMAGE_VERSION}`;
+export const OG_IMAGE_PNG_PATH = `/og-image.png?v=${OG_IMAGE_VERSION}`;
 
 export const OG_IMAGE = `${SITE_URL}${OG_IMAGE_PATH}`;
+export const OG_IMAGE_SQUARE = `${SITE_URL}${OG_IMAGE_SQUARE_PATH}`;
 export const OG_IMAGE_PNG = `${SITE_URL}${OG_IMAGE_PNG_PATH}`;
 
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
+export const OG_IMAGE_SQUARE_SIZE = 1200;
 
 export const COMPANY = {
   name: 'Morpho Technologies Pvt Ltd',
@@ -62,6 +73,17 @@ export function absoluteUrl(path = '/'): string {
 
 export function ogImages(alt: string = DEFAULT_TITLE) {
   return [
+    // Square first: WhatsApp Desktop/Web often uses a square thumbnail and
+    // center-crops landscape banners (cuts off logo/text). Letterboxed square
+    // keeps the full creative sharp and readable.
+    {
+      url: OG_IMAGE_SQUARE,
+      secureUrl: OG_IMAGE_SQUARE,
+      width: OG_IMAGE_SQUARE_SIZE,
+      height: OG_IMAGE_SQUARE_SIZE,
+      alt,
+      type: 'image/jpeg',
+    },
     {
       url: OG_IMAGE,
       secureUrl: OG_IMAGE,

@@ -23,6 +23,7 @@ function shouldSkip(pathname: string): boolean {
     pathname === '/manifest.webmanifest' ||
     pathname === '/og-image.jpg' ||
     pathname === '/og-image.png' ||
+    pathname === '/og-image-square.jpg' ||
     pathname === '/opengraph-image' ||
     pathname.startsWith('/opengraph-image') ||
     pathname.startsWith('/twitter-image') ||
