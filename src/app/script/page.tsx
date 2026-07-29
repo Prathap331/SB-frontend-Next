@@ -385,7 +385,6 @@ export default function ScriptPage() {
               description: String(raw.description || ''),
               topic: topicValue || title,
               time: Number(raw.time ?? raw.duration_minutes ?? 10),
-              language: String(raw.language || 'english'),
             };
             if (!params.title) params = null;
           } catch {
@@ -471,7 +470,6 @@ export default function ScriptPage() {
             description: topic || '',
             topic: topic || '',
             time: duration ? parseInt(duration, 10) : 10,
-            language: urlParams.get('language') || 'english',
           };
           // show summary immediately
           try {

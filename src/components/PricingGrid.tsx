@@ -20,7 +20,7 @@ export default function PricingGrid() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currency, setCurrency] = useState<PricingCurrency>('INR');
-  const [billing, setBilling] = useState<BillingCycle>('annual');
+  const [billing, setBilling] = useState<BillingCycle>('monthly');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export default function PricingGrid() {
   return (
     <div>
       <div className="flex flex-col items-center gap-3 mb-10">
-        <div className="inline-flex items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+        {/* <div className="inline-flex items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm">
           <button
             type="button"
             onClick={() => setCurrency('INR')}
@@ -117,7 +117,7 @@ export default function PricingGrid() {
           >
             USD
           </button>
-        </div>
+        </div> */}
 
         {hasAnnual && (
           <div className="flex flex-wrap items-center justify-center gap-3">

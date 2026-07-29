@@ -24,14 +24,32 @@ import {
   AlertCircle,
   Rocket,
   Target,
+  Languages,
+  ChevronDown,
 } from 'lucide-react';
 import type { GeneratedScriptData } from '@/services/api';
-import { unwrapScriptJson } from '@/lib/script-data';
+import { ApiService } from '@/services/api';
+import {
+  getScriptTextFromMap,
+  mergeScriptLanguage,
+  unwrapScriptJson,
+  wrapEnglishScript,
+  type ScriptLanguageMap,
+} from '@/lib/script-data';
+import {
+  DEFAULT_SCRIPT_LANGUAGE,
+  SCRIPT_LANGUAGES,
+  scriptLanguageApiName,
+} from '@/lib/script-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/lib/supabaseClient';
 import { getBackendUrl } from '@/lib/backend';
 import { STORYBIT_PRODUCTION_GUIDE } from '@/lib/production-guide';
-import { moveScriptToAssigned } from '@/lib/script-persistence';
+import {
+  moveScriptToAssigned,
+  updateAssignedScriptLanguages,
+} from '@/lib/script-persistence';
+import { toast } from 'sonner';
 
 function studioUnlockKey(topic: string, ideaTitle: string) {
   const safe = `${topic}_${ideaTitle}`.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
@@ -210,8 +228,10 @@ export function StudioScriptPanel({
   topic,
   durationMinutes,
   universalScriptId,
+  scriptRowId = null,
   initiallyUnlocked = false,
   onUnlocked,
+  onScriptDataChange,
 }: {
   data?: GeneratedScriptData | null;
   ideaTitle?: string;
@@ -219,15 +239,23 @@ export function StudioScriptPanel({
   topic?: string;
   durationMinutes?: number;
   universalScriptId?: string | null;
+  /** scripts_assigned row id after unlock */
+  scriptRowId?: string | number | null;
   /** True when script was loaded from scripts_assigned (already unlocked) */
   initiallyUnlocked?: boolean;
   /** Fired after a successful unlock so sibling tabs (e.g. thumbnails) can update */
   onUnlocked?: (info?: { assignedId?: string | null }) => void;
+  /** Fired when active script text / language map changes (translate / unlock) */
+  onScriptDataChange?: (next: {
+    script: string;
+    scriptsByLanguage: ScriptLanguageMap;
+  }) => void;
 }) {
   const router = useRouter();
   const [activeSegment, setActiveSegment] = useState(0);
   const segmentRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scriptScrollRef = useRef<HTMLDivElement | null>(null);
+  const translateMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [showSourcesPanel, setShowSourcesPanel] = useState(false);
   const [panelFocus, setPanelFocus] = useState<'sources' | 'books'>('sources');
@@ -245,16 +273,39 @@ export function StudioScriptPanel({
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [feedbackError, setFeedbackError] = useState('');
 
+  const [languageMap, setLanguageMap] = useState<ScriptLanguageMap>({});
+  const [activeLang, setActiveLang] = useState(DEFAULT_SCRIPT_LANGUAGE);
+  const [translateOpen, setTranslateOpen] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [assignedId, setAssignedId] = useState<string | null>(scriptRowId ?? null);
+
+  const displayScript =
+    getScriptTextFromMap(languageMap, activeLang) || data?.script || '';
+
   const structureSegments = data?.structure ?? [];
   const scriptSegmentTexts = useMemo(
-    () => splitScriptByStructure(data?.script || '', structureSegments),
-    [data?.script, structureSegments],
+    () => splitScriptByStructure(displayScript, structureSegments),
+    [displayScript, structureSegments],
   );
 
   const sourceUrls = data?.sources ?? data?.source_urls ?? [];
   const books = data?.books ?? data?.seo?.books ?? [];
 
   const unlockKey = studioUnlockKey(topic || '', ideaTitle || data?.title || '');
+
+  useEffect(() => {
+    setAssignedId(scriptRowId != null && scriptRowId !== '' ? String(scriptRowId) : null);
+  }, [scriptRowId]);
+
+  useEffect(() => {
+    const map =
+      data?.scriptsByLanguage && Object.keys(data.scriptsByLanguage).length
+        ? data.scriptsByLanguage
+        : wrapEnglishScript(data?.script || '');
+    setLanguageMap(map);
+    // Keep the user's selected language if it still exists in the map
+    setActiveLang((prev) => (map[prev]?.trim() ? prev : DEFAULT_SCRIPT_LANGUAGE));
+  }, [data?.script, data?.scriptsByLanguage]);
 
   useEffect(() => {
     setActiveSegment(0);
@@ -264,6 +315,7 @@ export function StudioScriptPanel({
     setFeedbackError('');
     setScriptSaved(false);
     setShowSourcesPanel(false);
+    setTranslateOpen(false);
 
     if (initiallyUnlocked) {
       setIsUnlocked(true);
@@ -279,6 +331,17 @@ export function StudioScriptPanel({
       setIsUnlocked(false);
     }
   }, [data?.script, unlockKey, initiallyUnlocked]);
+
+  useEffect(() => {
+    if (!translateOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!translateMenuRef.current?.contains(e.target as Node)) {
+        setTranslateOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [translateOpen]);
 
   useEffect(() => {
     if (!showSourcesPanel) return;
@@ -318,20 +381,97 @@ export function StudioScriptPanel({
   };
 
   const handleTeleprompter = () => {
-    if (!isUnlocked || !data?.script) return;
-    sessionStorage.setItem('teleprompter_script', data.script);
+    if (!isUnlocked || !displayScript) return;
+    sessionStorage.setItem('teleprompter_script', displayScript);
     router.push('/teleprompter');
   };
 
   const handleDownloadScript = () => {
-    if (!isUnlocked || !data?.script) return;
-    const blob = new Blob([data.script], { type: 'text/plain;charset=utf-8' });
+    if (!isUnlocked || !displayScript) return;
+    const blob = new Blob([displayScript], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${(ideaTitle || data.title || 'script').replace(/[^\w\-]+/g, '_')}.txt`;
+    a.download = `${(ideaTitle || data?.title || 'script').replace(/[^\w\-]+/g, '_')}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const applyLanguageMap = (
+    next: ScriptLanguageMap,
+    lang: string,
+  ) => {
+    setLanguageMap(next);
+    setActiveLang(lang);
+    const text = getScriptTextFromMap(next, lang);
+    onScriptDataChange?.({ script: text, scriptsByLanguage: next });
+  };
+
+  const handleSelectLanguage = async (langValue: string) => {
+    setTranslateOpen(false);
+    if (!isUnlocked) return;
+
+    if (languageMap[langValue]?.trim()) {
+      applyLanguageMap(languageMap, langValue);
+      return;
+    }
+
+    const source =
+      languageMap[DEFAULT_SCRIPT_LANGUAGE]?.trim() ||
+      data?.script?.trim() ||
+      '';
+    if (!source) return;
+
+    setIsTranslating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/auth');
+        return;
+      }
+
+      const translated = await ApiService.translateScript({
+        userId: session.user.id,
+        script: source,
+        language: scriptLanguageApiName(langValue),
+      });
+
+      const next = mergeScriptLanguage(languageMap, langValue, translated);
+      // Ensure english source is always present
+      const withEnglish = next.english
+        ? next
+        : mergeScriptLanguage(next, DEFAULT_SCRIPT_LANGUAGE, source);
+
+      // Update UI immediately so translated text + button label show
+      applyLanguageMap(withEnglish, langValue);
+
+      const saveTopic = topic || '';
+      const saveTitle = ideaTitle || data?.title || '';
+      const save = await updateAssignedScriptLanguages({
+        assignedId,
+        userId: session.user.id,
+        title: saveTitle,
+        topic: saveTopic || saveTitle,
+        description: ideaDescription,
+        scriptText: source,
+        scriptsByLanguage: withEnglish,
+      });
+      if (!save.ok) {
+        console.error('[script translate save]', save.error);
+        toast.error('Translation generated, but failed to save', {
+          description: save.error || 'Check scripts_assigned RLS update policy.',
+        });
+      } else {
+        if (save.assignedId && save.assignedId !== assignedId) {
+          setAssignedId(String(save.assignedId));
+        }
+        toast.success('Translation saved');
+      }
+    } catch (err) {
+      console.error('Translate error:', err);
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
   const handleFeedbackSubmit = async () => {
@@ -396,22 +536,51 @@ export function StudioScriptPanel({
           localStorage.setItem(unlockKey, 'true');
         } catch { /* ignore */ }
 
-        let assignedId: string | null = null;
-        if (!scriptSaved && data) {
-          setScriptSaved(true);
+        let assignedIdResult: string | null = assignedId;
+        if (data) {
           const saveTopic = topic || ideaTitle || data.title || 'Untitled';
-          const result = await moveScriptToAssigned({
-            userId: session.user.id,
-            data,
-            title: data.title || ideaTitle || saveTopic,
-            topic: saveTopic,
-            description: ideaDescription,
-            universalScriptId,
-          });
-          if (!result.ok) console.error('[scripts save]', result.error);
-          else assignedId = result.assignedId ?? null;
+          const englishMap =
+            (languageMap.english ? languageMap : null) ||
+            wrapEnglishScript(data.script || '');
+          const dataForSave: GeneratedScriptData = {
+            ...data,
+            scriptsByLanguage: englishMap,
+          };
+
+          if (!scriptSaved) {
+            setScriptSaved(true);
+            const result = await moveScriptToAssigned({
+              userId: session.user.id,
+              data: dataForSave,
+              title: data.title || ideaTitle || saveTopic,
+              topic: saveTopic,
+              description: ideaDescription,
+              universalScriptId,
+            });
+            if (!result.ok) console.error('[scripts save]', result.error);
+            else {
+              assignedIdResult = result.assignedId ?? null;
+              applyLanguageMap(englishMap, DEFAULT_SCRIPT_LANGUAGE);
+            }
+          }
+
+          // Always resolve an assigned row id for later translate saves
+          if (!assignedIdResult) {
+            const resolved = await updateAssignedScriptLanguages({
+              userId: session.user.id,
+              title: data.title || ideaTitle || saveTopic,
+              topic: saveTopic,
+              description: ideaDescription,
+              scriptText: data.script || englishMap.english,
+              // No-op merge of current map — used here only to resolve/verify the row
+              scriptsByLanguage: englishMap,
+            });
+            if (resolved.assignedId) assignedIdResult = resolved.assignedId;
+          }
+
+          if (assignedIdResult) setAssignedId(String(assignedIdResult));
         }
-        onUnlocked?.({ assignedId });
+        onUnlocked?.({ assignedId: assignedIdResult != null ? String(assignedIdResult) : null });
       } else {
         setShowInsufficientPopup(true);
       }
@@ -422,7 +591,16 @@ export function StudioScriptPanel({
     }
   };
 
-  if (!data?.script) {
+  if (!data) {
+    return (
+      <EmptyState
+        title="No script yet"
+        body="Generate a script from a content idea to see it here."
+      />
+    );
+  }
+
+  if (!displayScript && !data.script) {
     return (
       <EmptyState
         title="No script yet"
@@ -447,6 +625,10 @@ export function StudioScriptPanel({
 
   const toolbarBtn =
     'flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors';
+
+  const activeLangMeta =
+    SCRIPT_LANGUAGES.find((l) => l.value === activeLang) ?? SCRIPT_LANGUAGES[0];
+  const translateButtonLabel = activeLangMeta.label;
 
   return (
     <>
@@ -551,6 +733,59 @@ export function StudioScriptPanel({
                   <Monitor className="w-3.5 h-3.5" />
                   Teleprompter
                 </button>
+                <div className="relative" ref={translateMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isUnlocked || isTranslating) return;
+                      setTranslateOpen((v) => !v);
+                    }}
+                    disabled={!isUnlocked || isTranslating}
+                    className={`${toolbarBtn} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#f5f5f7]`}
+                    aria-expanded={translateOpen}
+                    aria-haspopup="listbox"
+                  >
+                    {isTranslating ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Languages className="w-3.5 h-3.5" />
+                    )}
+                    {translateButtonLabel}
+                    <ChevronDown className={`w-3 h-3 transition-transform ${translateOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {translateOpen && (
+                    <div
+                      role="listbox"
+                      className="absolute right-0 top-full mt-1.5 z-30 w-52 max-h-64 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg py-1"
+                    >
+                      {SCRIPT_LANGUAGES.map((lang) => {
+                        const saved = !!languageMap[lang.value]?.trim();
+                        const active = activeLang === lang.value;
+                        return (
+                          <button
+                            key={lang.value}
+                            type="button"
+                            role="option"
+                            aria-selected={active}
+                            onClick={() => void handleSelectLanguage(lang.value)}
+                            className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                              active ? 'bg-gray-50 font-semibold text-[#1d1d1f]' : 'text-[#1d1d1f]'
+                            }`}
+                          >
+                            <span>
+                              <span className="block leading-snug">{lang.label}</span>
+                              <span className="block text-[10px] text-gray-400 capitalize">
+                                {lang.value}
+                                {saved ? ' · saved' : ''}
+                              </span>
+                            </span>
+                            {active ? <Check className="w-3.5 h-3.5 flex-shrink-0" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={handleDownloadScript}

@@ -6,6 +6,10 @@ import {
   readThumbnailGeneratedColumn,
   toThumbnailGeneratedJson,
 } from '@/lib/script-persistence';
+import { DEFAULT_SCRIPT_LANGUAGE } from '@/lib/script-languages';
+
+/** Multilingual script column shape (jsonb): { english: "...", telugu: "..." } */
+export type ScriptLanguageMap = Record<string, string>;
 
 export function unwrapScriptJson(text: string): string {
   const trimmed = text.trim();
@@ -13,6 +17,8 @@ export function unwrapScriptJson(text: string): string {
   try {
     const parsed = JSON.parse(trimmed);
     if (typeof parsed.script === 'string') return parsed.script;
+    const map = parseScriptLanguageMap(parsed);
+    if (Object.keys(map).length) return getScriptTextFromMap(map);
   } catch {
     const m = trimmed.match(/"script"\s*:\s*"([\s\S]*)"/);
     if (m) return m[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
@@ -20,13 +26,84 @@ export function unwrapScriptJson(text: string): string {
   return trimmed;
 }
 
+/**
+ * Parse scripts_*.script (plain text, JSON string, or jsonb object) into a language map.
+ * Legacy plain strings become { english: "..." }.
+ */
+export function parseScriptLanguageMap(raw: unknown): ScriptLanguageMap {
+  if (raw == null) return {};
+
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const out: ScriptLanguageMap = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'string' && v.trim()) out[k.toLowerCase()] = v;
+    }
+    // Legacy wrapper { script: "..." }
+    if (out.script && !out.english) {
+      const { script, ...rest } = out;
+      return { english: script, ...rest };
+    }
+    if (out.script && out.english) {
+      const { script: _drop, ...rest } = out;
+      return rest;
+    }
+    return out;
+  }
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return {};
+    if (trimmed.startsWith('{')) {
+      try {
+        return parseScriptLanguageMap(JSON.parse(trimmed));
+      } catch {
+        /* plain script that happens to start with { */
+      }
+    }
+    return { [DEFAULT_SCRIPT_LANGUAGE]: unwrapScriptJson(trimmed) };
+  }
+
+  return {};
+}
+
+export function getScriptTextFromMap(
+  map: ScriptLanguageMap,
+  preferred: string = DEFAULT_SCRIPT_LANGUAGE,
+): string {
+  const key = preferred.toLowerCase();
+  if (map[key]?.trim()) return map[key];
+  if (map[DEFAULT_SCRIPT_LANGUAGE]?.trim()) return map[DEFAULT_SCRIPT_LANGUAGE];
+  const first = Object.values(map).find((v) => typeof v === 'string' && v.trim());
+  return first ?? '';
+}
+
+/** Wrap a plain script as the default english entry for unlock persistence */
+export function wrapEnglishScript(script: string): ScriptLanguageMap {
+  const text = (script || '').trim();
+  return text ? { [DEFAULT_SCRIPT_LANGUAGE]: text } : {};
+}
+
+export function mergeScriptLanguage(
+  map: ScriptLanguageMap,
+  language: string,
+  text: string,
+): ScriptLanguageMap {
+  const key = language.toLowerCase();
+  const value = (text || '').trim();
+  if (!key || !value) return { ...map };
+  return { ...map, [key]: value };
+}
+
 export function extractScriptText(raw: any): string {
   if (!raw) return '';
-  if (typeof raw === 'object') {
-    const s = raw.script || '';
-    return typeof s === 'string' ? unwrapScriptJson(s) : '';
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    if (typeof raw.script === 'string') return unwrapScriptJson(raw.script);
+    if (raw.script != null && typeof raw.script === 'object') {
+      return getScriptTextFromMap(parseScriptLanguageMap(raw.script));
+    }
+    return '';
   }
-  if (typeof raw === 'string') return unwrapScriptJson(raw);
+  if (typeof raw === 'string') return getScriptTextFromMap(parseScriptLanguageMap(raw));
   return '';
 }
 
@@ -74,9 +151,17 @@ export function normalizeScriptData(raw: any): GeneratedScriptData {
     }
   }
 
+  const languageMap = parseScriptLanguageMap(raw?.script);
+  const scriptText = getScriptTextFromMap(languageMap) || extractScriptText(raw);
+
   return {
     ...raw,
-    script: extractScriptText(raw),
+    script: scriptText,
+    scriptsByLanguage: Object.keys(languageMap).length
+      ? languageMap
+      : scriptText
+        ? wrapEnglishScript(scriptText)
+        : undefined,
     estimated_word_count: raw?.estimated_word_count ?? metrics?.totalWords ?? metrics?.word_count ?? 0,
     source_urls: sources,
     sources,

@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import type { GeneratedScriptData } from '@/services/api';
-import { ApiService } from '@/services/api';
+import { ApiService, normalizeSourcesForSave, type GeneratedScriptData } from '@/services/api';
 import { normalizeScriptData } from '@/lib/script-data';
 import { SCRIPT_ROW_SELECT } from '@/lib/script-persistence';
 
@@ -49,6 +48,8 @@ type SavedIdeaRow = {
   ideas: unknown;
   userId: string | null;
   topic_summary?: string | null;
+  sources?: string[] | null;
+  books?: { title: string; author: string }[] | null;
 };
 
 type ScriptDbRow = {
@@ -56,7 +57,7 @@ type ScriptDbRow = {
   title: string | null;
   topic: string | null;
   description?: string | null;
-  script: string | null;
+  script: string | Record<string, string> | null;
   youtube_metadata?: unknown;
   thumbnail?: unknown;
   'thumbnail-generated'?: unknown;
@@ -230,7 +231,12 @@ export async function fetchRecentTopics(userId?: string | null, limit = 40): Pro
 export async function saveTopicIdeasToDb(
   topic: string,
   ideas: ScriptIdeaBase[],
-  opts?: { topicSummary?: string | null; userId?: string | null },
+  opts?: {
+    topicSummary?: string | null;
+    userId?: string | null;
+    sources?: string[] | null;
+    books?: { title: string; author: string }[] | null;
+  },
 ): Promise<boolean> {
   const trimmed = topic.trim();
   if (!trimmed || !ideas.length) return false;
@@ -244,7 +250,10 @@ export async function saveTopicIdeasToDb(
   try {
     await ApiService.saveIdeas({
       topic: trimmed,
-      topic_summary: opts?.topicSummary ?? null,
+      topic_summary:
+        typeof opts?.topicSummary === 'string' ? opts.topicSummary : '',
+      sources: normalizeSourcesForSave(opts?.sources),
+      books: Array.isArray(opts?.books) ? opts.books : [],
       userId,
       ideas: ideas.map((i) => ({
         title: i.title,
@@ -430,7 +439,12 @@ export async function loadTopicWorkspace(
     const merged = mergeIdeasWithScripts(ideas, scripts);
     // Heal saved_ideas if older overwrites dropped generated ideas
     if (merged.length > ideas.length) {
-      void saveTopicIdeasToDb(match.topic.trim(), merged, { userId: uid });
+      void saveTopicIdeasToDb(match.topic.trim(), merged, {
+        userId: uid,
+        topicSummary: match.topic_summary ?? '',
+        sources: Array.isArray(match.sources) ? match.sources : [],
+        books: Array.isArray(match.books) ? match.books : [],
+      });
     }
     return {
       topic: match.topic.trim(),
@@ -449,7 +463,12 @@ export async function loadTopicWorkspace(
 
   const merged = mergeIdeasWithScripts(ideas, scripts);
   if (merged.length > ideas.length) {
-    void saveTopicIdeasToDb(trimmed, merged, { userId: uid });
+    void saveTopicIdeasToDb(trimmed, merged, {
+      userId: uid,
+      topicSummary: row.topic_summary ?? '',
+      sources: Array.isArray(row.sources) ? row.sources : [],
+      books: Array.isArray(row.books) ? row.books : [],
+    });
   }
 
   return {

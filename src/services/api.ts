@@ -167,11 +167,40 @@ export interface UnusedIdea {
   description: string;
 }
 
+/** /save-ideas expects sources as objects, not bare URL strings */
+export interface IdeaSourceReference {
+  url: string;
+}
+
 export interface UnusedIdeasPayload {
   topic: string;
-  topic_summary?: string | null;
+  /** Required by /save-ideas — use "" when no summary is available */
+  topic_summary: string;
+  sources: IdeaSourceReference[];
+  books: BookReference[];
   ideas: UnusedIdea[];
   userId: string;
+}
+
+/** Normalize generate-ideas string URLs (or mixed) into /save-ideas dicts */
+export function normalizeSourcesForSave(
+  sources: unknown,
+): IdeaSourceReference[] {
+  if (!Array.isArray(sources)) return [];
+  return sources
+    .map((item): IdeaSourceReference | null => {
+      if (typeof item === 'string') {
+        const url = item.trim();
+        return url ? { url } : null;
+      }
+      if (item && typeof item === 'object') {
+        const obj = item as Record<string, unknown>;
+        const url = String(obj.url ?? obj.link ?? obj.href ?? '').trim();
+        return url ? { url } : null;
+      }
+      return null;
+    })
+    .filter((s): s is IdeaSourceReference => !!s);
 }
 
 export interface SignUpRequest {
@@ -231,8 +260,6 @@ export interface GenerationParams {
   topic: string;
   /** Video length in minutes */
   time: number;
-  /** Script language as English name, e.g. "english", "telugu" */
-  language: string;
 }
 
 /** Payload for POST /generate-thumbnail */
@@ -283,6 +310,8 @@ export interface YoutubeMetadata {
 
 export type GeneratedScriptData = {
   script: string;
+  /** Multilingual versions keyed by language (english, telugu, …) */
+  scriptsByLanguage?: Record<string, string>;
   estimated_word_count?: number;
   /** Legacy field — new responses return `sources` instead */
   source_urls?: string[];
@@ -791,7 +820,7 @@ export class ApiService {
    * Fire-and-forget keepalive POST of unused ideas to /save-ideas.
    * Synchronous so it survives page unload (tab close / SPA navigation).
    * The payload mirrors the /generate-ideas response shape plus userId:
-   * { topic, topic_summary, ideas: [{ title, description }], userId }.
+   * { topic, topic_summary, sources, books, ideas: [{ title, description }], userId }.
    */
   static sendUnusedIdeasKeepalive(
     payload: UnusedIdeasPayload,
@@ -802,11 +831,19 @@ export class ApiService {
     const headers: HeadersInit = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    const body: UnusedIdeasPayload = {
+      ...payload,
+      topic_summary:
+        typeof payload.topic_summary === 'string' ? payload.topic_summary : '',
+      sources: normalizeSourcesForSave(payload.sources),
+      books: Array.isArray(payload.books) ? payload.books : [],
+    };
+
     try {
       fetch(`${this.BASE_URL}/save-ideas`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
         keepalive: true,
       }).catch(() => {});
     } catch {
@@ -840,10 +877,20 @@ export class ApiService {
     const headers: HeadersInit = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    const body: UnusedIdeasPayload = {
+      topic: payload.topic,
+      topic_summary:
+        typeof payload.topic_summary === 'string' ? payload.topic_summary : '',
+      sources: normalizeSourcesForSave(payload.sources),
+      books: Array.isArray(payload.books) ? payload.books : [],
+      ideas: payload.ideas,
+      userId: payload.userId,
+    };
+
     const response = await fetch(`${this.BASE_URL}/save-ideas`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -865,7 +912,6 @@ export class ApiService {
         description: params.description,
         topic: params.topic,
         time: params.time,
-        language: params.language || 'english',
       };
       console.log('Making API request to:', apiUrl);
       console.log('Request payload:', body);
@@ -904,6 +950,52 @@ export class ApiService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Translate an unlocked script via POST /translate-script.
+   * `language` must be Title Case English name, e.g. "English", "Telugu".
+   */
+  static async translateScript(params: {
+    userId: string;
+    script: string;
+    language: string;
+  }): Promise<string> {
+    const url = `${this.BASE_URL}/translate-script`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: params.userId,
+        script: params.script,
+        language: params.language || 'English',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(
+        errorText || `Translation failed: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (typeof data === 'string' && data.trim()) return data;
+    const translated =
+      data?.translated ??
+      data?.script ??
+      data?.translated_script ??
+      data?.translation ??
+      data?.result ??
+      data?.data?.script ??
+      data?.data?.translated;
+    if (typeof translated === 'string' && translated.trim()) return translated;
+    // Some backends return { telugu: "..." } / language-keyed map
+    if (data && typeof data === 'object') {
+      const langKey = (params.language || 'English').trim().toLowerCase();
+      const byLang = (data as Record<string, unknown>)[langKey];
+      if (typeof byLang === 'string' && byLang.trim()) return byLang;
+    }
+    throw new Error('Translation response did not include script text.');
   }
 
   /** Generate a YouTube thumbnail image via /generate-thumbnail (20 credits). */

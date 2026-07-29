@@ -47,17 +47,6 @@ import {
   studioPathSegmentFromPathname,
   studioTabFromPathname,
 } from '@/lib/keyword-routes';
-import {
-  DEFAULT_SCRIPT_LANGUAGE,
-  SCRIPT_LANGUAGES,
-} from '@/lib/script-languages';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 
 const SCRIPT_GENERATION_STEPS = [
   'Understanding your topic',
@@ -597,8 +586,6 @@ export default function SearchTopicPage() {
   const [scriptViewerLoading, setScriptViewerLoading] = useState(() => !!scriptIdParam);
 
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
-  const [languageDialogIdea, setLanguageDialogIdea] = useState<ScriptIdea | null>(null);
-  const [selectedScriptLanguage, setSelectedScriptLanguage] = useState(DEFAULT_SCRIPT_LANGUAGE);
   const initialTab = studioTabFromPathname(pathname) ?? (scriptIdParam ? 'script' : 'ideas');
   const [studioTab, setStudioTabState] = useState<StudioTab>(initialTab);
   const [ideasTabDisabled, setIdeasTabDisabled] = useState(!!scriptIdParam);
@@ -969,11 +956,16 @@ useEffect(() => {
   const persistNewIdeas = useCallback(async (
     ideas: ScriptIdea[],
     summary: string | null = null,
+    sources: string[] = [],
+    books: BookReference[] = [],
   ) => {
     if (!topic || !ideas.length) return;
     const { data: { session } } = await sbClient.auth.getSession();
     await saveTopicIdeasToDb(topic, ideas, {
-      topicSummary: summary,
+      // /save-ideas requires a string — never send null
+      topicSummary: summary ?? '',
+      sources,
+      books,
       userId: session?.user?.id ?? null,
     });
     // Keep idea cards; scripts will merge on next load from DB
@@ -1064,6 +1056,8 @@ useEffect(() => {
 
   const finishLoading = useCallback(() => {
     setFetchReady(true);
+    // Show ideas immediately; overlay closes itself via ready=true
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -1173,7 +1167,7 @@ useEffect(() => {
       const maxWaitMs = 300000;
       const retryDelayMs = 5000;
 
-      const applyResult = async (
+      const applyResult = (
         ideas: ScriptIdea[],
         err: string | null,
         summary: string | null = null,
@@ -1181,6 +1175,7 @@ useEffect(() => {
         sources: string[] = [],
         books: BookReference[] = [],
       ) => {
+        // Surface /generate-ideas results immediately — never block the UI on /save-ideas
         if (!err) {
           saveToCache(topic, {
             scriptIdeas: ideas,
@@ -1191,11 +1186,12 @@ useEffect(() => {
             error: err,
             timestamp: Date.now(),
           });
-          await persistNewIdeas(ideas, summary);
         }
 
         inFlightIdeas.delete(topic);
         settleFetch();
+
+        if (cancelled) return;
 
         setScriptIdeas(ideas);
         setSimilarPastIdeas(relatedIdeas);
@@ -1204,6 +1200,12 @@ useEffect(() => {
         setIdeaSources(sources);
         setIdeaBooks(books);
         finishLoading();
+
+        if (!err && ideas.length) {
+          void persistNewIdeas(ideas, summary, sources, books).catch((persistErr) => {
+            console.error('[script-ideas] persist after generate failed:', persistErr);
+          });
+        }
       };
 
       while (true) {
@@ -1219,7 +1221,7 @@ useEffect(() => {
             category: getCategoryFromIndex(idx),
           }));
 
-          await applyResult(
+          applyResult(
             ideas,
             null,
             response.topic_summary ?? null,
@@ -1245,7 +1247,7 @@ useEffect(() => {
             ? 'Server temporarily unavailable. Please try again.'
             : message || 'API temporarily unavailable. Please try again.';
 
-          await applyResult([], errorMessage);
+          applyResult([], errorMessage);
           return;
         }
       }
@@ -1262,19 +1264,7 @@ useEffect(() => {
 
 
   // ── Script generation ─────────────────────────────────────────────────────
-  const openLanguageDialog = (idea: ScriptIdea) => {
-    if (!videoLengths[idea.id]?.trim()) {
-      console.warn('No length specified for this script');
-      return;
-    }
-    setSelectedScriptLanguage(DEFAULT_SCRIPT_LANGUAGE);
-    setLanguageDialogIdea(idea);
-  };
-
-  const startScriptGeneration = async (
-    idea: ScriptIdea,
-    language: string = DEFAULT_SCRIPT_LANGUAGE,
-  ) => {
+  const startScriptGeneration = async (idea: ScriptIdea) => {
     if (!videoLengths[idea.id]) {
       console.warn('No length specified for this script');
       return;
@@ -1292,7 +1282,6 @@ useEffect(() => {
       description: idea.description,
       topic,
       time: Number(videoLengths[idea.id] || 10),
-      language,
     };
 
     // Keep the full idea list in saved_ideas intact — never overwrite with a
@@ -1338,7 +1327,7 @@ useEffect(() => {
       });
 
       // Re-persist the full idea list so saved_ideas never loses the generated idea
-      await persistNewIdeas(scriptIdeas, topicSummary);
+      await persistNewIdeas(scriptIdeas, topicSummary, ideaSources, ideaBooks);
 
       setIdeaScripts((prev) => ({
         ...prev,
@@ -1746,7 +1735,7 @@ useEffect(() => {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => openLanguageDialog(statement)}
+                                onClick={() => startScriptGeneration(statement)}
                                 disabled={!videoLengths[statement.id]?.trim()}
                                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                               >
@@ -1844,7 +1833,7 @@ useEffect(() => {
                                       </div>
                                       <button
                                         type="button"
-                                        onClick={() => openLanguageDialog(relatedIdea)}
+                                        onClick={() => startScriptGeneration(relatedIdea)}
                                         disabled={!videoLengths[ideaId]?.trim()}
                                         className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed"
                                       >
@@ -1878,11 +1867,19 @@ useEffect(() => {
                   topic={activeScriptTopic || topic}
                   durationMinutes={activeScriptDuration}
                   universalScriptId={activeUniversalScriptId}
+                  scriptRowId={activeScriptRowId}
                   initiallyUnlocked={activeScriptFromAssigned}
                   onUnlocked={({ assignedId } = {}) => {
                     setActiveScriptFromAssigned(true);
                     setActiveUniversalScriptId(null);
                     if (assignedId) setActiveScriptRowId(assignedId);
+                  }}
+                  onScriptDataChange={({ script, scriptsByLanguage }) => {
+                    setActiveScriptData((prev) =>
+                      prev
+                        ? { ...prev, script, scriptsByLanguage }
+                        : prev,
+                    );
                   }}
                 />
               )
@@ -2071,76 +2068,6 @@ useEffect(() => {
           </div>
         </div>
       )}
-
-      <Dialog
-        open={!!languageDialogIdea}
-        onOpenChange={(open) => {
-          if (!open) setLanguageDialogIdea(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-md rounded-2xl border-gray-200 p-0 gap-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-6 pb-3">
-            <DialogTitle className="text-lg font-bold text-[#1d1d1f]">
-              Choose script language
-            </DialogTitle>
-            <p className="text-sm text-gray-500 pt-1">
-              Which language should we write this script in?
-            </p>
-          </DialogHeader>
-          <div className="px-6 pb-2">
-            <div className="grid grid-cols-2 gap-2 max-h-[min(50vh,22rem)] overflow-y-auto pr-1">
-              {SCRIPT_LANGUAGES.map((lang) => {
-                const selected = selectedScriptLanguage === lang.value;
-                return (
-                  <button
-                    key={lang.value}
-                    type="button"
-                    onClick={() => setSelectedScriptLanguage(lang.value)}
-                    className={`rounded-xl border px-3 py-3 text-left transition-colors ${
-                      selected
-                        ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
-                        : 'border-gray-200 bg-white text-[#1d1d1f] hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className="block text-base font-semibold leading-snug">
-                      {lang.label}
-                    </span>
-                    <span
-                      className={`block text-[11px] mt-0.5 capitalize ${
-                        selected ? 'text-white/70' : 'text-gray-400'
-                      }`}
-                    >
-                      {lang.value}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <DialogFooter className="px-6 py-4 border-t border-gray-100 sm:justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setLanguageDialogIdea(null)}
-              className="text-sm font-medium text-gray-500 hover:text-[#1d1d1f] px-2 py-2"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const idea = languageDialogIdea;
-                if (!idea) return;
-                setLanguageDialogIdea(null);
-                void startScriptGeneration(idea, selectedScriptLanguage);
-              }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              Generate
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </StudioShell>
   );
 }

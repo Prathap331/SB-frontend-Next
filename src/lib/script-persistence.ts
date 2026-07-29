@@ -1,15 +1,14 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { BookReference, GeneratedScriptData, YoutubeMetadata } from '@/services/api';
+import {
+  getScriptTextFromMap,
+  parseScriptLanguageMap,
+  wrapEnglishScript,
+  type ScriptLanguageMap,
+} from '@/lib/script-data';
 
-function normalizeScriptForMatch(raw: string | null | undefined): string {
-  const text = (raw || '').trim();
-  if (!text) return '';
-  if (!text.startsWith('{')) return text;
-  try {
-    const parsed = JSON.parse(text);
-    if (typeof parsed?.script === 'string') return parsed.script.trim();
-  } catch { /* ignore */ }
-  return text;
+function normalizeScriptForMatch(raw: unknown): string {
+  return getScriptTextFromMap(parseScriptLanguageMap(raw)).replace(/\s+/g, ' ').trim();
 }
 
 /** Column on scripts_universal / scripts_assigned for AI thumbnail output (jsonb) */
@@ -174,7 +173,8 @@ export type ScriptTableRow = {
   title: string;
   topic: string;
   description: string;
-  script: string;
+  /** Plain text (universal) or language map jsonb (assigned after unlock) */
+  script: string | ScriptLanguageMap;
   youtube_metadata: YoutubeMetadata | null;
   thumbnail: unknown;
   metrics: GeneratedScriptData['metrics'] | null;
@@ -197,19 +197,36 @@ function resolveThumbnail(data: GeneratedScriptData | Record<string, unknown>): 
 
 export function buildScriptTableRow(
   data: GeneratedScriptData,
-  opts: { title?: string; topic?: string; description?: string; userId: string },
+  opts: {
+    title?: string;
+    topic?: string;
+    description?: string;
+    userId: string;
+    /** When true, persist script as { english: "..." } jsonb map */
+    asLanguageMap?: boolean;
+    scriptsByLanguage?: ScriptLanguageMap;
+  },
 ): ScriptTableRow {
   const sources = data.sources ?? data.source_urls ?? [];
   const books = data.books ?? data.seo?.books ?? [];
   const youtube_metadata =
     data.youtube_metadata ?? data.seo?.youtube_metadata ?? null;
 
+  let script: string | ScriptLanguageMap = data.script || '';
+  if (opts.asLanguageMap) {
+    const fromOpts = opts.scriptsByLanguage;
+    const fromData = data.scriptsByLanguage;
+    if (fromOpts && Object.keys(fromOpts).length) script = fromOpts;
+    else if (fromData && Object.keys(fromData).length) script = fromData;
+    else script = wrapEnglishScript(data.script || '');
+  }
+
   return {
     userId: opts.userId,
     title: opts.title || data.title || opts.topic || 'Untitled',
     topic: opts.topic || data.title || opts.title || 'Untitled',
     description: opts.description?.trim() || data.synopsis?.trim() || '',
-    script: data.script || '',
+    script,
     youtube_metadata,
     thumbnail: resolveThumbnail(data),
     metrics: data.metrics ?? null,
@@ -257,6 +274,8 @@ export async function moveScriptToAssigned(opts: {
     topic: opts.topic,
     description: opts.description,
     userId: opts.userId,
+    asLanguageMap: true,
+    scriptsByLanguage: opts.data.scriptsByLanguage,
   });
 
   let thumbnailGenerated: unknown = null;
@@ -302,12 +321,18 @@ export async function moveScriptToAssigned(opts: {
     return { ok: true, assignedId: inserted?.id ?? null };
   }
 
-  // Fallback: delete matching universal row by script text when id is unknown
+  // Fallback: delete matching universal row by plain script text when id is unknown
   if (row.script) {
+    const plainScript = normalizeScriptForMatch(
+      typeof row.script === 'string'
+        ? row.script
+        : getScriptTextFromMap(row.script),
+    );
+    // Universal rows still store plain text (pre-unlock)
     const { error: deleteError } = await supabase
       .from('scripts_universal')
       .delete()
-      .eq('script', row.script);
+      .eq('script', plainScript || opts.data.script || '');
     if (deleteError) console.error('[scripts_universal delete by script]', deleteError.message);
   }
 
@@ -343,8 +368,7 @@ export async function saveGeneratedThumbnailToScript(opts: {
 
   const norm = (v: string | null | undefined) => (v || '').trim();
   const normKey = (v: string | null | undefined) => norm(v).toLowerCase();
-  const normScript = (v: string | null | undefined) =>
-    normalizeScriptForMatch(v);
+  const normScript = (v: unknown) => normalizeScriptForMatch(v);
 
   const title = norm(opts.title);
   const topic = norm(opts.topic);
@@ -553,3 +577,213 @@ export async function saveGeneratedThumbnailToScript(opts: {
     assignedId,
   };
 }
+
+/** Persist multilingual script map onto scripts_assigned.script (jsonb). */
+export async function updateAssignedScriptLanguages(opts: {
+  assignedId?: string | number | null;
+  userId?: string | null;
+  title?: string | null;
+  topic?: string | null;
+  description?: string | null;
+  /** Plain english (or current) script text used to locate the row when id is missing */
+  scriptText?: string | null;
+  scriptsByLanguage: ScriptLanguageMap;
+}): Promise<{ ok: boolean; error?: string; assignedId?: string | null }> {
+  if (!opts.scriptsByLanguage || !Object.keys(opts.scriptsByLanguage).length) {
+    return { ok: false, error: 'Missing script language map.' };
+  }
+
+  const asStr = (v: unknown) => {
+    if (v == null || v === '') return '';
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'bigint') {
+      return String(v).trim();
+    }
+    return '';
+  };
+  const userId = asStr(opts.userId);
+  let assignedId = asStr(opts.assignedId);
+
+  const titleKey = asStr(opts.title).toLowerCase();
+  const topicKey = asStr(opts.topic).toLowerCase();
+  const descKey = asStr(opts.description).toLowerCase();
+  const scriptKey = normalizeScriptForMatch(opts.scriptText);
+
+  const loadRow = async (id: string) => {
+    const { data, error } = await supabase
+      .from('scripts_assigned')
+      .select('id, title, topic, description, script, userId')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) {
+      console.error('[scripts_assigned load]', error.message);
+      return null;
+    }
+    return data;
+  };
+
+  // Resolve row: prefer id, else match by user + title/topic/script
+  let row =
+    assignedId
+      ? await loadRow(assignedId)
+      : null;
+
+  if (!row && userId) {
+    const { data: rows, error: lookupError } = await supabase
+      .from('scripts_assigned')
+      .select('id, title, topic, description, script, userId')
+      .eq('userId', userId)
+      .order('id', { ascending: false })
+      .limit(50);
+
+    if (lookupError) {
+      console.error('[scripts_assigned script lookup]', lookupError.message);
+      return { ok: false, error: lookupError.message };
+    }
+
+    const candidates = rows ?? [];
+    row =
+      candidates.find((r) => {
+        if (titleKey && (r.title || '').trim().toLowerCase() !== titleKey) return false;
+        if (topicKey && (r.topic || '').trim().toLowerCase() !== topicKey) return false;
+        return true;
+      }) ??
+      candidates.find((r) => {
+        if (titleKey && (r.title || '').trim().toLowerCase() !== titleKey) return false;
+        if (descKey && (r.description || '').trim().toLowerCase() !== descKey) return false;
+        return true;
+      }) ??
+      candidates.find((r) => {
+        if (!scriptKey) return false;
+        const map = parseScriptLanguageMap(r.script);
+        return Object.values(map).some(
+          (t) => normalizeScriptForMatch(t) === scriptKey,
+        );
+      }) ??
+      null;
+  }
+
+  if (!row?.id) {
+    return {
+      ok: false,
+      error: 'Could not find unlocked script row to save translation.',
+      assignedId: null,
+    };
+  }
+
+  assignedId = asStr(row.id);
+
+  // Merge into whatever is already in DB (keeps english, adds telugu, etc.)
+  const existingMap = parseScriptLanguageMap(row.script);
+  const merged: ScriptLanguageMap = {
+    ...existingMap,
+    ...opts.scriptsByLanguage,
+  };
+
+  // Ensure we never drop english if we still have source text
+  if (!merged.english?.trim() && scriptKey) {
+    merged.english = opts.scriptText || existingMap.english || '';
+  }
+
+  console.log('[script translate save] writing', {
+    assignedId,
+    keys: Object.keys(merged),
+  });
+
+  // 1) Supabase client update
+  const { error: updateError } = await supabase
+    .from('scripts_assigned')
+    .update({ script: merged })
+    .eq('id', assignedId);
+
+  if (updateError) {
+    console.error('[scripts_assigned script update]', updateError.message);
+  }
+
+  // 2) Verify
+  const verify = await loadRow(assignedId);
+  const verifiedMap = parseScriptLanguageMap(verify?.script);
+  const allKeysSaved = Object.keys(opts.scriptsByLanguage).every((k) =>
+    !!normalizeScriptForMatch(verifiedMap[k]),
+  );
+
+  if (allKeysSaved) {
+    return { ok: true, assignedId };
+  }
+
+  // 3) Authenticated REST PATCH (works when client update is blocked/ignored by RLS return)
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+    if (!session?.access_token || !supabaseUrl) {
+      return {
+        ok: false,
+        error: updateError?.message || 'Not authenticated to save translation.',
+        assignedId,
+      };
+    }
+
+    let url = `${supabaseUrl}/rest/v1/scripts_assigned?id=eq.${encodeURIComponent(assignedId)}`;
+    if (userId) url += `&userId=eq.${encodeURIComponent(userId)}`;
+
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+        Authorization: `Bearer ${session.access_token}`,
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({ script: merged }),
+    });
+
+    const text = await res.text();
+    if (!res.ok) {
+      console.error('[script REST PATCH]', res.status, text);
+      return {
+        ok: false,
+        error: updateError?.message || `Failed to save translation (${res.status}): ${text}`,
+        assignedId,
+      };
+    }
+
+    let patched: unknown = null;
+    try {
+      patched = text ? JSON.parse(text) : null;
+    } catch { /* ignore */ }
+    const patchedRow = Array.isArray(patched) ? patched[0] : patched;
+    const patchedMap = parseScriptLanguageMap(
+      (patchedRow as { script?: unknown } | null)?.script ?? merged,
+    );
+    const ok = Object.keys(opts.scriptsByLanguage).every(
+      (k) => !!normalizeScriptForMatch(patchedMap[k]),
+    );
+
+    if (!ok) {
+      // Final verify from client
+      const again = await loadRow(assignedId);
+      const againMap = parseScriptLanguageMap(again?.script);
+      const ok2 = Object.keys(opts.scriptsByLanguage).every(
+        (k) => !!normalizeScriptForMatch(againMap[k]),
+      );
+      if (!ok2) {
+        return {
+          ok: false,
+          error:
+            'Translation update did not persist. Check RLS UPDATE policy on scripts_assigned.script.',
+          assignedId,
+        };
+      }
+    }
+
+    return { ok: true, assignedId };
+  } catch (restErr) {
+    console.error('[script REST PATCH]', restErr);
+    return {
+      ok: false,
+      error: updateError?.message || 'Failed to save translation to scripts_assigned.',
+      assignedId,
+    };
+  }
+}
+

@@ -1,6 +1,6 @@
-/** API value (English) + native-script label for /generate-script language picker */
+/** API value (lowercase key in DB) + native-script label for Translate picker */
 export type ScriptLanguageOption = {
-  /** Sent to /generate-script as `language` */
+  /** Stored as key in script jsonb, e.g. "english", "telugu" */
   value: string;
   /** Display label in the language's own script */
   label: string;
@@ -21,3 +21,10 @@ export const SCRIPT_LANGUAGES: ScriptLanguageOption[] = [
 ];
 
 export const DEFAULT_SCRIPT_LANGUAGE = 'english';
+
+/** /translate-script expects Title Case, e.g. "English", "Telugu" */
+export function scriptLanguageApiName(value: string): string {
+  const v = (value || DEFAULT_SCRIPT_LANGUAGE).trim().toLowerCase();
+  if (!v) return 'English';
+  return v.charAt(0).toUpperCase() + v.slice(1);
+}

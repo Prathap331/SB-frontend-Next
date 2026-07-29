@@ -50,7 +50,6 @@ export async function POST(request: NextRequest) {
       description: body?.description,
       topic: body?.topic,
       time: body?.time,
-      language: body?.language,
     };
 
     console.log('[generate-script] Calling backend:', API_URL);
