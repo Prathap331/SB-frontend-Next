@@ -128,16 +128,21 @@ function CheckoutInner() {
   const planName = dbPlan.plan_name;
   const isUsd = currency === 'USD';
 
-  const formatPrice = (amount: number) => {
-    if (amount === 0) return isUsd ? '$0' : '₹0';
+  const formatPrice = (amount: number, opts?: { alwaysCents?: boolean }) => {
+    if (amount === 0) return isUsd ? '$0.00' : '₹0.00';
+    const cents = Math.round(amount * 100) / 100;
     if (isUsd) {
-      const rounded = Math.round(amount * 100) / 100;
-      return `$${rounded.toLocaleString('en-US', {
-        minimumFractionDigits: Number.isInteger(rounded) ? 0 : 2,
+      return `$${cents.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`;
     }
-    return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+    // GST / total: always 2 decimals; plan line can stay whole when exact
+    const showCents = opts?.alwaysCents || !Number.isInteger(cents);
+    return `₹${cents.toLocaleString('en-IN', {
+      minimumFractionDigits: showCents ? 2 : 0,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
   // Resolve amounts from the selected currency columns only (no cross-currency fallback)
@@ -199,12 +204,10 @@ function CheckoutInner() {
   const IconComponent = PLAN_ICONS[planKey] ?? Target;
   const nextBillingDate = addDays(isAnnual ? 365 : 30);
 
-  const totalgst = (plangst * planAmount) / 100;
-  const totalAmount = isUsd
-    ? Math.round((totalgst + planAmount) * 100) / 100
-    : Math.round(totalgst + planAmount);
-  const totalGstDisplay = formatPrice(totalgst);
-  const totalAmountDisplay = formatPrice(totalAmount);
+  const totalgst = Math.round(((plangst * planAmount) / 100) * 100) / 100;
+  const totalAmount = Math.round((totalgst + planAmount) * 100) / 100;
+  const totalGstDisplay = formatPrice(totalgst, { alwaysCents: true });
+  const totalAmountDisplay = formatPrice(totalAmount, { alwaysCents: true });
 
   const handlePay = async () => {
     if (!phone.trim() || !address.trim()) {
