@@ -1,6 +1,10 @@
 import type { Metadata } from 'next';
-import { createPageMetadata } from '@/lib/seo';
-import { isStudioComposeTopic, DEFAULT_SEARCH_SLUG } from '@/lib/keyword-routes';
+import {
+  DEFAULT_DESCRIPTION,
+  DEFAULT_TITLE,
+  createPageMetadata,
+} from '@/lib/seo';
+import { isStudioComposeTopic, DEFAULT_LANDING_SLUG } from '@/lib/keyword-routes';
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -13,17 +17,16 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
 
   if (isStudioComposeTopic(decodedTopic)) {
     return createPageMetadata({
-      title: 'Storio AI - Automated Youtube Script and Metadata, Thumbnail Generator ',
-      description:
-        'Generate YouTube scripts, SEO-optimized titles/tags from search intelligence, and Thumbnails — all in one tool. Storio helps creators publish faster and rank higher.',
-      path: `/${DEFAULT_SEARCH_SLUG}/app`,
+      title: DEFAULT_TITLE,
+      description: DEFAULT_DESCRIPTION,
+      path: `/${DEFAULT_LANDING_SLUG}`,
       keywords: 'YouTube content ideas, AI script generator, topic research',
     });
   }
 
   return createPageMetadata({
-    title: `Storio AI - Automated Youtube Script and Metadata, Thumbnail Generator `,
-    description: `Generate YouTube scripts, SEO-optimized titles/tags from search intelligence, and Thumbnails — all in one tool. Storio helps creators publish faster and rank higher.`,
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
     path: `/search/${encodeURIComponent(decodedTopic)}`,
     keywords: `${decodedTopic}, YouTube script ideas, AI script generator, ${decodedTopic} video script`,
   });

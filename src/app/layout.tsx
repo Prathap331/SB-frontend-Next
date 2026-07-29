@@ -12,9 +12,9 @@ import {
   DEFAULT_DESCRIPTION,
   DEFAULT_KEYWORDS,
   DEFAULT_TITLE,
-  OG_IMAGE,
   SITE_NAME,
   SITE_URL,
+  ogImages,
   organizationJsonLd,
   softwareApplicationJsonLd,
   websiteJsonLd,
@@ -66,15 +66,7 @@ export const metadata: Metadata = {
     description: DEFAULT_DESCRIPTION,
     url: SITE_URL,
     siteName: SITE_NAME,
-    images: [
-      {
-        url: OG_IMAGE,
-        width: 1200,
-        height: 630,
-        alt: DEFAULT_TITLE,
-        type: 'image/png',
-      },
-    ],
+    images: ogImages(DEFAULT_TITLE),
     locale: 'en_US',
     type: 'website',
   },
@@ -82,7 +74,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: DEFAULT_TITLE,
     description: DEFAULT_DESCRIPTION,
-    images: [OG_IMAGE],
+    images: [ogImages(DEFAULT_TITLE)[0].url],
   },
   icons: {
     icon: [

@@ -23,9 +23,15 @@ export const DEFAULT_KEYWORDS = [
   'video content automation',
 ].join(', ');
 
-export const OG_IMAGE_PATH = '/og-image.png';
+/** Primary OG image — JPEG under 100KB, 1200×630 (WhatsApp-safe) */
+export const OG_IMAGE_PATH = '/og-image.jpg';
+export const OG_IMAGE_PNG_PATH = '/og-image.png';
 
 export const OG_IMAGE = `${SITE_URL}${OG_IMAGE_PATH}`;
+export const OG_IMAGE_PNG = `${SITE_URL}${OG_IMAGE_PNG_PATH}`;
+
+export const OG_IMAGE_WIDTH = 1200;
+export const OG_IMAGE_HEIGHT = 630;
 
 export const COMPANY = {
   name: 'Morpho Technologies Pvt Ltd',
@@ -54,6 +60,27 @@ export function absoluteUrl(path = '/'): string {
   return `${SITE_URL}${normalized}`;
 }
 
+export function ogImages(alt: string = DEFAULT_TITLE) {
+  return [
+    {
+      url: OG_IMAGE,
+      secureUrl: OG_IMAGE,
+      width: OG_IMAGE_WIDTH,
+      height: OG_IMAGE_HEIGHT,
+      alt,
+      type: 'image/jpeg',
+    },
+    {
+      url: OG_IMAGE_PNG,
+      secureUrl: OG_IMAGE_PNG,
+      width: OG_IMAGE_WIDTH,
+      height: OG_IMAGE_HEIGHT,
+      alt,
+      type: 'image/png',
+    },
+  ];
+}
+
 type PageMetadataOptions = {
   title: string;
   description?: string;
@@ -68,10 +95,22 @@ export function createPageMetadata({
   description = DEFAULT_DESCRIPTION,
   path,
   noIndex = false,
-  ogImage = OG_IMAGE,
+  ogImage,
   keywords,
 }: PageMetadataOptions): Metadata {
   const url = absoluteUrl(path);
+  const images = ogImage
+    ? [
+        {
+          url: ogImage.startsWith('http') ? ogImage : absoluteUrl(ogImage),
+          secureUrl: ogImage.startsWith('http') ? ogImage : absoluteUrl(ogImage),
+          width: OG_IMAGE_WIDTH,
+          height: OG_IMAGE_HEIGHT,
+          alt: title,
+          type: ogImage.endsWith('.png') ? 'image/png' : 'image/jpeg',
+        },
+      ]
+    : ogImages(title);
 
   return {
     title,
@@ -90,20 +129,13 @@ export function createPageMetadata({
       siteName: SITE_NAME,
       locale: 'en_US',
       type: 'website',
-      images: [
-        {
-          url: ogImage,
-          width: 1200,
-          height: 630,
-          alt: title,
-        },
-      ],
+      images,
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: [ogImage],
+      images: images.map((img) => img.url),
     },
   };
 }
@@ -176,3 +208,4 @@ export const softwareApplicationJsonLd = {
     name: COMPANY.name,
   },
 };
+
