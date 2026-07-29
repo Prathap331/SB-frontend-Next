@@ -277,7 +277,9 @@ export function StudioScriptPanel({
   const [activeLang, setActiveLang] = useState(DEFAULT_SCRIPT_LANGUAGE);
   const [translateOpen, setTranslateOpen] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [assignedId, setAssignedId] = useState<string | null>(scriptRowId ?? null);
+  const [assignedId, setAssignedId] = useState<string | null>(
+    scriptRowId != null && scriptRowId !== '' ? String(scriptRowId) : null,
+  );
 
   const displayScript =
     getScriptTextFromMap(languageMap, activeLang) || data?.script || '';
