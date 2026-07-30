@@ -602,7 +602,11 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [isLoadingSub, setIsLoadingSub] = useState(false);
   const [subFetched, setSubFetched] = useState(false);
-  const [freeTier, setFreeTier] = useState<{ plan: string; credits_remaining: number } | null>(null);
+  const [profileCredits, setProfileCredits] = useState<{
+    plan: string;
+    creditsRemaining: number;
+    planCredits: number;
+  } | null>(null);
 
   useEffect(() => {
     if (activeTab !== 'subscription' && activeTab !== 'billing') return;
@@ -612,26 +616,39 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
+
+        // Credits + tier always from user_profiles (not subscriptions)
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('user_tier, credits_remaining')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        const planName = (profile?.user_tier || 'Free').trim() || 'Free';
+        const creditsRemaining = Number(profile?.credits_remaining) || 0;
+
+        const { data: planRow } = await supabase
+          .from('subscriptions_plan')
+          .select('mins')
+          .ilike('plan_name', planName)
+          .maybeSingle();
+
+        const fallbacks: Record<string, number> = { free: 150, plus: 500, pro: 1200 };
+        const fromDb = planRow?.mins != null ? Number(planRow.mins) : NaN;
+        const planCredits = Number.isFinite(fromDb) && fromDb > 0
+          ? fromDb
+          : (fallbacks[planName.toLowerCase()] ?? 150);
+
+        setProfileCredits({ plan: planName, creditsRemaining, planCredits });
+
+        // Subscriptions only for billing history / validity (not credits)
         const { data, error } = await supabase
           .from('subscriptions')
           .select('*')
           .eq('userId', session.user.id)
           .order('purchased_date', { ascending: false });
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           setSubscriptions(data as SubscriptionRow[]);
-        } else {
-          // No subscription row — fall back to profiles table for free-tier info
-          const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('user_tier, credits_remaining')
-            .eq('id', session.user.id)
-            .single();
-          if (profile) {
-            setFreeTier({
-              plan:              profile.user_tier       ?? 'Free',
-              credits_remaining: profile.credits_remaining ?? 0,
-            });
-          }
         }
         setSubFetched(true);
       } finally {
@@ -1054,59 +1071,7 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span className="text-xs font-light">Loading subscription…</span>
                     </div>
-                  ) : !latestSub ? (
-                    freeTier ? (
-                      <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-                          <div className="space-y-4">
-                            <div>
-                              <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Current Plan</p>
-                              <div className="flex items-center gap-2">
-                                <Crown className="w-5 h-5 text-gray-400" />
-                                <span className="text-lg font-semibold text-[#1d1d1f] capitalize">{freeTier.plan}</span>
-                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Free</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="space-y-4">
-                            <div>
-                              <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Credits Remaining</p>
-                              {(() => {
-                                const plan = freeTier.plan?.toLowerCase();
-                                const totalCredits = plan === 'plus' ? 100 : plan === 'pro' ? 200 : 50;
-                                return (
-                                  <>
-                                    <p className="text-3xl font-bold text-[#1d1d1f] mb-2">
-                                      {freeTier.credits_remaining}
-                                      <span className="text-xl text-gray-400">/{totalCredits}</span>
-                                    </p>
-                                    <div className="h-4 rounded-full bg-gray-100  ">
-          <div
-            className="h-full rounded-full bg-[#1d1d1f] transition-all text-white text-xs text-center"
-            style={{
-              width: `${Math.min(
-                ((freeTier.credits_remaining) / totalCredits) * 100,
-                100
-              )}%`,
-            }}
-          >
-            {freeTier.credits_remaining}% Remaining
-          </div>
-        </div>
-                                    <p className="text-[10px] text-[#6e6e73] mt-1">script generation credits</p>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <button onClick={() => router.push('/pricing')} className="text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-5 py-2.5 rounded-xl transition-colors">
-                            Upgrade Plan
-                          </button>
-                        </div>
-                      </>
-                    ) : (
+                  ) : !profileCredits ? (
                       <div className="py-10 text-center space-y-3">
                         <Crown className="w-8 h-8 text-gray-200 mx-auto" />
                         <p className="text-sm text-[#6e6e73]">No subscription found.</p>
@@ -1114,7 +1079,6 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
                           View Plans
                         </button>
                       </div>
-                    )
                   ) : (
                     <>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
@@ -1122,85 +1086,124 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
                           <div>
                             <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">Current Plan</p>
                             <div className="flex items-center gap-2">
-                              <Crown className="w-5 h-5 text-amber-500" />
-                              <span className="text-lg font-semibold text-[#1d1d1f] capitalize">{latestSub.plan}</span>
-                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isSubActive ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                                {isSubActive ? 'Active' : 'Expired'}
-                              </span>
+                              <Crown className={`w-5 h-5 ${latestSub ? 'text-amber-500' : 'text-gray-400'}`} />
+                              <span className="text-lg font-semibold text-[#1d1d1f] capitalize">{profileCredits.plan}</span>
+                              {latestSub ? (
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isSubActive ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                                  {isSubActive ? 'Active' : 'Expired'}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Free</span>
+                              )}
                             </div>
                           </div>
-                          <div>
-                            <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Valid Until</p>
-                            <div className="flex items-center gap-2 text-sm text-[#1d1d1f]">
-                              <Calendar className="w-4 h-4 text-[#6e6e73]" />
-                              {fmtDate(latestSub.validity)}
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Purchased On</p>
-                            <div className="flex items-center gap-2 text-sm text-[#1d1d1f]">
-                              <Calendar className="w-4 h-4 text-[#6e6e73]" />
-                              {fmtDate(latestSub.purchased_date)}
-                            </div>
-                          </div>
+                          {latestSub && (
+                            <>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Valid Until</p>
+                                <div className="flex items-center gap-2 text-sm text-[#1d1d1f]">
+                                  <Calendar className="w-4 h-4 text-[#6e6e73]" />
+                                  {fmtDate(latestSub.validity)}
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Purchased On</p>
+                                <div className="flex items-center gap-2 text-sm text-[#1d1d1f]">
+                                  <Calendar className="w-4 h-4 text-[#6e6e73]" />
+                                  {fmtDate(latestSub.purchased_date)}
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                         <div className="space-y-4">
-                        <div>
-  <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">
-    Credits Remaining
-  </p>
-
-  {(() => {
-    const totalCredits =
-      latestSub.plan?.toLowerCase() === 'plus'
-        ? 100
-        : latestSub.plan?.toLowerCase() === 'pro'
-        ? 200
-        : 50;
-
-    return (
-      <>
-        <p className="text-3xl font-bold text-[#1d1d1f] mb-2">
-          {latestSub.credits}
-          <span className="text-xl text-gray-400">
-            /{totalCredits}
-          </span>
-        </p>
-
-        <div className="h-4 rounded-full bg-gray-100  ">
-          <div
-            className="h-full rounded-full bg-[#1d1d1f] transition-all text-white text-xs text-center"
-            style={{
-              width: `${Math.min(
-                ((latestSub.credits) / totalCredits) * 100,
-                100
-              )}%`,
-            }}
-          >
-            {latestSub.credits}% Remaining
-          </div>
-        </div>
-
-        <p className="text-[10px] text-[#6e6e73] mt-1">
-          script generation credits
-        </p>
-      </>
-    );
-  })()}
-</div>
                           <div>
-                            <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Amount Paid</p>
-                            <p className="text-sm font-semibold text-[#1d1d1f]">{fmtAmount(latestSub.amount)}</p>
+                            <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-2">
+                              Credits Remaining
+                            </p>
+                            {(() => {
+                              const userCredits = profileCredits.creditsRemaining;
+                              const planCredits = Math.max(profileCredits.planCredits, 1);
+                              const pct = userCredits >= planCredits
+                                ? 100
+                                : Math.min(100, Math.round((userCredits / planCredits) * 100));
+                              return (
+                                <>
+                                  <p className="text-3xl font-bold text-[#1d1d1f] mb-2">
+                                    {userCredits}
+                                  </p>
+                                  <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full bg-[#1d1d1f] transition-all"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <p className="text-[10px] text-[#6e6e73] mt-1">
+                                    script generation credits
+                                  </p>
+                                </>
+                              );
+                            })()}
+                          </div>
+                          {latestSub && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-[#6e6e73] mb-1.5">Amount Paid</p>
+                              <p className="text-sm font-semibold text-[#1d1d1f]">{fmtAmount(latestSub.amount)}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mb-6 rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 via-amber-50/70 to-white px-5 py-4 shadow-sm shadow-amber-100/60">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-amber-100/80">
+                            <Info className="h-4 w-4 text-amber-700" />
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-3">
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700 mb-1.5">
+                                Credit Validity
+                              </p>
+                              <p className="text-sm text-amber-950/90 leading-relaxed">
+                                Credits are valid for <span className="font-semibold text-amber-950">30 days from the date of each purchase</span>.
+                                If you buy a new plan before your existing credits expire, the new credits are added to your balance, but{' '}
+                                <span className="font-semibold text-amber-950">each purchase keeps its own expiration date</span>.
+                              </p>
+                            </div>
+                            <div className="rounded-xl border border-amber-200/70 bg-white/70 px-3.5 py-3">
+                              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-600 mb-2">
+                                Example
+                              </p>
+                              <ul className="space-y-1.5 text-xs text-amber-950/85 leading-relaxed list-disc pl-4">
+                                <li>
+                                  Buy <span className="font-semibold">500 credits on Aug 1</span> → Expires on <span className="font-semibold">Aug 31</span>.
+                                </li>
+                                <li>
+                                  Use <span className="font-semibold">450 credits</span> → <span className="font-semibold">50 credits remain</span>.
+                                </li>
+                                <li>
+                                  Buy another <span className="font-semibold">500 credits on Aug 17</span> → Total balance becomes <span className="font-semibold">550 credits</span>.
+                                </li>
+                                <li>
+                                  If you do not spend any credits till Aug 30, on <span className="font-semibold">Sep 1</span> the{' '}
+                                  <span className="font-semibold">50 remaining credits from the Aug 1 purchase expire</span>, while the{' '}
+                                  <span className="font-semibold">500 credits purchased on Aug 17</span> remain available until <span className="font-semibold">Sep 16</span>.
+                                </li>
+                              </ul>
+                            </div>
                           </div>
                         </div>
                       </div>
+
                       <div className="flex flex-col sm:flex-row gap-2">
                         <button onClick={() => router.push('/pricing')} className="text-sm font-medium text-white bg-[#1d1d1f] hover:bg-black px-5 py-2.5 rounded-xl transition-colors">
                           Upgrade Plan
                         </button>
-                        <button className="text-sm font-medium text-red-500 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl transition-colors">
-                          Cancel Subscription
-                        </button>
+                        {latestSub && (
+                          <button className="text-sm font-medium text-red-500 bg-red-50 hover:bg-red-100 px-5 py-2.5 rounded-xl transition-colors">
+                            Cancel Subscription
+                          </button>
+                        )}
                       </div>
                     </>
                   )}

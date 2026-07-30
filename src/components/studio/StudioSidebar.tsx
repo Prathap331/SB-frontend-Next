@@ -171,25 +171,25 @@ export default function StudioSidebar({
       if (cancelled) return;
       if (profile?.full_name) setUserName(profile.full_name);
 
-      const { data: sub } = await supabase
-        .from('subscriptions')
-        .select('credits, plan, payment_status, validity')
-        .eq('userId', uid)
-        .order('purchased_date', { ascending: false })
-        .limit(1)
+      const planName = (profile?.user_tier || 'Free').trim() || 'Free';
+      setPlan(`${planName} plan`);
+      setCreditsLeft(Number(profile?.credits_remaining) || 0);
+
+      // Plan allowance is only used for progress-bar capacity (not displayed)
+      const { data: planRow } = await supabase
+        .from('subscriptions_plan')
+        .select('mins')
+        .ilike('plan_name', planName)
         .maybeSingle();
 
       if (cancelled) return;
 
-      const planName = sub?.plan || profile?.user_tier || 'Free';
-      setPlan(`${planName} plan`);
-
-      const totals: Record<string, number> = { Free: 150, Plus: 500, Pro: 1200 };
-      const total = totals[planName] ?? totals[String(planName).charAt(0).toUpperCase() + String(planName).slice(1)] ?? 150;
+      const fallbacks: Record<string, number> = { free: 150, plus: 500, pro: 1200 };
+      const fromDb = planRow?.mins != null ? Number(planRow.mins) : NaN;
+      const total = Number.isFinite(fromDb) && fromDb > 0
+        ? fromDb
+        : (fallbacks[planName.toLowerCase()] ?? 150);
       setCreditsTotal(total);
-
-      if (sub?.credits != null) setCreditsLeft(sub.credits);
-      else if (profile?.credits_remaining != null) setCreditsLeft(profile.credits_remaining);
     };
 
     void loadCredits();
@@ -221,10 +221,14 @@ export default function StudioSidebar({
   const displayPlan = isLoggedIn ? plan : 'Free plan';
   const displayCreditsLeft = isLoggedIn ? creditsLeft : 0;
   const displayCreditsTotal = isLoggedIn ? creditsTotal : 150;
-  const displayPct = Math.min(
-    100,
-    Math.round((displayCreditsLeft / Math.max(displayCreditsTotal, 1)) * 100),
-  );
+  // Full bar when user credits >= plan allowance
+  const displayPct =
+    displayCreditsLeft >= displayCreditsTotal
+      ? 100
+      : Math.min(
+          100,
+          Math.round((displayCreditsLeft / Math.max(displayCreditsTotal, 1)) * 100),
+        );
   const initial = displayName.trim().charAt(0).toUpperCase() || '?';
 
   const goNewTopic = () => {
@@ -411,9 +415,9 @@ export default function StudioSidebar({
 
       <div className="border-t border-gray-200/80 bg-[#fafbfc] px-4 py-4">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs text-gray-500">Minutes left</span>
+          <span className="text-xs text-gray-500">Credits left</span>
           <span className="text-xs text-gray-500 font-medium">
-            {displayCreditsLeft} / {displayCreditsTotal}
+            {displayCreditsLeft}
           </span>
         </div>
         <div className="h-1.5 w-full rounded-full bg-gray-200 overflow-hidden mb-3.5">
