@@ -1217,4 +1217,25 @@ export class ApiService {
       throw error;
     }
   }
+
+  /**
+   * Expire stale credit purchases for the logged-in user.
+   * POST /check-credits { userId }
+   */
+  static async checkCredits(userId: string): Promise<void> {
+    const uid = userId?.trim();
+    if (!uid) return;
+
+    const response = await this.authorizedFetch(`${this.BASE_URL}/check-credits`, {
+      method: 'POST',
+      body: JSON.stringify({ userId: uid }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(
+        errorText || `check-credits failed: ${response.status} ${response.statusText}`,
+      );
+    }
+  }
 }
