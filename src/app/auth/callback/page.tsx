@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2, Globe, MapPin, ChevronLeft, ChevronDown, Search,
-  Upload, FileText, Info, AlertCircle, CheckCircle2, Phone, Camera, X,
+  Upload, FileText, Info, AlertCircle, CheckCircle2, Phone, Camera, X, Mic,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import {
@@ -12,12 +12,19 @@ import {
 } from '@/lib/thumbnails';
 import { getBackendUrl } from '@/lib/backend';
 import { buildStudioHomePath } from '@/lib/keyword-routes';
-import Header from '@/components/Header';
+import { saveClonedVoiceProfile } from '@/lib/voice-clone';
+import { VoiceCloneModal } from '@/components/studio/VoiceCloneModal';
 
-type CBStep = 1 | 2 | 3 | 4;
+type CBStep = 1 | 2 | 3 | 4 | 5;
 type AppStatus = 'loading' | 'form' | 'redirecting';
 
-const STEP_LABELS: Record<CBStep, string> = { 1: 'Categories', 2: 'Profile', 3: 'Thumbnails', 4: 'Channel' };
+const STEP_LABELS: Record<CBStep, string> = {
+  1: 'Categories',
+  2: 'Profile',
+  3: 'Thumbnails',
+  4: 'Voice',
+  5: 'Channel',
+};
 
 const ALL_LANGUAGES = [
   'English', 'Hindi', 'Bengali', 'Telugu', 'Marathi', 'Tamil', 'Urdu',
@@ -79,7 +86,11 @@ export default function AuthCallback() {
   const [thumbError, setThumbError]       = useState<string | null>(null);
   const thumbInputRefs = useRef<Partial<Record<PhotoKey, HTMLInputElement | null>>>({});
 
-  // Step 4 — channel PDF
+  // Step 4 — voice sample (frontend only)
+  const [voiceCloneOpen, setVoiceCloneOpen] = useState(false);
+  const [voiceCloned, setVoiceCloned] = useState(false);
+
+  // Step 5 — channel PDF
   const [channelFile, setChannelFile]     = useState<File | null>(null);
   const [channelFileError, setChannelFileError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver]       = useState(false);
@@ -269,8 +280,15 @@ export default function AuthCallback() {
     }
   };
 
-  // ── Step 4 submit: upload PDF (optional) then finish ─────────────────────
-  const handleStep4 = async (skipUpload = false) => {
+  const handleStep4Voice = (skip = false) => {
+    if (!skip && voiceCloned && userId) {
+      saveClonedVoiceProfile(userId);
+    }
+    setCbStep(5);
+  };
+
+  // ── Step 5 submit: upload PDF (optional) then finish ─────────────────────
+  const handleStep5 = async (skipUpload = false) => {
     setIsSaving(true);
     setError('');
     try {
@@ -363,7 +381,7 @@ export default function AuthCallback() {
 
               {/* Step indicator */}
               <div className="flex items-center gap-1.5 mb-4 flex-wrap">
-                {([1, 2, 3, 4] as CBStep[]).map((s, idx) => (
+                {([1, 2, 3, 4, 5] as CBStep[]).map((s, idx) => (
                   <div key={s} className="flex items-center gap-1.5 flex-shrink-0">
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all ${
                       s === cbStep ? 'bg-[#1d1d1f] text-white' : s < cbStep ? 'bg-green-500 text-white' : 'bg-gray-100 text-[#6e6e73]'
@@ -373,7 +391,7 @@ export default function AuthCallback() {
                     <span className={`text-[10px] font-medium ${s === cbStep ? 'text-[#1d1d1f]' : 'text-[#6e6e73]'}`}>
                       {STEP_LABELS[s]}
                     </span>
-                    {idx < 3 && <div className="w-4 h-px bg-gray-200" />}
+                    {idx < 4 && <div className="w-3 h-px bg-gray-200" />}
                   </div>
                 ))}
               </div>
@@ -383,7 +401,15 @@ export default function AuthCallback() {
                   className="text-2xl font-semibold text-[#1d1d1f] mb-1 tracking-tight"
                   style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
                 >
-                  {cbStep === 1 ? 'Your content niche' : cbStep === 2 ? 'Your profile' : cbStep === 3 ? 'Thumbnail photos' : 'Channel memory'}
+                  {cbStep === 1
+                    ? 'Your content niche'
+                    : cbStep === 2
+                    ? 'Your profile'
+                    : cbStep === 3
+                    ? 'Thumbnail photos'
+                    : cbStep === 4
+                    ? 'Record your voice'
+                    : 'Channel memory'}
                 </h1>
                 <p className="text-sm text-[#6e6e73] font-light">
                   {cbStep === 1
@@ -392,6 +418,8 @@ export default function AuthCallback() {
                     ? 'Add your social links (optional)'
                     : cbStep === 3
                     ? 'Upload 2 HD photos of yourself for AI thumbnails'
+                    : cbStep === 4
+                    ? 'Read the prompt aloud so we can clone your voice later'
                     : 'Upload your channel style guide so AI writes scripts that sound like you'}
                 </p>
               </div>
@@ -671,8 +699,67 @@ export default function AuthCallback() {
                 </div>
               )}
 
-              {/* ── Step 4: Channel memory ────────────────────────────── */}
+              {/* ── Step 4: Voice cloning ─────────────────────────────── */}
               {cbStep === 4 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-gray-200 bg-[#fafafa] p-4">
+                    <p className="text-sm text-[#1d1d1f] leading-relaxed font-light">
+                      Clone your voice once so Audio can turn unlocked scripts into speech that sounds like you.
+                      Read a short prompt aloud — it only takes a minute.
+                    </p>
+                  </div>
+
+                  {voiceCloned ? (
+                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+                      <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                      Voice clone saved. You can re-record anytime from the Audio tab.
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-gray-200 p-5 text-center space-y-3">
+                      <Mic className="w-8 h-8 text-[#6e6e73] mx-auto" />
+                      <p className="text-sm text-[#6e6e73] font-light">
+                        Record yourself reading a short paragraph to create your voice clone.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setVoiceCloneOpen(true)}
+                        className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all flex items-center justify-center gap-2"
+                      >
+                        <Mic className="w-4 h-4" />
+                        Clone your own voice
+                      </button>
+                    </div>
+                  )}
+
+                  {voiceCloned && (
+                    <button
+                      type="button"
+                      onClick={() => setVoiceCloneOpen(true)}
+                      className="w-full py-2 rounded-xl border border-gray-200 text-sm font-medium text-[#1d1d1f] hover:border-gray-300"
+                    >
+                      Re-record voice
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleStep4Voice(false)}
+                    className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
+                  >
+                    {voiceCloned ? 'Continue →' : 'Continue without cloning →'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStep4Voice(true)}
+                    className="w-full py-1.5 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+                  >
+                    Skip for now
+                  </button>
+                </div>
+              )}
+
+              {/* ── Step 5: Channel memory ────────────────────────────── */}
+              {cbStep === 5 && (
                 <div className="space-y-4">
                   <div className="bg-[#f5f5f7] rounded-2xl p-4 flex gap-3">
                     <Info className="w-4 h-4 text-[#6e6e73] flex-shrink-0 mt-0.5" />
@@ -758,7 +845,7 @@ export default function AuthCallback() {
                   {uploadStatus !== 'success' && (
                     <button
                       type="button"
-                      onClick={() => handleStep4(false)}
+                      onClick={() => handleStep5(false)}
                       disabled={isSaving}
                       className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
                     >
@@ -770,7 +857,7 @@ export default function AuthCallback() {
                   {uploadStatus === 'success' && (
                     <button
                       type="button"
-                      onClick={() => handleStep4(true)}
+                      onClick={() => handleStep5(true)}
                       disabled={isSaving}
                       className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
                     >
@@ -779,7 +866,7 @@ export default function AuthCallback() {
                   )}
                   <button
                     type="button"
-                    onClick={() => handleStep4(true)}
+                    onClick={() => handleStep5(true)}
                     disabled={isSaving}
                     className="w-full py-1.5 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
                   >
@@ -791,6 +878,15 @@ export default function AuthCallback() {
           </div>
         </div>
       </div>
+
+      <VoiceCloneModal
+        open={voiceCloneOpen}
+        onClose={() => setVoiceCloneOpen(false)}
+        onCloned={() => {
+          if (userId) saveClonedVoiceProfile(userId);
+          setVoiceCloned(true);
+        }}
+      />
     </div>
   );
 }

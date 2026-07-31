@@ -128,7 +128,6 @@ export function ScriptGenerationModal({
 
       };
   
-      console.log("FINAL PAYLOAD:", payload);
   
       await onGenerate(payload as any);
     } catch (error) {

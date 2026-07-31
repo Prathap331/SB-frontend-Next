@@ -684,11 +684,6 @@ export async function updateAssignedScriptLanguages(opts: {
     merged.english = opts.scriptText || existingMap.english || '';
   }
 
-  console.log('[script translate save] writing', {
-    assignedId,
-    keys: Object.keys(merged),
-  });
-
   // 1) Supabase client update
   const { error: updateError } = await supabase
     .from('scripts_assigned')

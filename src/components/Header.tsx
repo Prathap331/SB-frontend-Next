@@ -44,26 +44,11 @@ const Header = () => {
   const [userName, setUserName] = useState('');
 
   const fetchCredits = async (userId: string) => {
-    // 1. Try subscriptions table first
-    const { data: sub } = await supabase
-      .from('subscriptions')
-      .select('credits')
-      .eq('userId', userId)
-      .order('purchased_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (sub) {
-      setCredits(sub.credits ?? null);
-      return;
-    }
-
-    // 2. Fall back to profiles table
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('credits_remaining')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (profile) setCredits(profile.credits_remaining ?? null);
   };
@@ -90,22 +75,6 @@ const Header = () => {
   
         creditsChannel = supabase
           .channel('credits-live-update')
-  
-          // subscriptions table updates
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'subscriptions',
-              filter: `userId=eq.${session.user.id}`,
-            },
-            (payload) => {
-              setCredits(payload.new.credits);
-            }
-          )
-  
-          // user_profiles updates
           .on(
             'postgres_changes',
             {
@@ -118,7 +87,6 @@ const Header = () => {
               setCredits(payload.new.credits_remaining);
             }
           )
-  
           .subscribe();
   
       } else {

@@ -31,7 +31,7 @@ export const APP_BASE = '/app';
 /** Cookie so /app/script/{idea} can rewrite onto the correct /search/{topic} */
 export const STUDIO_TOPIC_COOKIE = 'storio_studio_topic';
 
-export type StudioTabId = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll';
+export type StudioTabId = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll' | 'audio';
 
 export function isStudioComposeTopic(topic: string): boolean {
   const t = decodeURIComponent(topic || '').trim();
@@ -77,6 +77,9 @@ export function studioTabFromPathname(pathname: string): StudioTabId | null {
   if (lower === `${APP_BASE}/b-roll` || lower.startsWith(`${APP_BASE}/b-roll/`)) {
     return 'broll';
   }
+  if (lower === `${APP_BASE}/audio` || lower.startsWith(`${APP_BASE}/audio/`)) {
+    return 'audio';
+  }
   return null;
 }
 
@@ -102,6 +105,7 @@ export function studioPathSegmentFromPathname(pathname: string): string | null {
  * - ideas → /app/content-ideas/{topic}
  * - script/metadata/thumbnails → /app/{tab}/{ideaName}
  * - broll → /app/B-roll
+ * - audio → /app/audio
  */
 export function buildStudioTabPath(
   tab: StudioTabId,
@@ -134,6 +138,9 @@ export function buildStudioTabPath(
       break;
     case 'broll':
       path = `${APP_BASE}/B-roll`;
+      break;
+    case 'audio':
+      path = `${APP_BASE}/audio`;
       break;
   }
 

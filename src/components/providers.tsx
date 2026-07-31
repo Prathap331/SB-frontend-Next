@@ -36,6 +36,21 @@ function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // Purge legacy client-side script/idea caches (full scripts must not live in localStorage)
+    try {
+      const keys = Object.keys(localStorage);
+      for (const key of keys) {
+        if (
+          key.startsWith('script_') ||
+          (key.startsWith('studio_') && key.endsWith('_unlocked')) ||
+          key.startsWith('topic_ideas_')
+        ) {
+          localStorage.removeItem(key);
+        }
+      }
+      localStorage.removeItem('script_latest_key');
+    } catch { /* ignore */ }
+
     // Visit: logged-in user already has a session
     void supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user?.id) void runCheckCredits(session.user.id);

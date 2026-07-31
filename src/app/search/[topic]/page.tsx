@@ -25,8 +25,11 @@ import {
   StudioMetadataPanel,
   StudioThumbnailsPanel,
   StudioBRollPanel,
+  StudioAudioPanel,
   type StudioTab,
 } from '@/components/studio/StudioPanels';
+import { getScriptTextFromMap } from '@/lib/script-data';
+import { DEFAULT_SCRIPT_LANGUAGE } from '@/lib/script-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   saveTopicIdeasToDb,
@@ -37,10 +40,14 @@ import { normalizeScriptData } from '@/lib/script-data';
 import {
   normalizeGeneratedThumbnail,
   normalizeGeneratedThumbnailList,
-  saveScriptToUniversal,
   SCRIPT_ROW_SELECT,
 } from '@/lib/script-persistence';
 import {
+  lockedScriptPlaceholder,
+  SCRIPT_ROW_SELECT_LOCKED,
+} from '@/lib/script-security';
+import {
+  buildStudioHomePath,
   buildStudioTabPath,
   isStudioComposeTopic,
   setStudioTopicCookie,
@@ -549,7 +556,7 @@ export default function SearchTopicPage() {
     tabFromPath === 'ideas' && pathSegment ? pathSegment : '';
   const topic = topicFromContentIdeasPath || topicFromRewrite;
   const ideaFromPath =
-    tabFromPath && tabFromPath !== 'ideas' && tabFromPath !== 'broll'
+    tabFromPath && tabFromPath !== 'ideas' && tabFromPath !== 'broll' && tabFromPath !== 'audio'
       ? pathSegment
       : null;
   const scriptIdParam = searchParams.get('scriptId');
@@ -613,18 +620,17 @@ export default function SearchTopicPage() {
   const [scriptGenError, setScriptGenError] = useState<string | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
 
-  // Keep topic cookie so /app/script/{idea} rewrites onto the right /search/{topic}
+  // Keep topic cookie so /app/script/{idea} rewrites onto the right /search/{topic}.
+  // Clear it on compose home so tab clicks cannot jump to a previous/recent topic.
   useEffect(() => {
-    if (isScriptViewerMode) {
+    if (isScriptViewerMode || isStudioComposeTopic(topic)) {
       setStudioTopicCookie('');
       return;
     }
-    if (!isStudioComposeTopic(topic)) {
-      setStudioTopicCookie(topic);
-      try {
-        sessionStorage.setItem('studio_search_topic', topic);
-      } catch { /* ignore */ }
-    }
+    setStudioTopicCookie(topic);
+    try {
+      sessionStorage.setItem('studio_search_topic', topic);
+    } catch { /* ignore */ }
   }, [topic, isScriptViewerMode]);
 
   const navigateStudioTab = useCallback(
@@ -634,6 +640,18 @@ export default function SearchTopicPage() {
       overrides?: { ideaTitle?: string | null },
     ) => {
       setStudioTabState(tab);
+
+      // On /app/content-ideas (no topic yet): switch tabs locally — do not push
+      // /app/script|metadata|… URLs that middleware rewrites via the topic cookie.
+      if (!scriptIdParam && isStudioComposeTopic(topic)) {
+        const home = buildStudioHomePath();
+        if (pathname !== home) {
+          if (replace) router.replace(home, { scroll: false });
+          else router.push(home, { scroll: false });
+        }
+        return;
+      }
+
       const ideaTitle =
         overrides?.ideaTitle ?? (activeScriptIdeaTitle || ideaFromPath);
       const href = buildStudioTabPath(tab, {
@@ -644,7 +662,7 @@ export default function SearchTopicPage() {
       if (replace) router.replace(href, { scroll: false });
       else router.push(href, { scroll: false });
     },
-    [router, topic, scriptIdParam, activeScriptIdeaTitle, ideaFromPath],
+    [router, topic, scriptIdParam, activeScriptIdeaTitle, ideaFromPath, pathname],
   );
 
   const setStudioTab = useCallback(
@@ -655,8 +673,10 @@ export default function SearchTopicPage() {
     [ideasTabDisabled, navigateStudioTab],
   );
 
-  // Keep tab state in sync when the URL changes (back/forward, deep links)
+  // Keep tab state in sync when the URL changes (back/forward, deep links).
+  // On compose home, tabs stay local (URL remains /app/content-ideas).
   useEffect(() => {
+    if (!scriptIdParam && isStudioComposeTopic(topic)) return;
     const fromUrl = studioTabFromPathname(pathname);
     if (fromUrl && fromUrl !== studioTab) {
       if (ideasTabDisabled && fromUrl === 'ideas') {
@@ -666,7 +686,7 @@ export default function SearchTopicPage() {
       setStudioTabState(fromUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, ideasTabDisabled]);
+  }, [pathname, ideasTabDisabled, topic, scriptIdParam]);
 
   // Open vault / my-scripts cards inside the studio — script only, no ideas API
   useEffect(() => {
@@ -696,16 +716,38 @@ export default function SearchTopicPage() {
     setStudioTabState(studioTabFromPathname(pathname) ?? 'script');
 
     const load = async () => {
-      const applyRow = (
+      const applyRow = async (
         row: Record<string, any>,
         fromAssigned: boolean,
       ) => {
         if (cancelled) return;
         const title = row.title || row.topic || 'Script';
-        const normalized = {
-          ...normalizeScriptData(row),
-          title,
-        };
+        const base = normalizeScriptData(row);
+        let scriptText = base.script || '';
+        if (!fromAssigned) {
+          try {
+            const { data: { session } } = await sbClient.auth.getSession();
+            if (session?.user?.id && row.id) {
+              scriptText = await ApiService.fetchScriptPreview({
+                id: String(row.id),
+                userId: session.user.id,
+              });
+            }
+          } catch { /* keep fallback */ }
+          if (!scriptText.trim()) {
+            scriptText = lockedScriptPlaceholder(base.structure);
+          }
+        }
+        const normalized = fromAssigned
+          ? { ...base, title, locked: false }
+          : {
+              ...base,
+              title,
+              script: scriptText,
+              locked: true,
+              scriptsByLanguage: undefined,
+              scriptRowId: row.id != null ? String(row.id) : null,
+            };
         setActiveScriptData(normalized);
         setActiveScriptIdeaTitle(title);
         setActiveScriptIdeaDescription(row.description ?? '');
@@ -742,13 +784,13 @@ export default function SearchTopicPage() {
         if (cancelled) return;
 
         if (assigned) {
-          applyRow(assigned, true);
+          await applyRow(assigned, true);
           return;
         }
 
         const { data: universal, error: uErr } = await sbClient
           .from('scripts_universal')
-          .select(SCRIPT_ROW_SELECT)
+          .select(SCRIPT_ROW_SELECT_LOCKED)
           .eq('id', scriptIdParam)
           .maybeSingle();
 
@@ -761,7 +803,7 @@ export default function SearchTopicPage() {
           return;
         }
 
-        applyRow(universal, false);
+        await applyRow(universal, false);
       } catch (err) {
         console.error('[script viewer]', err);
         if (!cancelled) {
@@ -1086,20 +1128,16 @@ useEffect(() => {
       if (cancelled) return;
 
       if (workspace && workspace.ideas.length > 0) {
-        console.log(
-          '[script-ideas] supabase workspace hit:',
-          topic,
-          'ideas=',
-          workspace.ideas.length,
-          'generated=',
-          workspace.ideas.filter((i) => i.generated).length,
-        );
         applyMergedIdeas(workspace.ideas);
         const mem = resultsCache.get(topic);
         setSimilarPastIdeas(mem?.similarPastIdeas ?? []);
         setTopicSummary(workspace.topicSummary ?? mem?.topicSummary ?? null);
-        setIdeaSources(mem?.sources ?? []);
-        setIdeaBooks(mem?.books ?? []);
+        setIdeaSources(
+          (workspace.sources?.length ? workspace.sources : null) ?? mem?.sources ?? [],
+        );
+        setIdeaBooks(
+          (workspace.books?.length ? workspace.books : null) ?? mem?.books ?? [],
+        );
         setError(null);
         saveToCache(topic, {
           scriptIdeas: workspace.ideas.map(({ id, title, description, category }) => ({
@@ -1107,8 +1145,8 @@ useEffect(() => {
           })),
           similarPastIdeas: mem?.similarPastIdeas ?? [],
           topicSummary: workspace.topicSummary ?? mem?.topicSummary ?? null,
-          sources: mem?.sources ?? [],
-          books: mem?.books ?? [],
+          sources: (workspace.sources?.length ? workspace.sources : null) ?? mem?.sources ?? [],
+          books: (workspace.books?.length ? workspace.books : null) ?? mem?.books ?? [],
           error: null,
           timestamp: Date.now(),
         });
@@ -1128,8 +1166,12 @@ useEffect(() => {
           const mem = resultsCache.get(topic);
           setSimilarPastIdeas(mem?.similarPastIdeas ?? []);
           setTopicSummary(again.topicSummary ?? mem?.topicSummary ?? null);
-          setIdeaSources(mem?.sources ?? []);
-          setIdeaBooks(mem?.books ?? []);
+          setIdeaSources(
+            (again.sources?.length ? again.sources : null) ?? mem?.sources ?? [],
+          );
+          setIdeaBooks(
+            (again.books?.length ? again.books : null) ?? mem?.books ?? [],
+          );
           setError(null);
           finishLoading();
           return;
@@ -1293,38 +1335,21 @@ useEffect(() => {
       window.dispatchEvent(new Event('studio-storage-updated'));
     } catch { /* ignore */ }
 
-    try {
-      sessionStorage.setItem(
-        'studio_search_topic',
-        topic,
-      );
-      sessionStorage.setItem(
-        'studio_selected_idea',
-        JSON.stringify({
-          id: idea.id,
-          title: idea.title,
-          description: idea.description,
-          category: idea.category,
-        }),
-      );
-    } catch (err) {
-      console.error(err);
-    }
-
     setScriptGenError(null);
     setScriptGenReady(false);
     setIsGeneratingScript(true);
 
     try {
+      // BFF returns redacted preview only; full script stays server-side until unlock
       const raw = await ApiService.generateScript(payload);
       const normalized = normalizeScriptData(raw);
-
-      const universalId = await saveScriptToUniversal(normalized, {
-        title: idea.title,
-        topic,
-        description: idea.description,
-        userId: session.user.id,
-      });
+      const universalId =
+        raw.scriptRowId != null && String(raw.scriptRowId).trim()
+          ? String(raw.scriptRowId)
+          : null;
+      if (!universalId) {
+        throw new Error('Script was generated but could not be secured. Please try again.');
+      }
 
       // Re-persist the full idea list so saved_ideas never loses the generated idea
       await persistNewIdeas(scriptIdeas, topicSummary, ideaSources, ideaBooks);
@@ -1332,7 +1357,7 @@ useEffect(() => {
       setIdeaScripts((prev) => ({
         ...prev,
         [idea.id]: {
-          data: normalized,
+          data: { ...normalized, locked: true, scriptRowId: universalId },
           ideaTitle: idea.title,
           ideaDescription: idea.description,
           scriptRowId: universalId,
@@ -1341,22 +1366,7 @@ useEffect(() => {
       }));
       setGeneratedIdeaIds((prev) => new Set(prev).add(idea.id));
 
-      try {
-        const safeKey = idea.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-        localStorage.setItem(
-          `script_${safeKey}`,
-          JSON.stringify({
-            data: normalized,
-            params: payload,
-            timestamp: Date.now(),
-            pageTitle: idea.title,
-            universalScriptId: universalId,
-          }),
-        );
-        localStorage.setItem('script_latest_key', `script_${safeKey}`);
-      } catch { /* ignore */ }
-
-      setActiveScriptData(normalized);
+      setActiveScriptData({ ...normalized, locked: true, scriptRowId: universalId });
       setActiveScriptIdeaTitle(idea.title);
       setActiveScriptIdeaDescription(idea.description || '');
       setActiveScriptTopic(topic);
@@ -1401,9 +1411,10 @@ useEffect(() => {
       normalizeGeneratedThumbnailList(activeScriptData?.thumbnail_generated).length > 0
     ),
     broll: false,
+    audio: false,
   };
 
-  const selectIdeaScript = (idea: ScriptIdea) => {
+  const selectIdeaScript = async (idea: ScriptIdea) => {
     const fromMap = ideaScripts[idea.id];
     const durationFromInput = Number(videoLengths[idea.id]);
     const resolveDuration = (metricsVideoLength?: number | null, fallback?: number) => {
@@ -1415,39 +1426,48 @@ useEffect(() => {
       return 10;
     };
     if (fromMap?.data) {
-      setActiveScriptData(fromMap.data);
+      const unlocked = !!fromMap.fromAssigned;
+      const rowId = fromMap.scriptRowId ?? fromMap.universalScriptId ?? null;
+      let scriptText = fromMap.data.script || '';
+      const looksLikePlaceholder =
+        !scriptText.trim() ||
+        scriptText.includes('Unlock to view') ||
+        scriptText.includes('continues here after unlock');
+
+      if (!unlocked && looksLikePlaceholder && rowId) {
+        try {
+          const { data: { session } } = await sbClient.auth.getSession();
+          if (session?.user?.id) {
+            scriptText = await ApiService.fetchScriptPreview({
+              id: String(rowId),
+              userId: session.user.id,
+            });
+          }
+        } catch { /* keep existing */ }
+        if (!scriptText.trim()) {
+          scriptText = lockedScriptPlaceholder(fromMap.data.structure);
+        }
+      }
+
+      const data = unlocked
+        ? fromMap.data
+        : {
+            ...fromMap.data,
+            script: scriptText,
+            locked: true,
+            scriptsByLanguage: undefined,
+            scriptRowId: rowId,
+          };
+      setActiveScriptData(data);
       setActiveScriptIdeaTitle(fromMap.ideaTitle);
       setActiveScriptIdeaDescription(fromMap.ideaDescription || idea.description || '');
       setActiveScriptTopic(topic);
-      setActiveScriptRowId(fromMap.scriptRowId ?? fromMap.universalScriptId ?? null);
+      setActiveScriptRowId(rowId);
       setActiveUniversalScriptId(fromMap.universalScriptId ?? null);
-      setActiveScriptFromAssigned(!!fromMap.fromAssigned);
+      setActiveScriptFromAssigned(unlocked);
       setActiveScriptDuration(resolveDuration(fromMap.data.metrics?.videoLength));
       setStudioTab('script', { ideaTitle: fromMap.ideaTitle || idea.title });
-      return;
     }
-    try {
-      const safeKey = idea.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-      const raw = localStorage.getItem(`script_${safeKey}`);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.data) {
-          setActiveScriptData(parsed.data);
-          setActiveScriptIdeaTitle(idea.title);
-          setActiveScriptIdeaDescription(
-            idea.description || parsed?.params?.description || '',
-          );
-          setActiveScriptTopic(topic);
-          setActiveScriptRowId(parsed.universalScriptId ?? null);
-          setActiveUniversalScriptId(parsed.universalScriptId ?? null);
-          setActiveScriptFromAssigned(false);
-          setActiveScriptDuration(
-            resolveDuration(parsed?.data?.metrics?.videoLength, parsed?.params?.time),
-          );
-          setStudioTab('script', { ideaTitle: idea.title });
-        }
-      }
-    } catch { /* ignore */ }
   };
 
   // Keep Sources/Books panel below the Content Ideas stage tabs
@@ -1556,6 +1576,7 @@ useEffect(() => {
                     metadata: false,
                     thumbnails: false,
                     broll: false,
+                    audio: false,
                   }}
                 />
               </div>
@@ -1569,13 +1590,7 @@ useEffect(() => {
                 ) : (
                   <div className="bg-white border border-gray-200 rounded-2xl text-center py-14 px-6">
                     <p className="text-sm text-gray-500">
-                      Generate full script to on selected ideas to generate{' '}
-                      {studioTab === 'script'
-                        ? 'scripts'
-                        : studioTab === 'metadata'
-                          ? 'metadata'
-                          : 'thumbnails'}
-                      .
+                      Search a topic first to get the content of this tab.
                     </p>
                     <button
                       type="button"
@@ -1586,7 +1601,7 @@ useEffect(() => {
                       className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black"
                     >
                       <Search className="w-3.5 h-3.5" />
-                      Go to Content Ideas
+                      Search a topic
                     </button>
                   </div>
                 )}
@@ -1869,15 +1884,18 @@ useEffect(() => {
                   universalScriptId={activeUniversalScriptId}
                   scriptRowId={activeScriptRowId}
                   initiallyUnlocked={activeScriptFromAssigned}
-                  onUnlocked={({ assignedId } = {}) => {
+                  onUnlocked={({ assignedId, script } = {}) => {
                     setActiveScriptFromAssigned(true);
                     setActiveUniversalScriptId(null);
                     if (assignedId) setActiveScriptRowId(assignedId);
+                    if (script) {
+                      setActiveScriptData({ ...script, locked: false });
+                    }
                   }}
                   onScriptDataChange={({ script, scriptsByLanguage }) => {
                     setActiveScriptData((prev) =>
                       prev
-                        ? { ...prev, script, scriptsByLanguage }
+                        ? { ...prev, script, scriptsByLanguage, locked: false }
                         : prev,
                     );
                   }}
@@ -1906,6 +1924,22 @@ useEffect(() => {
             )}
 
             {studioTab === 'broll' && <StudioBRollPanel />}
+
+            {studioTab === 'audio' && (
+              <StudioAudioPanel
+                scriptText={
+                  activeScriptFromAssigned
+                    ? getScriptTextFromMap(
+                        activeScriptData?.scriptsByLanguage ?? {},
+                        DEFAULT_SCRIPT_LANGUAGE,
+                      ) || activeScriptData?.script || ''
+                    : ''
+                }
+                isUnlocked={activeScriptFromAssigned}
+                ideaTitle={activeScriptIdeaTitle}
+                onGoToScript={() => setStudioTab('script')}
+              />
+            )}
           </div>
         </div>
           </>

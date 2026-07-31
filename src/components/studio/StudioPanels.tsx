@@ -8,6 +8,7 @@ import {
   Tag,
   Image as ImageIcon,
   Clapperboard,
+  AudioLines,
   Check,
   Copy,
   Clock,
@@ -43,26 +44,20 @@ import {
 } from '@/lib/script-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/lib/supabaseClient';
-import { getBackendUrl } from '@/lib/backend';
 import { STORYBIT_PRODUCTION_GUIDE } from '@/lib/production-guide';
-import {
-  moveScriptToAssigned,
-  updateAssignedScriptLanguages,
-} from '@/lib/script-persistence';
+import { updateAssignedScriptLanguages } from '@/lib/script-persistence';
+import { lockedScriptPlaceholder } from '@/lib/script-security';
+import { withBlurredPatches } from '@/components/studio/renderRedactedScript';
 import { toast } from 'sonner';
 
-function studioUnlockKey(topic: string, ideaTitle: string) {
-  const safe = `${topic}_${ideaTitle}`.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-  return `studio_${safe}_unlocked`;
-}
-
-export type StudioTab = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll';
+export type StudioTab = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll' | 'audio';
 
 const TABS: { id: StudioTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'ideas', label: 'Content Ideas', icon: Lightbulb },
   { id: 'script', label: 'Full Script', icon: FileText },
   { id: 'metadata', label: 'Metadata', icon: Tag },
   { id: 'thumbnails', label: 'Thumbnails', icon: ImageIcon },
+  { id: 'audio', label: 'Audio', icon: AudioLines },
   { id: 'broll', label: 'B-Roll Videos', icon: Clapperboard },
 ];
 
@@ -172,17 +167,33 @@ function formatScriptNodes(text: string): React.ReactNode[] {
       let match: RegExpExecArray | null;
 
       while ((match = boldRegex.exec(para)) !== null) {
-        if (match.index > lastIndex) parts.push(para.slice(lastIndex, match.index));
+        if (match.index > lastIndex) {
+          parts.push(
+            ...withBlurredPatches(
+              para.slice(lastIndex, match.index),
+              `t-${sectionIndex}-${paraIndex}-${keyCounter}`,
+            ),
+          );
+        }
         parts.push(
-          <strong key={`b-${sectionIndex}-${paraIndex}-${keyCounter++}`}>{match[1]}</strong>,
+          <strong key={`b-${sectionIndex}-${paraIndex}-${keyCounter++}`}>
+            {withBlurredPatches(match[1], `bs-${sectionIndex}-${paraIndex}-${keyCounter}`)}
+          </strong>,
         );
         lastIndex = match.index + match[0].length;
       }
-      if (lastIndex < para.length) parts.push(para.slice(lastIndex));
+      if (lastIndex < para.length) {
+        parts.push(
+          ...withBlurredPatches(
+            para.slice(lastIndex),
+            `e-${sectionIndex}-${paraIndex}`,
+          ),
+        );
+      }
 
       nodes.push(
         <p key={`p-${sectionIndex}-${paraIndex}`} className="mb-5">
-          {parts.length > 0 ? parts : para}
+          {parts.length > 0 ? parts : withBlurredPatches(para, `p-${sectionIndex}-${paraIndex}`)}
         </p>,
       );
     });
@@ -244,7 +255,10 @@ export function StudioScriptPanel({
   /** True when script was loaded from scripts_assigned (already unlocked) */
   initiallyUnlocked?: boolean;
   /** Fired after a successful unlock so sibling tabs (e.g. thumbnails) can update */
-  onUnlocked?: (info?: { assignedId?: string | null }) => void;
+  onUnlocked?: (info?: {
+    assignedId?: string | null;
+    script?: GeneratedScriptData;
+  }) => void;
   /** Fired when active script text / language map changes (translate / unlock) */
   onScriptDataChange?: (next: {
     script: string;
@@ -281,8 +295,12 @@ export function StudioScriptPanel({
     scriptRowId != null && scriptRowId !== '' ? String(scriptRowId) : null,
   );
 
-  const displayScript =
-    getScriptTextFromMap(languageMap, activeLang) || data?.script || '';
+  // Locked: show the redacted script preview behind blur (not a fake placeholder)
+  const displayScript = isUnlocked
+    ? getScriptTextFromMap(languageMap, activeLang) || data?.script || ''
+    : (data?.script?.trim()
+        ? data.script
+        : lockedScriptPlaceholder(data?.structure));
 
   const structureSegments = data?.structure ?? [];
   const scriptSegmentTexts = useMemo(
@@ -293,21 +311,23 @@ export function StudioScriptPanel({
   const sourceUrls = data?.sources ?? data?.source_urls ?? [];
   const books = data?.books ?? data?.seo?.books ?? [];
 
-  const unlockKey = studioUnlockKey(topic || '', ideaTitle || data?.title || '');
-
   useEffect(() => {
     setAssignedId(scriptRowId != null && scriptRowId !== '' ? String(scriptRowId) : null);
   }, [scriptRowId]);
 
   useEffect(() => {
+    if (!isUnlocked) {
+      setLanguageMap({});
+      setActiveLang(DEFAULT_SCRIPT_LANGUAGE);
+      return;
+    }
     const map =
       data?.scriptsByLanguage && Object.keys(data.scriptsByLanguage).length
         ? data.scriptsByLanguage
         : wrapEnglishScript(data?.script || '');
     setLanguageMap(map);
-    // Keep the user's selected language if it still exists in the map
     setActiveLang((prev) => (map[prev]?.trim() ? prev : DEFAULT_SCRIPT_LANGUAGE));
-  }, [data?.script, data?.scriptsByLanguage]);
+  }, [data?.script, data?.scriptsByLanguage, isUnlocked]);
 
   useEffect(() => {
     setActiveSegment(0);
@@ -318,21 +338,9 @@ export function StudioScriptPanel({
     setScriptSaved(false);
     setShowSourcesPanel(false);
     setTranslateOpen(false);
-
-    if (initiallyUnlocked) {
-      setIsUnlocked(true);
-      try {
-        localStorage.setItem(unlockKey, 'true');
-      } catch { /* ignore */ }
-      return;
-    }
-
-    try {
-      setIsUnlocked(localStorage.getItem(unlockKey) === 'true');
-    } catch {
-      setIsUnlocked(false);
-    }
-  }, [data?.script, unlockKey, initiallyUnlocked]);
+    // Unlock state is authoritative only from scripts_assigned (initiallyUnlocked)
+    setIsUnlocked(!!initiallyUnlocked);
+  }, [data?.scriptRowId, data?.title, initiallyUnlocked]);
 
   useEffect(() => {
     if (!translateOpen) return;
@@ -506,6 +514,12 @@ export function StudioScriptPanel({
         return;
       }
 
+      const uniId = universalScriptId || data?.scriptRowId;
+      if (!uniId) {
+        setShowInsufficientPopup(true);
+        return;
+      }
+
       // Charge unlock against actual Video Length (metrics), not the requested generate time
       const fromMetrics = Number(data?.metrics?.videoLength);
       const fromProp = Number(durationMinutes);
@@ -516,78 +530,45 @@ export function StudioScriptPanel({
             ? fromProp
             : 10;
 
-      const res = await fetch(`${getBackendUrl()}/unlock`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ userId: session.user.id, duration }),
+      const saveTopic = topic || ideaTitle || data?.title || 'Untitled';
+
+      let json;
+      try {
+        json = await ApiService.unlockScript({
+          userId: session.user.id,
+          duration,
+          universalScriptId: String(uniId),
+          title: data?.title || ideaTitle || saveTopic,
+          topic: saveTopic,
+          description: ideaDescription,
+        });
+      } catch {
+        setShowInsufficientPopup(true);
+        return;
+      }
+
+      const full = json.script;
+      const englishMap = wrapEnglishScript(full.script || '');
+      applyLanguageMap(englishMap, DEFAULT_SCRIPT_LANGUAGE);
+      onScriptDataChange?.({
+        script: full.script || '',
+        scriptsByLanguage: englishMap,
       });
 
-      const json = await res.json().catch(() => ({}));
+      setIsUnlocked(true);
+      setScriptSaved(true);
+      setShowProductionGuidePopup(true);
+      window.dispatchEvent(new Event('creditsUpdated'));
 
-      if (res.ok && json.message === 'success') {
-        setIsUnlocked(true);
-        setShowProductionGuidePopup(true);
+      const assignedIdResult = json.assignedId ? String(json.assignedId) : null;
+      if (assignedIdResult) setAssignedId(assignedIdResult);
 
-        // Always refresh credits UI (sidebar / header) after unlock debit
-        window.dispatchEvent(new Event('creditsUpdated'));
-
-        try {
-          localStorage.setItem(unlockKey, 'true');
-        } catch { /* ignore */ }
-
-        let assignedIdResult: string | null = assignedId;
-        if (data) {
-          const saveTopic = topic || ideaTitle || data.title || 'Untitled';
-          const englishMap =
-            (languageMap.english ? languageMap : null) ||
-            wrapEnglishScript(data.script || '');
-          const dataForSave: GeneratedScriptData = {
-            ...data,
-            scriptsByLanguage: englishMap,
-          };
-
-          if (!scriptSaved) {
-            setScriptSaved(true);
-            const result = await moveScriptToAssigned({
-              userId: session.user.id,
-              data: dataForSave,
-              title: data.title || ideaTitle || saveTopic,
-              topic: saveTopic,
-              description: ideaDescription,
-              universalScriptId,
-            });
-            if (!result.ok) console.error('[scripts save]', result.error);
-            else {
-              assignedIdResult = result.assignedId ?? null;
-              applyLanguageMap(englishMap, DEFAULT_SCRIPT_LANGUAGE);
-            }
-          }
-
-          // Always resolve an assigned row id for later translate saves
-          if (!assignedIdResult) {
-            const resolved = await updateAssignedScriptLanguages({
-              userId: session.user.id,
-              title: data.title || ideaTitle || saveTopic,
-              topic: saveTopic,
-              description: ideaDescription,
-              scriptText: data.script || englishMap.english,
-              // No-op merge of current map — used here only to resolve/verify the row
-              scriptsByLanguage: englishMap,
-            });
-            if (resolved.assignedId) assignedIdResult = resolved.assignedId;
-          }
-
-          if (assignedIdResult) setAssignedId(String(assignedIdResult));
-        }
-        onUnlocked?.({ assignedId: assignedIdResult != null ? String(assignedIdResult) : null });
-      } else {
-        setShowInsufficientPopup(true);
-      }
-    } catch (err) {
-      console.error('Unlock error:', err);
+      onUnlocked?.({
+        assignedId: assignedIdResult,
+        script: { ...full, scriptsByLanguage: englishMap, locked: false },
+      });
+    } catch {
+      setShowInsufficientPopup(true);
     } finally {
       setIsUnlocking(false);
     }
@@ -827,56 +808,26 @@ export function StudioScriptPanel({
               </div>
 
               {!isUnlocked && (
-                <>
-                  <div
-                    className="absolute left-0 right-0 pointer-events-none"
-                    style={{
-                      top: '20%',
-                      height: '20%',
-                      backdropFilter: 'blur(7px)',
-                      WebkitBackdropFilter: 'blur(7px)',
-                      background: 'rgba(255,255,255,0.25)',
-                    }}
-                  />
-                  <div
-                    className="absolute left-0 right-0 pointer-events-none"
-                    style={{
-                      top: '60%',
-                      height: '20%',
-                      backdropFilter: 'blur(7px)',
-                      WebkitBackdropFilter: 'blur(7px)',
-                      background: 'rgba(255,255,255,0.25)',
-                    }}
-                  />
-                  <div
-                    className="absolute left-0 right-0 bottom-0 pointer-events-none"
-                    style={{
-                      height: '20%',
-                      background:
-                        'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.97) 100%)',
-                    }}
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <button
-                      type="button"
-                      onClick={handleUnlock}
-                      disabled={isUnlocking}
-                      className="flex items-center gap-2.5 bg-[#1d1d1f] hover:bg-black text-white text-sm font-semibold px-7 py-3.5 rounded-2xl shadow-2xl shadow-black/20 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] disabled:opacity-60"
-                    >
-                      {isUnlocking ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Unlocking…
-                        </>
-                      ) : (
-                        <>
-                          <Unlock className="w-4 h-4" />
-                          Unlock Script
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <button
+                    type="button"
+                    onClick={handleUnlock}
+                    disabled={isUnlocking}
+                    className="pointer-events-auto flex items-center gap-2.5 bg-[#1d1d1f] hover:bg-black text-white text-sm font-semibold px-7 py-3.5 rounded-2xl shadow-2xl shadow-black/20 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {isUnlocking ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Unlocking…
+                      </>
+                    ) : (
+                      <>
+                        <Unlock className="w-4 h-4" />
+                        Unlock Script
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
 
               {isUnlocked && (
@@ -1307,6 +1258,7 @@ export function StudioMetadataPanel({ data }: { data?: GeneratedScriptData | nul
 
 export { StudioThumbnailsPanel } from './StudioThumbnailsPanel';
 export { StudioBRollPanel } from './StudioBRollPanel';
+export { StudioAudioPanel } from './StudioAudioPanel';
 
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (

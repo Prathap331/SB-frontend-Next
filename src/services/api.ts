@@ -310,6 +310,10 @@ export interface YoutubeMetadata {
 
 export type GeneratedScriptData = {
   script: string;
+  /** True when payload is a locked preview (full body withheld until unlock) */
+  locked?: boolean;
+  /** scripts_universal id while locked */
+  scriptRowId?: string | null;
   /** Multilingual versions keyed by language (english, telugu, …) */
   scriptsByLanguage?: Record<string, string>;
   estimated_word_count?: number;
@@ -803,7 +807,6 @@ export class ApiService {
       }
 
       const data = await response.json();
-      console.log('[generate-ideas] response:', data);
       return this.normalizeProcessTopicResponse(data);
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
@@ -901,11 +904,16 @@ export class ApiService {
     }
   }
 
+  /**
+   * Generate via same-origin BFF (`/api/generate-script`).
+   * The browser only receives a redacted preview — full script is persisted server-side
+   * and released after `/api/unlock-script`.
+   */
   static async generateScript(params: GenerationParams, retryCount = 0): Promise<GeneratedScriptData> {
     const maxRetries = 2;
 
     try {
-      const apiUrl = `${this.BASE_URL}/generate-script`;
+      const apiUrl = '/api/generate-script';
       const body = {
         userId: params.userId,
         title: params.title,
@@ -913,24 +921,18 @@ export class ApiService {
         topic: params.topic,
         time: params.time,
       };
-      console.log('Making API request to:', apiUrl);
-      console.log('Request payload:', body);
 
-      // No timeout — generation can take as long as needed
       const response = await this.authorizedFetch(
         apiUrl,
         { method: 'POST', body: JSON.stringify(body) },
       );
-      console.log('API Response status:', response.status);
 
-      // Immediate retry on 502 — no delay
       if (response.status === 502 && retryCount < maxRetries) {
         return this.generateScript(params, retryCount + 1);
       }
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('API Error Response:', errorText);
         if (response.status === 405) throw new Error('Method Not Allowed (405).');
         if (response.status === 502) throw new Error('Server temporarily unavailable (502 Bad Gateway).');
         if (response.status === 404) throw new Error('API endpoint not found (404).');
@@ -938,9 +940,7 @@ export class ApiService {
         throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorText}`);
       }
 
-      const data = await response.json();
-      console.log('[generate-script] response:', data);
-      return data;
+      return response.json();
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         throw new Error('Network error: Unable to connect to the API server.');
@@ -950,6 +950,54 @@ export class ApiService {
       }
       throw error;
     }
+  }
+
+  /** Locked-script teaser for blur UI — full body never leaves the server. */
+  static async fetchScriptPreview(params: {
+    id: string;
+    userId: string;
+  }): Promise<string> {
+    const response = await this.authorizedFetch('/api/script-preview', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to load script preview');
+    }
+    const json = await response.json().catch(() => ({}));
+    return typeof json?.script === 'string' ? json.script : '';
+  }
+
+  /**
+   * Debit credits and return the full script body (only after successful unlock).
+   */
+  static async unlockScript(params: {
+    userId: string;
+    duration: number;
+    universalScriptId: string;
+    title?: string;
+    topic?: string;
+    description?: string;
+  }): Promise<{
+    message: string;
+    remaining_credits?: number;
+    assignedId?: string | null;
+    script: GeneratedScriptData;
+  }> {
+    const response = await this.authorizedFetch('/api/unlock-script', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok || json?.message !== 'success' || !json?.script) {
+      const msg =
+        json?.error ||
+        json?.detail ||
+        json?.message ||
+        `Unlock failed (${response.status})`;
+      throw new Error(typeof msg === 'string' ? msg : 'Unlock failed');
+    }
+    return json;
   }
 
   /**
@@ -1046,7 +1094,6 @@ export class ApiService {
         throw new Error(`pipeline-metrics failed: ${response.status} — ${body}`);
       }
       const data = await response.json() as TSSResponse;
-      console.log('[pipeline-metrics] ✓', data);
       return data;
     } catch (err) {
       console.error('[pipeline-metrics] error:', err);
@@ -1066,7 +1113,6 @@ export class ApiService {
         throw new Error(`eci failed: ${response.status} — ${body}`);
       }
       const data = await response.json() as ECIResponse;
-      console.log('[eci] ✓', data);
       return data;
     } catch (err) {
       console.error('[eci] error:', err);

@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { ApiService, normalizeSourcesForSave, type GeneratedScriptData } from '@/services/api';
 import { normalizeScriptData } from '@/lib/script-data';
 import { SCRIPT_ROW_SELECT } from '@/lib/script-persistence';
+import { SCRIPT_ROW_SELECT_LOCKED, lockedScriptPlaceholder } from '@/lib/script-security';
 
 export const TOTAL_STAGES = 5;
 
@@ -34,6 +35,8 @@ export type TopicWorkspace = {
   ideas: MergedIdea[];
   createdAt: string | null;
   topicSummary?: string | null;
+  sources?: string[];
+  books?: { title: string; author: string }[];
 };
 
 /**
@@ -104,6 +107,38 @@ function normalizeIdeasJson(raw: unknown): ScriptIdeaBase[] {
   }));
 }
 
+/** Normalize saved_ideas.sources (string URLs or { url } objects) → string[] */
+function normalizeSavedSources(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item === 'object') {
+        const obj = item as Record<string, unknown>;
+        return String(obj.url ?? obj.link ?? obj.href ?? '').trim();
+      }
+      return '';
+    })
+    .filter(Boolean);
+}
+
+/** Normalize saved_ideas.books → { title, author }[] */
+function normalizeSavedBooks(raw: unknown): { title: string; author: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const obj = item as Record<string, unknown>;
+      const title = String(obj.title ?? '').trim();
+      if (!title) return null;
+      return {
+        title,
+        author: String(obj.author ?? '').trim(),
+      };
+    })
+    .filter((b): b is { title: string; author: string } => !!b);
+}
+
 function rowToScriptData(row: ScriptDbRow): GeneratedScriptData {
   return normalizeScriptData({
     ...row,
@@ -159,7 +194,6 @@ export async function fetchRecentTopics(userId?: string | null, limit = 40): Pro
   }
 
   const rows = (data ?? []) as SavedIdeaRow[];
-  console.log(`[saved_ideas recent] userId=${uid} rows=${rows.length}`);
 
   // Dedupe by topic — keep first row (already newest-first from order)
   const byTopic = new Map<string, SavedIdeaRow>();
@@ -296,9 +330,10 @@ async function fetchScriptsForTopic(
       .eq('userId', userId)
       .order('created_at', { ascending: false })
       .limit(300),
+    // Never select `script` from universal — locked content must not hit the browser
     supabase
       .from('scripts_universal')
-      .select(SCRIPT_ROW_SELECT)
+      .select(SCRIPT_ROW_SELECT_LOCKED)
       .eq('userId', userId)
       .order('created_at', { ascending: false })
       .limit(300),
@@ -353,14 +388,24 @@ function mergeIdeasWithScripts(
     if (!generated) {
       return { ...idea, generated: false, script: null, scriptRowId: null, fromAssigned: false };
     }
+    const scriptData = rowToScriptData(generated);
+    const unlocked = !!generated.fromAssigned;
     return {
       ...idea,
       // Prefer idea description; fall back to script row description
       description: idea.description || generated.description || idea.description,
       generated: true,
-      script: rowToScriptData(generated),
+      script: unlocked
+        ? scriptData
+        : {
+            ...scriptData,
+            script: lockedScriptPlaceholder(scriptData.structure),
+            locked: true,
+            scriptsByLanguage: undefined,
+            scriptRowId: generated.id,
+          },
       scriptRowId: generated.id,
-      fromAssigned: !!generated.fromAssigned,
+      fromAssigned: unlocked,
     };
   });
 
@@ -370,15 +415,25 @@ function mergeIdeasWithScripts(
   for (const script of scripts) {
     const key = (script.title || '').trim().toLowerCase();
     if (!key || ideaTitleKeys.has(key)) continue;
+    const scriptData = rowToScriptData(script);
+    const unlocked = !!script.fromAssigned;
     merged.push({
       id: nextId++,
       title: script.title || 'Untitled',
       description: script.description?.trim() || 'No description available.',
       category: 'General',
       generated: true,
-      script: rowToScriptData(script),
+      script: unlocked
+        ? scriptData
+        : {
+            ...scriptData,
+            script: lockedScriptPlaceholder(scriptData.structure),
+            locked: true,
+            scriptsByLanguage: undefined,
+            scriptRowId: script.id,
+          },
       scriptRowId: script.id,
-      fromAssigned: !!script.fromAssigned,
+      fromAssigned: unlocked,
     });
   }
 
@@ -399,7 +454,7 @@ export async function loadTopicWorkspace(
 
   const { data, error } = await supabase
     .from('saved_ideas')
-    .select('id, created_at, topic, ideas, userId, topic_summary')
+    .select('id, created_at, topic, ideas, userId, topic_summary, sources, books')
     .eq('userId', uid)
     .eq('topic', trimmed)
     .order('created_at', { ascending: false })
@@ -415,7 +470,7 @@ export async function loadTopicWorkspace(
     // Case-insensitive fallback: topic strings may differ in casing
     const { data: allForUser, error: listErr } = await supabase
       .from('saved_ideas')
-      .select('id, created_at, topic, ideas, userId, topic_summary')
+      .select('id, created_at, topic, ideas, userId, topic_summary, sources, books')
       .eq('userId', uid)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -451,6 +506,8 @@ export async function loadTopicWorkspace(
       ideas: merged,
       createdAt: match.created_at ?? null,
       topicSummary: match.topic_summary ?? null,
+      sources: normalizeSavedSources(match.sources),
+      books: normalizeSavedBooks(match.books),
     };
   }
 
@@ -476,6 +533,8 @@ export async function loadTopicWorkspace(
     ideas: merged,
     createdAt: row.created_at ?? null,
     topicSummary: row.topic_summary ?? null,
+    sources: normalizeSavedSources(row.sources),
+    books: normalizeSavedBooks(row.books),
   };
 }
 

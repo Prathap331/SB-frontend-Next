@@ -18,15 +18,17 @@ import { ApiFailCard } from '@/components/ApiFailCard';
 import { ApiService, GenerationParams, GeneratedScriptData } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
 import { unwrapScriptJson, normalizeScriptData } from '@/lib/script-data';
-import { getBackendUrl } from '@/lib/backend';
 import { STORYBIT_PRODUCTION_GUIDE } from '@/lib/production-guide';
 import {
   buildScriptTableRow,
-  moveScriptToAssigned,
   normalizeGeneratedThumbnailList,
-  saveScriptToUniversal,
   SCRIPT_ROW_SELECT,
 } from '@/lib/script-persistence';
+import {
+  lockedScriptPlaceholder,
+  SCRIPT_ROW_SELECT_LOCKED,
+} from '@/lib/script-security';
+import { withBlurredPatches } from '@/components/studio/renderRedactedScript';
 import nlp from 'compromise';
 
 // Accent colors cycled across the SEO option cards (option 1 / 2 / 3)
@@ -120,15 +122,30 @@ function formatScript(text: string): React.ReactNode[] {
       let match: RegExpExecArray | null;
 
       while ((match = boldRegex.exec(para)) !== null) {
-        if (match.index > lastIndex) parts.push(para.slice(lastIndex, match.index));
-        parts.push(<strong key={`b-${sectionIndex}-${paraIndex}-${keyCounter++}`}>{match[1]}</strong>);
+        if (match.index > lastIndex) {
+          parts.push(
+            ...withBlurredPatches(
+              para.slice(lastIndex, match.index),
+              `t-${sectionIndex}-${paraIndex}-${keyCounter}`,
+            ),
+          );
+        }
+        parts.push(
+          <strong key={`b-${sectionIndex}-${paraIndex}-${keyCounter++}`}>
+            {withBlurredPatches(match[1], `bs-${sectionIndex}-${paraIndex}-${keyCounter}`)}
+          </strong>,
+        );
         lastIndex = match.index + match[0].length;
       }
-      if (lastIndex < para.length) parts.push(para.slice(lastIndex));
+      if (lastIndex < para.length) {
+        parts.push(
+          ...withBlurredPatches(para.slice(lastIndex), `e-${sectionIndex}-${paraIndex}`),
+        );
+      }
 
       nodes.push(
         <p key={`p-${sectionIndex}-${paraIndex}`} className="mb-5">
-          {parts.length > 0 ? parts : para}
+          {parts.length > 0 ? parts : withBlurredPatches(para, `p-${sectionIndex}-${paraIndex}`)}
         </p>
       );
     });
@@ -141,74 +158,6 @@ function formatScript(text: string): React.ReactNode[] {
   return nodes;
 }
 
-// Helper function to generate a localStorage key from topic/idea
-function getStorageKey(topic?: string, ideaTitle?: string): string {
-  const identifier = ideaTitle || topic || 'default';
-  // Create a safe key by replacing special characters
-  const safeKey = identifier.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-  return `script_${safeKey}`;
-}
-
-// Cache interface for stored script data
-interface CachedScriptData {
-  data: GeneratedScriptData;
-  params: GenerationParams;
-  timestamp: number;
-  pageTitle?: string;
-}
-
-// Cache duration: 24 hours
-const CACHE_DURATION = 24 * 60 * 60 * 1000;
-
-// Save script to localStorage
-function saveScriptToStorage(topic: string | undefined, ideaTitle: string | undefined, data: GeneratedScriptData, params: GenerationParams, pageTitle?: string): void {
-  try {
-    const key = getStorageKey(topic, ideaTitle);
-    const cacheData: CachedScriptData = {
-      data,
-      params,
-      timestamp: Date.now(),
-      pageTitle,
-    };
-    localStorage.setItem(key, JSON.stringify(cacheData));
-    
-    // Also store a reference to the latest script for quick access
-    localStorage.setItem('script_latest_key', key);
-  } catch (error) {
-    console.warn('Failed to save script to localStorage:', error);
-    // If localStorage is full, try to clean up old entries
-    try {
-      const keys = Object.keys(localStorage);
-      const scriptKeys = keys.filter(k => k.startsWith('script_') && k !== 'script_latest_key');
-      if (scriptKeys.length > 10) {
-        // Remove oldest entries
-        const sortedKeys = scriptKeys.sort((a, b) => {
-          try {
-            const dataA = JSON.parse(localStorage.getItem(a) || '{}') as CachedScriptData;
-            const dataB = JSON.parse(localStorage.getItem(b) || '{}') as CachedScriptData;
-            return (dataA.timestamp || 0) - (dataB.timestamp || 0);
-          } catch {
-            return 0;
-          }
-        });
-        sortedKeys.slice(0, scriptKeys.length - 10).forEach(k => localStorage.removeItem(k));
-      }
-      // Retry saving
-      const key = getStorageKey(topic, ideaTitle);
-      const cacheData: CachedScriptData = {
-        data,
-        params,
-        timestamp: Date.now(),
-        pageTitle,
-      };
-      localStorage.setItem(key, JSON.stringify(cacheData));
-      localStorage.setItem('script_latest_key', key);
-    } catch {
-      console.warn('Failed to cleanup and save script to localStorage');
-    }
-  }
-}
-
 /** Notify studio sidebar after a script is generated (scripts live in Supabase). */
 function syncScriptToStudioStorage(
   _normalizedScriptData: GeneratedScriptData,
@@ -218,37 +167,6 @@ function syncScriptToStudioStorage(
     window.dispatchEvent(new Event('studio-storage-updated'));
   } catch {
     // Never break the script page if studio sync fails
-  }
-}
-
-// Load script from localStorage - only returns exact matches, no fallback to latest
-function loadScriptFromStorage(topic?: string, ideaTitle?: string): CachedScriptData | null {
-  try {
-    // Try specific key only - no fallback to latest script to avoid loading wrong topic
-    const specificKey = getStorageKey(topic, ideaTitle);
-    const specificData = localStorage.getItem(specificKey);
-    if (specificData) {
-      const cached = JSON.parse(specificData) as CachedScriptData;
-      const now = Date.now();
-      if (cached.timestamp && now - cached.timestamp < CACHE_DURATION) {
-        // Double-check that cached params match what we're looking for
-        const cachedTitle = cached.params.title;
-        if (cachedTitle === topic || cachedTitle === ideaTitle) {
-          return cached;
-        } else {
-          // Mismatch - remove invalid cache
-          localStorage.removeItem(specificKey);
-        }
-      } else {
-        // Cache expired, remove it
-        localStorage.removeItem(specificKey);
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.warn('Failed to load script from localStorage:', error);
-    return null;
   }
 }
 
@@ -327,6 +245,7 @@ export default function ScriptPage() {
           const normalized: GeneratedScriptData = {
             ...normalizeScriptData(row),
             title: row.title ?? row.topic ?? 'Script',
+            locked: false,
           };
           setData(normalized);
           setPageTitle(row.title || row.topic || 'Script');
@@ -339,10 +258,10 @@ export default function ScriptPage() {
           return;
         }
 
-        // 2. Try scripts_universal (show locked — user must unlock to save to their account)
+        // 2. Try scripts_universal (locked — omit script column; unlock to reveal)
         const { data: uRow, error: uErr } = await supabase
           .from('scripts_universal')
-          .select(SCRIPT_ROW_SELECT)
+          .select(SCRIPT_ROW_SELECT_LOCKED)
           .eq('id', scriptId)
           .maybeSingle();
 
@@ -352,267 +271,103 @@ export default function ScriptPage() {
           return;
         }
 
+        const uBase = normalizeScriptData(uRow);
+        let preview = '';
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id && uRow.id) {
+            preview = await ApiService.fetchScriptPreview({
+              id: String(uRow.id),
+              userId: session.user.id,
+            });
+          }
+        } catch { /* ignore */ }
         const uNormalized: GeneratedScriptData = {
-          ...normalizeScriptData(uRow),
+          ...uBase,
           title: uRow.title ?? uRow.topic ?? 'Script',
+          script: preview.trim() || lockedScriptPlaceholder(uBase.structure),
+          locked: true,
+          scriptsByLanguage: undefined,
+          scriptRowId: uRow.id != null ? String(uRow.id) : null,
         };
         setData(uNormalized);
         setPageTitle(uRow.title || uRow.topic || 'Script');
         setScriptTopic(uRow.topic ?? undefined);
         setScriptDescription((uRow as { description?: string }).description ?? undefined);
         setScriptDuration(uRow.metrics?.videoLength ?? undefined);
-        universalScriptIdRef.current = uRow.id; // remember for delete-on-unlock
+        universalScriptIdRef.current = uRow.id; // remember for unlock
         finishLoading();
         return;
       }
       // ────────────────────────────────────────────────────────────────────────
 
-      let paramsJson: string | null = null;
-      let params: GenerationParams | null = null;
-
-      // Check if we have fresh params from "Generate Content" button (in sessionStorage)
-      try {
-        paramsJson = sessionStorage.getItem('generate_params');
-        if (paramsJson) {
-          try {
-            const raw = JSON.parse(paramsJson) as Record<string, unknown>;
-            // Normalize to current /generate-script contract
-            const title = String(raw.title || raw.ideaTitle || '');
-            const topicValue = String(raw.topic || '');
-            params = {
-              userId: String(raw.userId || session.user.id),
-              title: title || topicValue,
-              description: String(raw.description || ''),
-              topic: topicValue || title,
-              time: Number(raw.time ?? raw.duration_minutes ?? 10),
-            };
-            if (!params.title) params = null;
-          } catch {
-            // Invalid params, will handle below
-          }
-        }
-      } catch (e) {
-        console.warn('Error reading sessionStorage:', e);
-      }
-
-      // If we have fresh params from "Generate Content" button, ALWAYS generate new script
-      // Don't load from cache - this is a new generation request
-      if (paramsJson && params) {
-        // Skip cache check - generate new script
-        // Continue to generation logic below
-      } else {
-        // No fresh params - this is a page reload, try loading from localStorage
+      // Generation params from URL query (older flows like /script?topic=...&time=...)
+      // Do not restore scripts from localStorage / sessionStorage — only Supabase or generate API.
+      const search = window.location.search;
+      const urlParams = new URLSearchParams(search);
+      if (urlParams.has('topic') || urlParams.has('duration') || urlParams.has('time')) {
+        const topic = urlParams.get('topic') || undefined;
+        const duration = urlParams.get('time') || urlParams.get('duration') || undefined;
+        const payload: GenerationParams = {
+          userId: session.user.id,
+          title: topic || 'Untitled',
+          description: topic || '',
+          topic: topic || '',
+          time: duration ? parseInt(duration, 10) : 10,
+        };
         try {
-          // Check URL params for topic-based loading
-          const search = window.location.search;
-          const urlParams = new URLSearchParams(search);
-          if (urlParams.has('topic')) {
-            const topic = urlParams.get('topic') || undefined;
-            const cached = loadScriptFromStorage(topic, undefined);
-            if (cached) {
-              // Verify the cached script matches the topic
-              if (cached.params.title === topic) {
-                setData(cached.data);
-                setScriptDuration(
-                  cached.data?.metrics?.videoLength ?? cached.params.time,
-                );
-                setScriptTopic(cached.params.title);
-                if (cached.params.description) setScriptDescription(cached.params.description);
-                if (cached.pageTitle) setPageTitle(cached.pageTitle);
-                // Restore unlock state if previously unlocked
-                const cacheKey = getStorageKey(topic, undefined);
-                if (localStorage.getItem(`${cacheKey}_unlocked`) === 'true') setIsUnlocked(true);
-                finishLoading();
-                return; // Successfully loaded from cache
-              }
-            }
-          }
-          
-          // As last resort, try loading latest script only if sessionStorage is empty
-          // This handles the case where user reloads the page after sessionStorage was cleared
-          const latestKey = localStorage.getItem('script_latest_key');
-          if (latestKey) {
-            const latestData = localStorage.getItem(latestKey);
-            if (latestData) {
-              const cached = JSON.parse(latestData) as CachedScriptData;
-              const now = Date.now();
-              if (cached.timestamp && now - cached.timestamp < CACHE_DURATION) {
-                setData(cached.data);
-                setScriptDuration(
-                  cached.data?.metrics?.videoLength ?? cached.params?.time,
-                );
-                setScriptTopic(cached.params?.title);
-                if (cached.params?.description) setScriptDescription(cached.params.description);
-                if (cached.pageTitle) setPageTitle(cached.pageTitle);
-                // Restore unlock state if previously unlocked
-                if (localStorage.getItem(`${latestKey}_unlocked`) === 'true') setIsUnlocked(true);
-                finishLoading();
-                return; // Successfully loaded latest script
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('Error checking localStorage:', e);
-        }
-      }
-
-      // If not found in localStorage or we have fresh params, generate new script
-      if (!paramsJson) {
-        // Also try reading from URL query (for older flows like /script/:id?duration=...)
-        const search = window.location.search;
-        const urlParams = new URLSearchParams(search);
-        if (urlParams.has('topic') || urlParams.has('duration') || urlParams.has('time')) {
-          const topic = urlParams.get('topic') || undefined;
-          const duration = urlParams.get('time') || urlParams.get('duration') || undefined;
-          const payload: GenerationParams = {
-            userId: session.user.id,
-            title: topic || 'Untitled',
-            description: topic || '',
-            topic: topic || '',
-            time: duration ? parseInt(duration, 10) : 10,
-          };
-          // show summary immediately
+          let raw: GeneratedScriptData;
           try {
-            let json;
-            try {
-              json = await ApiService.generateScript(payload);
-            } catch (error: any) {
-              if (error.message?.includes('timeout')) {
-                console.warn('Timeout ignored (URL params)');
-                return; // ✅ ignore timeout
-              }
-              throw error;
-            }
-console.log("📦 Script API Response (URL params):", json);
-
-const normalized: GeneratedScriptData = normalizeScriptData(json);
-
-const scriptTitle = normalized.title || topic || 'Generated Script';
-
-saveScriptToStorage(payload.title, payload.title, normalized, payload, scriptTitle);
-
-const universalId = await saveScriptToUniversal(normalized, {
-  title: scriptTitle,
-  topic: payload.title || topic,
-  description: payload.description,
-  userId: session.user.id,
-});
-if (universalId) universalScriptIdRef.current = universalId;
-syncScriptToStudioStorage(normalized, universalId);
-
-setData(normalized);
-            setScriptDuration(
-              normalized.metrics?.videoLength ?? payload.time ?? undefined,
-            );
-            if (payload.title) setScriptTopic(payload.title);
-            if (payload.description) setScriptDescription(payload.description);
-            setPageTitle(scriptTitle);
-            finishLoading();
-            return;
-          } catch (err) {
-            const error = err as Error;
-            // Handle unauthorized errors immediately - redirect without showing error
-            if (error.message.includes('Unauthorized') || error.message.includes('Not authenticated')) {
-              setIsRedirecting(true);
-              supabase.auth.signOut();
-              router.push('/auth');
+            raw = await ApiService.generateScript(payload);
+          } catch (error: any) {
+            if (error.message?.includes('timeout')) {
+              console.warn('Timeout ignored (URL params)');
               return;
             }
-            console.error('Failed to Generate Content from URL params:', error);
-            setError(error.message || 'Failed to Generate Content from URL params');
-            setIsLoading(false);
+            throw error;
+          }
+
+          const normalized = normalizeScriptData(raw);
+          const universalId =
+            raw.scriptRowId != null && String(raw.scriptRowId).trim()
+              ? String(raw.scriptRowId)
+              : null;
+          const lockedData: GeneratedScriptData = {
+            ...normalized,
+            locked: true,
+            scriptRowId: universalId,
+          };
+          const scriptTitle = lockedData.title || topic || 'Generated Script';
+
+          if (universalId) universalScriptIdRef.current = universalId;
+          syncScriptToStudioStorage(lockedData, universalId);
+
+          setData(lockedData);
+          setScriptDuration(
+            lockedData.metrics?.videoLength ?? payload.time ?? undefined,
+          );
+          if (payload.title) setScriptTopic(payload.title);
+          if (payload.description) setScriptDescription(payload.description);
+          setPageTitle(scriptTitle);
+          finishLoading();
+          return;
+        } catch (err) {
+          const error = err as Error;
+          if (error.message.includes('Unauthorized') || error.message.includes('Not authenticated')) {
+            setIsRedirecting(true);
+            supabase.auth.signOut();
+            router.push('/auth');
             return;
           }
-        }
-
-        // If we reach here, no cached script was found and no params available
-        // This should only happen on first visit or if cache expired
-        setError('No generation parameters found. Please go back and create a script from a topic.');
-        setIsLoading(false);
-        return;
-      }
-
-      if (!params) {
-        try {
-          params = JSON.parse(paramsJson);
-        } catch {
-          setError('Invalid generation parameters.');
+          console.error('Failed to Generate Content from URL params:', error);
+          setError(error.message || 'Failed to Generate Content from URL params');
           setIsLoading(false);
           return;
         }
       }
 
-      // At this point, params is guaranteed to be non-null
-      if (!params) {
-        setError('Invalid generation parameters.');
-        setIsLoading(false);
-        return;
-      }
-
-      if (params.title) {
-        setPageTitle(params.title);
-      }
-
-      try {
-        let json;
-try {
-  params.userId = session.user.id;
-  json = await ApiService.generateScript(params);
-} catch (error: any) {
-  if (error.message?.includes('timeout')) {
-    console.warn('Timeout ignored (main call)');
-    return; // ✅ ignore timeout
-  }
-  throw error;
-}
-console.log("📦 Script API Response:", json);
-        // Use the title from response if available, otherwise use request title
-        const normalized: GeneratedScriptData = normalizeScriptData(json);
-        
-        const scriptTitle =
-          normalized.title || params.title || "Generated Script";
-        
-        saveScriptToStorage(params.title, params.title, normalized, params, scriptTitle);
-
-        const universalId = await saveScriptToUniversal(normalized, {
-          title: scriptTitle,
-          topic: params.title,
-          description: params.description,
-          userId: session.user.id,
-        });
-        if (universalId) universalScriptIdRef.current = universalId;
-        syncScriptToStudioStorage(normalized, universalId);
-
-        setData(normalized);
-        setPageTitle(scriptTitle);
-        // Prefer actual Video Length from metrics over requested generate time
-        setScriptDuration(normalized.metrics?.videoLength ?? params.time ?? undefined);
-        if (params.title) setScriptTopic(params.title);
-        if (params.description) setScriptDescription(params.description);
-        // optionally clear params so reload won't re-run (but we keep localStorage for reloads)
-        try {
-          sessionStorage.removeItem('generate_params');
-        } catch {
-          // Ignore sessionStorage errors
-        }
-        finishLoading();
-      } catch (err) {
-        const error = err as Error;
-        // Handle unauthorized errors immediately - redirect without showing error state
-        if (error.message.includes('Unauthorized') || error.message.includes('Not authenticated')) {
-          setIsRedirecting(true);
-          localStorage.removeItem('sb-xncfghdikiqknuruurfh-auth-token');
-          router.push('/auth');
-          return;
-        }
-        if (error.message.includes('Insufficient credits')) {
-          router.push('/pricing');
-          return;
-        }
-        console.error('Failed to Generate Content:', error);
-        setError(error.message || 'Failed to Generate Content');
-        setIsLoading(false);
-      }
+      setError('No generation parameters found. Please go back and create a script from a topic.');
+      setIsLoading(false);
     };
     run();
   })();
@@ -818,6 +573,12 @@ if (params.get('from') === 'suggested') {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push('/auth'); return; }
 
+      const uniId = universalScriptIdRef.current || data?.scriptRowId;
+      if (!uniId) {
+        setShowInsufficientPopup(true);
+        return;
+      }
+
       // Charge unlock against actual Video Length (metrics), not the requested generate time
       const fromMetrics = Number(data?.metrics?.videoLength);
       const fromState = Number(scriptDuration);
@@ -828,78 +589,52 @@ if (params.get('from') === 'suggested') {
             ? fromState
             : 10;
 
-      const res = await fetch(`${getBackendUrl()}/unlock`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ userId: session.user.id, duration }),
-      });
+      const topic =
+        scriptTopic ??
+        new URLSearchParams(window.location.search).get('topic') ??
+        pageTitle;
 
-      const json = await res.json().catch(() => ({}));
-
-      if (res.ok && json.message === 'success') {
-
-        setIsUnlocked(true);
-        isUnlockedRef.current = true;
-        setShowProductionGuidePopup(true);
-
-        // Script was unlocked → clear any legacy unused-idea markers
-        try { sessionStorage.removeItem('pending_unused_idea'); } catch {}
-      
-        // UPDATE CREDITS IMMEDIATELY
-        if (json.remaining_credits !== undefined) {
-          setCredits(json.remaining_credits);
-        }
-        window.dispatchEvent(new Event('creditsUpdated'));
-
-
-
-        // Persist unlock so page refresh keeps the script visible
-        try {
-          const key = localStorage.getItem('script_latest_key');
-          if (key) localStorage.setItem(`${key}_unlocked`, 'true');
-        } catch {}
-
-        // Save script to scripts_assigned and remove from scripts_universal
-        if (!scriptSaved && data) {
-          setScriptSaved(true);
-
-          const topic =
-            scriptTopic ??
-            new URLSearchParams(window.location.search).get("topic") ??
-            pageTitle;
-
-          let ideaDescription = scriptDescription;
-          try {
-            const raw = sessionStorage.getItem('studio_selected_idea');
-            if (raw && !ideaDescription) {
-              const parsed = JSON.parse(raw);
-              if (parsed?.description) ideaDescription = String(parsed.description);
-            }
-          } catch { /* ignore */ }
-
-          const result = await moveScriptToAssigned({
-            userId: session.user.id,
-            data,
-            title: data.title || pageTitle || topic || undefined,
-            topic: topic || undefined,
-            description: ideaDescription || undefined,
-            universalScriptId: universalScriptIdRef.current,
-          });
-
-          if (!result.ok) {
-            console.error("[scripts save]", result.error);
-            return;
-          }
-          universalScriptIdRef.current = null;
-        }
-      } else {
+      let json;
+      try {
+        json = await ApiService.unlockScript({
+          userId: session.user.id,
+          duration,
+          universalScriptId: String(uniId),
+          title: data?.title || pageTitle || topic || undefined,
+          topic: topic || undefined,
+          description: scriptDescription || undefined,
+        });
+      } catch {
         setShowInsufficientPopup(true);
+        return;
       }
+
+      const full = normalizeScriptData(json.script);
+      setData({ ...full, locked: false, scriptRowId: null });
+      setIsUnlocked(true);
+      isUnlockedRef.current = true;
+      setScriptSaved(true);
+      setShowProductionGuidePopup(true);
+      universalScriptIdRef.current = null;
+
+      // Script was unlocked → clear any legacy unused-idea markers / unlock flags
+      try {
+        sessionStorage.removeItem('pending_unused_idea');
+        const keys = Object.keys(localStorage);
+        for (const k of keys) {
+          if (k.endsWith('_unlocked') || k.startsWith('script_') || k === 'script_latest_key') {
+            localStorage.removeItem(k);
+          }
+        }
+      } catch {}
+
+      if (json.remaining_credits !== undefined) {
+        setCredits(json.remaining_credits);
+      }
+      window.dispatchEvent(new Event('creditsUpdated'));
     } catch (err) {
       console.error('Unlock error:', err);
+      setShowInsufficientPopup(true);
     } finally {
       setIsUnlocking(false);
     }
@@ -1534,54 +1269,19 @@ if (params.get('from') === 'suggested') {
                   </div>
                 </div>
 
-                {/* ── Locked overlays ── */}
                 {!isUnlocked && (
-                  <>
-                    {/* Blur band 1: 10%–40% */}
-                    <div
-                      className="absolute left-0 right-0 pointer-events-none"
-                      style={{
-                        top: '20%', height: '20%',
-                        backdropFilter: 'blur(7px)',
-                        WebkitBackdropFilter: 'blur(7px)',
-                        background: 'rgba(255,255,255,0.25)',
-                      }}
-                    />
-
-                    {/* Clear band: 40%–50% — no overlay */}
-
-                    {/* Blur band 2: 50%–80% */}
-                    <div
-                      className="absolute left-0 right-0 pointer-events-none"
-                      style={{
-                        top: '60%', height: '20%',
-                        backdropFilter: 'blur(7px)',
-                        WebkitBackdropFilter: 'blur(7px)',
-                        background: 'rgba(255,255,255,0.25)',
-                      }}
-                    />
-                    <div
-                      className="absolute left-0 right-0 bottom-0 pointer-events-none"
-                      style={{
-                        height: '20%',
-                        background: 'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.97) 100%)',
-                      }}
-                    />
-
-                    {/* Unlock button — centered */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <button
-                        onClick={handleUnlock}
-                        disabled={isUnlocking}
-                        className="flex items-center gap-2.5 bg-[#1d1d1f] hover:bg-black text-white text-sm font-semibold px-7 py-3.5 rounded-2xl shadow-2xl shadow-black/20 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] disabled:opacity-60"
-                      >
-                        {isUnlocking
-                          ? <><Loader2 className="w-4 h-4 animate-spin" />Unlocking…</>
-                          : <><Unlock className="w-4 h-4" />Unlock Script</>
-                        }
-                      </button>
-                    </div>
-                  </>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <button
+                      onClick={handleUnlock}
+                      disabled={isUnlocking}
+                      className="pointer-events-auto flex items-center gap-2.5 bg-[#1d1d1f] hover:bg-black text-white text-sm font-semibold px-7 py-3.5 rounded-2xl shadow-2xl shadow-black/20 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] disabled:opacity-60"
+                    >
+                      {isUnlocking
+                        ? <><Loader2 className="w-4 h-4 animate-spin" />Unlocking…</>
+                        : <><Unlock className="w-4 h-4" />Unlock Script</>
+                      }
+                    </button>
+                  </div>
                 )}
 
 

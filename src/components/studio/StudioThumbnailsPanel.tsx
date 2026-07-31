@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
@@ -34,11 +34,6 @@ import {
   type PhotoKey,
   type ThumbnailImages,
 } from '@/lib/thumbnails';
-
-function unlockStorageKey(topic: string, ideaTitle: string) {
-  const safe = `${topic}_${ideaTitle}`.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-  return `studio_${safe}_unlocked`;
-}
 
 function extractThumbnailTexts(data?: GeneratedScriptData | null): string[] {
   if (!data) return [];
@@ -90,25 +85,7 @@ export function StudioThumbnailsPanel({
   const texts = extractThumbnailTexts(data);
   const titles = data?.youtube_metadata?.titles ?? data?.seo?.youtube_metadata?.titles ?? [];
 
-  const unlockKey = useMemo(
-    () => unlockStorageKey(topic, ideaTitle || data?.title || ''),
-    [topic, ideaTitle, data?.title],
-  );
-
-  const [unlockedLocal, setUnlockedLocal] = useState(false);
-  useEffect(() => {
-    if (isUnlockedProp || fromAssigned) {
-      setUnlockedLocal(true);
-      return;
-    }
-    try {
-      setUnlockedLocal(localStorage.getItem(unlockKey) === 'true');
-    } catch {
-      setUnlockedLocal(false);
-    }
-  }, [isUnlockedProp, fromAssigned, unlockKey]);
-
-  const isUnlocked = isUnlockedProp || fromAssigned || unlockedLocal;
+  const isUnlocked = isUnlockedProp || fromAssigned;
 
   const [showFacePopup, setShowFacePopup] = useState(false);
   const [showPhotoPopup, setShowPhotoPopup] = useState(false);

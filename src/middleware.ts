@@ -97,8 +97,8 @@ export function middleware(request: NextRequest) {
       return rewriteToSearch(request, topicForStudioTabs(request));
     }
 
-    // /app/B-roll
-    if (restLower[0] === 'b-roll') {
+    // /app/B-roll | /app/audio
+    if (restLower[0] === 'b-roll' || restLower[0] === 'audio') {
       return rewriteToSearch(request, topicForStudioTabs(request));
     }
 
