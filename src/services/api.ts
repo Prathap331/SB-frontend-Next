@@ -1406,6 +1406,7 @@ export class ApiService {
         options: {
           data: {
             full_name: request.full_name,
+            credits_remaining: 150,
           },
         },
       });
@@ -1433,7 +1434,6 @@ export class ApiService {
           billing_address: request.billing_address,
           primary_language: request.primary_language,
           categories: request.categories,
-          credits_remaining: 150,
         });
   
       if (profileError) {
