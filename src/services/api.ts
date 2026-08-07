@@ -1418,7 +1418,7 @@ export class ApiService {
         throw new Error('User creation failed');
       }
   
-      // STEP 2: Insert into profiles table
+      // STEP 2: Insert into profiles table (150 starter credits for new accounts)
       const { error: profileError } = await supabase
         .from('user_profiles')
         .upsert({
@@ -1433,6 +1433,7 @@ export class ApiService {
           billing_address: request.billing_address,
           primary_language: request.primary_language,
           categories: request.categories,
+          credits_remaining: 150,
         });
   
       if (profileError) {
@@ -1454,7 +1455,7 @@ export class ApiService {
     const uid = userId?.trim();
     if (!uid) return;
 
-    const response = await this.authorizedFetch(`${this.BASE_URL}/`, {
+    const response = await this.authorizedFetch(`${this.BASE_URL}/check-credits`, {
       method: 'POST',
       body: JSON.stringify({ userId: uid }),
     });

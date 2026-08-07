@@ -119,18 +119,34 @@ export default function AuthCallback() {
         user.user_metadata?.name ||
         user.email?.split('@')[0] || '';
 
-      await supabase.from('user_profiles').upsert(
-        { id: user.id, email: user.email ?? '', full_name: fullName, updated_at: new Date().toISOString() },
-        { onConflict: 'id' }
-      );
-
-      // If primary_language is already set → onboarding was completed → go to app
       const { data: existing } = await supabase
         .from('user_profiles')
-        .select('primary_language')
+        .select('id, primary_language')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
+      if (!existing) {
+        // New signup — grant 150 starter credits once
+        await supabase.from('user_profiles').insert({
+          id: user.id,
+          email: user.email ?? '',
+          full_name: fullName,
+          credits_remaining: 150,
+          updated_at: new Date().toISOString(),
+        });
+      } else {
+        await supabase.from('user_profiles').upsert(
+          {
+            id: user.id,
+            email: user.email ?? '',
+            full_name: fullName,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' },
+        );
+      }
+
+      // If primary_language is already set → onboarding was completed → go to app
       if (existing?.primary_language) {
         setStatus('redirecting');
         const redirect = localStorage.getItem('post_auth_redirect');
