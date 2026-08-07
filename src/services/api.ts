@@ -1406,7 +1406,6 @@ export class ApiService {
         options: {
           data: {
             full_name: request.full_name,
-            credits_remaining: 150,
           },
         },
       });
@@ -1419,7 +1418,7 @@ export class ApiService {
         throw new Error('User creation failed');
       }
   
-      // STEP 2: Insert into profiles table (150 starter credits for new accounts)
+      // STEP 2: Insert into profiles table
       const { error: profileError } = await supabase
         .from('user_profiles')
         .upsert({
