@@ -1556,13 +1556,17 @@ useEffect(() => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
-                      {studioTab === 'broll' ? '' : ''}
+                      {studioTab === 'audio' ? 'Audio' : ''}
                     </p>
                     <h1
                       className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
                       style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
                     >
-                      {studioTab === 'broll' ? 'B-ROLL VIDEOS' : 'START A NEW TOPIC'}
+                      {studioTab === 'broll'
+                        ? 'B-ROLL VIDEOS'
+                        : studioTab === 'audio'
+                          ? 'TURN TEXT INTO SPEECH'
+                          : 'START A NEW TOPIC'}
                     </h1>
                   </div>
                 </div>
@@ -1587,6 +1591,14 @@ useEffect(() => {
                   <NewTopicPrompt onFocusSearch={() => searchInputRef.current?.focus()} />
                 ) : studioTab === 'broll' ? (
                   <StudioBRollPanel />
+                ) : studioTab === 'audio' ? (
+                  <StudioAudioPanel
+                    scriptText=""
+                    isUnlocked
+                    freeform
+                    scriptAudio={[]}
+                    scriptRowId={null}
+                  />
                 ) : (
                   <div className="bg-white border border-gray-200 rounded-2xl text-center py-14 px-6">
                     <p className="text-sm text-gray-500">
@@ -1937,7 +1949,14 @@ useEffect(() => {
                 }
                 isUnlocked={activeScriptFromAssigned}
                 ideaTitle={activeScriptIdeaTitle}
+                scriptAudio={activeScriptData?.script_audio ?? []}
+                scriptRowId={activeScriptFromAssigned ? activeScriptRowId : null}
                 onGoToScript={() => setStudioTab('script')}
+                onScriptAudioChange={(urls) => {
+                  setActiveScriptData((prev) =>
+                    prev ? { ...prev, script_audio: urls } : prev,
+                  );
+                }}
               />
             )}
           </div>

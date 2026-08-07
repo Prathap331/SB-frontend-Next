@@ -2,7 +2,14 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AudioLines, Info, Loader2, Mic, Square, X } from 'lucide-react';
-import { VOICE_CLONE_PROMPT } from '@/lib/voice-clone';
+import {
+  VOICE_CLONE_MAX_SECONDS,
+  VOICE_CLONE_MIN_SECONDS,
+  VOICE_CLONE_PROMPT,
+} from '@/lib/voice-clone';
+import { convertBlobToWav } from '@/lib/audio-wav';
+import { ApiService } from '@/services/api';
+import { toast } from 'sonner';
 
 function formatTimer(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -14,16 +21,19 @@ export function VoiceCloneModal({
   open,
   onClose,
   onCloned,
+  userId,
   title = 'Clone your voice',
 }: {
   open: boolean;
   onClose: () => void;
   onCloned: () => void;
+  userId?: string | null;
   title?: string;
 }) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [cloneBusy, setCloneBusy] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
 
@@ -31,6 +41,7 @@ export function VoiceCloneModal({
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const stopRecordingRef = useRef<() => void>(() => {});
 
   const cleanupStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -47,6 +58,7 @@ export function VoiceCloneModal({
       setRecordSeconds(0);
       setMicError(null);
       setCloneBusy(false);
+      setRecordedBlob(null);
       mediaRecorderRef.current = null;
       cleanupStream();
       setRecordedUrl((prev) => {
@@ -64,7 +76,9 @@ export function VoiceCloneModal({
   }, [cleanupStream, recordedUrl]);
 
   const stopRecording = useCallback(() => {
-    mediaRecorderRef.current?.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
     setIsRecording(false);
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -72,12 +86,26 @@ export function VoiceCloneModal({
     }
   }, []);
 
+  stopRecordingRef.current = stopRecording;
+
   const startRecording = useCallback(async () => {
     setMicError(null);
+    setRecordedBlob(null);
+    setRecordedUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const recorder = new MediaRecorder(stream);
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : '';
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       chunksRef.current = [];
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -85,7 +113,10 @@ export function VoiceCloneModal({
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || 'audio/webm',
+        });
+        setRecordedBlob(blob);
         setRecordedUrl((prev) => {
           if (prev) URL.revokeObjectURL(prev);
           return URL.createObjectURL(blob);
@@ -95,20 +126,53 @@ export function VoiceCloneModal({
       recorder.start();
       setIsRecording(true);
       setRecordSeconds(0);
-      timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+      timerRef.current = setInterval(() => {
+        setRecordSeconds((s) => {
+          const next = s + 1;
+          if (next >= VOICE_CLONE_MAX_SECONDS) {
+            setTimeout(() => stopRecordingRef.current(), 0);
+            return VOICE_CLONE_MAX_SECONDS;
+          }
+          return next;
+        });
+      }, 1000);
     } catch {
       setMicError('Microphone access is required to clone your voice.');
     }
   }, []);
 
   const handleClone = useCallback(async () => {
-    if (!recordedUrl) return;
+    if (!recordedBlob) return;
+    if (recordSeconds < VOICE_CLONE_MIN_SECONDS) {
+      toast.error(`Please record at least ${VOICE_CLONE_MIN_SECONDS} seconds`);
+      return;
+    }
+    if (!userId) {
+      toast.error('Please sign in to save your voice clone');
+      return;
+    }
+
     setCloneBusy(true);
-    await new Promise((r) => setTimeout(r, 900));
-    setCloneBusy(false);
-    onCloned();
-    onClose();
-  }, [recordedUrl, onCloned, onClose]);
+    try {
+      // Browsers record webm/opus; backend only accepts WAV (and similar).
+      const wavFile = await convertBlobToWav(recordedBlob);
+      await ApiService.saveAudio({
+        userId,
+        audio: wavFile,
+      });
+      onCloned();
+      onClose();
+      toast.success('Voice clone saved');
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to save voice clone';
+      toast.error(message);
+    } finally {
+      setCloneBusy(false);
+    }
+  }, [recordedBlob, recordSeconds, userId, onCloned, onClose]);
+
+  const canStop = recordSeconds >= VOICE_CLONE_MIN_SECONDS;
 
   if (!open) return null;
 
@@ -159,20 +223,33 @@ export function VoiceCloneModal({
             </p>
           </div>
 
-          <p className="inline-flex items-center gap-1.5 text-[11px] text-[#6e6e73]">
-            Please read the paragraph above
-            <Info className="w-3 h-3" />
+          <p className="text-[11px] text-[#6e6e73]">
+            Record between {VOICE_CLONE_MIN_SECONDS}–{VOICE_CLONE_MAX_SECONDS} seconds.
+            Stop unlocks after {VOICE_CLONE_MIN_SECONDS}s; recording ends at {VOICE_CLONE_MAX_SECONDS}s.
           </p>
 
           {isRecording ? (
-            <button
-              type="button"
-              onClick={stopRecording}
-              className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium flex items-center justify-center gap-2"
-            >
-              <Square className="w-3.5 h-3.5 fill-current" />
-              Stop · {formatTimer(recordSeconds)}
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={stopRecording}
+                disabled={!canStop}
+                className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-40 disabled:hover:bg-red-600 disabled:cursor-not-allowed"
+              >
+                <Square className="w-3.5 h-3.5 fill-current" />
+                {canStop ? 'Stop' : 'Recording'} · {formatTimer(recordSeconds)} / {formatTimer(VOICE_CLONE_MAX_SECONDS)}
+              </button>
+              {!canStop && (
+                <p className="text-[11px] text-[#6e6e73] text-center">
+                  Keep reading — stop unlocks in {VOICE_CLONE_MIN_SECONDS - recordSeconds}s
+                </p>
+              )}
+              {canStop && recordSeconds < VOICE_CLONE_MAX_SECONDS && (
+                <p className="text-[11px] text-[#6e6e73] text-center">
+                  You can stop now, or keep going until {VOICE_CLONE_MAX_SECONDS}s
+                </p>
+              )}
+            </div>
           ) : (
             <button
               type="button"
@@ -206,14 +283,19 @@ export function VoiceCloneModal({
             </button>
             <button
               type="button"
-              disabled={!recordedUrl || isRecording || cloneBusy}
-              onClick={handleClone}
+              disabled={
+                !recordedBlob ||
+                isRecording ||
+                cloneBusy ||
+                recordSeconds < VOICE_CLONE_MIN_SECONDS
+              }
+              onClick={() => void handleClone()}
               className="flex-1 py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium disabled:opacity-40 flex items-center justify-center gap-2"
             >
               {cloneBusy ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Cloning…
+                  Saving…
                 </>
               ) : (
                 'Save voice clone'

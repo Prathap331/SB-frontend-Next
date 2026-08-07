@@ -65,6 +65,7 @@ type ScriptDbRow = {
   thumbnail?: unknown;
   'thumbnail-generated'?: unknown;
   thumbnail_generated?: unknown;
+  script_audio?: unknown;
   category?: unknown;
   sub_category?: unknown;
   metrics?: GeneratedScriptData['metrics'] | null;
@@ -147,6 +148,7 @@ function rowToScriptData(row: ScriptDbRow): GeneratedScriptData {
     thumbnail: row.thumbnail,
     'thumbnail-generated':
       row['thumbnail-generated'] ?? row.thumbnail_generated ?? null,
+    script_audio: row.script_audio,
     metrics: row.metrics,
     sources: row.sources,
     books: row.books,

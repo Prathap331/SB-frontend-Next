@@ -1,6 +1,7 @@
 import type { GeneratedScriptData } from '@/services/api';
 import {
   normalizeGeneratedThumbnail,
+  normalizeScriptAudio,
   normalizeScriptCategory,
   normalizeScriptSubcategories,
   readThumbnailGeneratedColumn,
@@ -153,6 +154,7 @@ export function normalizeScriptData(raw: any): GeneratedScriptData {
 
   const languageMap = parseScriptLanguageMap(raw?.script);
   const scriptText = getScriptTextFromMap(languageMap) || extractScriptText(raw);
+  const script_audio = normalizeScriptAudio(raw?.script_audio);
 
   return {
     ...raw,
@@ -171,6 +173,7 @@ export function normalizeScriptData(raw: any): GeneratedScriptData {
     metrics: metrics ?? raw?.metrics,
     thumbnail: raw?.thumbnail ?? youtube_metadata?.thumbnail_text ?? null,
     thumbnail_generated: thumbnail_generated ?? undefined,
+    script_audio: script_audio.length ? script_audio : undefined,
     structure: Array.isArray(raw?.structure) ? raw.structure : [],
     category: normalizeScriptCategory(raw?.category) ?? undefined,
     subcategories: (() => {

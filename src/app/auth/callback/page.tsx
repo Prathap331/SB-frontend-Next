@@ -12,9 +12,6 @@ import {
 } from '@/lib/thumbnails';
 import { getBackendUrl } from '@/lib/backend';
 import { buildStudioHomePath } from '@/lib/keyword-routes';
-import { saveClonedVoiceProfile } from '@/lib/voice-clone';
-import { VoiceCloneModal } from '@/components/studio/VoiceCloneModal';
-
 type CBStep = 1 | 2 | 3 | 4 | 5;
 type AppStatus = 'loading' | 'form' | 'redirecting';
 
@@ -85,10 +82,6 @@ export default function AuthCallback() {
   const [thumbPreviews, setThumbPreviews] = useState<Partial<Record<PhotoKey, string>>>({});
   const [thumbError, setThumbError]       = useState<string | null>(null);
   const thumbInputRefs = useRef<Partial<Record<PhotoKey, HTMLInputElement | null>>>({});
-
-  // Step 4 — voice sample (frontend only)
-  const [voiceCloneOpen, setVoiceCloneOpen] = useState(false);
-  const [voiceCloned, setVoiceCloned] = useState(false);
 
   // Step 5 — channel PDF
   const [channelFile, setChannelFile]     = useState<File | null>(null);
@@ -280,10 +273,7 @@ export default function AuthCallback() {
     }
   };
 
-  const handleStep4Voice = (skip = false) => {
-    if (!skip && voiceCloned && userId) {
-      saveClonedVoiceProfile(userId);
-    }
+  const handleStep4Voice = () => {
     setCbStep(5);
   };
 
@@ -699,58 +689,40 @@ export default function AuthCallback() {
                 </div>
               )}
 
-              {/* ── Step 4: Voice cloning ─────────────────────────────── */}
+              {/* ── Step 4: Voice cloning (Plus / Pro) ────────────────── */}
               {cbStep === 4 && (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-gray-200 bg-[#fafafa] p-4">
                     <p className="text-sm text-[#1d1d1f] leading-relaxed font-light">
-                      Clone your voice once so Audio can turn unlocked scripts into speech that sounds like you.
-                      Read a short prompt aloud — it only takes a minute.
+                      Voice cloning is available on Plus and Pro. After you upgrade, open the Audio tab to
+                      record a 10–30 second sample so scripts can sound like you.
                     </p>
                   </div>
 
-                  {voiceCloned ? (
-                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
-                      <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                      Voice clone saved. You can re-record anytime from the Audio tab.
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-gray-200 p-5 text-center space-y-3">
-                      <Mic className="w-8 h-8 text-[#6e6e73] mx-auto" />
-                      <p className="text-sm text-[#6e6e73] font-light">
-                        Record yourself reading a short paragraph to create your voice clone.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setVoiceCloneOpen(true)}
-                        className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all flex items-center justify-center gap-2"
-                      >
-                        <Mic className="w-4 h-4" />
-                        Clone your own voice
-                      </button>
-                    </div>
-                  )}
-
-                  {voiceCloned && (
+                  <div className="rounded-2xl border border-dashed border-gray-200 p-5 text-center space-y-3">
+                    <Mic className="w-8 h-8 text-[#6e6e73] mx-auto" />
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6e6e73]">
+                      Plus &amp; Pro only
+                    </p>
                     <button
                       type="button"
-                      onClick={() => setVoiceCloneOpen(true)}
-                      className="w-full py-2 rounded-xl border border-gray-200 text-sm font-medium text-[#1d1d1f] hover:border-gray-300"
+                      onClick={() => router.push('/pricing')}
+                      className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-[#1d1d1f] hover:border-gray-300 transition-all"
                     >
-                      Re-record voice
+                      View plans
                     </button>
-                  )}
+                  </div>
 
                   <button
                     type="button"
-                    onClick={() => handleStep4Voice(false)}
+                    onClick={handleStep4Voice}
                     className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
                   >
-                    {voiceCloned ? 'Continue →' : 'Continue without cloning →'}
+                    Continue →
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleStep4Voice(true)}
+                    onClick={handleStep4Voice}
                     className="w-full py-1.5 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
                   >
                     Skip for now
@@ -879,14 +851,6 @@ export default function AuthCallback() {
         </div>
       </div>
 
-      <VoiceCloneModal
-        open={voiceCloneOpen}
-        onClose={() => setVoiceCloneOpen(false)}
-        onCloned={() => {
-          if (userId) saveClonedVoiceProfile(userId);
-          setVoiceCloned(true);
-        }}
-      />
     </div>
   );
 }

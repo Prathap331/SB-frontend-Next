@@ -16,7 +16,42 @@ export const THUMBNAIL_GENERATED_COLUMN = 'thumbnail-generated';
 
 /** Select list for script rows — hyphenated column must be quoted for PostgREST */
 export const SCRIPT_ROW_SELECT =
-  `id, title, topic, description, script, youtube_metadata, thumbnail, metrics, sources, books, structure, category, sub_category, "${THUMBNAIL_GENERATED_COLUMN}"`;
+  `id, title, topic, description, script, youtube_metadata, thumbnail, metrics, sources, books, structure, category, sub_category, script_audio, "${THUMBNAIL_GENERATED_COLUMN}"`;
+
+/** Normalize scripts_assigned.script_audio jsonb → public audio URL strings */
+export function normalizeScriptAudio(raw: unknown): string[] {
+  if (raw == null) return [];
+  let value: unknown = raw;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        value = JSON.parse(trimmed);
+      } catch {
+        return /^https?:\/\//i.test(trimmed) ? [trimmed] : [];
+      }
+    } else {
+      return /^https?:\/\//i.test(trimmed) ? [trimmed] : [];
+    }
+  }
+  if (!Array.isArray(value)) {
+    if (typeof value === 'string' && /^https?:\/\//i.test(value.trim())) {
+      return [value.trim()];
+    }
+    return [];
+  }
+  return value
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item === 'object') {
+        const obj = item as Record<string, unknown>;
+        return String(obj.url ?? obj.audio_url ?? obj.public_url ?? obj.href ?? '').trim();
+      }
+      return '';
+    })
+    .filter((url) => /^https?:\/\//i.test(url));
+}
 
 /** Normalize API/DB category (string | jsonb) → display string */
 export function normalizeScriptCategory(raw: unknown): string | null {
@@ -782,3 +817,54 @@ export async function updateAssignedScriptLanguages(opts: {
   }
 }
 
+/**
+ * Append a generated speech URL onto scripts_assigned.script_audio (jsonb string[]).
+ */
+export async function appendScriptAudioUrl(opts: {
+  scriptRowId?: string | null;
+  userId?: string | null;
+  audioUrl: string;
+}): Promise<{ ok: boolean; error?: string; urls?: string[] }> {
+  const audioUrl = (opts.audioUrl || '').trim();
+  if (!/^https?:\/\//i.test(audioUrl)) {
+    return { ok: false, error: 'Invalid audio URL — expected a public http(s) link.' };
+  }
+
+  const assignedId = (opts.scriptRowId || '').trim();
+  if (!assignedId) {
+    return { ok: false, error: 'Missing scripts_assigned row id. Unlock the script first.' };
+  }
+
+  const userId = (opts.userId || '').trim();
+
+  let query = supabase
+    .from('scripts_assigned')
+    .select('id, script_audio, userId')
+    .eq('id', assignedId);
+
+  if (userId) query = query.eq('userId', userId);
+
+  const { data: row, error: loadError } = await query.maybeSingle();
+  if (loadError) {
+    console.error('[scripts_assigned script_audio load]', loadError.message);
+    return { ok: false, error: loadError.message };
+  }
+  if (!row?.id) {
+    return { ok: false, error: 'Could not find unlocked script row to save audio.' };
+  }
+
+  const existing = normalizeScriptAudio(row.script_audio);
+  const urls = existing.includes(audioUrl) ? existing : [...existing, audioUrl];
+
+  const { error: updateError } = await supabase
+    .from('scripts_assigned')
+    .update({ script_audio: urls })
+    .eq('id', assignedId);
+
+  if (updateError) {
+    console.error('[scripts_assigned script_audio update]', updateError.message);
+    return { ok: false, error: updateError.message };
+  }
+
+  return { ok: true, urls };
+}

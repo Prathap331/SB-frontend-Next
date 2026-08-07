@@ -290,7 +290,9 @@ export function StudioScriptPanel({
   const [languageMap, setLanguageMap] = useState<ScriptLanguageMap>({});
   const [activeLang, setActiveLang] = useState(DEFAULT_SCRIPT_LANGUAGE);
   const [translateOpen, setTranslateOpen] = useState(false);
+  const [langSearch, setLangSearch] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
+  const langSearchRef = useRef<HTMLInputElement | null>(null);
   const [assignedId, setAssignedId] = useState<string | null>(
     scriptRowId != null && scriptRowId !== '' ? String(scriptRowId) : null,
   );
@@ -343,14 +345,21 @@ export function StudioScriptPanel({
   }, [data?.scriptRowId, data?.title, initiallyUnlocked]);
 
   useEffect(() => {
-    if (!translateOpen) return;
+    if (!translateOpen) {
+      setLangSearch('');
+      return;
+    }
     const onDocClick = (e: MouseEvent) => {
       if (!translateMenuRef.current?.contains(e.target as Node)) {
         setTranslateOpen(false);
       }
     };
     document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
+    const focusTimer = window.setTimeout(() => langSearchRef.current?.focus(), 20);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      window.clearTimeout(focusTimer);
+    };
   }, [translateOpen]);
 
   useEffect(() => {
@@ -612,6 +621,13 @@ export function StudioScriptPanel({
   const activeLangMeta =
     SCRIPT_LANGUAGES.find((l) => l.value === activeLang) ?? SCRIPT_LANGUAGES[0];
   const translateButtonLabel = activeLangMeta.label;
+  const langQuery = langSearch.trim().toLowerCase();
+  const filteredLanguages = langQuery
+    ? SCRIPT_LANGUAGES.filter((l) => {
+        const hay = `${l.label} ${l.value} ${l.apiName ?? ''}`.toLowerCase();
+        return hay.includes(langQuery);
+      })
+    : SCRIPT_LANGUAGES;
 
   return (
     <>
@@ -739,33 +755,57 @@ export function StudioScriptPanel({
                   {translateOpen && (
                     <div
                       role="listbox"
-                      className="absolute right-0 top-full mt-1.5 z-30 w-52 max-h-64 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg py-1"
+                      className="absolute right-0 top-full mt-1.5 z-30 w-64 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
                     >
-                      {SCRIPT_LANGUAGES.map((lang) => {
-                        const saved = !!languageMap[lang.value]?.trim();
-                        const active = activeLang === lang.value;
-                        return (
-                          <button
-                            key={lang.value}
-                            type="button"
-                            role="option"
-                            aria-selected={active}
-                            onClick={() => void handleSelectLanguage(lang.value)}
-                            className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 ${
-                              active ? 'bg-gray-50 font-semibold text-[#1d1d1f]' : 'text-[#1d1d1f]'
-                            }`}
-                          >
-                            <span>
-                              <span className="block leading-snug">{lang.label}</span>
-                              <span className="block text-[10px] text-gray-400 capitalize">
-                                {lang.value}
-                                {saved ? ' · saved' : ''}
-                              </span>
-                            </span>
-                            {active ? <Check className="w-3.5 h-3.5 flex-shrink-0" /> : null}
-                          </button>
-                        );
-                      })}
+                      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 p-2">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                          <input
+                            ref={langSearchRef}
+                            type="search"
+                            value={langSearch}
+                            onChange={(e) => setLangSearch(e.target.value)}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            placeholder="Search languages…"
+                            className="w-full pl-8 pr-3 py-2 rounded-lg border border-gray-200 bg-[#f5f5f7] text-sm text-[#1d1d1f] placeholder:text-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/15 focus:border-[#1d1d1f]"
+                          />
+                        </div>
+                        <p className="mt-1.5 px-0.5 text-[10px] text-[#6e6e73]">
+                          {filteredLanguages.length} of {SCRIPT_LANGUAGES.length} languages
+                        </p>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto py-1">
+                        {filteredLanguages.length > 0 ? (
+                          filteredLanguages.map((lang) => {
+                            const saved = !!languageMap[lang.value]?.trim();
+                            const active = activeLang === lang.value;
+                            return (
+                              <button
+                                key={lang.value}
+                                type="button"
+                                role="option"
+                                aria-selected={active}
+                                onClick={() => void handleSelectLanguage(lang.value)}
+                                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                                  active ? 'bg-gray-50 font-semibold text-[#1d1d1f]' : 'text-[#1d1d1f]'
+                                }`}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block leading-snug truncate">{lang.label}</span>
+                                  <span className="block text-[10px] text-gray-400">
+                                    {saved ? 'Saved' : 'Translate'}
+                                  </span>
+                                </span>
+                                {active ? <Check className="w-3.5 h-3.5 flex-shrink-0" /> : null}
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <p className="px-3 py-4 text-xs text-[#6e6e73] text-center">
+                            No languages found
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

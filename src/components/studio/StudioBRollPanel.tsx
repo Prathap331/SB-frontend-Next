@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import {
   Search,
   Loader2,
-  ExternalLink,
   Download,
   ChevronDown,
   ChevronUp,
@@ -846,17 +845,8 @@ export function StudioBRollPanel() {
                             {video.user.name}
                           </a>
                         </p>
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={video.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-600 border border-gray-200 rounded-md px-2 py-1 hover:bg-gray-50"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            Pexels
-                          </a>
-                          {preview && (
+                        {preview && (
+                          <div className="flex items-center gap-2">
                             <a
                               href={preview.link}
                               download
@@ -867,8 +857,8 @@ export function StudioBRollPanel() {
                               <Download className="w-3 h-3" />
                               Download
                             </a>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

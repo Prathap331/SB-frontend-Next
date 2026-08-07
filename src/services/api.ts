@@ -347,6 +347,11 @@ export type GeneratedScriptData = {
   /** Thumbnail payload from /generate-script (text overlays or image data) */
   thumbnail?: unknown;
   /**
+   * Generated speech URLs from scripts_assigned.script_audio (jsonb string[]).
+   * Example: ["https://.../generated-audio/.../file.mp3"]
+   */
+  script_audio?: string[];
+  /**
    * AI image from /generate-thumbnail, persisted on scripts_assigned
    * as jsonb column `thumbnail-generated` (object or array).
    */
@@ -679,16 +684,25 @@ export class ApiService {
     init: Omit<RequestInit, 'headers'>,
     signal?: AbortSignal,
   ): Promise<Response> {
-    const buildHeaders = (token: string | null): Record<string, string> => ({
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    });
+    const buildHeaders = (
+      token: string | null,
+      body: BodyInit | null | undefined,
+    ): Record<string, string> => {
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+      // Browser must set multipart boundary for FormData — do not force JSON.
+      if (!(body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+      }
+      return headers;
+    };
 
     const token = await this.getAuthToken();
     const response = await fetch(url, {
       ...init,
-      headers: buildHeaders(token),
+      headers: buildHeaders(token, init.body),
       signal,
       mode: 'cors',
     });
@@ -701,7 +715,7 @@ export class ApiService {
         console.info('[authorizedFetch] Token refreshed, retrying request');
         return fetch(url, {
           ...init,
-          headers: buildHeaders(data.session.access_token),
+          headers: buildHeaders(data.session.access_token, init.body),
           signal,
           mode: 'cors',
         });
@@ -1046,6 +1060,174 @@ export class ApiService {
     throw new Error('Translation response did not include script text.');
   }
 
+  /**
+   * Prepare a script for TTS via POST /add-script-tags.
+   * Payload: { userId, script }
+   * Returns the tagged_script used by /generate-speech.
+   */
+  static async addScriptTags(params: {
+    userId: string;
+    script: string;
+  }): Promise<{ tagged_script: string; raw: unknown }> {
+    const url = `${this.BASE_URL}/add-script-tags`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: params.userId,
+        script: params.script,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      let message = `Add script tags failed: ${response.status} ${response.statusText}`;
+      try {
+        const parsed = JSON.parse(errorText);
+        message = parsed?.message || parsed?.error || message;
+      } catch {
+        if (errorText) message = errorText;
+      }
+      throw new Error(message);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    let data: unknown = {};
+    if (contentType.includes('application/json')) {
+      data = await response.json().catch(() => ({}));
+    } else {
+      const text = await response.text().catch(() => '');
+      data = text || {};
+    }
+
+    const tagged =
+      typeof data === 'string'
+        ? data
+        : (data as Record<string, unknown>)?.tagged_script ??
+          (data as Record<string, unknown>)?.taggedScript ??
+          (data as Record<string, unknown>)?.script ??
+          (data as { data?: Record<string, unknown> })?.data?.tagged_script ??
+          (data as { data?: Record<string, unknown> })?.data?.script;
+
+    if (typeof tagged !== 'string' || !tagged.trim()) {
+      throw new Error('Add script tags response did not include tagged_script.');
+    }
+
+    return { tagged_script: tagged.trim(), raw: data };
+  }
+
+  /**
+   * Generate speech audio via POST /generate-speech.
+   * Payload: { userId, script, voice }
+   * `script` should be the tagged_script from /add-script-tags.
+   * `voice` is a preset id/name, or "user" for the cloned voice.
+   */
+  static async generateSpeech(params: {
+    userId: string;
+    script: string;
+    voice: string;
+  }): Promise<{ audioUrl: string | null; raw: unknown }> {
+    const url = `${this.BASE_URL}/generate-speech`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: params.userId,
+        script: params.script,
+        voice: params.voice,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      let message = `Generate speech failed: ${response.status} ${response.statusText}`;
+      try {
+        const parsed = JSON.parse(errorText);
+        message = parsed?.message || parsed?.error || message;
+      } catch {
+        if (errorText) message = errorText;
+      }
+      throw new Error(message);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('audio/')) {
+      const blob = await response.blob();
+      return { audioUrl: URL.createObjectURL(blob), raw: null };
+    }
+
+    const data = contentType.includes('application/json')
+      ? await response.json().catch(() => ({}))
+      : await response.text().catch(() => '');
+
+    if (typeof data === 'string' && /^https?:\/\//i.test(data.trim())) {
+      return { audioUrl: data.trim(), raw: data };
+    }
+
+    const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+    const nested = (obj.data && typeof obj.data === 'object' ? obj.data : {}) as Record<string, unknown>;
+    const audioUrlCandidate =
+      obj.audio_url ??
+      obj.audioUrl ??
+      obj.url ??
+      obj.speech_url ??
+      obj.speechUrl ??
+      nested.audio_url ??
+      nested.audioUrl ??
+      nested.url;
+
+    return {
+      audioUrl:
+        typeof audioUrlCandidate === 'string' && audioUrlCandidate.trim()
+          ? audioUrlCandidate.trim()
+          : null,
+      raw: data,
+    };
+  }
+
+  /**
+   * Save a voice-clone sample via POST /save-audio (multipart/form-data).
+   * Fields: userId (string), audio (file)
+   */
+  static async saveAudio(params: {
+    userId: string;
+    audio: Blob | File;
+  }): Promise<unknown> {
+    const url = `${this.BASE_URL}/save-audio`;
+    const form = new FormData();
+    form.append('userId', params.userId);
+    // Backend rejects webm/opus — callers should pass WAV; normalize type/name here too.
+    const isWav =
+      (params.audio.type || '').includes('wav') ||
+      (params.audio instanceof File && params.audio.name.toLowerCase().endsWith('.wav'));
+    const file =
+      params.audio instanceof File && isWav
+        ? params.audio
+        : new File([params.audio], 'voice-clone.wav', { type: 'audio/wav' });
+    form.append('audio', file);
+
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: form,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      let message = `Save audio failed: ${response.status} ${response.statusText}`;
+      try {
+        const parsed = JSON.parse(errorText);
+        message = parsed?.message || parsed?.error || message;
+      } catch {
+        if (errorText) message = errorText;
+      }
+      throw new Error(message);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return response.json().catch(() => ({}));
+    }
+    return {};
+  }
+
   /** Generate a YouTube thumbnail image via /generate-thumbnail (20 credits). */
   static async generateThumbnail(
     payload: GenerateThumbnailPayload,
@@ -1272,7 +1454,7 @@ export class ApiService {
     const uid = userId?.trim();
     if (!uid) return;
 
-    const response = await this.authorizedFetch(`${this.BASE_URL}/check-credits`, {
+    const response = await this.authorizedFetch(`${this.BASE_URL}/`, {
       method: 'POST',
       body: JSON.stringify({ userId: uid }),
     });

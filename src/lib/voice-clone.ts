@@ -50,3 +50,13 @@ export function clearClonedVoiceProfile(userId: string) {
 
 export const VOICE_CLONE_PROMPT =
   "Nothing compares to the joy of hearing my child laugh. It bubbles up from deep inside them, pure and honest. In those moments, all my worries fade away, replaced by a happiness that fills every part of me. It's the sound of perfect love.";
+
+/** Recording constraints for the clone modal */
+export const VOICE_CLONE_MIN_SECONDS = 10;
+export const VOICE_CLONE_MAX_SECONDS = 30;
+
+/** Voice cloning is available on Plus and Pro only. */
+export function canUseVoiceCloning(tier: string | null | undefined): boolean {
+  const t = (tier || '').trim().toLowerCase();
+  return t === 'plus' || t === 'pro';
+}
