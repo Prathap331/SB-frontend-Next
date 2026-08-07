@@ -115,15 +115,136 @@ export const SCRIPT_LANGUAGES: ScriptLanguageOption[] = [
 
 export const DEFAULT_SCRIPT_LANGUAGE = 'english';
 
+/** ISO-ish codes for /generate-speech langCode (keyed by script jsonb language) */
+const SCRIPT_LANGUAGE_CODES: Record<string, string> = {
+  english: 'en',
+  hindi: 'hi',
+  'chinese-simplified': 'zh',
+  'chinese-traditional': 'zh',
+  spanish: 'es',
+  arabic: 'ar',
+  french: 'fr',
+  bengali: 'bn',
+  portuguese: 'pt',
+  russian: 'ru',
+  indonesian: 'id',
+  malay: 'ms',
+  german: 'de',
+  japanese: 'ja',
+  urdu: 'ur',
+  turkish: 'tr',
+  vietnamese: 'vi',
+  korean: 'ko',
+  swahili: 'sw',
+  marathi: 'mr',
+  telugu: 'te',
+  tamil: 'ta',
+  italian: 'it',
+  persian: 'fa',
+  punjabi: 'pa',
+  thai: 'th',
+  gujarati: 'gu',
+  filipino: 'tl',
+  javanese: 'jw',
+  polish: 'pl',
+  hausa: 'ha',
+  ukrainian: 'uk',
+  amharic: 'am',
+  bhojpuri: 'bho',
+  dutch: 'nl',
+  yoruba: 'yo',
+  kannada: 'kn',
+  myanmar: 'my',
+  pashto: 'ps',
+  odia: 'or',
+  oromo: 'om',
+  malayalam: 'ml',
+  maithili: 'mai',
+  uzbek: 'uz',
+  nepali: 'ne',
+  sundanese: 'su',
+  igbo: 'ig',
+  lao: 'lo',
+  sindhi: 'sd',
+  zulu: 'zu',
+  malagasy: 'mg',
+  romanian: 'ro',
+  azerbaijani: 'az',
+  somali: 'so',
+  cebuano: 'ceb',
+  lingala: 'ln',
+  xhosa: 'xh',
+  sinhala: 'si',
+  khmer: 'km',
+  afrikaans: 'af',
+  'kurdish-kurmanji': 'ku',
+  assamese: 'as',
+  bambara: 'bm',
+  chichewa: 'ny',
+  greek: 'el',
+  hungarian: 'hu',
+  kazakh: 'kk',
+  'haitian-creole': 'ht',
+  kinyarwanda: 'rw',
+  luganda: 'lg',
+  uyghur: 'ug',
+  twi: 'tw',
+  czech: 'cs',
+  catalan: 'ca',
+  swedish: 'sv',
+  tigrinya: 'ti',
+  hebrew: 'he',
+  ilocano: 'ilo',
+  shona: 'sn',
+  serbian: 'sr',
+  tajik: 'tg',
+  'kurdish-sorani': 'ckb',
+  bulgarian: 'bg',
+  quechua: 'qu',
+  albanian: 'sq',
+  turkmen: 'tk',
+  ewe: 'ee',
+  armenian: 'hy',
+  guarani: 'gn',
+  danish: 'da',
+  mongolian: 'mn',
+  croatian: 'hr',
+  sesotho: 'st',
+  finnish: 'fi',
+  norwegian: 'no',
+  tatar: 'tt',
+  slovak: 'sk',
+  belarusian: 'be',
+};
+
+/** Language code for /generate-speech, e.g. "telugu" → "te" */
+export function scriptLanguageCode(value: string): string {
+  const v = (value || DEFAULT_SCRIPT_LANGUAGE).trim().toLowerCase();
+  if (!v) return 'en';
+  if (SCRIPT_LANGUAGE_CODES[v]) return SCRIPT_LANGUAGE_CODES[v];
+  // Already a short code (e.g. "en", "te")
+  if (/^[a-z]{2,3}$/i.test(v)) return v.toLowerCase();
+  return 'en';
+}
+
+/** Display label for a stored language key, e.g. "telugu" → "Telugu" */
+export function scriptLanguageLabel(value: string): string {
+  const v = (value || DEFAULT_SCRIPT_LANGUAGE).trim().toLowerCase();
+  if (!v) return 'English';
+  const found = SCRIPT_LANGUAGES.find((l) => l.value === v);
+  if (found) return found.label;
+  return v
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 /** /translate-script expects Title Case English name, e.g. "English", "Chinese Simplified" */
 export function scriptLanguageApiName(value: string): string {
   const v = (value || DEFAULT_SCRIPT_LANGUAGE).trim().toLowerCase();
   if (!v) return 'English';
   const found = SCRIPT_LANGUAGES.find((l) => l.value === v);
   if (found) return found.apiName ?? found.label;
-  return v
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
+  return scriptLanguageLabel(v);
 }

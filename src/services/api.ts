@@ -1117,23 +1117,32 @@ export class ApiService {
 
   /**
    * Generate speech audio via POST /generate-speech.
-   * Payload: { userId, script, voice }
+   * Payload: { userId, script, voice, langCode, reference_id? }
    * `script` should be the tagged_script from /add-script-tags.
-   * `voice` is a preset id/name, or "user" for the cloned voice.
+   * `voice` is "user" for cloned voice, or the premade voice name.
+   * `langCode` is the ISO language code for the selected script language (e.g. "en", "te").
+   * `reference_id` is the premade voice model id from pre-made-voices."reference-Id".
    */
   static async generateSpeech(params: {
     userId: string;
     script: string;
     voice: string;
+    langCode: string;
+    reference_id?: string | null;
   }): Promise<{ audioUrl: string | null; raw: unknown }> {
     const url = `${this.BASE_URL}/generate-speech`;
+    const body: Record<string, string> = {
+      userId: params.userId,
+      script: params.script,
+      voice: params.voice,
+      langCode: params.langCode,
+    };
+    const referenceId = (params.reference_id || '').trim();
+    if (referenceId) body.reference_id = referenceId;
+
     const response = await this.authorizedFetch(url, {
       method: 'POST',
-      body: JSON.stringify({
-        userId: params.userId,
-        script: params.script,
-        voice: params.voice,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -1158,29 +1167,73 @@ export class ApiService {
       ? await response.json().catch(() => ({}))
       : await response.text().catch(() => '');
 
-    if (typeof data === 'string' && /^https?:\/\//i.test(data.trim())) {
-      return { audioUrl: data.trim(), raw: data };
+    const asStr = (v: unknown) => {
+      if (v == null) return '';
+      if (typeof v === 'string') return v.trim();
+      if (typeof v === 'number' || typeof v === 'bigint') return String(v).trim();
+      return '';
+    };
+
+    const pickUrl = (v: unknown): string | null => {
+      const direct = asStr(v);
+      if (/^https?:\/\//i.test(direct)) return direct;
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        const obj = v as Record<string, unknown>;
+        for (const key of [
+          'audio_url',
+          'audioUrl',
+          'public_url',
+          'publicUrl',
+          'speech_url',
+          'speechUrl',
+          'file_url',
+          'fileUrl',
+          'url',
+          'href',
+        ]) {
+          const found = asStr(obj[key]);
+          if (/^https?:\/\//i.test(found)) return found;
+        }
+      }
+      return null;
+    };
+
+    if (typeof data === 'string') {
+      return { audioUrl: pickUrl(data), raw: data };
+    }
+
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        const found = pickUrl(item);
+        if (found) return { audioUrl: found, raw: data };
+      }
     }
 
     const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
-    const nested = (obj.data && typeof obj.data === 'object' ? obj.data : {}) as Record<string, unknown>;
-    const audioUrlCandidate =
-      obj.audio_url ??
-      obj.audioUrl ??
-      obj.url ??
-      obj.speech_url ??
-      obj.speechUrl ??
-      nested.audio_url ??
-      nested.audioUrl ??
-      nested.url;
+    const nested =
+      (obj.data && typeof obj.data === 'object' ? obj.data : null) ??
+      (obj.result && typeof obj.result === 'object' ? obj.result : null) ??
+      (obj.audio && typeof obj.audio === 'object' ? obj.audio : null) ??
+      {};
 
-    return {
-      audioUrl:
-        typeof audioUrlCandidate === 'string' && audioUrlCandidate.trim()
-          ? audioUrlCandidate.trim()
-          : null,
-      raw: data,
-    };
+    const audioUrl =
+      pickUrl(obj) ||
+      pickUrl(nested) ||
+      pickUrl(obj.audio_url) ||
+      pickUrl(obj.audioUrl) ||
+      pickUrl(obj.public_url) ||
+      pickUrl(obj.publicUrl) ||
+      pickUrl(obj.url) ||
+      pickUrl(obj.speech_url) ||
+      pickUrl(obj.speechUrl) ||
+      pickUrl((nested as Record<string, unknown>).audio_url) ||
+      pickUrl((nested as Record<string, unknown>).audioUrl) ||
+      pickUrl((nested as Record<string, unknown>).public_url) ||
+      pickUrl((nested as Record<string, unknown>).publicUrl) ||
+      pickUrl((nested as Record<string, unknown>).url) ||
+      null;
+
+    return { audioUrl, raw: data };
   }
 
   /**

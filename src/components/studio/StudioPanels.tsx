@@ -263,6 +263,7 @@ export function StudioScriptPanel({
   onScriptDataChange?: (next: {
     script: string;
     scriptsByLanguage: ScriptLanguageMap;
+    activeLanguage: string;
   }) => void;
 }) {
   const router = useRouter();
@@ -423,7 +424,11 @@ export function StudioScriptPanel({
     setLanguageMap(next);
     setActiveLang(lang);
     const text = getScriptTextFromMap(next, lang);
-    onScriptDataChange?.({ script: text, scriptsByLanguage: next });
+    onScriptDataChange?.({
+      script: text,
+      scriptsByLanguage: next,
+      activeLanguage: lang,
+    });
   };
 
   const handleSelectLanguage = async (langValue: string) => {
@@ -559,10 +564,6 @@ export function StudioScriptPanel({
       const full = json.script;
       const englishMap = wrapEnglishScript(full.script || '');
       applyLanguageMap(englishMap, DEFAULT_SCRIPT_LANGUAGE);
-      onScriptDataChange?.({
-        script: full.script || '',
-        scriptsByLanguage: englishMap,
-      });
 
       setIsUnlocked(true);
       setScriptSaved(true);
@@ -622,12 +623,20 @@ export function StudioScriptPanel({
     SCRIPT_LANGUAGES.find((l) => l.value === activeLang) ?? SCRIPT_LANGUAGES[0];
   const translateButtonLabel = activeLangMeta.label;
   const langQuery = langSearch.trim().toLowerCase();
-  const filteredLanguages = langQuery
-    ? SCRIPT_LANGUAGES.filter((l) => {
-        const hay = `${l.label} ${l.value} ${l.apiName ?? ''}`.toLowerCase();
-        return hay.includes(langQuery);
-      })
-    : SCRIPT_LANGUAGES;
+  const filteredLanguages = useMemo(() => {
+    const base = langQuery
+      ? SCRIPT_LANGUAGES.filter((l) => {
+          const hay = `${l.label} ${l.value} ${l.apiName ?? ''}`.toLowerCase();
+          return hay.includes(langQuery);
+        })
+      : [...SCRIPT_LANGUAGES];
+    // Saved translations float to the top (stable order within each group)
+    return base.sort((a, b) => {
+      const aSaved = !!languageMap[a.value]?.trim() ? 0 : 1;
+      const bSaved = !!languageMap[b.value]?.trim() ? 0 : 1;
+      return aSaved - bSaved;
+    });
+  }, [langQuery, languageMap]);
 
   return (
     <>

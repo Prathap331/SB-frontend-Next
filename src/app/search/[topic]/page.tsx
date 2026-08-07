@@ -615,6 +615,7 @@ export default function SearchTopicPage() {
   const [activeUniversalScriptId, setActiveUniversalScriptId] = useState<string | null>(null);
   const [activeScriptRowId, setActiveScriptRowId] = useState<string | null>(null);
   const [activeScriptFromAssigned, setActiveScriptFromAssigned] = useState(false);
+  const [activeScriptLanguage, setActiveScriptLanguage] = useState(DEFAULT_SCRIPT_LANGUAGE);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [scriptGenReady, setScriptGenReady] = useState(false);
   const [scriptGenError, setScriptGenError] = useState<string | null>(null);
@@ -753,9 +754,10 @@ export default function SearchTopicPage() {
         setActiveScriptIdeaDescription(row.description ?? '');
         setActiveScriptTopic(row.topic || '');
         setActiveScriptDuration(Number(row.metrics?.videoLength || 10) || 10);
-        setActiveScriptRowId(row.id);
+        setActiveScriptRowId(row.id != null ? String(row.id) : null);
         setActiveUniversalScriptId(fromAssigned ? null : row.id);
         setActiveScriptFromAssigned(fromAssigned);
+        setActiveScriptLanguage(DEFAULT_SCRIPT_LANGUAGE);
         setScriptIdeas([]);
         setIsLoading(false);
         setScriptViewerLoading(false);
@@ -1904,7 +1906,8 @@ useEffect(() => {
                       setActiveScriptData({ ...script, locked: false });
                     }
                   }}
-                  onScriptDataChange={({ script, scriptsByLanguage }) => {
+                  onScriptDataChange={({ script, scriptsByLanguage, activeLanguage }) => {
+                    setActiveScriptLanguage(activeLanguage || DEFAULT_SCRIPT_LANGUAGE);
                     setActiveScriptData((prev) =>
                       prev
                         ? { ...prev, script, scriptsByLanguage, locked: false }
@@ -1943,10 +1946,16 @@ useEffect(() => {
                   activeScriptFromAssigned
                     ? getScriptTextFromMap(
                         activeScriptData?.scriptsByLanguage ?? {},
-                        DEFAULT_SCRIPT_LANGUAGE,
+                        activeScriptLanguage,
                       ) || activeScriptData?.script || ''
                     : ''
                 }
+                scriptsByLanguage={
+                  activeScriptFromAssigned
+                    ? activeScriptData?.scriptsByLanguage ?? null
+                    : null
+                }
+                initialLanguage={activeScriptLanguage}
                 isUnlocked={activeScriptFromAssigned}
                 ideaTitle={activeScriptIdeaTitle}
                 scriptAudio={activeScriptData?.script_audio ?? []}
@@ -1955,6 +1964,14 @@ useEffect(() => {
                 onScriptAudioChange={(urls) => {
                   setActiveScriptData((prev) =>
                     prev ? { ...prev, script_audio: urls } : prev,
+                  );
+                }}
+                onLanguageChange={(lang, script) => {
+                  setActiveScriptLanguage(lang);
+                  setActiveScriptData((prev) =>
+                    prev
+                      ? { ...prev, script, locked: false }
+                      : prev,
                   );
                 }}
               />

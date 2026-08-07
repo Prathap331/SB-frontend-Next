@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation';
 import {
   Check,
+  ChevronDown,
   ChevronRight,
   Download,
   Globe2,
@@ -16,7 +17,18 @@ import {
   Volume2,
   X,
 } from 'lucide-react';
-import { unwrapScriptJson } from '@/lib/script-data';
+import {
+  getScriptTextFromMap,
+  parseScriptLanguageMap,
+  unwrapScriptJson,
+  wrapEnglishScript,
+  type ScriptLanguageMap,
+} from '@/lib/script-data';
+import {
+  DEFAULT_SCRIPT_LANGUAGE,
+  scriptLanguageCode,
+  scriptLanguageLabel,
+} from '@/lib/script-languages';
 import { canUseVoiceCloning, saveClonedVoiceProfile } from '@/lib/voice-clone';
 import { appendScriptAudioUrl } from '@/lib/script-persistence';
 import { SPEECH_SUPPORTED_LANGUAGES } from '@/lib/speech-languages';
@@ -26,23 +38,72 @@ import { ApiService } from '@/services/api';
 import { toast } from 'sonner';
 
 type VoicePreset = {
+  /** Row id from pre-made-voices (string) or "cloned" */
   id: string;
   name: string;
   tags: string;
   /** Soft card wash — warm earth tones like the reference */
   wash: string;
+  /** Preview sample URL from pre-made-voices.audio */
+  audioUrl?: string | null;
+  /** Model id from pre-made-voices."reference-Id" → /generate-speech reference_id */
+  referenceId?: string | null;
 };
 
-const VOICE_PRESETS: VoicePreset[] = [
-  { id: 'sarah', name: 'Sarah', tags: 'Warm · Clear · Natural', wash: 'from-[#f0d9c8] via-[#e8c4a8] to-[#d4a88a]' },
-  { id: 'adrian', name: 'Adrian', tags: 'Deep · Confident · Steady', wash: 'from-[#e8ddd0] via-[#d4c4b0] to-[#b8a090]' },
-  { id: 'maya', name: 'Maya', tags: 'Soft · Empathetic · Calm', wash: 'from-[#f5e6d8] via-[#edd4c0] to-[#c9a88a]' },
-  { id: 'kai', name: 'Kai', tags: 'Energetic · Bright · Modern', wash: 'from-[#efe0d0] via-[#e0c8b0] to-[#c4a078]' },
-  { id: 'narrator', name: 'Narrator', tags: 'Immersive · Nuanced · Warm', wash: 'from-[#f2e4d4] via-[#e8d0b8] to-[#d0b090]' },
-  { id: 'support', name: 'Support', tags: 'Patient · Reassuring · Knowledgeable', wash: 'from-[#ebe0d4] via-[#dcc8b4] to-[#c4a892]' },
-];
+const VOICE_WASHES = [
+  'from-[#f0d9c8] via-[#e8c4a8] to-[#d4a88a]',
+  'from-[#e8ddd0] via-[#d4c4b0] to-[#b8a090]',
+  'from-[#f5e6d8] via-[#edd4c0] to-[#c9a88a]',
+  'from-[#efe0d0] via-[#e0c8b0] to-[#c4a078]',
+  'from-[#f2e4d4] via-[#e8d0b8] to-[#d0b090]',
+  'from-[#ebe0d4] via-[#dcc8b4] to-[#c4a892]',
+  'from-[#f0e6dc] via-[#e2d0c0] to-[#c8b09a]',
+] as const;
 
 const CLONED_VOICE_WASH = 'from-[#e8e4df] via-[#d4cfc8] to-[#b8b2a8]';
+
+type PreMadeVoiceRow = {
+  id: number | string;
+  name?: string | null;
+  audio?: string | null;
+  description?: string | null;
+  'reference-Id'?: string | null;
+  reference_id?: string | null;
+};
+
+function mapPreMadeVoice(row: PreMadeVoiceRow, index: number): VoicePreset | null {
+  const referenceId = String(row['reference-Id'] ?? row.reference_id ?? '').trim();
+  const name = String(row.name ?? '').trim();
+  if (!referenceId || !name) return null;
+  return {
+    id: String(row.id),
+    name,
+    tags: String(row.description ?? '').trim() || 'Premade voice',
+    wash: VOICE_WASHES[index % VOICE_WASHES.length],
+    audioUrl: String(row.audio ?? '').trim() || null,
+    referenceId,
+  };
+}
+
+async function fetchPreMadeVoices(): Promise<VoicePreset[]> {
+  const attempts = [
+    'id, name, audio, description, "reference-Id"',
+    'id, name, audio, description, reference_id',
+  ] as const;
+
+  for (const select of attempts) {
+    const { data, error } = await supabase
+      .from('pre-made-voices')
+      .select(select)
+      .order('id', { ascending: true });
+    if (error || !data) continue;
+    const mapped = (data as PreMadeVoiceRow[])
+      .map((row, i) => mapPreMadeVoice(row, i))
+      .filter((v): v is VoicePreset => Boolean(v));
+    if (mapped.length) return mapped;
+  }
+  return [];
+}
 
 /** Load cloned voice URL + display name from user_profiles. */
 async function fetchClonedVoiceFromProfile(userId: string): Promise<{
@@ -174,6 +235,8 @@ function scriptToSpeechText(raw?: string | null): string {
 
 export function StudioAudioPanel({
   scriptText,
+  scriptsByLanguage,
+  initialLanguage = DEFAULT_SCRIPT_LANGUAGE,
   isUnlocked = false,
   ideaTitle,
   scriptAudio,
@@ -181,18 +244,24 @@ export function StudioAudioPanel({
   freeform = false,
   onGoToScript,
   onScriptAudioChange,
+  onLanguageChange,
 }: {
   scriptText?: string | null;
+  /** Multilingual map from scripts_assigned.script jsonb */
+  scriptsByLanguage?: ScriptLanguageMap | null;
+  /** Language selected on Script tab when navigating here */
+  initialLanguage?: string;
   isUnlocked?: boolean;
   ideaTitle?: string;
   /** Saved speech URLs from scripts_assigned.script_audio */
   scriptAudio?: string[] | null;
   /** scripts_assigned row id used to persist new speech URLs */
-  scriptRowId?: string | null;
+  scriptRowId?: string | number | null;
   /** No topic / unlocked script — empty box, user can type anything */
   freeform?: boolean;
   onGoToScript?: () => void;
   onScriptAudioChange?: (urls: string[]) => void;
+  onLanguageChange?: (language: string, script: string) => void;
 }) {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
@@ -200,7 +269,9 @@ export function StudioAudioPanel({
   const [clonedAudioUrl, setClonedAudioUrl] = useState<string | null>(null);
   const [clonedVoiceName, setClonedVoiceName] = useState<string | null>(null);
   const [cloneOpen, setCloneOpen] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState(VOICE_PRESETS[1].id);
+  const [voicePresets, setVoicePresets] = useState<VoicePreset[]>([]);
+  const [voicesLoading, setVoicesLoading] = useState(true);
+  const [selectedVoice, setSelectedVoice] = useState<string>('');
   const [text, setText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewVoiceId, setPreviewVoiceId] = useState<string | null>(null);
@@ -213,11 +284,19 @@ export function StudioAudioPanel({
   const [playingSavedUrl, setPlayingSavedUrl] = useState<string | null>(null);
   const [languagesOpen, setLanguagesOpen] = useState(false);
   const [langSearch, setLangSearch] = useState('');
+  const [languageMap, setLanguageMap] = useState<ScriptLanguageMap>({});
+  const [selectedLang, setSelectedLang] = useState(
+    (initialLanguage || DEFAULT_SCRIPT_LANGUAGE).toLowerCase(),
+  );
+  const [scriptLangMenuOpen, setScriptLangMenuOpen] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const clonedAudioRef = useRef<HTMLAudioElement | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const savedAudioRef = useRef<HTMLAudioElement | null>(null);
   const langSearchRef = useRef<HTMLInputElement | null>(null);
+  const scriptLangMenuRef = useRef<HTMLDivElement | null>(null);
+  const appliedLangKeyRef = useRef<string>('');
 
   const voiceReady = Boolean(clonedAudioUrl);
   const cloningAllowed = canUseVoiceCloning(userTier);
@@ -231,10 +310,20 @@ export function StudioAudioPanel({
     [clonedVoiceName],
   );
 
-  const unlockedScript = useMemo(
-    () => (isUnlocked ? scriptToSpeechText(scriptText) : ''),
-    [isUnlocked, scriptText],
-  );
+  const availableScriptLangs = useMemo(() => {
+    const keys = Object.keys(languageMap).filter((k) => languageMap[k]?.trim());
+    return keys.sort((a, b) => {
+      if (a === DEFAULT_SCRIPT_LANGUAGE) return -1;
+      if (b === DEFAULT_SCRIPT_LANGUAGE) return 1;
+      return scriptLanguageLabel(a).localeCompare(scriptLanguageLabel(b));
+    });
+  }, [languageMap]);
+
+  const unlockedScript = useMemo(() => {
+    if (!isUnlocked) return '';
+    const fromMap = getScriptTextFromMap(languageMap, selectedLang);
+    return scriptToSpeechText(fromMap || scriptText);
+  }, [isUnlocked, languageMap, selectedLang, scriptText]);
 
   const loadClonedVoice = useCallback(async (
     id: string,
@@ -250,6 +339,31 @@ export function StudioAudioPanel({
       }
     }
     return audioUrl;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setVoicesLoading(true);
+      try {
+        const voices = await fetchPreMadeVoices();
+        if (cancelled) return;
+        setVoicePresets(voices);
+        setSelectedVoice((prev) => {
+          if (prev === 'cloned') return prev;
+          if (prev && voices.some((v) => v.id === prev)) return prev;
+          return voices[0]?.id ?? '';
+        });
+      } catch (err) {
+        console.error('[pre-made-voices]', err);
+        if (!cancelled) toast.error('Could not load voices');
+      } finally {
+        if (!cancelled) setVoicesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -283,19 +397,87 @@ export function StudioAudioPanel({
       cancelled = true;
       clonedAudioRef.current?.pause();
       clonedAudioRef.current = null;
+      previewAudioRef.current?.pause();
+      previewAudioRef.current = null;
       savedAudioRef.current?.pause();
       savedAudioRef.current = null;
     };
   }, [loadClonedVoice]);
 
+  // Load multilingual script from scripts_assigned.script (jsonb) when Audio opens
   useEffect(() => {
-    if (freeform) {
-      // Keep the box empty unless the user typed something.
+    if (freeform || !isUnlocked) {
+      setLanguageMap({});
       return;
     }
+
+    let cancelled = false;
+
+    const pickLang = (map: ScriptLanguageMap, preferred?: string) => {
+      const want = (preferred || DEFAULT_SCRIPT_LANGUAGE).toLowerCase();
+      if (map[want]?.trim()) return want;
+      if (map[DEFAULT_SCRIPT_LANGUAGE]?.trim()) return DEFAULT_SCRIPT_LANGUAGE;
+      const first = Object.keys(map).find((k) => map[k]?.trim());
+      return first || DEFAULT_SCRIPT_LANGUAGE;
+    };
+
+    const applyMap = (map: ScriptLanguageMap) => {
+      if (cancelled) return;
+      setLanguageMap(map);
+      const lang = pickLang(map, initialLanguage);
+      setSelectedLang(lang);
+    };
+
+    (async () => {
+      let map: ScriptLanguageMap = {};
+
+      if (scriptRowId) {
+        const { data, error } = await supabase
+          .from('scripts_assigned')
+          .select('script')
+          .eq('id', scriptRowId)
+          .maybeSingle();
+        if (cancelled) return;
+        if (!error && data?.script != null) {
+          map = parseScriptLanguageMap(data.script);
+        }
+      }
+
+      if (!Object.keys(map).length && scriptsByLanguage && Object.keys(scriptsByLanguage).length) {
+        map = { ...scriptsByLanguage };
+      }
+      if (!Object.keys(map).length && scriptText?.trim()) {
+        map = wrapEnglishScript(scriptText);
+      }
+
+      applyMap(map);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Remounts when switching to Audio tab; re-fetch for latest translations
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [freeform, isUnlocked, scriptRowId]);
+
+  // Keep selected language in sync when Script tab language changes before remount
+  useEffect(() => {
+    if (freeform || !isUnlocked) return;
+    const lang = (initialLanguage || DEFAULT_SCRIPT_LANGUAGE).toLowerCase();
+    if (languageMap[lang]?.trim()) {
+      setSelectedLang(lang);
+    }
+  }, [initialLanguage, languageMap, freeform, isUnlocked]);
+
+  // Fill textarea with the selected language script
+  useEffect(() => {
+    if (freeform || !isUnlocked) return;
     if (!unlockedScript) return;
-    setText((prev) => (prev.trim() ? prev : unlockedScript.slice(0, MAX_CHARS)));
-  }, [unlockedScript, freeform]);
+    const key = `${selectedLang}:${unlockedScript.slice(0, 80)}:${unlockedScript.length}`;
+    if (appliedLangKeyRef.current === key) return;
+    appliedLangKeyRef.current = key;
+    setText(unlockedScript.slice(0, MAX_CHARS));
+  }, [unlockedScript, selectedLang, freeform, isUnlocked]);
 
   useEffect(() => {
     const urls = Array.isArray(scriptAudio)
@@ -320,6 +502,24 @@ export function StudioAudioPanel({
     };
   }, [languagesOpen]);
 
+  useEffect(() => {
+    if (!scriptLangMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!scriptLangMenuRef.current?.contains(e.target as Node)) {
+        setScriptLangMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setScriptLangMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [scriptLangMenuOpen]);
+
   const filteredSpeechLanguages = useMemo(() => {
     const q = langSearch.trim().toLowerCase();
     if (!q) return SPEECH_SUPPORTED_LANGUAGES;
@@ -327,6 +527,20 @@ export function StudioAudioPanel({
       (l) => l.name.toLowerCase().includes(q) || l.code.toLowerCase().includes(q),
     );
   }, [langSearch]);
+
+  const selectScriptLanguage = useCallback(
+    (lang: string) => {
+      const key = lang.toLowerCase();
+      setScriptLangMenuOpen(false);
+      if (!languageMap[key]?.trim()) return;
+      setSelectedLang(key);
+      const next = scriptToSpeechText(languageMap[key]).slice(0, MAX_CHARS);
+      appliedLangKeyRef.current = `${key}:${next.slice(0, 80)}:${next.length}`;
+      setText(next);
+      onLanguageChange?.(key, next);
+    },
+    [languageMap, onLanguageChange],
+  );
 
   const openCloneModal = useCallback(() => {
     if (!cloningAllowed) {
@@ -357,25 +571,35 @@ export function StudioAudioPanel({
     setSelectedVoice(id);
   }, []);
 
-  const stopClonedPreview = useCallback(() => {
+  const stopAllPreviews = useCallback(() => {
     if (clonedAudioRef.current) {
       clonedAudioRef.current.pause();
       clonedAudioRef.current.currentTime = 0;
     }
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.currentTime = 0;
+    }
   }, []);
+
+  const selectedPreset = useMemo(
+    () => voicePresets.find((v) => v.id === selectedVoice) ?? null,
+    [voicePresets, selectedVoice],
+  );
 
   const handlePreviewVoice = useCallback((e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setSelectedVoice(id);
 
-    if (id === 'cloned' && clonedAudioUrl) {
-      if (previewVoiceId === 'cloned') {
-        stopClonedPreview();
-        setPreviewVoiceId(null);
-        return;
-      }
+    if (previewVoiceId === id) {
+      stopAllPreviews();
+      setPreviewVoiceId(null);
+      return;
+    }
 
-      stopClonedPreview();
+    stopAllPreviews();
+
+    if (id === 'cloned' && clonedAudioUrl) {
       const audio = clonedAudioRef.current ?? new Audio();
       audio.src = clonedAudioUrl;
       audio.onended = () => setPreviewVoiceId(null);
@@ -388,14 +612,28 @@ export function StudioAudioPanel({
       return;
     }
 
-    stopClonedPreview();
-    setPreviewVoiceId((prev) => (prev === id ? null : id));
-  }, [clonedAudioUrl, previewVoiceId, stopClonedPreview]);
+    const preset = voicePresets.find((v) => v.id === id);
+    const sampleUrl = preset?.audioUrl?.trim();
+    if (!sampleUrl) {
+      toast.error('No preview available for this voice');
+      return;
+    }
+
+    const audio = previewAudioRef.current ?? new Audio();
+    audio.src = sampleUrl;
+    audio.onended = () => setPreviewVoiceId(null);
+    previewAudioRef.current = audio;
+    void audio.play().catch(() => {
+      toast.error('Could not play voice sample');
+      setPreviewVoiceId(null);
+    });
+    setPreviewVoiceId(id);
+  }, [clonedAudioUrl, previewVoiceId, stopAllPreviews, voicePresets]);
 
   const activeVoiceName =
     selectedVoice === 'cloned'
       ? clonedVoice.name
-      : VOICE_PRESETS.find((v) => v.id === selectedVoice)?.name ?? 'Voice';
+      : selectedPreset?.name ?? 'Voice';
 
   const voiceSelected = Boolean(selectedVoice);
   const scriptReady = Boolean(text.trim());
@@ -403,8 +641,13 @@ export function StudioAudioPanel({
 
   const speechVoiceValue = useCallback(() => {
     if (selectedVoice === 'cloned') return 'user';
-    return selectedVoice;
-  }, [selectedVoice]);
+    return (selectedPreset?.name || 'voice').trim().toLowerCase() || 'voice';
+  }, [selectedVoice, selectedPreset]);
+
+  const speechReferenceId = useCallback(() => {
+    if (selectedVoice === 'cloned') return null;
+    return selectedPreset?.referenceId?.trim() || null;
+  }, [selectedVoice, selectedPreset]);
 
   const openConfirm = useCallback(async () => {
     if (tagsLoading || isGenerating) return;
@@ -448,36 +691,68 @@ export function StudioAudioPanel({
 
     setIsGenerating(true);
     try {
-      const { audioUrl } = await ApiService.generateSpeech({
+      const { audioUrl, raw } = await ApiService.generateSpeech({
         userId,
         script: taggedScript,
         voice: speechVoiceValue(),
+        langCode: freeform ? 'en' : scriptLanguageCode(selectedLang),
+        reference_id: speechReferenceId(),
       });
 
       setConfirmOpen(false);
 
-      if (!audioUrl) {
+      // Prefer parsed URL; fall back to deep scan of raw response
+      const resolvedUrl = (() => {
+        if (typeof audioUrl === 'string' && /^https?:\/\//i.test(audioUrl.trim())) {
+          return audioUrl.trim();
+        }
+        const scan = (v: unknown, depth = 0): string | null => {
+          if (depth > 4 || v == null) return null;
+          if (typeof v === 'string') {
+            const t = v.trim();
+            return /^https?:\/\//i.test(t) ? t : null;
+          }
+          if (Array.isArray(v)) {
+            for (const item of v) {
+              const found = scan(item, depth + 1);
+              if (found) return found;
+            }
+            return null;
+          }
+          if (typeof v === 'object') {
+            for (const val of Object.values(v as Record<string, unknown>)) {
+              const found = scan(val, depth + 1);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        return scan(raw);
+      })();
+
+      if (!resolvedUrl) {
         toast.success('Speech generated');
         return;
       }
 
-      const isPublicUrl = /^https?:\/\//i.test(audioUrl);
-      let nextUrls = savedAudioUrls.includes(audioUrl)
+      const isPublicUrl = /^https?:\/\//i.test(resolvedUrl);
+      let nextUrls = savedAudioUrls.includes(resolvedUrl)
         ? savedAudioUrls
-        : [...savedAudioUrls, audioUrl];
+        : [...savedAudioUrls, resolvedUrl];
 
-      if (isPublicUrl && scriptRowId) {
+      const rowId = scriptRowId != null && scriptRowId !== '' ? String(scriptRowId) : '';
+      if (isPublicUrl && rowId) {
         const save = await appendScriptAudioUrl({
-          scriptRowId,
+          scriptRowId: rowId,
           userId,
-          audioUrl,
+          audioUrl: resolvedUrl,
         });
         if (!save.ok) {
           toast.error(save.error || 'Speech generated, but failed to save');
         } else if (save.urls) {
           nextUrls = save.urls;
         }
-      } else if (isPublicUrl && !scriptRowId && !freeform) {
+      } else if (isPublicUrl && !rowId && !freeform) {
         toast.error('Speech generated, but no unlocked script to save it on');
       } else if (!isPublicUrl) {
         toast.error('Speech generated, but URL is not saveable yet');
@@ -488,10 +763,10 @@ export function StudioAudioPanel({
 
       // Auto-play the newest clip in the generated list
       const audio = savedAudioRef.current ?? new Audio();
-      audio.src = audioUrl;
+      audio.src = resolvedUrl;
       audio.onended = () => setPlayingSavedUrl(null);
       savedAudioRef.current = audio;
-      void audio.play().then(() => setPlayingSavedUrl(audioUrl)).catch(() => {
+      void audio.play().then(() => setPlayingSavedUrl(resolvedUrl)).catch(() => {
         setPlayingSavedUrl(null);
       });
     } catch (err) {
@@ -509,9 +784,11 @@ export function StudioAudioPanel({
     isGenerating,
     userId,
     speechVoiceValue,
+    speechReferenceId,
     savedAudioUrls,
     scriptRowId,
     freeform,
+    selectedLang,
     onScriptAudioChange,
   ]);
 
@@ -629,21 +906,31 @@ export function StudioAudioPanel({
             Voices
           </h3>
           <span className="text-xs text-[#6e6e73] font-medium">
-            {VOICE_PRESETS.length} voices
+            {voicesLoading ? 'Loading…' : `${voicePresets.length} voices`}
           </span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-          {VOICE_PRESETS.map((v) => (
-            <VoiceCard
-              key={v.id}
-              voice={v}
-              active={selectedVoice === v.id}
-              onSelect={() => handleSelectVoice(v.id)}
-              onPreview={(e) => handlePreviewVoice(e, v.id)}
-              isPreviewing={previewVoiceId === v.id}
-            />
-          ))}
-        </div>
+        {voicesLoading ? (
+          <div className="flex items-center justify-center py-10 text-[#6e6e73]">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+        ) : voicePresets.length === 0 ? (
+          <p className="text-sm text-[#6e6e73] py-6 text-center">
+            No premade voices available yet.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+            {voicePresets.map((v) => (
+              <VoiceCard
+                key={v.id}
+                voice={v}
+                active={selectedVoice === v.id}
+                onSelect={() => handleSelectVoice(v.id)}
+                onPreview={(e) => handlePreviewVoice(e, v.id)}
+                isPreviewing={previewVoiceId === v.id}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Voice cloning — Plus / Pro only */}
@@ -714,14 +1001,60 @@ export function StudioAudioPanel({
       {/* Script */}
       <section className="bg-white border border-gray-200 rounded-3xl p-5 sm:p-6 shadow-sm">
         <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="flex items-baseline gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
             <h3 className="text-sm font-semibold text-[#1d1d1f] tracking-tight">
               Script
             </h3>
             {selectedVoice && (
-              <span className="text-[11px] text-[#6e6e73] font-medium truncate">
-                · {activeVoiceName}
+              <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-900 border border-amber-200 px-2.5 py-0.5 text-[11px] font-semibold truncate max-w-[140px]">
+                {activeVoiceName}
               </span>
+            )}
+            {!freeform && isUnlocked && availableScriptLangs.length > 0 && (
+              <div className="relative" ref={scriptLangMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setScriptLangMenuOpen((v) => !v)}
+                  aria-haspopup="listbox"
+                  aria-expanded={scriptLangMenuOpen}
+                  className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f7] hover:bg-gray-200 text-[#1d1d1f] border border-gray-200 px-2.5 py-0.5 text-[11px] font-semibold transition-colors"
+                >
+                  <Globe2 className="w-3 h-3 text-[#6e6e73]" />
+                  {scriptLanguageLabel(selectedLang)}
+                  <ChevronDown
+                    className={`w-3 h-3 text-[#6e6e73] transition-transform ${
+                      scriptLangMenuOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                {scriptLangMenuOpen && (
+                  <ul
+                    role="listbox"
+                    className="absolute left-0 top-full mt-1.5 z-30 min-w-[160px] max-h-56 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg py-1"
+                  >
+                    {availableScriptLangs.map((lang) => {
+                      const active = lang === selectedLang;
+                      return (
+                        <li key={lang}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={active}
+                            onClick={() => selectScriptLanguage(lang)}
+                            className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors ${
+                              active
+                                ? 'bg-[#1d1d1f] text-white'
+                                : 'text-[#1d1d1f] hover:bg-[#f5f5f7]'
+                            }`}
+                          >
+                            {scriptLanguageLabel(lang)}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
           {!freeform && unlockedScript && (
