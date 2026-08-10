@@ -637,7 +637,8 @@ export function StudioAudioPanel({
 
   const voiceSelected = Boolean(selectedVoice);
   const scriptReady = Boolean(text.trim());
-  const canGenerate = voiceSelected && scriptReady;
+  /** Needs an unlocked script + voice + text */
+  const canGenerate = !freeform && isUnlocked && voiceSelected && scriptReady;
 
   const speechVoiceValue = useCallback(() => {
     if (selectedVoice === 'cloned') return 'user';
@@ -881,13 +882,25 @@ export function StudioAudioPanel({
           </div>
           <p className="text-sm text-[#6e6e73] mt-1 font-light">
             {freeform
-              ? 'Write anything below and generate speech — no topic required.'
+              ? 'Select a script first to generate speech.'
               : isUnlocked && unlockedScript
                 ? `Unlocked script${ideaTitle ? ` · ${ideaTitle}` : ''} is ready for voiceover.`
                 : 'Unlock a script to auto-fill text, or write your own lines.'}
           </p>
         </div>
-        {!freeform && !isUnlocked && onGoToScript && (
+        {freeform ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (onGoToScript) onGoToScript();
+              else router.push('/app/content-ideas');
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-medium text-[#1d1d1f] hover:border-gray-300"
+          >
+            Select a script
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        ) : !isUnlocked && onGoToScript ? (
           <button
             type="button"
             onClick={onGoToScript}
@@ -896,7 +909,7 @@ export function StudioAudioPanel({
             Unlock script first
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
-        )}
+        ) : null}
       </div>
 
       {/* Voices */}
@@ -1068,28 +1081,58 @@ export function StudioAudioPanel({
           )}
         </div>
 
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value.slice(0, MAX_CHARS))}
-          placeholder={
-            freeform
-              ? 'Write or paste anything you want spoken…'
-              : 'Paste or type the lines you want spoken…'
-          }
-          className="w-full min-h-[240px] resize-none rounded-2xl border border-gray-200 bg-[#fafafa] px-4 py-3 text-sm text-[#1d1d1f] leading-relaxed placeholder:text-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/15 focus:border-[#1d1d1f]"
-        />
+        {freeform ? (
+          <div className="w-full min-h-[240px] rounded-2xl border border-dashed border-gray-200 bg-[#fafafa] px-6 py-10 flex flex-col items-center justify-center text-center">
+            <Lock className="w-5 h-5 text-[#86868b] mb-3" />
+            <p className="text-sm font-semibold text-[#1d1d1f]">
+              Select a script to generate the speech
+            </p>
+            <p className="text-xs text-[#6e6e73] mt-1.5 max-w-sm font-light">
+              Search a topic and unlock a script first. Speech generation needs a selected script.
+            </p>
+          </div>
+        ) : !isUnlocked ? (
+          <div className="w-full min-h-[240px] rounded-2xl border border-dashed border-gray-200 bg-[#fafafa] px-6 py-10 flex flex-col items-center justify-center text-center">
+            <Lock className="w-5 h-5 text-[#86868b] mb-3" />
+            <p className="text-sm font-semibold text-[#1d1d1f]">
+              Unlock the script
+            </p>
+            <p className="text-xs text-[#6e6e73] mt-1.5 max-w-sm font-light">
+              Unlock this script on the Script tab to load it here and generate speech.
+            </p>
+            {onGoToScript && (
+              <button
+                type="button"
+                onClick={onGoToScript}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-xs font-semibold px-4 py-2.5"
+              >
+                Unlock script
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        ) : (
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value.slice(0, MAX_CHARS))}
+            placeholder="Paste or type the lines you want spoken…"
+            className="w-full min-h-[240px] resize-none rounded-2xl border border-gray-200 bg-[#fafafa] px-4 py-3 text-sm text-[#1d1d1f] leading-relaxed placeholder:text-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/15 focus:border-[#1d1d1f]"
+          />
+        )}
 
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-          <p className="text-[11px] text-[#6e6e73] sm:mr-auto">
-            {text.length.toLocaleString()}/{MAX_CHARS.toLocaleString()} characters
-          </p>
+          {!freeform && isUnlocked && (
+            <p className="text-[11px] text-[#6e6e73] sm:mr-auto">
+              {text.length.toLocaleString()}/{MAX_CHARS.toLocaleString()} characters
+            </p>
+          )}
 
           <button
             type="button"
             disabled={!canGenerate || tagsLoading || isGenerating}
             onClick={() => void openConfirm()}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium px-5 py-2.5 disabled:opacity-50 transition-all"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium px-5 py-2.5 disabled:opacity-50 transition-all sm:ml-auto"
           >
             {tagsLoading ? (
               <>
