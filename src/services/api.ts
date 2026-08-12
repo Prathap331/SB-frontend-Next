@@ -1117,11 +1117,12 @@ export class ApiService {
 
   /**
    * Generate speech audio via POST /generate-speech.
-   * Payload: { userId, script, voice, langCode, reference_id? }
+   * Payload: { userId, script, voice, langCode, reference_id?, durationSeconds }
    * `script` should be the tagged_script from /add-script-tags.
    * `voice` is "user" for cloned voice, or the premade voice name.
    * `langCode` is the ISO language code for the selected script language (e.g. "en", "te").
    * `reference_id` is the premade voice model id from pre-made-voices."reference-Id".
+   * `durationSeconds` is used for credit billing (5 credits / minute).
    */
   static async generateSpeech(params: {
     userId: string;
@@ -1129,13 +1130,16 @@ export class ApiService {
     voice: string;
     langCode: string;
     reference_id?: string | null;
+    durationSeconds: number;
   }): Promise<{ audioUrl: string | null; raw: unknown }> {
     const url = `${this.BASE_URL}/generate-speech`;
-    const body: Record<string, string> = {
+    const durationSeconds = Math.max(0, Math.floor(Number(params.durationSeconds) || 0));
+    const body: Record<string, string | number> = {
       userId: params.userId,
       script: params.script,
       voice: params.voice,
       langCode: params.langCode,
+      durationSeconds,
     };
     const referenceId = (params.reference_id || '').trim();
     if (referenceId) body.reference_id = referenceId;
@@ -1281,7 +1285,7 @@ export class ApiService {
     return {};
   }
 
-  /** Generate a YouTube thumbnail image via /generate-thumbnail (20 credits). */
+  /** Generate a YouTube thumbnail image via /generate-thumbnail (10 credits). */
   static async generateThumbnail(
     payload: GenerateThumbnailPayload,
   ): Promise<GenerateThumbnailResult> {

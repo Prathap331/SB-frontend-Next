@@ -29,6 +29,12 @@ import {
   scriptLanguageCode,
   scriptLanguageLabel,
 } from '@/lib/script-languages';
+import {
+  CREDITS_PER_VOICE_MINUTE,
+  estimateSpeechDurationSeconds,
+  voiceBillableMinutes,
+  voiceCreditsForSeconds,
+} from '@/lib/credits';
 import { canUseVoiceCloning, saveClonedVoiceProfile } from '@/lib/voice-clone';
 import { appendScriptAudioUrl } from '@/lib/script-persistence';
 import { SPEECH_SUPPORTED_LANGUAGES } from '@/lib/speech-languages';
@@ -241,6 +247,7 @@ export function StudioAudioPanel({
   ideaTitle,
   scriptAudio,
   scriptRowId,
+  scriptDurationMinutes,
   freeform = false,
   onGoToScript,
   onScriptAudioChange,
@@ -257,6 +264,8 @@ export function StudioAudioPanel({
   scriptAudio?: string[] | null;
   /** scripts_assigned row id used to persist new speech URLs */
   scriptRowId?: string | number | null;
+  /** Unlocked script length in minutes (for durationSeconds / credit estimate) */
+  scriptDurationMinutes?: number | null;
   /** No topic / unlocked script — empty box, user can type anything */
   freeform?: boolean;
   onGoToScript?: () => void;
@@ -290,7 +299,6 @@ export function StudioAudioPanel({
   );
   const [scriptLangMenuOpen, setScriptLangMenuOpen] = useState(false);
 
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const clonedAudioRef = useRef<HTMLAudioElement | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const savedAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -640,6 +648,13 @@ export function StudioAudioPanel({
   /** Needs an unlocked script + voice + text */
   const canGenerate = !freeform && isUnlocked && voiceSelected && scriptReady;
 
+  const speechDurationSeconds = useMemo(
+    () => estimateSpeechDurationSeconds(text, scriptDurationMinutes),
+    [text, scriptDurationMinutes],
+  );
+  const speechBillableMinutes = voiceBillableMinutes(speechDurationSeconds);
+  const speechCreditsCost = voiceCreditsForSeconds(speechDurationSeconds);
+
   const speechVoiceValue = useCallback(() => {
     if (selectedVoice === 'cloned') return 'user';
     return (selectedPreset?.name || 'voice').trim().toLowerCase() || 'voice';
@@ -698,6 +713,7 @@ export function StudioAudioPanel({
         voice: speechVoiceValue(),
         langCode: freeform ? 'en' : scriptLanguageCode(selectedLang),
         reference_id: speechReferenceId(),
+        durationSeconds: speechDurationSeconds,
       });
 
       setConfirmOpen(false);
@@ -761,6 +777,9 @@ export function StudioAudioPanel({
 
       setSavedAudioUrls(nextUrls);
       onScriptAudioChange?.(nextUrls);
+      try {
+        window.dispatchEvent(new Event('creditsUpdated'));
+      } catch { /* ignore */ }
 
       // Auto-play the newest clip in the generated list
       const audio = savedAudioRef.current ?? new Audio();
@@ -786,6 +805,7 @@ export function StudioAudioPanel({
     userId,
     speechVoiceValue,
     speechReferenceId,
+    speechDurationSeconds,
     savedAudioUrls,
     scriptRowId,
     freeform,
@@ -1070,15 +1090,6 @@ export function StudioAudioPanel({
               </div>
             )}
           </div>
-          {!freeform && unlockedScript && (
-            <button
-              type="button"
-              onClick={() => setText(unlockedScript.slice(0, MAX_CHARS))}
-              className="text-[11px] font-medium text-[#1d1d1f] underline underline-offset-2 flex-shrink-0"
-            >
-              Use unlocked script
-            </button>
-          )}
         </div>
 
         {freeform ? (
@@ -1112,19 +1123,32 @@ export function StudioAudioPanel({
             )}
           </div>
         ) : (
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value.slice(0, MAX_CHARS))}
-            placeholder="Paste or type the lines you want spoken…"
-            className="w-full min-h-[240px] resize-none rounded-2xl border border-gray-200 bg-[#fafafa] px-4 py-3 text-sm text-[#1d1d1f] leading-relaxed placeholder:text-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/15 focus:border-[#1d1d1f]"
-          />
+          <>
+            {!freeform && isUnlocked && speechBillableMinutes > 0 && (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+                <p className="text-xs text-amber-950 font-medium">
+                  Voice generation costs{' '}
+                  <span className="font-semibold">{speechCreditsCost} credits</span>
+                  {' '}for ~{speechBillableMinutes} min
+                  <span className="text-amber-800/80 font-normal">
+                    {' '}({CREDITS_PER_VOICE_MINUTE} credits / min)
+                  </span>
+                </p>
+              </div>
+            )}
+            <div
+              className="w-full min-h-[240px] resize-none rounded-2xl border border-gray-200 bg-[#f5f5f7] px-4 py-3 text-sm text-[#1d1d1f] leading-relaxed whitespace-pre-wrap overflow-y-auto select-text"
+              aria-readonly="true"
+            >
+              {text.trim() ? text : 'Script will appear here after unlock.'}
+            </div>
+          </>
         )}
 
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
           {!freeform && isUnlocked && (
             <p className="text-[11px] text-[#6e6e73] sm:mr-auto">
-              {text.length.toLocaleString()}/{MAX_CHARS.toLocaleString()} characters
+              Script locked · {text.length.toLocaleString()} characters
             </p>
           )}
 
@@ -1305,6 +1329,18 @@ export function StudioAudioPanel({
                       : tagsReady
                         ? 'Script tags ready'
                         : tagsError || 'Waiting to prepare script tags'}
+                  </p>
+                </div>
+              </li>
+              <li className="flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50/80 px-3.5 py-3">
+                <span className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 text-amber-800 text-[10px] font-bold">
+                  ¢
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-[#1d1d1f]">Credits</p>
+                  <p className="text-[11px] text-[#6e6e73] mt-0.5">
+                    {speechCreditsCost} credits for ~{speechBillableMinutes} min
+                    {' '}({CREDITS_PER_VOICE_MINUTE} credits / min)
                   </p>
                 </div>
               </li>

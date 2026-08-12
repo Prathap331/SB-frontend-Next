@@ -27,6 +27,7 @@ import {
   type RecentTopicItem,
 } from '@/lib/recent-topics';
 import type { ProfileTabId } from '@/app/profile/page';
+import { planCreditsFallback } from '@/lib/credits';
 
 const AVATAR_COLORS = [
   '#16a34a', '#1e3a5f', '#1a5276', '#145a32', '#6c3483',
@@ -108,7 +109,7 @@ export default function StudioSidebar({
   const [userName, setUserName] = useState('Creator');
   const [plan, setPlan] = useState('Free plan');
   const [creditsLeft, setCreditsLeft] = useState(0);
-  const [creditsTotal, setCreditsTotal] = useState(150);
+  const [creditsTotal, setCreditsTotal] = useState(100);
   const [userId, setUserId] = useState<string | null>(null);
   const [recentExpanded, setRecentExpanded] = useState(false);
 
@@ -184,11 +185,10 @@ export default function StudioSidebar({
 
       if (cancelled) return;
 
-      const fallbacks: Record<string, number> = { free: 150, plus: 500, pro: 1200 };
       const fromDb = planRow?.mins != null ? Number(planRow.mins) : NaN;
       const total = Number.isFinite(fromDb) && fromDb > 0
         ? fromDb
-        : (fallbacks[planName.toLowerCase()] ?? 150);
+        : planCreditsFallback(planName);
       setCreditsTotal(total);
     };
 
@@ -220,7 +220,7 @@ export default function StudioSidebar({
   const displayName = isLoggedIn ? userName : 'GO';
   const displayPlan = isLoggedIn ? plan : 'Free plan';
   const displayCreditsLeft = isLoggedIn ? creditsLeft : 0;
-  const displayCreditsTotal = isLoggedIn ? creditsTotal : 150;
+  const displayCreditsTotal = isLoggedIn ? creditsTotal : 100;
   // Full bar when user credits >= plan allowance
   const displayPct =
     displayCreditsLeft >= displayCreditsTotal

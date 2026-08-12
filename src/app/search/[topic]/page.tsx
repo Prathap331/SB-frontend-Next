@@ -54,6 +54,8 @@ import {
   studioPathSegmentFromPathname,
   studioTabFromPathname,
 } from '@/lib/keyword-routes';
+import { maxScriptMinutesForPlan } from '@/lib/credits';
+import { toast } from 'sonner';
 
 const SCRIPT_GENERATION_STEPS = [
   'Understanding your topic',
@@ -621,6 +623,27 @@ export default function SearchTopicPage() {
   const [scriptGenReady, setScriptGenReady] = useState(false);
   const [scriptGenError, setScriptGenError] = useState<string | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
+  const [userTier, setUserTier] = useState<string>('Free');
+  const maxScriptMinutes = maxScriptMinutesForPlan(userTier);
+
+  // Load plan tier for script length limits
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await sbClient.auth.getSession();
+      if (!session?.user?.id || cancelled) return;
+      const { data: profile } = await sbClient
+        .from('user_profiles')
+        .select('user_tier')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      setUserTier((profile?.user_tier || 'Free').trim() || 'Free');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /** Prefer the script's topic when opened from vault / my-scripts */
   const effectiveTopic = (
@@ -1477,6 +1500,24 @@ useEffect(() => {
       return;
     }
 
+    const requested = Number(videoLengths[idea.id] || 0);
+    if (!Number.isFinite(requested) || requested < 1) {
+      toast.error('Enter a valid script length in minutes');
+      return;
+    }
+    if (requested > maxScriptMinutes) {
+      toast.error(
+        `Your ${userTier} plan allows up to ${maxScriptMinutes} min scripts. Upgrade for longer scripts.`,
+        {
+          action: {
+            label: 'Upgrade',
+            onClick: () => router.push('/pricing'),
+          },
+        },
+      );
+      return;
+    }
+
     const { data: { session } } = await sbClient.auth.getSession();
     if (!session) {
       router.push('/auth');
@@ -1488,7 +1529,7 @@ useEffect(() => {
       title: idea.title,
       description: idea.description,
       topic,
-      time: Number(videoLengths[idea.id] || 10),
+      time: Math.min(requested, maxScriptMinutes),
     };
 
     // Keep the full idea list in saved_ideas intact — never overwrite with a
@@ -1564,7 +1605,18 @@ useEffect(() => {
   };
 
   const handleVideoLengthChange = (id: number, value: string) => {
-    setVideoLengths((prev) => ({ ...prev, [id]: value }));
+    // Allow empty while typing; clamp numeric values to plan max
+    if (value.trim() === '') {
+      setVideoLengths((prev) => ({ ...prev, [id]: '' }));
+      return;
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+      setVideoLengths((prev) => ({ ...prev, [id]: value }));
+      return;
+    }
+    const clamped = Math.min(Math.max(1, n), maxScriptMinutes);
+    setVideoLengths((prev) => ({ ...prev, [id]: String(clamped) }));
   };
 
   const stageCompleted = {
@@ -1921,13 +1973,15 @@ useEffect(() => {
                                 </label>
                                 <Input
                                   type="number"
-                                  placeholder="13-15"
+                                  placeholder={userTier.toLowerCase().includes('free') ? `1-${maxScriptMinutes}` : `1-${maxScriptMinutes}`}
                                   value={videoLengths[statement.id] || ''}
                                   onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
                                   className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
                                   min={1}
-                                  max={60}
+                                  max={maxScriptMinutes}
+                                  title={`${userTier} plan: max ${maxScriptMinutes} min`}
                                 />
+                               
                               </div>
                               <button
                                 type="button"
@@ -2019,13 +2073,17 @@ useEffect(() => {
                                         </label>
                                         <Input
                                           type="number"
-                                          placeholder="13-15"
+                                          placeholder={`1-${maxScriptMinutes}`}
                                           value={videoLengths[ideaId] || ''}
                                           onChange={(e) => handleVideoLengthChange(ideaId, e.target.value)}
                                           className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
                                           min={1}
-                                          max={60}
+                                          max={maxScriptMinutes}
+                                          title={`${userTier} plan: max ${maxScriptMinutes} min`}
                                         />
+                                        <p className="text-[9px] text-gray-400 mt-0.5 text-center">
+                                          max {maxScriptMinutes}m
+                                        </p>
                                       </div>
                                       <button
                                         type="button"
@@ -2127,6 +2185,7 @@ useEffect(() => {
                 ideaTitle={activeScriptIdeaTitle}
                 scriptAudio={activeScriptData?.script_audio ?? []}
                 scriptRowId={activeScriptFromAssigned ? activeScriptRowId : null}
+                scriptDurationMinutes={activeScriptDuration}
                 onGoToScript={() => setStudioTab('script')}
                 onScriptAudioChange={(urls) => {
                   setActiveScriptData((prev) =>

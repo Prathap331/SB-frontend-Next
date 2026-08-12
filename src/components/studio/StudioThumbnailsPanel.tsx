@@ -25,7 +25,7 @@ import {
   saveGeneratedThumbnailToScript,
   type GeneratedThumbnailItem,
 } from '@/lib/script-persistence';
-import { CREDITS_PER_THUMBNAIL } from '@/components/CreditsHowItWorks';
+import { CREDITS_PER_THUMBNAIL } from '@/lib/credits';
 import {
   IMAGE_TYPES,
   MAX_IMAGE_SIZE,

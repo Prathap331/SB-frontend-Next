@@ -12,6 +12,7 @@ import {
 } from '@/lib/thumbnails';
 import { getBackendUrl } from '@/lib/backend';
 import { buildStudioTabPath } from '@/lib/keyword-routes';
+import { planCreditsFallback } from '@/lib/credits';
 
 type ProfileData = {
   name: string;
@@ -633,11 +634,10 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
           .ilike('plan_name', planName)
           .maybeSingle();
 
-        const fallbacks: Record<string, number> = { free: 150, plus: 500, pro: 1200 };
         const fromDb = planRow?.mins != null ? Number(planRow.mins) : NaN;
         const planCredits = Number.isFinite(fromDb) && fromDb > 0
           ? fromDb
-          : (fallbacks[planName.toLowerCase()] ?? 150);
+          : planCreditsFallback(planName);
 
         setProfileCredits({ plan: planName, creditsRemaining, planCredits });
 
