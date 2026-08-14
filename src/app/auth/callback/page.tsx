@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2, Globe, MapPin, ChevronLeft, ChevronDown, Search,
-  Upload, FileText, Info, AlertCircle, CheckCircle2, Phone, Camera, X, Mic,
+  Upload, FileText, Info, AlertCircle, CheckCircle2, Camera, X, Mic,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import {
@@ -12,6 +12,9 @@ import {
 } from '@/lib/thumbnails';
 import { getBackendUrl } from '@/lib/backend';
 import { buildStudioHomePath } from '@/lib/keyword-routes';
+import PhoneInput from '@/components/PhoneInput';
+import { isCompletePhone } from '@/lib/country-codes';
+
 type CBStep = 1 | 2 | 3 | 4 | 5;
 type AppStatus = 'loading' | 'form' | 'redirecting';
 
@@ -150,7 +153,7 @@ export default function AuthCallback() {
 
   // ── Step 1 submit: save language + categories ────────────────────────────
   const handleStep1 = async () => {
-    if (!phone.trim() || !selectedLanguage) return;
+    if (!isCompletePhone(phone) || !selectedLanguage) return;
     setIsSaving(true);
     setError('');
     try {
@@ -430,17 +433,12 @@ export default function AuthCallback() {
                     <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">
                       Phone number <span className="text-red-500">*</span>
                     </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6e6e73] w-4 h-4" />
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={e => setPhone(e.target.value)}
-                        placeholder="+91 98765 43210"
-                        disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm placeholder-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f] transition-all disabled:opacity-60"
-                      />
-                    </div>
+                    <PhoneInput
+                      value={phone}
+                      onChange={setPhone}
+                      disabled={isSaving}
+                      placeholder="98765 43210"
+                    />
                   </div>
 
                   {/* Language picker */}
@@ -530,17 +528,17 @@ export default function AuthCallback() {
                   <button
                     type="button"
                     onClick={handleStep1}
-                    disabled={!phone.trim() || !selectedLanguage || isSaving}
+                    disabled={!isCompletePhone(phone) || !selectedLanguage || isSaving}
                     className="w-full py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-sm font-medium transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : 'Continue →'}
                   </button>
-                  {(!phone.trim() || !selectedLanguage) && (
+                  {(!isCompletePhone(phone) || !selectedLanguage) && (
                     <p className="text-center text-[11px] text-[#6e6e73]">
-                      {!phone.trim() ? 'Please enter your phone number' : 'Please select a language to continue'}
+                      {!isCompletePhone(phone) ? 'Please enter your phone number' : 'Please select a language to continue'}
                     </p>
                   )}
-                  {phone.trim() && selectedLanguage && selectedCategories.length === 0 && (
+                  {isCompletePhone(phone) && selectedLanguage && selectedCategories.length === 0 && (
                     <button type="button" onClick={handleStep1} disabled={isSaving} className="w-full py-1.5 text-xs text-[#6e6e73] hover:text-[#1d1d1f] transition-colors">
                       Skip categories
                     </button>

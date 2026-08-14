@@ -84,7 +84,7 @@ function numOrNull(value: unknown): number | null {
 
 export function mapDbPlan(
   row: DBSubscriptionPlan,
-  currency: PricingCurrency = 'INR',
+  currency: PricingCurrency = 'USD',
 ): PricingPlan {
   const key = row.plan_name.trim().toLowerCase();
   const isFree = key === 'free' || Number(row.plan_amount) === 0;

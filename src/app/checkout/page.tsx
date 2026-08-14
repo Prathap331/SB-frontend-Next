@@ -11,6 +11,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { processPayment } from '@/services/payment';
 import { toast } from 'sonner';
 import Header from '@/components/Header';
+import PhoneInput from '@/components/PhoneInput';
+import { isCompletePhone } from '@/lib/country-codes';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -59,7 +61,7 @@ function CheckoutInner() {
   const params = useSearchParams();
   const tier = params.get('tier') ?? '';
   const billing = (params.get('billing') === 'annual' ? 'annual' : 'monthly') as 'monthly' | 'annual';
-  const currency = (params.get('currency') === 'USD' ? 'USD' : 'INR') as 'INR' | 'USD';
+  const currency = (params.get('currency') === 'INR' ? 'INR' : 'USD') as 'INR' | 'USD';
 
   const [dbPlan, setDbPlan] = useState<DBPlanRow | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
@@ -210,7 +212,7 @@ function CheckoutInner() {
   const totalAmountDisplay = formatPrice(totalAmount, { alwaysCents: true });
 
   const handlePay = async () => {
-    if (!phone.trim() || !address.trim()) {
+    if (!isCompletePhone(phone) || !address.trim()) {
       setModalPhone(phone);
       setModalAddress(address);
       setShowMissingModal(true);
@@ -255,6 +257,7 @@ function CheckoutInner() {
           }
         },
         currency,
+        billing,
       );
     } catch (err: any) {
       setIsProcessing(false);
@@ -265,7 +268,7 @@ function CheckoutInner() {
   };
 
   const handleSaveAndPay = async () => {
-    if (!modalPhone.trim() || !modalAddress.trim()) {
+    if (!isCompletePhone(modalPhone) || !modalAddress.trim()) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -539,19 +542,15 @@ function CheckoutInner() {
 
             {/* Missing field inputs */}
             <div className="flex flex-col gap-3">
-              {!phone.trim() && (
+              {!isCompletePhone(phone) && (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-[#1d1d1f]">Phone number</label>
-                  <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2.5 focus-within:border-[#1d1d1f] transition-colors">
-                    <Phone className="w-3.5 h-3.5 text-[#6e6e73] flex-shrink-0" />
-                    <input
-                      type="tel"
-                      value={modalPhone}
-                      onChange={e => setModalPhone(e.target.value)}
-                      placeholder="+91 98765 43210"
-                      className="flex-1 text-sm text-[#1d1d1f] bg-transparent outline-none placeholder:text-[#6e6e73] placeholder:font-light"
-                    />
-                  </div>
+                  <PhoneInput
+                    value={modalPhone}
+                    onChange={setModalPhone}
+                    placeholder="98765 43210"
+                    variant="outline"
+                  />
                 </div>
               )}
               {!address.trim() && (

@@ -2,9 +2,13 @@
 
 import { getBackendUrl } from '@/lib/backend';
 
+export type BillingCycle = 'monthly' | 'annual';
+
 export interface CreateOrderRequest {
   amount: number;
   currency: string;
+  billing_cycle: BillingCycle;
+  receipt: string;
   target_tier: string;
 }
 
@@ -114,17 +118,33 @@ export async function checkServerHealth(
   throw new Error('Server is taking longer than expected to start. Please try again in a moment.');
 }
 
+function buildReceipt(targetTier: string): string {
+  // Razorpay receipt max length is 40
+  const slug = targetTier.replace(/[^a-z0-9]/gi, '').slice(0, 8).toLowerCase() || 'plan';
+  return `rcpt_${slug}_${Date.now()}`.slice(0, 40);
+}
+
 // Create order on backend
 // amount is in major units (INR rupees or USD dollars); backend converts to minor units
 export async function createOrder(
   amount: number,
   targetTier: string,
-  currency: 'INR' | 'USD' = 'INR',
+  currency: 'INR' | 'USD' = 'USD',
+  billingCycle: BillingCycle = 'monthly',
+  receipt?: string,
 ): Promise<CreateOrderResponse> {
   const token = getAuthToken();
   if (!token) {
     throw new Error('User not authenticated. Please login first.');
   }
+
+  const payload: CreateOrderRequest = {
+    amount,
+    currency,
+    billing_cycle: billingCycle,
+    receipt: receipt || buildReceipt(targetTier),
+    target_tier: targetTier,
+  };
 
   const response = await fetch(`${getBackendUrl()}/payments/create-order`, {
     method: 'POST',
@@ -132,11 +152,7 @@ export async function createOrder(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      amount,
-      currency,
-      target_tier: targetTier,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -208,14 +224,15 @@ export async function processPayment(
   targetTier: string,
   onSuccess: (paymentId: string, orderId: string) => void,
   onFailure: (error: string) => void,
-  currency: 'INR' | 'USD' = 'INR',
+  currency: 'INR' | 'USD' = 'USD',
+  billingCycle: BillingCycle = 'monthly',
 ): Promise<void> {
   try {
     // Step 0: Check if server is ready (waits for status 200)
     await checkServerHealth();
     
     // Step 1: Create order on backend
-    const orderData = await createOrder(amount, targetTier, currency);
+    const orderData = await createOrder(amount, targetTier, currency, billingCycle);
     
     // Step 2: Open Razorpay checkout (amount from backend is in minor units)
     await initiatePayment(

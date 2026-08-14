@@ -13,6 +13,7 @@ import {
 import { getBackendUrl } from '@/lib/backend';
 import { buildStudioTabPath } from '@/lib/keyword-routes';
 import { planCreditsFallback } from '@/lib/credits';
+import PhoneInput from '@/components/PhoneInput';
 
 type ProfileData = {
   name: string;
@@ -737,7 +738,6 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
   const profileFields: { id: string; label: string; type: string; key: keyof ProfileData; readOnly?: boolean }[] = [
     { id: 'name',           label: 'Full Name',       type: 'text',   key: 'name' },
     { id: 'email',          label: 'Email',           type: 'email',  key: 'email',          readOnly: true },
-    { id: 'phone',          label: 'Phone',           type: 'text',   key: 'phone' },
     { id: 'youtube',        label: 'YouTube Link',    type: 'url',    key: 'youtubeLink' },
     { id: 'instagram',      label: 'Instagram Link',  type: 'url',    key: 'instagramLink' },
     { id: 'facebook',       label: 'Facebook Link',   type: 'url',    key: 'facebookLink' },
@@ -857,7 +857,57 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {profileFields.map(f => {
+                      {/* Name + Email first */}
+                      {profileFields.filter(f => f.id === 'name' || f.id === 'email').map(f => {
+                        const isLocked = f.readOnly || (!isEditing);
+                        const value = isEditing ? editData[f.key] : profileData[f.key];
+                        return (
+                          <div key={f.id}>
+                            <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5 flex items-center gap-1.5">
+                              {f.label}
+                              {f.readOnly && (
+                                <span className="text-[9px] font-semibold bg-gray-100 text-[#6e6e73] px-1.5 py-0.5 rounded-md tracking-wide">LOCKED</span>
+                              )}
+                            </label>
+                            <input
+                              id={f.id}
+                              type={f.type}
+                              value={value as string}
+                              onChange={e => !f.readOnly && setEditData({ ...editData, [f.key]: e.target.value })}
+                              disabled={isLocked}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all
+                                ${f.readOnly
+                                  ? 'border-gray-100 bg-gray-50 text-[#6e6e73] cursor-not-allowed'
+                                  : isEditing
+                                  ? 'border-gray-200 bg-white text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/20 focus:border-[#1d1d1f]'
+                                  : 'border-gray-200 bg-[#f5f5f7] text-[#1d1d1f]'
+                                }`}
+                            />
+                          </div>
+                        );
+                      })}
+
+                      {/* Phone with country code */}
+                      <div>
+                        <label className="block text-xs font-medium text-[#1d1d1f] mb-1.5">Phone</label>
+                        {isEditing ? (
+                          <PhoneInput
+                            id="phone"
+                            value={editData.phone}
+                            onChange={v => setEditData({ ...editData, phone: v })}
+                            variant="outline"
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={profileData.phone}
+                            disabled
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] text-sm"
+                          />
+                        )}
+                      </div>
+
+                      {profileFields.filter(f => f.id !== 'name' && f.id !== 'email').map(f => {
                         const isLocked = f.readOnly || (!isEditing);
                         const value = isEditing ? editData[f.key] : profileData[f.key];
                         return (
