@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ExternalLink, FileText, Loader2, Clock } from 'lucide-react';
 import StudioShell from '@/components/studio/StudioShell';
 import { supabase } from '@/lib/supabaseClient';
-import { buildStudioTabPath, setStudioTopicCookie } from '@/lib/keyword-routes';
+import { buildStudioTabPath, setStudioTopicCookie, type StudioTabId } from '@/lib/keyword-routes';
 
 type ScriptRow = {
   id: string;
@@ -16,8 +16,24 @@ type ScriptRow = {
   created_at: string;
 };
 
+function resolveReturnTab(raw: string | null): StudioTabId {
+  if (
+    raw === 'audio' ||
+    raw === 'script' ||
+    raw === 'metadata' ||
+    raw === 'thumbnails' ||
+    raw === 'ideas' ||
+    raw === 'broll'
+  ) {
+    return raw;
+  }
+  return 'script';
+}
+
 export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTab = resolveReturnTab(searchParams.get('returnTab'));
   const [myScripts, setMyScripts] = useState<ScriptRow[]>([]);
   const [isLoadingScripts, setIsLoadingScripts] = useState(true);
 
@@ -44,6 +60,17 @@ export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}
     fetchScripts();
   }, [router]);
 
+  const openScript = (script: ScriptRow) => {
+    if (script.topic?.trim()) setStudioTopicCookie(script.topic.trim());
+    router.push(
+      buildStudioTabPath(returnTab, {
+        topic: script.topic,
+        ideaTitle: script.title || script.topic || 'Script',
+        scriptId: script.id,
+      }),
+    );
+  };
+
   return (
     <div>
       <div className="mb-6">
@@ -54,7 +81,9 @@ export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}
           My Scripts
         </h1>
         <p className={`${embedded ? 'text-base sm:text-lg' : 'text-sm'} text-[#6e6e73] font-light`}>
-          Scripts you&apos;ve unlocked — ready to produce
+          {returnTab === 'audio'
+            ? 'Choose a script to generate speech'
+            : "Scripts you've unlocked — ready to produce"}
         </p>
       </div>
 
@@ -63,7 +92,9 @@ export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}
           <div>
             <h2 className="text-sm font-semibold text-[#1d1d1f]">Unlocked scripts</h2>
             <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">
-              View and open scripts saved to your account
+              {returnTab === 'audio'
+                ? 'Select a script to load it in the Audio tab'
+                : 'View and open scripts saved to your account'}
             </p>
           </div>
           {!isLoadingScripts && myScripts.length > 0 && (
@@ -130,20 +161,11 @@ export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (script.topic?.trim()) setStudioTopicCookie(script.topic.trim());
-                      router.push(
-                        buildStudioTabPath('script', {
-                          topic: script.topic,
-                          ideaTitle: script.title || script.topic || 'Script',
-                          scriptId: script.id,
-                        }),
-                      );
-                    }}
+                    onClick={() => openScript(script)}
                     className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-4 py-2 rounded-xl transition-colors flex-shrink-0"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    View Script
+                    {returnTab === 'audio' ? 'Use for audio' : 'View Script'}
                   </button>
                 </div>
               );
@@ -155,10 +177,26 @@ export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}
   );
 }
 
-export default function MyScriptsPage() {
+function MyScriptsPageInner() {
   return (
     <StudioShell>
       <MyScriptsPanel embedded />
     </StudioShell>
+  );
+}
+
+export default function MyScriptsPage() {
+  return (
+    <Suspense
+      fallback={
+        <StudioShell>
+          <div className="flex items-center justify-center py-16 text-[#6e6e73]">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+        </StudioShell>
+      }
+    >
+      <MyScriptsPageInner />
+    </Suspense>
   );
 }

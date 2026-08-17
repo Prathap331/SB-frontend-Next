@@ -808,17 +808,21 @@ export default function SearchTopicPage() {
           } catch { /* ignore */ }
         }
 
-        // Only normalize placeholder /app/script/script?... → real title (no remount loop)
-        const currentIdea = studioPathSegmentFromPathname(pathname);
-        if (!currentIdea || currentIdea === 'script' || currentIdea === 'idea') {
-          router.replace(
-            buildStudioTabPath('script', {
-              topic: rowTopic || null,
-              ideaTitle: title,
-              scriptId: scriptIdParam,
-            }),
-            { scroll: false },
-          );
+        // Only normalize placeholder /app/script/script?... → real title (no remount loop).
+        // Do not rewrite when opened on audio (or other non-script tabs) via ?scriptId=
+        const tabFromPath = studioTabFromPathname(pathname);
+        if (tabFromPath === 'script' || tabFromPath === null) {
+          const currentIdea = studioPathSegmentFromPathname(pathname);
+          if (!currentIdea || currentIdea === 'script' || currentIdea === 'idea') {
+            router.replace(
+              buildStudioTabPath('script', {
+                topic: rowTopic || null,
+                ideaTitle: title,
+                scriptId: scriptIdParam,
+              }),
+              { scroll: false },
+            );
+          }
         }
       };
 
@@ -1815,6 +1819,9 @@ useEffect(() => {
                     freeform
                     scriptAudio={[]}
                     scriptRowId={null}
+                    onSelectScript={() => {
+                      router.push('/app/my-scripts?returnTab=audio');
+                    }}
                     onGoToScript={() => {
                       setStudioTab('ideas');
                       searchInputRef.current?.focus();
@@ -2187,6 +2194,9 @@ useEffect(() => {
                 scriptRowId={activeScriptFromAssigned ? activeScriptRowId : null}
                 scriptDurationMinutes={activeScriptDuration}
                 onGoToScript={() => setStudioTab('script')}
+                onSelectScript={() => {
+                  router.push('/app/my-scripts?returnTab=audio');
+                }}
                 onScriptAudioChange={(urls) => {
                   setActiveScriptData((prev) =>
                     prev ? { ...prev, script_audio: urls } : prev,

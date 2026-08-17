@@ -250,6 +250,7 @@ export function StudioAudioPanel({
   scriptDurationMinutes,
   freeform = false,
   onGoToScript,
+  onSelectScript,
   onScriptAudioChange,
   onLanguageChange,
 }: {
@@ -269,6 +270,8 @@ export function StudioAudioPanel({
   /** No topic / unlocked script — empty box, user can type anything */
   freeform?: boolean;
   onGoToScript?: () => void;
+  /** Freeform empty state — open My Scripts to pick a script for audio */
+  onSelectScript?: () => void;
   onScriptAudioChange?: (urls: string[]) => void;
   onLanguageChange?: (language: string, script: string) => void;
 }) {
@@ -908,19 +911,7 @@ export function StudioAudioPanel({
                 : 'Unlock a script to auto-fill text, or write your own lines.'}
           </p>
         </div>
-        {freeform ? (
-          <button
-            type="button"
-            onClick={() => {
-              if (onGoToScript) onGoToScript();
-              else router.push('/app/content-ideas');
-            }}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-medium text-[#1d1d1f] hover:border-gray-300"
-          >
-            Select a script
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        ) : !isUnlocked && onGoToScript ? (
+        {!freeform && !isUnlocked && onGoToScript ? (
           <button
             type="button"
             onClick={onGoToScript}
@@ -1099,8 +1090,19 @@ export function StudioAudioPanel({
               Select a script to generate the speech
             </p>
             <p className="text-xs text-[#6e6e73] mt-1.5 max-w-sm font-light">
-              Search a topic and unlock a script first. Speech generation needs a selected script.
+              Pick an unlocked script from My Scripts to load it here and generate speech.
             </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (onSelectScript) onSelectScript();
+                else router.push('/app/my-scripts?returnTab=audio');
+              }}
+              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#1d1d1f] hover:bg-black text-white text-xs font-semibold px-4 py-2.5"
+            >
+              Select a script
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         ) : !isUnlocked ? (
           <div className="w-full min-h-[240px] rounded-2xl border border-dashed border-gray-200 bg-[#fafafa] px-6 py-10 flex flex-col items-center justify-center text-center">
