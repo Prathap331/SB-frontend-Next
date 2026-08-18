@@ -10,6 +10,7 @@ import {
   ChevronUp,
   SlidersHorizontal,
   Film,
+  Image as ImageIcon,
   AlertCircle,
   RectangleHorizontal,
   RectangleVertical,
@@ -27,13 +28,15 @@ import {
 } from 'lucide-react';
 import {
   ApiService,
+  type BrollMediaItem,
   type BrollOrientation,
   type BrollSize,
-  type BrollVideo,
+  type BrollVideoFile,
 } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
 
 type OrientationFilter = 'any' | BrollOrientation;
+type MediaTypeFilter = 'any' | 'video' | 'photo';
 type PeopleFilter = 'any' | '0' | '1' | '2' | '3+';
 type AgeFilter = 'any' | 'baby' | 'child' | 'teenager' | 'adult' | 'senior';
 type FpsFilter = 'any' | '24' | '25' | '30' | '50' | '60+';
@@ -64,44 +67,51 @@ function parseFpsFromLink(link: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-function videoFps(video: BrollVideo): number | null {
-  for (const file of video.video_files) {
+function mediaFps(item: BrollMediaItem): number | null {
+  for (const file of item.video_files) {
     const fps = parseFpsFromLink(file.link);
     if (fps != null) return fps;
   }
   return null;
 }
 
-function matchesFps(video: BrollVideo, fps: FpsFilter): boolean {
+function matchesMediaType(item: BrollMediaItem, mediaType: MediaTypeFilter): boolean {
+  if (mediaType === 'any') return true;
+  return item.kind === mediaType;
+}
+
+function matchesFps(item: BrollMediaItem, fps: FpsFilter): boolean {
   if (fps === 'any') return true;
-  const value = videoFps(video);
+  if (item.kind !== 'video') return true; // photos ignore fps filter
+  const value = mediaFps(item);
   if (value == null) return false;
   if (fps === '60+') return value >= 60;
   return value === Number(fps);
 }
 
-function matchesDuration(video: BrollVideo, min: number, max: number): boolean {
+function matchesDuration(item: BrollMediaItem, min: number, max: number): boolean {
   if (min <= DURATION_MIN && max >= DURATION_MAX) return true;
-  if (max >= DURATION_MAX) return video.duration >= min;
-  return video.duration >= min && video.duration <= max;
+  if (item.kind !== 'video') return true; // photos ignore duration filter
+  const duration = item.duration ?? 0;
+  if (max >= DURATION_MAX) return duration >= min;
+  return duration >= min && duration <= max;
 }
 
-function matchesResolution(video: BrollVideo, res: ResolutionFilter): boolean {
+function matchesResolution(item: BrollMediaItem, res: ResolutionFilter): boolean {
   if (res === 'any') return true;
-  const maxDim = Math.max(video.width, video.height);
+  const maxDim = Math.max(item.width, item.height);
   if (res === '1080p') return maxDim >= 1080;
   if (res === '4k') return maxDim >= 2160;
   if (res === '8k') return maxDim >= 4320;
   return true;
 }
 
-type BrollVideoFileLink = BrollVideo['video_files'][number];
-
 const SAMPLE_QUERY = 'cinematic b-roll nature city lifestyle';
-const SAMPLE_CACHE_KEY = 'storio_broll_samples_v1';
+const SAMPLE_CACHE_KEY = 'storio_broll_samples_v3';
 
-function pickPreviewFile(video: BrollVideo): BrollVideoFileLink | null {
-  const files = [...video.video_files].filter((f) => f.link);
+function pickPreviewFile(item: BrollMediaItem): BrollVideoFile | null {
+  if (item.kind !== 'video') return null;
+  const files = [...(item.video_files ?? [])].filter((f) => f.link);
   if (!files.length) return null;
   const preferred =
     files.find((f) => f.height === 720 || f.width === 1280) ??
@@ -110,24 +120,30 @@ function pickPreviewFile(video: BrollVideo): BrollVideoFileLink | null {
   return preferred ?? null;
 }
 
-function readCachedSamples(): BrollVideo[] {
+function isUsableSample(item: BrollMediaItem): boolean {
+  if (!item.thumbnail && !item.downloadUrl) return false;
+  if (item.kind === 'video') return Boolean(pickPreviewFile(item) || item.thumbnail);
+  return true;
+}
+
+function readCachedSamples(): BrollMediaItem[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = sessionStorage.getItem(SAMPLE_CACHE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.videos) ? parsed.videos : [];
+    return Array.isArray(parsed?.media) ? parsed.media : [];
   } catch {
     return [];
   }
 }
 
-function writeCachedSamples(videos: BrollVideo[]) {
+function writeCachedSamples(media: BrollMediaItem[]) {
   if (typeof window === 'undefined') return;
   try {
     sessionStorage.setItem(
       SAMPLE_CACHE_KEY,
-      JSON.stringify({ videos, timestamp: Date.now() }),
+      JSON.stringify({ media, timestamp: Date.now() }),
     );
   } catch { /* ignore */ }
 }
@@ -228,12 +244,13 @@ export function StudioBRollPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
-  const [videos, setVideos] = useState<BrollVideo[]>([]);
+  const [media, setMedia] = useState<BrollMediaItem[]>([]);
   const [totalResults, setTotalResults] = useState(0);
-  const [previewId, setPreviewId] = useState<number | null>(null);
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [orientation, setOrientation] = useState<OrientationFilter>('any');
+  const [mediaType, setMediaType] = useState<MediaTypeFilter>('any');
   const [people, setPeople] = useState<PeopleFilter>('any');
   const [age, setAge] = useState<AgeFilter>('any');
   const [durationMin, setDurationMin] = useState(DURATION_MIN);
@@ -243,6 +260,7 @@ export function StudioBRollPanel() {
   const [date, setDate] = useState<DateFilter>('any');
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    mediaType: true,
     orientation: true,
     people: true,
     age: true,
@@ -255,7 +273,7 @@ export function StudioBRollPanel() {
   const toggleSection = (key: string) =>
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  // Prefetch real Pexels sample clips so every card has a unique hover preview
+  // Prefetch Pexels sample videos + images for the empty state grid
   useEffect(() => {
     let cancelled = false;
 
@@ -263,7 +281,7 @@ export function StudioBRollPanel() {
       const cached = readCachedSamples();
       if (cached.length > 0) {
         if (!cancelled) {
-          setVideos(cached);
+          setMedia(cached);
           setTotalResults(cached.length);
           setLoading(false);
         }
@@ -275,7 +293,7 @@ export function StudioBRollPanel() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           if (!cancelled) {
-            setVideos([]);
+            setMedia([]);
             setTotalResults(0);
             setLoading(false);
           }
@@ -289,15 +307,16 @@ export function StudioBRollPanel() {
           userId: session.user.id,
         });
         if (cancelled) return;
-        const list = (res.videos ?? []).filter((v) => pickPreviewFile(v));
-        setVideos(list);
+        const list = (res.media ?? []).filter(isUsableSample);
+        setMedia(list);
         setTotalResults(list.length || res.total_results || 0);
         writeCachedSamples(list);
       } catch (err) {
         console.error('[broll samples]', err);
         if (!cancelled) {
-          setVideos([]);
+          setMedia([]);
           setTotalResults(0);
+          setError(err instanceof Error ? err.message : 'Failed to load B-roll samples.');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -359,12 +378,12 @@ export function StudioBRollPanel() {
           userId: session.user.id,
         });
         setHasSearched(true);
-        setVideos(res.videos ?? []);
+        setMedia(res.media ?? []);
         setTotalResults(res.total_results ?? 0);
         setPage(res.page ?? pageNum);
       } catch (err) {
         setHasSearched(true);
-        setVideos([]);
+        setMedia([]);
         setTotalResults(0);
         setError(err instanceof Error ? err.message : 'Failed to search B-roll.');
       } finally {
@@ -374,18 +393,20 @@ export function StudioBRollPanel() {
     [buildQuery, orientation, resolution, router],
   );
 
-  const filteredVideos = useMemo(
+  const filteredMedia = useMemo(
     () =>
-      videos.filter(
-        (v) =>
-          matchesDuration(v, durationMin, durationMax) &&
-          matchesFps(v, fps) &&
-          matchesResolution(v, resolution),
+      media.filter(
+        (item) =>
+          matchesMediaType(item, mediaType) &&
+          matchesDuration(item, durationMin, durationMax) &&
+          matchesFps(item, fps) &&
+          matchesResolution(item, resolution),
       ),
-    [videos, durationMin, durationMax, fps, resolution],
+    [media, mediaType, durationMin, durationMax, fps, resolution],
   );
 
   const activeFilterCount = [
+    mediaType !== 'any',
     orientation !== 'any',
     people !== 'any',
     age !== 'any',
@@ -404,6 +425,7 @@ export function StudioBRollPanel() {
   const pageItems = buildPageItems(page, totalPages);
 
   const clearFilters = () => {
+    setMediaType('any');
     setOrientation('any');
     setPeople('any');
     setAge('any');
@@ -416,6 +438,26 @@ export function StudioBRollPanel() {
 
   const filtersPanel = (
     <div className="space-y-0">
+      <FilterSection
+        title="Media type"
+        open={openSections.mediaType}
+        onToggle={() => toggleSection('mediaType')}
+      >
+        <FilterChip label="Any" selected={mediaType === 'any'} onClick={() => setMediaType('any')} />
+        <FilterChip
+          label="Videos"
+          selected={mediaType === 'video'}
+          onClick={() => setMediaType('video')}
+          icon={<Film className="w-3.5 h-3.5" />}
+        />
+        <FilterChip
+          label="Images"
+          selected={mediaType === 'photo'}
+          onClick={() => setMediaType('photo')}
+          icon={<ImageIcon className="w-3.5 h-3.5" />}
+        />
+      </FilterSection>
+
       <FilterSection
         title="Orientation"
         open={openSections.orientation}
@@ -642,7 +684,7 @@ export function StudioBRollPanel() {
                 applyFiltersAndSearch();
               }
             }}
-            placeholder="Search B-roll (e.g. aerial city night)"
+            placeholder="Search videos & images (e.g. aerial city night)"
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-[#1d1d1f] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/15 focus:border-[#1d1d1f]"
           />
         </div>
@@ -735,24 +777,24 @@ export function StudioBRollPanel() {
             </div>
           )}
 
-          {!loading && !error && filteredVideos.length === 0 && (
+          {!loading && !error && filteredMedia.length === 0 && (
             <div className="bg-white border border-dashed border-gray-300 rounded-2xl px-6 py-16 text-center">
               <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
                 <Film className="w-7 h-7 text-gray-400" />
               </div>
               <h3 className="text-lg font-bold text-[#1d1d1f] mb-2">
-                {videos.length > 0
+                {media.length > 0
                   ? 'No matches for these filters'
                   : hasSearched
                     ? 'No B-roll found'
-                    : 'No sample clips yet'}
+                    : 'No sample media yet'}
               </h3>
               <p className="text-sm text-gray-500 max-w-md mx-auto">
-                {videos.length > 0
+                {media.length > 0
                   ? 'Try widening duration, frame rate, or resolution filters.'
                   : hasSearched
                     ? 'Try a different search term or filters.'
-                    : 'Sign in and open B-roll to load sample footage you can preview on hover.'}
+                    : 'Sign in and open B-roll to load sample videos and images.'}
               </p>
             </div>
           )}
@@ -774,13 +816,13 @@ export function StudioBRollPanel() {
             </div>
           )}
 
-          {!loading && filteredVideos.length > 0 && (
+          {!loading && filteredMedia.length > 0 && (
             <>
               <div className="flex items-center justify-between text-sm text-gray-500">
                 <span>
                   {hasSearched
-                    ? <>Showing {filteredVideos.length}{totalResults ? ` of ${totalResults.toLocaleString()}` : ''} results</>
-                    : <>Sample B-roll · hover to preview · search for more</>}
+                    ? <>Showing {filteredMedia.length}{totalResults ? ` of ${totalResults.toLocaleString()}` : ''} results</>
+                    : <>Sample videos &amp; images · hover videos to preview · search for more</>}
                 </span>
                 {hasSearched && (
                   <span>
@@ -790,24 +832,29 @@ export function StudioBRollPanel() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredVideos.map((video) => {
-                  const preview = pickPreviewFile(video);
-                  const isPreview = previewId === video.id;
+                {filteredMedia.map((item) => {
+                  const preview = pickPreviewFile(item);
+                  const isPreview = previewKey === item.key && item.kind === 'video';
+                  const downloadHref = item.kind === 'video'
+                    ? preview?.link || item.downloadUrl
+                    : item.downloadUrl || item.thumbnail;
                   return (
                     <div
-                      key={video.id}
+                      key={item.key}
                       className="bg-white border border-gray-200 rounded-2xl overflow-hidden group"
                     >
                       <div
                         className="relative aspect-video bg-gray-100 cursor-pointer overflow-hidden"
-                        onMouseEnter={() => setPreviewId(video.id)}
-                        onMouseLeave={() => setPreviewId(null)}
+                        onMouseEnter={() => {
+                          if (item.kind === 'video') setPreviewKey(item.key);
+                        }}
+                        onMouseLeave={() => setPreviewKey(null)}
                       >
                         {isPreview && preview ? (
                           <video
                             key={preview.link}
                             src={preview.link}
-                            poster={video.thumbnail}
+                            poster={item.thumbnail}
                             className="absolute inset-0 w-full h-full object-cover"
                             muted
                             loop
@@ -821,34 +868,39 @@ export function StudioBRollPanel() {
                         ) : (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={video.thumbnail}
-                            alt=""
+                            src={item.thumbnail}
+                            alt={item.alt || ''}
                             className="absolute inset-0 w-full h-full object-cover"
                           />
                         )}
-                        <span className="absolute bottom-2 right-2 rounded-md bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5">
-                          {formatDuration(video.duration)}
+                        <span className="absolute top-2 left-2 rounded-md bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5 uppercase tracking-wide">
+                          {item.kind === 'video' ? 'Video' : 'Image'}
                         </span>
+                        {item.kind === 'video' && item.duration != null && (
+                          <span className="absolute bottom-2 right-2 rounded-md bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5">
+                            {formatDuration(item.duration)}
+                          </span>
+                        )}
                         <span className="absolute bottom-2 left-2 rounded-md bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5">
-                          {video.width}×{video.height}
+                          {item.width}×{item.height}
                         </span>
                       </div>
                       <div className="p-3">
                         <p className="text-xs text-gray-500 truncate mb-2">
                           by{' '}
                           <a
-                            href={video.user.url}
+                            href={item.user.url}
                             target="_blank"
                             rel="noreferrer"
                             className="text-[#1d1d1f] hover:underline"
                           >
-                            {video.user.name}
+                            {item.user.name}
                           </a>
                         </p>
-                        {preview && (
+                        {downloadHref && (
                           <div className="flex items-center gap-2">
                             <a
-                              href={preview.link}
+                              href={downloadHref}
                               download
                               target="_blank"
                               rel="noreferrer"

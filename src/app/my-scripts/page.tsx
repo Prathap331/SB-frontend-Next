@@ -23,7 +23,8 @@ function resolveReturnTab(raw: string | null): StudioTabId {
     raw === 'metadata' ||
     raw === 'thumbnails' ||
     raw === 'ideas' ||
-    raw === 'broll'
+    raw === 'broll' ||
+    raw === 'video-editing'
   ) {
     return raw;
   }

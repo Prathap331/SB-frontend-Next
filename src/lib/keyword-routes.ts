@@ -31,7 +31,7 @@ export const APP_BASE = '/app';
 /** Cookie so /app/script/{idea} can rewrite onto the correct /search/{topic} */
 export const STUDIO_TOPIC_COOKIE = 'storio_studio_topic';
 
-export type StudioTabId = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll' | 'audio';
+export type StudioTabId = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll' | 'audio' | 'video-editing';
 
 export function isStudioComposeTopic(topic: string): boolean {
   const t = decodeURIComponent(topic || '').trim();
@@ -80,6 +80,12 @@ export function studioTabFromPathname(pathname: string): StudioTabId | null {
   if (lower === `${APP_BASE}/audio` || lower.startsWith(`${APP_BASE}/audio/`)) {
     return 'audio';
   }
+  if (
+    lower === `${APP_BASE}/ai-video-editing` ||
+    lower.startsWith(`${APP_BASE}/ai-video-editing/`)
+  ) {
+    return 'video-editing';
+  }
   return null;
 }
 
@@ -106,6 +112,7 @@ export function studioPathSegmentFromPathname(pathname: string): string | null {
  * - script/metadata/thumbnails → /app/{tab}/{ideaName}
  * - broll → /app/B-roll
  * - audio → /app/audio
+ * - video-editing → /app/ai-video-editing
  */
 export function buildStudioTabPath(
   tab: StudioTabId,
@@ -141,6 +148,9 @@ export function buildStudioTabPath(
       break;
     case 'audio':
       path = `${APP_BASE}/audio`;
+      break;
+    case 'video-editing':
+      path = `${APP_BASE}/ai-video-editing`;
       break;
   }
 

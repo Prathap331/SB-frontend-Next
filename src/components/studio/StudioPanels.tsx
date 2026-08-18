@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
   Clapperboard,
   AudioLines,
+  Film,
   Check,
   Copy,
   Clock,
@@ -50,7 +51,7 @@ import { lockedScriptPlaceholder } from '@/lib/script-security';
 import { withBlurredPatches } from '@/components/studio/renderRedactedScript';
 import { toast } from 'sonner';
 
-export type StudioTab = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll' | 'audio';
+export type StudioTab = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll' | 'audio' | 'video-editing';
 
 const TABS: { id: StudioTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'ideas', label: 'Content Ideas', icon: Lightbulb },
@@ -59,6 +60,7 @@ const TABS: { id: StudioTab; label: string; icon: React.ComponentType<{ classNam
   { id: 'thumbnails', label: 'Thumbnails', icon: ImageIcon },
   { id: 'audio', label: 'Audio', icon: AudioLines },
   { id: 'broll', label: 'B-Roll Videos', icon: Clapperboard },
+  { id: 'video-editing', label: 'AI Video Editing', icon: Film },
 ];
 
 export function StudioStageNav({
@@ -1308,6 +1310,7 @@ export function StudioMetadataPanel({ data }: { data?: GeneratedScriptData | nul
 export { StudioThumbnailsPanel } from './StudioThumbnailsPanel';
 export { StudioBRollPanel } from './StudioBRollPanel';
 export { StudioAudioPanel } from './StudioAudioPanel';
+export { StudioVideoEditingPanel } from './StudioVideoEditingPanel';
 
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (

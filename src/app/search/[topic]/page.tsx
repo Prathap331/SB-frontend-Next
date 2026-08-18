@@ -28,6 +28,8 @@ import {
   StudioAudioPanel,
   type StudioTab,
 } from '@/components/studio/StudioPanels';
+import { StudioVideoEditingPanel } from '@/components/studio/StudioVideoEditingPanel';
+import { StudioChromeProvider, useStudioChrome } from '@/components/studio/StudioChromeContext';
 import { getScriptTextFromMap } from '@/lib/script-data';
 import { DEFAULT_SCRIPT_LANGUAGE } from '@/lib/script-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -537,11 +539,20 @@ const TSSCard: React.FC<TSSCardProps> = ({
 };
 
 export default function SearchTopicPage() {
+  return (
+    <StudioChromeProvider>
+      <SearchTopicPageInner />
+    </StudioChromeProvider>
+  );
+}
+
+function SearchTopicPageInner() {
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { searchPath } = useKeywordNavigation();
+  const { setSidebarCollapsed } = useStudioChrome();
   // Read raw param and decode safely so UI shows spaces (not "%20")
   const rawTopic = Array.isArray(params?.topic) ? params.topic[0] : params?.topic ?? '';
   const topicFromRewrite = (() => {
@@ -558,7 +569,11 @@ export default function SearchTopicPage() {
     tabFromPath === 'ideas' && pathSegment ? pathSegment : '';
   const topic = topicFromContentIdeasPath || topicFromRewrite;
   const ideaFromPath =
-    tabFromPath && tabFromPath !== 'ideas' && tabFromPath !== 'broll' && tabFromPath !== 'audio'
+    tabFromPath &&
+    tabFromPath !== 'ideas' &&
+    tabFromPath !== 'broll' &&
+    tabFromPath !== 'audio' &&
+    tabFromPath !== 'video-editing'
       ? pathSegment
       : null;
   const scriptIdParam = searchParams.get('scriptId');
@@ -681,6 +696,9 @@ export default function SearchTopicPage() {
       overrides?: { ideaTitle?: string | null },
     ) => {
       setStudioTabState(tab);
+      if (tab === 'video-editing') {
+        setSidebarCollapsed(true);
+      }
 
       // On /app/content-ideas (no topic yet): switch tabs locally — do not push
       // /app/script|metadata|… URLs that middleware rewrites via the topic cookie.
@@ -703,7 +721,16 @@ export default function SearchTopicPage() {
       if (replace) router.replace(href, { scroll: false });
       else router.push(href, { scroll: false });
     },
-    [router, topic, effectiveTopic, scriptIdParam, activeScriptIdeaTitle, ideaFromPath, pathname],
+    [
+      router,
+      topic,
+      effectiveTopic,
+      scriptIdParam,
+      activeScriptIdeaTitle,
+      ideaFromPath,
+      pathname,
+      setSidebarCollapsed,
+    ],
   );
 
   const setStudioTab = useCallback(
@@ -725,6 +752,9 @@ export default function SearchTopicPage() {
         return;
       }
       setStudioTabState(fromUrl);
+      if (fromUrl === 'video-editing') {
+        setSidebarCollapsed(true);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, ideasTabDisabled, topic, scriptIdParam]);
@@ -1633,6 +1663,7 @@ useEffect(() => {
     ),
     broll: false,
     audio: false,
+    'video-editing': false,
   };
 
   const selectIdeaScript = async (idea: ScriptIdea) => {
@@ -1777,7 +1808,11 @@ useEffect(() => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
-                      {studioTab === 'audio' ? 'Audio' : ''}
+                      {studioTab === 'audio'
+                        ? 'Audio'
+                        : studioTab === 'video-editing'
+                          ? 'AI Video Editing'
+                          : ''}
                     </p>
                     <h1
                       className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
@@ -1787,7 +1822,9 @@ useEffect(() => {
                         ? 'B-ROLL VIDEOS'
                         : studioTab === 'audio'
                           ? 'TURN TEXT INTO SPEECH'
-                          : 'START A NEW TOPIC'}
+                          : studioTab === 'video-editing'
+                            ? 'AI VIDEO EDITING'
+                            : 'START A NEW TOPIC'}
                     </h1>
                   </div>
                 </div>
@@ -1802,6 +1839,7 @@ useEffect(() => {
                     thumbnails: false,
                     broll: false,
                     audio: false,
+                    'video-editing': false,
                   }}
                 />
               </div>
@@ -1812,6 +1850,8 @@ useEffect(() => {
                   <NewTopicPrompt onFocusSearch={() => searchInputRef.current?.focus()} />
                 ) : studioTab === 'broll' ? (
                   <StudioBRollPanel />
+                ) : studioTab === 'video-editing' ? (
+                  <StudioVideoEditingPanel />
                 ) : studioTab === 'audio' ? (
                   <StudioAudioPanel
                     scriptText=""
@@ -2171,6 +2211,8 @@ useEffect(() => {
             )}
 
             {studioTab === 'broll' && <StudioBRollPanel />}
+
+            {studioTab === 'video-editing' && <StudioVideoEditingPanel />}
 
             {studioTab === 'audio' && (
               <StudioAudioPanel

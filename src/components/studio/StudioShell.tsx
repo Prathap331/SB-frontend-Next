@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Menu, Search, Sparkles } from 'lucide-react';
 import StudioSidebar from '@/components/studio/StudioSidebar';
+import { StudioChromeProvider } from '@/components/studio/StudioChromeContext';
 import { Input } from '@/components/ui/input';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 import { useRequireAuth } from '@/hooks/use-require-auth';
@@ -125,6 +126,14 @@ export default function StudioShell({
       onNavigate={() => setMobileNavOpen(false)}
     />
   );
+  const mobileSidebar = (
+    <StudioSidebar
+      activeTopic={activeTopic}
+      refreshKey={refreshKey}
+      onNavigate={() => setMobileNavOpen(false)}
+      forceExpanded
+    />
+  );
 
   if (requireAuth && (!ready || !allowed)) {
     return (
@@ -135,51 +144,53 @@ export default function StudioShell({
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#f5f6f8] flex">
-      <div className="hidden lg:flex h-full">
-        <Suspense fallback={<div className="w-[260px] bg-[#f7f8fa] border-r border-gray-200/80" />}>
-          {sidebar}
-        </Suspense>
-      </div>
-
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileNavOpen(false)} />
-          <div className="absolute inset-y-0 left-0 h-full shadow-xl">
-            <Suspense fallback={null}>{sidebar}</Suspense>
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        <div className="relative z-40 flex-shrink-0 border-b border-gray-200/80 bg-white/80 backdrop-blur-md px-4 sm:px-6 py-3 overflow-visible">
-          <div className="flex items-center gap-3 max-w-8xl mx-auto overflow-visible">
-            <button
-              type="button"
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
-              onClick={() => setMobileNavOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            {topBar ?? <DefaultStudioSearchBar />}
-          </div>
+    <StudioChromeProvider>
+      <div className="h-screen overflow-hidden bg-[#f5f6f8] flex">
+        <div className="hidden lg:flex h-full">
+          <Suspense fallback={<div className="w-[260px] bg-[#f7f8fa] border-r border-gray-200/80" />}>
+            {sidebar}
+          </Suspense>
         </div>
 
-        <div
-          className={`relative z-0 flex-1 min-h-0 ${
-            contentScroll ? 'overflow-y-auto' : 'overflow-hidden flex flex-col'
-          }`}
-        >
-          {padded ? (
-            <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-              {children}
+        {mobileNavOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setMobileNavOpen(false)} />
+            <div className="absolute inset-y-0 left-0 h-full shadow-xl">
+              <Suspense fallback={null}>{mobileSidebar}</Suspense>
             </div>
-          ) : (
-            children
-          )}
+          </div>
+        )}
+
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          <div className="relative z-40 flex-shrink-0 border-b border-gray-200/80 bg-white/80 backdrop-blur-md px-4 sm:px-6 py-3 overflow-visible">
+            <div className="flex items-center gap-3 max-w-8xl mx-auto overflow-visible">
+              <button
+                type="button"
+                className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+                onClick={() => setMobileNavOpen(true)}
+                aria-label="Open menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              {topBar ?? <DefaultStudioSearchBar />}
+            </div>
+          </div>
+
+          <div
+            className={`relative z-0 flex-1 min-h-0 ${
+              contentScroll ? 'overflow-y-auto' : 'overflow-hidden flex flex-col'
+            }`}
+          >
+            {padded ? (
+              <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+                {children}
+              </div>
+            ) : (
+              children
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </StudioChromeProvider>
   );
 }

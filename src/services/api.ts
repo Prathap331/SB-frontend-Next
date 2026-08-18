@@ -11,6 +11,7 @@ export interface ProcessTopicRequest {
 export type BrollOrientation = 'landscape' | 'portrait' | 'square';
 /** Pexels size: large = 4K, medium = Full HD (1080p), small = HD */
 export type BrollSize = 'large' | 'medium' | 'small';
+export type BrollMediaKind = 'video' | 'photo';
 
 export interface BrollSearchPayload {
   query: string;
@@ -40,12 +41,286 @@ export interface BrollVideo {
   video_files: BrollVideoFile[];
 }
 
+/** Stock still image from Pexels (photos/images in /search-pexels). */
+export interface BrollPhoto {
+  id: number;
+  url: string;
+  width: number;
+  height: number;
+  thumbnail: string;
+  /** Best download / full-size URL when available */
+  download_url?: string | null;
+  alt?: string | null;
+  user: { name: string; url: string };
+}
+
+/** Unified card model for the B-roll grid (video + photo). */
+export interface BrollMediaItem {
+  kind: BrollMediaKind;
+  /** Stable React key — avoids id collisions across photos/videos */
+  key: string;
+  id: number;
+  url: string;
+  width: number;
+  height: number;
+  duration: number | null;
+  thumbnail: string;
+  user: { name: string; url: string };
+  video_files: BrollVideoFile[];
+  downloadUrl: string | null;
+  alt?: string | null;
+}
+
 export interface BrollSearchResponse {
   query: string;
   page: number;
   per_page: number;
   total_results: number;
   videos: BrollVideo[];
+  photos: BrollPhoto[];
+  /** Merged list for UI (videos + photos) */
+  media: BrollMediaItem[];
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function asString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function pickPhotoSrc(raw: Record<string, unknown>): { thumbnail: string; download: string } {
+  const src = asRecord(raw.src);
+  const download =
+    asString(raw.download_url) ||
+    asString(raw.downloadUrl) ||
+    asString(src?.original) ||
+    asString(src?.large2x) ||
+    asString(src?.large) ||
+    asString(src?.landscape) ||
+    asString(src?.medium) ||
+    asString(raw.url) ||
+    asString(raw.thumbnail) ||
+    asString(raw.image);
+  const thumbnail =
+    asString(raw.thumbnail) ||
+    asString(raw.image) ||
+    asString(src?.medium) ||
+    asString(src?.landscape) ||
+    asString(src?.large) ||
+    asString(src?.small) ||
+    download;
+  return { thumbnail, download };
+}
+
+function normalizeUser(raw: Record<string, unknown>): { name: string; url: string } {
+  const user = asRecord(raw.user);
+  const photographer = asRecord(raw.photographer);
+  return {
+    name:
+      asString(user?.name) ||
+      asString(photographer?.name) ||
+      asString(raw.photographer) ||
+      asString(raw.user_name) ||
+      'Pexels',
+    url:
+      asString(user?.url) ||
+      asString(photographer?.url) ||
+      asString(raw.photographer_url) ||
+      asString(raw.user_url) ||
+      'https://www.pexels.com',
+  };
+}
+
+/** Pull an array of result rows from either a bare array or `{ results: [...] }`. */
+function extractResultRows(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  const obj = asRecord(value);
+  if (!obj) return [];
+  if (Array.isArray(obj.results)) return obj.results;
+  if (Array.isArray(obj.data)) return obj.data;
+  if (Array.isArray(obj.items)) return obj.items;
+  return [];
+}
+
+function extractBucketTotal(value: unknown): number {
+  const obj = asRecord(value);
+  if (!obj) return 0;
+  return asNumber(obj.total_results ?? obj.totalResults, 0);
+}
+
+function normalizeVideoFiles(raw: unknown): BrollVideoFile[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((file) => {
+      const f = asRecord(file);
+      if (!f) return null;
+      const link = asString(f.link) || asString(f.url);
+      if (!link) return null;
+      return {
+        quality: typeof f.quality === 'string' ? f.quality : null,
+        width: asNumber(f.width),
+        height: asNumber(f.height),
+        file_type: asString(f.file_type) || asString(f.fileType) || 'video/mp4',
+        link,
+      };
+    })
+    .filter((f): f is BrollVideoFile => Boolean(f));
+}
+
+function looksLikeVideo(raw: Record<string, unknown>): boolean {
+  const kind = asString(raw.type || raw.kind || raw.media_type || raw.mediaType).toLowerCase();
+  if (kind === 'photo' || kind === 'image' || kind === 'still') return false;
+  if (kind === 'video') return true;
+  if (Array.isArray(raw.video_files) || Array.isArray(raw.videoFiles)) return true;
+  if (typeof raw.duration === 'number' && raw.duration > 0) return true;
+  return false;
+}
+
+function normalizeVideoItem(raw: Record<string, unknown>): BrollMediaItem | null {
+  const id = asNumber(raw.id, NaN);
+  if (!Number.isFinite(id)) return null;
+  const video_files = normalizeVideoFiles(raw.video_files ?? raw.videoFiles);
+  const thumbnail =
+    asString(raw.thumbnail) ||
+    asString(raw.image) ||
+    (() => {
+      const pics = Array.isArray(raw.video_pictures) ? raw.video_pictures : [];
+      const first = asRecord(pics[0]);
+      return asString(first?.picture);
+    })() ||
+    video_files[0]?.link ||
+    '';
+  const downloadUrl = video_files[0]?.link || null;
+  return {
+    kind: 'video',
+    key: `video-${id}`,
+    id,
+    url: asString(raw.url),
+    width: asNumber(raw.width),
+    height: asNumber(raw.height),
+    duration: asNumber(raw.duration),
+    thumbnail,
+    user: normalizeUser(raw),
+    video_files,
+    downloadUrl,
+    alt: asString(raw.alt) || null,
+  };
+}
+
+function normalizePhotoItem(raw: Record<string, unknown>): BrollMediaItem | null {
+  const id = asNumber(raw.id, NaN);
+  if (!Number.isFinite(id)) return null;
+  const { thumbnail, download } = pickPhotoSrc(raw);
+  if (!thumbnail && !download) return null;
+  return {
+    kind: 'photo',
+    key: `photo-${id}`,
+    id,
+    url: asString(raw.url),
+    width: asNumber(raw.width),
+    height: asNumber(raw.height),
+    duration: null,
+    thumbnail: thumbnail || download,
+    user: normalizeUser(raw),
+    video_files: [],
+    downloadUrl: download || thumbnail || null,
+    alt: asString(raw.alt) || null,
+  };
+}
+
+/** Normalize /search-pexels payloads that may include videos, photos, or mixed media. */
+export function normalizeBrollSearchResponse(raw: unknown): BrollSearchResponse {
+  const root = asRecord(raw) ?? {};
+
+  // Backend shape:
+  // { videos: { total_results, results: [...] }, images: { total_results, results: [...] } }
+  // Also tolerate legacy flat arrays: { videos: [...], photos: [...] }
+  const videoRows = extractResultRows(root.videos);
+  const photoRows = [
+    ...extractResultRows(root.images),
+    ...extractResultRows(root.photos),
+  ];
+  const mixedRows = [
+    ...extractResultRows(root.media),
+    ...extractResultRows(root.results),
+  ];
+
+  const media: BrollMediaItem[] = [];
+  const seen = new Set<string>();
+
+  const push = (item: BrollMediaItem | null) => {
+    if (!item || seen.has(item.key)) return;
+    seen.add(item.key);
+    media.push(item);
+  };
+
+  for (const row of videoRows) {
+    const rec = asRecord(row);
+    if (!rec) continue;
+    push(looksLikeVideo(rec) ? normalizeVideoItem(rec) : normalizePhotoItem(rec));
+  }
+  for (const row of photoRows) {
+    const rec = asRecord(row);
+    if (!rec) continue;
+    push(normalizePhotoItem(rec));
+  }
+  for (const row of mixedRows) {
+    const rec = asRecord(row);
+    if (!rec) continue;
+    push(looksLikeVideo(rec) ? normalizeVideoItem(rec) : normalizePhotoItem(rec));
+  }
+
+  const videos: BrollVideo[] = media
+    .filter((m) => m.kind === 'video')
+    .map((m) => ({
+      id: m.id,
+      url: m.url,
+      width: m.width,
+      height: m.height,
+      duration: m.duration ?? 0,
+      thumbnail: m.thumbnail,
+      user: m.user,
+      video_files: m.video_files,
+    }));
+
+  const photos: BrollPhoto[] = media
+    .filter((m) => m.kind === 'photo')
+    .map((m) => ({
+      id: m.id,
+      url: m.url,
+      width: m.width,
+      height: m.height,
+      thumbnail: m.thumbnail,
+      download_url: m.downloadUrl,
+      alt: m.alt,
+      user: m.user,
+    }));
+
+  const videosTotal = extractBucketTotal(root.videos);
+  const imagesTotal = extractBucketTotal(root.images) || extractBucketTotal(root.photos);
+  const reportedTotal = asNumber(root.total_results ?? root.totalResults, NaN);
+  const total_results = Number.isFinite(reportedTotal)
+    ? reportedTotal
+    : videosTotal + imagesTotal > 0
+      ? videosTotal + imagesTotal
+      : media.length;
+
+  return {
+    query: asString(root.query),
+    page: asNumber(root.page, 1),
+    per_page: asNumber(root.per_page ?? root.perPage, media.length || 15),
+    total_results,
+    videos,
+    photos,
+    media,
+  };
 }
 
 // ── Pipeline Metrics ──────────────────────────────────────────────────────────
@@ -1359,9 +1634,9 @@ export class ApiService {
     }
   }
 
-  /** Search stock B-roll videos (Pexels-backed). */
+  /** Search stock B-roll videos + images (Pexels-backed). */
   static async searchBroll(payload: BrollSearchPayload): Promise<BrollSearchResponse> {
-    const url = `${this.BASE_URL}/search-pexels-videos`;
+    const url = `${this.BASE_URL}/search-pexels`;
 
     let userId = payload.userId?.trim() || null;
     if (!userId) {
@@ -1390,7 +1665,8 @@ export class ApiService {
       );
     }
 
-    return (await response.json()) as BrollSearchResponse;
+    const raw = await response.json().catch(() => ({}));
+    return normalizeBrollSearchResponse(raw);
   }
 
  // ── Trending topics (/trending-data) — category based ───────────────────────
