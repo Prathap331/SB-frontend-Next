@@ -1751,83 +1751,83 @@ useEffect(() => {
       contentScroll={false}
       requireAuth={!isComposePlaceholder && !isComposingNew}
       topBar={
-        <div className="flex flex-col gap-1 flex-1 min-w-0 relative">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Describe your topic using at least 4 words for the best AI results."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  if (searchWarning) setSearchWarning(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void handleSearchSubmit();
-                  }
-                }}
-                className="pl-10 pr-4 py-5 rounded-full border-gray-200 bg-white text-sm"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => { void handleSearchSubmit(); }}
-              className="flex items-center gap-2 rounded-full bg-[#3d3d3a] hover:bg-[#1d1d1f] text-white text-sm font-semibold px-4 py-2.5 transition-colors flex-shrink-0"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Generate ideas</span>
-              <span className="sm:hidden">Go</span>
-            </button>
-          </div>
-          {searchWarning && (
-            <div
-              className="absolute left-0 right-0 top-full mt-2 z-50 sm:left-0 sm:right-auto sm:max-w-sm"
-              role="alert"
-            >
-              <div className="relative bg-[#1d1d1f] text-white text-[12px] sm:text-[13px] font-medium px-4 py-2.5 rounded-xl shadow-2xl leading-snug">
-                <div className="absolute -top-1.5 left-8 w-3 h-3 bg-[#1d1d1f] rotate-45" />
-                {searchWarning}
+        studioTab === 'video-editing' ? (
+          <div className="flex-1" />
+        ) : (
+          <div className="flex flex-col gap-1 flex-1 min-w-0 relative">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Describe your topic using at least 4 words for the best AI results."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    if (searchWarning) setSearchWarning(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleSearchSubmit();
+                    }
+                  }}
+                  className="pl-10 pr-4 py-5 rounded-full border-gray-200 bg-white text-sm"
+                />
               </div>
+              <button
+                type="button"
+                onClick={() => { void handleSearchSubmit(); }}
+                className="flex items-center gap-2 rounded-full bg-[#3d3d3a] hover:bg-[#1d1d1f] text-white text-sm font-semibold px-4 py-2.5 transition-colors flex-shrink-0"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Generate ideas</span>
+                <span className="sm:hidden">Go</span>
+              </button>
             </div>
-          )}
-        </div>
+            {searchWarning && (
+              <div
+                className="absolute left-0 right-0 top-full mt-2 z-50 sm:left-0 sm:right-auto sm:max-w-sm"
+                role="alert"
+              >
+                <div className="relative bg-[#1d1d1f] text-white text-[12px] sm:text-[13px] font-medium px-4 py-2.5 rounded-xl shadow-2xl leading-snug">
+                  <div className="absolute -top-1.5 left-8 w-3 h-3 bg-[#1d1d1f] rotate-45" />
+                  {searchWarning}
+                </div>
+              </div>
+            )}
+          </div>
+        )
       }
     >
       <div className="flex flex-col h-full min-h-0">
         {isComposingNew || isComposePlaceholder ? (
           <>
             <div id="studio-stage-header" className="flex-shrink-0 z-10 bg-white/95 backdrop-blur-md border-b border-gray-200/80 shadow-sm">
-              <div className="max-w-8xl mx-auto px-4 sm:px-6 pt-5 pb-4">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1d1d1f] flex items-center justify-center flex-shrink-0 shadow-sm">
-                    <Sparkles className="w-5 h-5 text-amber-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
-                      {studioTab === 'audio'
-                        ? 'Audio'
-                        : studioTab === 'video-editing'
-                          ? 'AI Video Editing'
-                          : ''}
-                    </p>
-                    <h1
-                      className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
-                      style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
-                    >
-                      {studioTab === 'broll'
-                        ? 'B-ROLL VIDEOS'
-                        : studioTab === 'audio'
-                          ? 'TURN TEXT INTO SPEECH'
-                          : studioTab === 'video-editing'
-                            ? 'AI VIDEO EDITING'
+              <div className={`max-w-8xl mx-auto px-4 sm:px-6 ${studioTab === 'video-editing' ? 'py-3' : 'pt-5 pb-4'}`}>
+                {studioTab !== 'video-editing' && (
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1d1d1f] flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Sparkles className="w-5 h-5 text-amber-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
+                        {studioTab === 'audio' ? 'Audio' : ''}
+                      </p>
+                      <h1
+                        className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
+                        style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+                      >
+                        {studioTab === 'broll'
+                          ? 'B-ROLL VIDEOS'
+                          : studioTab === 'audio'
+                            ? 'TURN TEXT INTO SPEECH'
                             : 'START A NEW TOPIC'}
-                    </h1>
+                      </h1>
+                    </div>
                   </div>
-                </div>
+                )}
                 <StudioStageNav
                   active={studioTab}
                   onChange={setStudioTab}
@@ -1890,25 +1890,27 @@ useEffect(() => {
           <>
         {/* Fixed topic + stage tabs */}
         <div id="studio-stage-header" className="flex-shrink-0 z-10 bg-white/95 backdrop-blur-md border-b border-gray-200/80 shadow-sm">
-          <div className="max-w-8xl mx-auto px-4 sm:px-6 pt-5 pb-4">
-            <div className="flex items-end gap-3 mb-4">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1d1d1f] flex items-center justify-center flex-shrink-0 shadow-sm">
-                <Sparkles className="w-5 h-5 text-amber-400" />
+          <div className={`max-w-8xl mx-auto px-4 sm:px-6 ${studioTab === 'video-editing' ? 'py-3' : 'pt-5 pb-4'}`}>
+            {studioTab !== 'video-editing' && (
+              <div className="flex items-end gap-3 mb-4">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1d1d1f] flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <Sparkles className="w-5 h-5 text-amber-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
+                    {isScriptViewerMode && !effectiveTopic ? 'Script' : 'Current topic'}
+                  </p>
+                  <h1
+                    className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
+                    style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+                  >
+                    {isScriptViewerMode
+                      ? (effectiveTopic || activeScriptIdeaTitle || 'Script')
+                      : topic}
+                  </h1>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
-                  {isScriptViewerMode && !effectiveTopic ? 'Script' : 'Current topic'}
-                </p>
-                <h1
-                  className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
-                  style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
-                >
-                  {isScriptViewerMode
-                    ? (effectiveTopic || activeScriptIdeaTitle || 'Script')
-                    : topic}
-                </h1>
-              </div>
-            </div>
+            )}
             <StudioStageNav
               active={studioTab}
               onChange={setStudioTab}
@@ -1921,8 +1923,19 @@ useEffect(() => {
         {/* Scrollable panel content only */}
         <div className={`flex-1 min-h-0 ${studioTab === 'video-editing' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {studioTab === 'video-editing' ? (
-            <div className="h-full px-3 sm:px-4 py-3">
-              <StudioVideoEditingPanel />
+            <div className="h-full px-3 sm:px-4 py-2">
+              <StudioVideoEditingPanel
+                scriptText={
+                  activeScriptFromAssigned
+                    ? getScriptTextFromMap(
+                        activeScriptData?.scriptsByLanguage ?? {},
+                        activeScriptLanguage,
+                      ) || activeScriptData?.script || ''
+                    : ''
+                }
+                isUnlocked={activeScriptFromAssigned}
+                ideaTitle={activeScriptIdeaTitle}
+              />
             </div>
           ) : (
           <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">

@@ -10,7 +10,15 @@
       "Bash(dir \"c:\\\\Users\\\\chint\\\\OneDrive\\\\Desktop\\\\morpho-projects\\\\SB-frontend-Next\\\\public\")",
       "Bash(cat .env.local)",
       "Bash(cat .env)",
-      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(p.dependencies.next\\)\")"
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(p.dependencies.next\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(npx eslint *)",
+      "Bash(npm run *)",
+      "Bash(grep -i \"StudioVideoEditingPanel\\\\|search\\\\\\\\\\\\\\\\\\\\[topic\\\\\\\\\\\\]\")",
+      "Bash(npx next *)",
+      "Bash(echo \"TSC_EXIT:$?\")",
+      "Read(//tmp/**)"
     ]
   }
 }

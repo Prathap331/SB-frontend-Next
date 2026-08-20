@@ -162,7 +162,7 @@ export default function StudioShell({
         )}
 
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-          <div className="relative z-40 flex-shrink-0 border-b border-gray-200/80 bg-white/80 backdrop-blur-md px-4 sm:px-6 py-3 overflow-visible">
+          <div className="relative z-40 flex-shrink-0 border-b border-gray-200/80 bg-white/80 backdrop-blur-md overflow-visible">
             <div className="flex items-center gap-3 max-w-8xl mx-auto overflow-visible">
               <button
                 type="button"

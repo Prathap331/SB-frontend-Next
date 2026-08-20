@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus,
   Upload,
@@ -20,9 +20,41 @@ import {
   ChevronUp,
   ChevronDown,
   X,
-  Minus,
+  UserRound,
+  UserRoundX,
+  Mic,
+  Loader2,
+  Video,
+  Scissors,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { MouseEvent } from 'react';
+import {
+  VoiceCard,
+  CLONED_VOICE_WASH,
+  fetchPreMadeVoices,
+  fetchClonedVoiceFromProfile,
+  type VoicePreset,
+} from '@/components/studio/StudioAudioPanel';
+import { VoiceCloneModal } from '@/components/studio/VoiceCloneModal';
+import { canUseVoiceCloning, saveClonedVoiceProfile } from '@/lib/voice-clone';
+import { estimateSpeechDurationSeconds } from '@/lib/credits';
+import { supabase } from '@/lib/supabaseClient';
+import { ApiService, type EditVideoResponse, type EditVideoScene } from '@/services/api';
+import { useVideoTimeline } from '@/hooks/useVideoTimeline';
+import {
+  DEFAULT_TRACK_IDS,
+  createEmptyTimeline,
+  createSceneTimeline,
+  createSceneTimelinesMap,
+  saveVideoEditProject,
+  loadVideoEditProject,
+} from '@/lib/video-editor';
+import type { TimelineState } from '@/lib/video-editor/types';
+import { readInfographicFromEditScene, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, type RemotionInfographicSpec } from '@/lib/video-editor/infographics';
+import { TimelinePanel, TimelinePreview } from '@/components/studio/video-timeline';
+import { RemotionInfographicPreview } from '@/remotion/RemotionInfographicPreview';
+import { formatTimecode, formatTimecodeShort } from '@/lib/video-editor/timecode';
+import { EDITOR_FPS } from '@/lib/video-editor/fps';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -34,8 +66,12 @@ type FontSize = 'sm' | 'md' | 'lg';
 type FontStyle = 'sans' | 'serif' | 'mono' | 'display';
 type CaptionAnim = 'none' | 'fade' | 'slide' | 'typewriter';
 
-type MainPart = { filename: string };
-type BrollClip = { label: string };
+type MainPart = { filename: string; url?: string; thumbnailUrl?: string };
+type BrollClip = {
+  label: string;
+  url?: string | null;
+  thumbnailUrl?: string | null;
+};
 type InfographicClip = {
   label: string;
   mode: InfographicMode;
@@ -54,6 +90,14 @@ type Scene = {
   joinStatus: JoinStatus;
   broll: BrollClip | null;
   infographic: InfographicClip | null;
+  /** Remotion infographic from backend `infographics` (composition + frames). */
+  remotionInfographic?: RemotionInfographicSpec | null;
+  /** Generated voiceover clip URL for this scene, when available */
+  voiceoverUrl?: string | null;
+  /** Error message from generation for this scene (e.g. voiceover failed), when present */
+  generationError?: string | null;
+  onScreenText?: string | null;
+  wordSegments?: { word: string; start: number; end: number }[];
 };
 
 type Suggestion = {
@@ -64,6 +108,11 @@ type Suggestion = {
   matchedScene: string;
   matchPct: number;
   mode?: InfographicMode;
+  mediaKind?: 'video' | 'image';
+  /** Thumbnail shown on the card */
+  previewUrl?: string | null;
+  /** Full asset played/shown in the preview popup */
+  assetUrl?: string | null;
 };
 
 type TextStyle = {
@@ -76,24 +125,6 @@ type TextStyle = {
 };
 
 /* ── Dummy data ────────────────────────────────────────────────────────────── */
-
-const PLACEMENT_OPTIONS = [
-  'Top-left',
-  'Top-right',
-  'Center',
-  'Lower third',
-  'Bottom-left',
-  'Bottom-right',
-] as const;
-
-const PLACEMENT_CLASS: Record<string, string> = {
-  'Top-left': 'top-2.5 left-2.5',
-  'Top-right': 'top-2.5 right-2.5',
-  Center: 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-  'Lower third': 'bottom-14 left-2.5 right-2.5 justify-center text-center',
-  'Bottom-left': 'bottom-2.5 left-2.5',
-  'Bottom-right': 'bottom-2.5 right-2.5',
-};
 
 const FONT_SIZE_CLASS: Record<FontSize, string> = {
   sm: 'text-sm',
@@ -108,86 +139,266 @@ const FONT_FAMILY_CLASS: Record<FontStyle, string> = {
   display: 'font-sans uppercase tracking-wide font-extrabold',
 };
 
+/** Placeholder library shown before the user generates voice + scenes. */
 const BROLL_SUGGESTIONS: Suggestion[] = [
-  { label: 'Flooded coastal village, aerial', meta: '4K · 12s · warm grade', start: 0, dur: 6, matchedScene: 'Cold open', matchPct: 94 },
-  { label: 'Relief camp, wide shot', meta: '4K · 9s · cool grade', start: 15, dur: 5, matchedScene: 'The number', matchPct: 88 },
-  { label: 'District map base plate', meta: '1080p · 15s · flat grade', start: 20, dur: 7, matchedScene: 'Map beat', matchPct: 81 },
-  { label: 'Abandoned structure, dusk', meta: '4K · 10s · cool grade', start: 37, dur: 6, matchedScene: 'Close', matchPct: 76 },
-  { label: 'Storm clouds over coastline', meta: '4K · 8s · warm grade', start: 0, dur: 6, matchedScene: 'Cold open', matchPct: 68 },
+  {
+    label: 'Flooded coastal village, aerial',
+    meta: '4K · 12s · warm grade',
+    start: 0,
+    dur: 6,
+    matchedScene: 'Sample',
+    matchPct: 94,
+    mediaKind: 'video',
+    previewUrl: 'https://images.unsplash.com/photo-1504608524841-42fe6f032b4b?w=640&q=80',
+  },
+  {
+    label: 'Relief camp, wide shot',
+    meta: '4K · 9s · cool grade',
+    start: 15,
+    dur: 5,
+    matchedScene: 'Sample',
+    matchPct: 88,
+    mediaKind: 'video',
+    previewUrl: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=640&q=80',
+  },
+  {
+    label: 'City skyline at dusk',
+    meta: '1080p · 15s · flat grade',
+    start: 20,
+    dur: 7,
+    matchedScene: 'Sample',
+    matchPct: 81,
+    mediaKind: 'video',
+    previewUrl: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=640&q=80',
+  },
+  {
+    label: 'Abandoned structure, dusk',
+    meta: '4K · 10s · cool grade',
+    start: 37,
+    dur: 6,
+    matchedScene: 'Sample',
+    matchPct: 76,
+    mediaKind: 'video',
+    previewUrl: 'https://images.unsplash.com/photo-1518002171953-a080ee817e1f?w=640&q=80',
+  },
 ];
 
-const INFOGRAPHIC_SUGGESTIONS: Suggestion[] = [
-  { label: 'Displacement stat reveal', meta: 'Kinetic typography · 3s', start: 15, dur: 5, matchedScene: 'The number', matchPct: 91, mode: 'overlay' },
-  { label: 'District boundary animation', meta: 'Map overlay · 6s', start: 20, dur: 7, matchedScene: 'Map beat', matchPct: 73, mode: 'fullscreen' },
-  { label: 'Location lower-third', meta: 'Text overlay · 2s', start: 6, dur: 9, matchedScene: 'Context', matchPct: 89, mode: 'overlay' },
-  { label: 'Timeline tracker bar', meta: 'Progress overlay · 4s', start: 0, dur: 6, matchedScene: 'Cold open', matchPct: 64, mode: 'overlay' },
-];
-
-const INITIAL_SCENES: Scene[] = [
+const BROLL_IMAGE_SUGGESTIONS: Suggestion[] = [
   {
-    id: 's1', num: '01', title: 'Cold open',
-    desc: 'Aerial establishing shot over the flooded coastline as the voiceover opens the eleven-day timeline.',
-    start: 0, duration: 6, status: 'ready',
-    mainParts: [{ filename: 'coldopen_take2.mp4' }], joinStatus: 'single',
-    broll: null, infographic: null,
+    label: 'Map overlay still',
+    meta: 'Still · 4K · flat grade',
+    start: 0,
+    dur: 4,
+    matchedScene: 'Sample',
+    matchPct: 91,
+    mediaKind: 'image',
+    previewUrl: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?w=640&q=80',
+    assetUrl: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?w=1280&q=80',
   },
   {
-    id: 's2', num: '02', title: 'Context',
-    desc: 'Kerala had seen heavy rain before — this time was different.',
-    start: 6, duration: 9, status: 'ready',
-    mainParts: [{ filename: 'drone_kerala_04.mp4' }], joinStatus: 'single',
-    broll: null,
-    infographic: { label: 'Location lower-third', mode: 'overlay', placement: 'Lower third' },
+    label: 'Crowd from above',
+    meta: 'Still · 4K · warm grade',
+    start: 8,
+    dur: 4,
+    matchedScene: 'Sample',
+    matchPct: 84,
+    mediaKind: 'image',
+    previewUrl: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=640&q=80',
+    assetUrl: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1280&q=80',
   },
   {
-    id: 's3', num: '03', title: 'The number',
-    desc: 'Statistic reveal — four hundred thousand people displaced.',
-    start: 15, duration: 5, status: 'working',
-    mainParts: [], joinStatus: 'single',
-    broll: null, infographic: null,
+    label: 'Rain on window glass',
+    meta: 'Still · 1080p · cool grade',
+    start: 16,
+    dur: 4,
+    matchedScene: 'Sample',
+    matchPct: 77,
+    mediaKind: 'image',
+    previewUrl: 'https://images.unsplash.com/photo-1428593397321-470c9f6f2d1e?w=640&q=80',
+    assetUrl: 'https://images.unsplash.com/photo-1428593397321-470c9f6f2d1e?w=1280&q=80',
   },
   {
-    id: 's4', num: '04', title: 'Turning point',
-    desc: 'Rescue boats arrive after three days. Handheld, urgent pacing.',
-    start: 20, duration: 8, status: 'ready',
-    mainParts: [
-      { filename: 'turningpoint_partA.mp4' },
-      { filename: 'turningpoint_partB.mp4' },
-    ],
-    joinStatus: 'join',
-    broll: null, infographic: null,
-  },
-  {
-    id: 's5', num: '05', title: 'Map beat',
-    desc: "The worst-hit districts stretched across the state's western edge.",
-    start: 28, duration: 7, status: 'needs',
-    mainParts: [], joinStatus: 'single',
-    broll: null, infographic: null,
-  },
-  {
-    id: 's6', num: '06', title: 'Close',
-    desc: "Five years later, some villages still haven't rebuilt.",
-    start: 35, duration: 6, status: 'ready',
-    mainParts: [{ filename: 'dusk_exterior.mp4' }], joinStatus: 'single',
-    broll: null, infographic: null,
+    label: 'Empty hallway light',
+    meta: 'Still · 4K · soft grade',
+    start: 24,
+    dur: 4,
+    matchedScene: 'Sample',
+    matchPct: 72,
+    mediaKind: 'image',
+    previewUrl: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=640&q=80',
+    assetUrl: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=1280&q=80',
   },
 ];
 
 const BG_SWATCHES = ['#000000', '#1A1A1D', '#0F2E2A', '#2E1A0F', '#1A0F2E'];
 
+/* ── Setup / face-scene flow types ────────────────────────────────────────── */
+
+type Stage = 'setup' | 'scenes' | 'editor';
+type VideoKind = 'faceless' | 'with-face';
+
+type FaceSceneDraft = {
+  id: string;
+  num: string;
+  title: string;
+  script: string;
+  filename: string | null;
+};
+
+/**
+ * Stub for the scene-wise script breakdown endpoint — splits the script into
+ * roughly even chunks until that endpoint is wired up.
+ */
+function stubSplitScriptIntoScenes(script: string): FaceSceneDraft[] {
+  const cleaned = script.trim();
+  if (!cleaned) return [];
+  const sentences = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const perScene = Math.max(1, Math.ceil(sentences.length / 6));
+  const chunks: string[] = [];
+  for (let i = 0; i < sentences.length; i += perScene) {
+    chunks.push(sentences.slice(i, i + perScene).join(' '));
+  }
+  return chunks.slice(0, 8).map((text, i) => ({
+    id: `face-scene-${i}`,
+    num: String(i + 1).padStart(2, '0'),
+    title: `Scene ${i + 1}`,
+    script: text,
+    filename: null,
+  }));
+}
+
+function deriveSceneTitle(scene: EditVideoScene, index: number): string {
+  const tag = scene.on_screen_text?.split('|')[0]?.trim();
+  if (tag) return tag;
+  const bracket = scene.vo_text?.match(/^\[([^\]]+)\]/);
+  if (bracket?.[1]) return bracket[1];
+  return `Scene ${index + 1}`;
+}
+
+/** Prefers a lightweight mp4 file; falls back to the first available link. */
+function pickVideoAssetUrl(
+  files: { quality: string | null; file_type: string; link: string }[] | undefined,
+  fallback: string,
+): string {
+  if (!files?.length) return fallback;
+  const sd = files.find((f) => f.quality === 'sd' && f.file_type?.includes('mp4'));
+  if (sd) return sd.link;
+  const anyMp4 = files.find((f) => f.file_type?.includes('mp4'));
+  return anyMp4?.link || files[0]?.link || fallback;
+}
+
+/** Maps the /edit-video response into editor scenes + per-scene B-roll video/image suggestions. */
+function mapEditVideoResponse(res: EditVideoResponse): {
+  scenes: Scene[];
+  brollVideoSuggestions: Record<string, Suggestion[]>;
+  brollImageSuggestions: Record<string, Suggestion[]>;
+} {
+  const brollVideoSuggestions: Record<string, Suggestion[]> = {};
+  const brollImageSuggestions: Record<string, Suggestion[]> = {};
+
+  /** Fallback placement (sequential, 5s each) for scenes whose start/end came back null. */
+  let cursor = 0;
+  const FALLBACK_DURATION = 5;
+
+  const scenes: Scene[] = (res.scenes ?? []).map((s, i) => {
+    const hasTiming = s.start != null && s.end != null;
+    const start = hasTiming ? Number(s.start) || 0 : cursor;
+    const end = hasTiming ? Number(s.end) || start : start + FALLBACK_DURATION;
+    const duration = Math.max(1, Math.round((end - start) * 10) / 10);
+    cursor = start + duration;
+
+    const title = deriveSceneTitle(s, i);
+    const keywords = s.broll_keywords?.length ? s.broll_keywords : s.media?.keywords ?? [];
+    const videoResults = s.media?.videos?.results ?? [];
+    const imageResults = s.media?.images?.results ?? [];
+
+    if (videoResults.length) {
+      brollVideoSuggestions[s.scene_id] = videoResults.slice(0, 6).map((r, ri) => ({
+        label: keywords[ri] || keywords[0] || `Matched clip ${ri + 1}`,
+        meta: `${r.width}Ã—${r.height} · ${r.duration}s`,
+        start: 0,
+        dur: Math.min(duration, r.duration || duration),
+        matchedScene: title,
+        matchPct: Math.max(60, 96 - ri * 6),
+        mediaKind: 'video',
+        previewUrl: r.thumbnail,
+        assetUrl: pickVideoAssetUrl(r.video_files, r.url),
+      }));
+    }
+
+    if (imageResults.length) {
+      brollImageSuggestions[s.scene_id] = imageResults.slice(0, 6).map((r, ri) => ({
+        label: keywords[ri] || keywords[0] || `Matched image ${ri + 1}`,
+        meta: `${r.width}Ã—${r.height}${r.photographer?.name ? ` · ${r.photographer.name}` : ''}`,
+        start: 0,
+        dur: Math.min(duration, 3),
+        matchedScene: title,
+        matchPct: Math.max(60, 94 - ri * 6),
+        mediaKind: 'image',
+        previewUrl: r.src?.medium || r.src?.small || r.url,
+        assetUrl: r.src?.large2x || r.src?.large || r.src?.original || r.url,
+      }));
+    }
+
+    const topLabel =
+      brollVideoSuggestions[s.scene_id]?.[0]?.label ??
+      brollImageSuggestions[s.scene_id]?.[0]?.label ??
+      null;
+
+    const remotionInfographic = readInfographicFromEditScene(s);
+
+    return {
+      id: s.scene_id || `scene-${i}`,
+      num: String(i + 1).padStart(2, '0'),
+      title,
+      desc: s.vo_text?.trim() || '',
+      start,
+      duration,
+      status: s.error ? 'needs' : topLabel ? 'ready' : 'needs',
+      mainParts: [],
+      joinStatus: 'single' as const,
+      broll: null,
+      /** Remotion payload from backend — shown in library; inserted onto timeline by the user. */
+      remotionInfographic,
+      infographic: null,
+      voiceoverUrl: s.voiceover?.url ?? null,
+      generationError: s.error ?? null,
+      onScreenText: s.on_screen_text ?? null,
+      wordSegments: s.word_segments?.map((w) => ({
+        word: w.word,
+        start: Number(w.start) || 0,
+        end: Number(w.end) || 0,
+      })),
+    };
+  });
+
+  return { scenes, brollVideoSuggestions, brollImageSuggestions };
+}
+
 /* ── Helpers ───────────────────────────────────────────────────────────────── */
 
 function tc(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  const ms = Math.round((sec % 1) * 100);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(2, '0')}`;
+  return formatTimecode(sec);
 }
 
 function tcShort(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return formatTimecodeShort(sec);
+}
+
+/** Read media duration from a blob/object URL (falls back if metadata fails). */
+function probeMediaDuration(url: string, fallback = 5): Promise<number> {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    const done = (d: number) => {
+      video.removeAttribute('src');
+      video.load();
+      resolve(Number.isFinite(d) && d > 0 ? d : fallback);
+    };
+    video.onloadedmetadata = () => done(video.duration);
+    video.onerror = () => done(fallback);
+    video.src = url;
+  });
 }
 
 function StatusPill({ status }: { status: SceneStatus }) {
@@ -214,12 +425,36 @@ function StatusPill({ status }: { status: SceneStatus }) {
 
 /* ── Component ─────────────────────────────────────────────────────────────── */
 
-export function StudioVideoEditingPanel() {
-  const [scenes, setScenes] = useState<Scene[]>(INITIAL_SCENES);
-  const [selectedId, setSelectedId] = useState('s5');
-  const [zoom, setZoom] = useState(12);
-  const [playheadSec, setPlayheadSec] = useState(0);
+export function StudioVideoEditingPanel({
+  scriptText = '',
+  isUnlocked = false,
+  ideaTitle,
+}: {
+  scriptText?: string;
+  isUnlocked?: boolean;
+  ideaTitle?: string | null;
+}) {
+  const [stage, setStage] = useState<Stage>('editor');
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [selectedId, setSelectedId] = useState('');
   const [playingVO, setPlayingVO] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [sceneTimelines, setSceneTimelines] = useState<Record<string, TimelineState>>({});
+  const sceneTimelinesRef = useRef(sceneTimelines);
+  sceneTimelinesRef.current = sceneTimelines;
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingUploadSceneIdRef = useRef<string | null>(null);
+  const objectUrlsRef = useRef<string[]>([]);
+
+  const [timelinePanelHeight, setTimelinePanelHeight] = useState(() => {
+    if (typeof window === 'undefined') return 240;
+    const raw = window.localStorage.getItem('storio_timeline_height');
+    const n = raw ? Number(raw) : 240;
+    return Number.isFinite(n) ? Math.min(500, Math.max(150, n)) : 240;
+  });
   const [textStyle, setTextStyle] = useState<TextStyle>({
     position: 'lower',
     background: true,
@@ -231,14 +466,42 @@ export function StudioVideoEditingPanel() {
   const [history, setHistory] = useState<string[]>([]);
   const [future, setFuture] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [expandedSceneText, setExpandedSceneText] = useState<Set<string>>(new Set());
+  const [previewItem, setPreviewItem] = useState<{ item: Suggestion; type: 'broll' | 'infographic' } | null>(null);
+  const [previewRemotion, setPreviewRemotion] = useState<RemotionInfographicSpec | null>(null);
+  const [captionOffset, setCaptionOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const timelineApi = useVideoTimeline(createEmptyTimeline());
+  const { setTimeline: replaceTimelineState } = timelineApi;
+  const timelineRef = useRef(timelineApi.timeline);
+  timelineRef.current = timelineApi.timeline;
 
   const selected = useMemo(
-    () => scenes.find((s) => s.id === selectedId) ?? scenes[0],
+    () => scenes.find((s) => s.id === selectedId) ?? scenes[0] ?? null,
     [scenes, selectedId],
   );
-  const totalDuration = useMemo(
-    () => scenes.reduce((a, s) => a + s.duration, 0),
-    [scenes],
+  const hasScenes = scenes.length > 0;
+  const showDummyLibrary = !hasScenes;
+  const totalDuration = timelineApi.timeline.duration;
+
+  const selectScene = useCallback(
+    (nextId: string) => {
+      if (nextId === selectedIdRef.current) return;
+      setIsPlaying(false);
+      const currentId = selectedIdRef.current;
+      const maps = { ...sceneTimelinesRef.current };
+      if (currentId) {
+        maps[currentId] = JSON.parse(JSON.stringify(timelineRef.current)) as TimelineState;
+      }
+      const scene = scenes.find((s) => s.id === nextId) ?? scenes[0];
+      if (!scene) return;
+      const target = maps[nextId] ?? createSceneTimeline(scene);
+      maps[nextId] = target;
+      setSceneTimelines(maps);
+      replaceTimelineState(target, false);
+      setSelectedId(nextId);
+    },
+    [scenes, replaceTimelineState],
   );
 
   const showToast = useCallback((msg: string) => {
@@ -251,13 +514,405 @@ export function StudioVideoEditingPanel() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  /* ── Setup flow (voice + face/faceless, before the editor is shown) ── */
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userTier, setUserTier] = useState<string | null>(null);
+  const [videoKind, setVideoKind] = useState<VideoKind | null>(null);
+  const [setupScript, setSetupScript] = useState(scriptText || '');
+  const [voicePresets, setVoicePresets] = useState<VoicePreset[]>([]);
+  const [voicesLoading, setVoicesLoading] = useState(true);
+  const [selectedVoice, setSelectedVoice] = useState<string>('');
+  const [clonedAudioUrl, setClonedAudioUrl] = useState<string | null>(null);
+  const [clonedVoiceName, setClonedVoiceName] = useState<string | null>(null);
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const [previewVoiceId, setPreviewVoiceId] = useState<string | null>(null);
+  const [isSubmittingSetup, setIsSubmittingSetup] = useState(false);
+  const [faceScenes, setFaceScenes] = useState<FaceSceneDraft[]>([]);
+  const [sceneBrollVideoSuggestions, setSceneBrollVideoSuggestions] = useState<Record<string, Suggestion[]>>({});
+  const [sceneBrollImageSuggestions, setSceneBrollImageSuggestions] = useState<Record<string, Suggestion[]>>({});
+  const lastEditVideoResponseRef = useRef<EditVideoResponse | null>(null);
+  const restoredCacheRef = useRef(false);
+  const hasEditorProjectRef = useRef(false);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setSetupScript(scriptText || '');
+  }, [scriptText]);
+
+  /** Restore a previously generated project from localStorage (skip re-calling /edit-video). */
+  useEffect(() => {
+    if (!userId || restoredCacheRef.current) return;
+    const cached = loadVideoEditProject(userId, scriptText || setupScript || '');
+    if (!cached || cached.stage !== 'editor' || !cached.scenes.length) return;
+
+    restoredCacheRef.current = true;
+    hasEditorProjectRef.current = true;
+    lastEditVideoResponseRef.current = cached.response ?? null;
+    setScenes(cached.scenes as Scene[]);
+    setSceneBrollVideoSuggestions(
+      (cached.brollVideoSuggestions || {}) as Record<string, Suggestion[]>,
+    );
+    setSceneBrollImageSuggestions(
+      (cached.brollImageSuggestions || {}) as Record<string, Suggestion[]>,
+    );
+    setSelectedId(cached.selectedId || (cached.scenes[0] as Scene)?.id);
+    if (cached.textStyle) setTextStyle(cached.textStyle as TextStyle);
+    if (cached.videoKind) setVideoKind(cached.videoKind);
+    if (cached.selectedVoice) setSelectedVoice(cached.selectedVoice);
+    if (cached.script) setSetupScript(cached.script);
+    const maps =
+      (cached.sceneTimelines as Record<string, TimelineState> | undefined) ??
+      createSceneTimelinesMap(cached.scenes as Scene[]);
+    setSceneTimelines(maps);
+    const sid = cached.selectedId || (cached.scenes[0] as Scene)?.id;
+    replaceTimelineState(
+      (sid && maps[sid]) || (cached.timeline as TimelineState),
+      false,
+    );
+    setStage('editor');
+  }, [userId, scriptText, setupScript, replaceTimelineState]);
+
+  const persistProject = useCallback(
+    (overrides?: {
+      scenes?: Scene[];
+      timeline?: TimelineState;
+      sceneTimelines?: Record<string, TimelineState>;
+      selectedId?: string;
+      stage?: Stage;
+      response?: EditVideoResponse | null;
+      brollVideoSuggestions?: Record<string, Suggestion[]>;
+      brollImageSuggestions?: Record<string, Suggestion[]>;
+      videoKind?: VideoKind | null;
+      script?: string;
+    }) => {
+      if (!userId) return;
+      const script = (overrides?.script ?? (setupScript || scriptText)).trim();
+      if (!script) return;
+      const nextStage = overrides?.stage ?? stage;
+      if (nextStage !== 'editor') return;
+      const nextScenes = overrides?.scenes ?? scenes;
+      if (!nextScenes.length) return;
+
+      const sid = overrides?.selectedId ?? selectedId;
+      if (!sid) return;
+      const currentTl = overrides?.timeline ?? timelineApi.timeline;
+      const maps = {
+        ...(overrides?.sceneTimelines ?? sceneTimelines),
+        [sid]: currentTl,
+      };
+
+      saveVideoEditProject({
+        userId,
+        script,
+        ideaTitle: ideaTitle ?? null,
+        videoKind: overrides?.videoKind ?? videoKind ?? 'faceless',
+        selectedVoice,
+        response: overrides?.response !== undefined ? overrides.response : lastEditVideoResponseRef.current,
+        scenes: nextScenes,
+        brollVideoSuggestions:
+          overrides?.brollVideoSuggestions ?? sceneBrollVideoSuggestions,
+        brollImageSuggestions:
+          overrides?.brollImageSuggestions ?? sceneBrollImageSuggestions,
+        timeline: currentTl,
+        sceneTimelines: maps,
+        selectedId: sid,
+        textStyle,
+        stage: 'editor',
+      });
+    },
+    [
+      userId,
+      setupScript,
+      scriptText,
+      ideaTitle,
+      videoKind,
+      selectedVoice,
+      stage,
+      scenes,
+      sceneBrollVideoSuggestions,
+      sceneBrollImageSuggestions,
+      timelineApi.timeline,
+      sceneTimelines,
+      selectedId,
+      textStyle,
+    ],
+  );
+
+  const timelinePersistKey = useMemo(
+    () =>
+      JSON.stringify({
+        tracks: timelineApi.timeline.tracks,
+        duration: timelineApi.timeline.duration,
+        pixelsPerSecond: timelineApi.timeline.pixelsPerSecond,
+        selectedClipIds: timelineApi.timeline.selectedClipIds,
+      }),
+    [timelineApi.timeline],
+  );
+
+  /** Debounced persist while editing so refresh keeps timeline changes. */
+  useEffect(() => {
+    if (stage !== 'editor' || !userId || !hasEditorProjectRef.current) return;
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      persistProject();
+    }, 700);
+    return () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    };
+  }, [stage, userId, scenes, selectedId, textStyle, timelinePersistKey, persistProject]);
+
+  useEffect(() => {
+    return () => {
+      for (const url of objectUrlsRef.current) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          /* ignore */
+        }
+      }
+      objectUrlsRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setVoicesLoading(true);
+      try {
+        const voices = await fetchPreMadeVoices();
+        if (!cancelled) setVoicePresets(voices);
+      } finally {
+        if (!cancelled) setVoicesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+      const id = session?.user?.id ?? null;
+      setUserId(id);
+      if (!id) return;
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('user_tier')
+        .eq('id', id)
+        .maybeSingle();
+      if (cancelled) return;
+      setUserTier((profile?.user_tier || 'Free').trim() || 'Free');
+      const { audioUrl, name } = await fetchClonedVoiceFromProfile(id);
+      if (cancelled) return;
+      setClonedAudioUrl(audioUrl);
+      setClonedVoiceName(name);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cloningAllowed = canUseVoiceCloning(userTier);
+  const clonedVoicePreset: VoicePreset = useMemo(
+    () => ({
+      id: 'cloned',
+      name: clonedVoiceName || 'Your voice',
+      tags: 'Cloned · Personal · Ready',
+      wash: CLONED_VOICE_WASH,
+    }),
+    [clonedVoiceName],
+  );
+  const selectedVoicePreset = useMemo(
+    () => voicePresets.find((v) => v.id === selectedVoice) ?? null,
+    [voicePresets, selectedVoice],
+  );
+
+  const handlePreviewVoice = useCallback((e: MouseEvent, id: string) => {
+    e.stopPropagation();
+    setSelectedVoice(id);
+    setPreviewVoiceId((cur) => (cur === id ? null : id));
+  }, []);
+
+  const handleCloned = useCallback(async () => {
+    if (!userId) return;
+    saveClonedVoiceProfile(userId);
+    const { audioUrl, name } = await fetchClonedVoiceFromProfile(userId);
+    setClonedAudioUrl(audioUrl);
+    setClonedVoiceName(name);
+    if (audioUrl) setSelectedVoice('cloned');
+  }, [userId]);
+
+  const setupScriptReady = Boolean(setupScript.trim());
+  const setupVoiceReady = videoKind === 'with-face' ? true : Boolean(selectedVoice);
+  const canSubmitSetup = Boolean(videoKind) && setupScriptReady && setupVoiceReady && !isSubmittingSetup;
+
+  const runFacelessGenerate = useCallback(async () => {
+    if (!canSubmitSetup || videoKind !== 'faceless') return;
+    if (!userId) {
+      showToast('Please sign in to generate video');
+      return;
+    }
+    const voice =
+      selectedVoice === 'cloned' ? 'user' : selectedVoicePreset?.referenceId?.trim() || '';
+    if (!voice) {
+      showToast('Pick a voice to continue');
+      return;
+    }
+    const durationSeconds = estimateSpeechDurationSeconds(setupScript);
+    const durationMinutes = Math.max(1, Math.round(durationSeconds / 60));
+
+    setIsSubmittingSetup(true);
+    try {
+      const res: EditVideoResponse = await ApiService.editVideo({
+        userId,
+        script: setupScript.trim(),
+        voice,
+        langCode: 'en',
+        durationMinutes,
+      });
+      const { scenes: mappedScenes, brollVideoSuggestions, brollImageSuggestions } = mapEditVideoResponse(res);
+      if (!mappedScenes.length) {
+        showToast('No scenes came back for this script');
+        return;
+      }
+      lastEditVideoResponseRef.current = res;
+      hasEditorProjectRef.current = true;
+      restoredCacheRef.current = true;
+      setScenes(mappedScenes);
+      setSceneBrollVideoSuggestions(brollVideoSuggestions);
+      setSceneBrollImageSuggestions(brollImageSuggestions);
+      const maps = createSceneTimelinesMap(mappedScenes);
+      const firstId = mappedScenes[0].id;
+      setSceneTimelines(maps);
+      setSelectedId(firstId);
+      const timeline = maps[firstId];
+      replaceTimelineState(timeline, false);
+      setStage('editor');
+      setSetupOpen(false);
+      persistProject({
+        scenes: mappedScenes,
+        timeline,
+        sceneTimelines: maps,
+        selectedId: firstId,
+        stage: 'editor',
+        response: res,
+        brollVideoSuggestions,
+        brollImageSuggestions,
+        videoKind: 'faceless',
+        script: setupScript.trim(),
+      });
+      showToast('Video generated');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to generate video');
+    } finally {
+      setIsSubmittingSetup(false);
+    }
+  }, [canSubmitSetup, videoKind, userId, selectedVoice, selectedVoicePreset, setupScript, showToast, replaceTimelineState, persistProject]);
+
+  const runWithFaceGenerate = useCallback(() => {
+    if (!canSubmitSetup || videoKind !== 'with-face') return;
+    setIsSubmittingSetup(true);
+    // Stub for the scene-wise script breakdown endpoint.
+    setTimeout(() => {
+      setFaceScenes(stubSplitScriptIntoScenes(setupScript));
+      setIsSubmittingSetup(false);
+      setStage('scenes');
+    }, 500);
+  }, [canSubmitSetup, videoKind, setupScript]);
+
+  const uploadFaceSceneRecording = useCallback((id: string) => {
+    setFaceScenes((list) =>
+      list.map((s) =>
+        s.id === id
+          ? { ...s, filename: `${s.title.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_recording.mp4` }
+          : s,
+      ),
+    );
+  }, []);
+
+  const allFaceScenesUploaded = faceScenes.length > 0 && faceScenes.every((s) => s.filename);
+
+  const finishWithFaceSetup = useCallback(() => {
+    if (!allFaceScenesUploaded) return;
+    const nextScenes: Scene[] = faceScenes.map((s, i) => ({
+      id: s.id,
+      num: s.num,
+      title: s.title,
+      desc: s.script,
+      start: i * 6,
+      duration: 6,
+      status: 'ready',
+      mainParts: s.filename ? [{ filename: s.filename }] : [],
+      joinStatus: 'single',
+      broll: null,
+      infographic: null,
+    }));
+    lastEditVideoResponseRef.current = null;
+    hasEditorProjectRef.current = true;
+    restoredCacheRef.current = true;
+    setScenes(nextScenes);
+    const maps = createSceneTimelinesMap(nextScenes);
+    const firstId = faceScenes[0]?.id ?? 's1';
+    setSceneTimelines(maps);
+    setSelectedId(firstId);
+    const timeline = maps[firstId] ?? createSceneTimeline(nextScenes[0]);
+    replaceTimelineState(timeline, false);
+    setStage('editor');
+    setSetupOpen(false);
+    persistProject({
+      scenes: nextScenes,
+      timeline,
+      sceneTimelines: maps,
+      selectedId: firstId,
+      stage: 'editor',
+      response: null,
+      brollVideoSuggestions: {},
+      brollImageSuggestions: {},
+      videoKind: 'with-face',
+      script: setupScript.trim(),
+    });
+    showToast('Video generation started');
+  }, [allFaceScenesUploaded, faceScenes, showToast, replaceTimelineState, persistProject, setupScript]);
+
+  const voiceoverAudioRef = useRef<HTMLAudioElement | null>(null);
+
   useEffect(() => {
     if (!playingVO) return;
     const scene = scenes.find((s) => s.id === playingVO);
+    if (scene?.voiceoverUrl) return; // real audio ends itself via onended
     const ms = Math.min(scene?.duration ?? 3, 6) * 1000;
     const t = setTimeout(() => setPlayingVO(null), ms);
     return () => clearTimeout(t);
   }, [playingVO, scenes]);
+
+  useEffect(() => {
+    return () => {
+      voiceoverAudioRef.current?.pause();
+    };
+  }, []);
+
+  const toggleVoiceoverPlayback = useCallback((sc: Scene) => {
+    if (playingVO === sc.id) {
+      voiceoverAudioRef.current?.pause();
+      setPlayingVO(null);
+      return;
+    }
+    voiceoverAudioRef.current?.pause();
+    if (sc.voiceoverUrl) {
+      const audio = voiceoverAudioRef.current ?? new Audio();
+      audio.src = sc.voiceoverUrl;
+      audio.onended = () => setPlayingVO(null);
+      voiceoverAudioRef.current = audio;
+      void audio.play().catch(() => {
+        showToast('Could not play voiceover');
+        setPlayingVO(null);
+      });
+    }
+    setPlayingVO(sc.id);
+  }, [playingVO, showToast]);
 
   const pushHistory = useCallback(() => {
     setHistory((h) => [...h.slice(-24), JSON.stringify(scenes)]);
@@ -265,6 +920,10 @@ export function StudioVideoEditingPanel() {
   }, [scenes]);
 
   const undo = () => {
+    if (timelineApi.historyLength) {
+      timelineApi.undo();
+      return;
+    }
     if (!history.length) {
       showToast('Nothing to undo');
       return;
@@ -272,10 +931,15 @@ export function StudioVideoEditingPanel() {
     const prev = history[history.length - 1];
     setFuture((f) => [...f, JSON.stringify(scenes)]);
     setHistory((h) => h.slice(0, -1));
-    setScenes(JSON.parse(prev) as Scene[]);
+    const nextScenes = JSON.parse(prev) as Scene[];
+    setScenes(nextScenes);
   };
 
   const redo = () => {
+    if (timelineApi.futureLength) {
+      timelineApi.redo();
+      return;
+    }
     if (!future.length) {
       showToast('Nothing to redo');
       return;
@@ -283,7 +947,8 @@ export function StudioVideoEditingPanel() {
     const next = future[future.length - 1];
     setHistory((h) => [...h, JSON.stringify(scenes)]);
     setFuture((f) => f.slice(0, -1));
-    setScenes(JSON.parse(next) as Scene[]);
+    const nextScenes = JSON.parse(next) as Scene[];
+    setScenes(nextScenes);
   };
 
   const updateScene = (id: string, patch: Partial<Scene>) => {
@@ -296,33 +961,63 @@ export function StudioVideoEditingPanel() {
     const last = scenes[scenes.length - 1];
     const start = last ? last.start + last.duration : 0;
     const id = `s${Date.now()}`;
-    setScenes((list) => [
-      ...list,
-      {
-        id,
-        num: String(n).padStart(2, '0'),
-        title: 'New scene',
-        desc: 'Describe what happens in this scene.',
-        start,
-        duration: 5,
-        status: 'needs',
-        mainParts: [],
-        joinStatus: 'single',
-        broll: null,
-        infographic: null,
-      },
-    ]);
+    const scene: Scene = {
+      id,
+      num: String(n).padStart(2, '0'),
+      title: 'New scene',
+      desc: 'Describe what happens in this scene.',
+      start,
+      duration: 5,
+      status: 'needs',
+      mainParts: [],
+      joinStatus: 'single',
+      broll: null,
+      infographic: null,
+    };
+    setScenes((list) => [...list, scene]);
+    const tl = createSceneTimeline(scene);
+    setSceneTimelines((prev) => {
+      const snapshot = JSON.parse(JSON.stringify(timelineRef.current)) as TimelineState;
+      return { ...prev, [selectedIdRef.current]: snapshot, [id]: tl };
+    });
+    replaceTimelineState(tl, false);
     setSelectedId(id);
   };
 
-  const uploadMain = (id: string) => {
+  const openUploadFootage = (sceneId: string) => {
+    if (sceneId !== selectedIdRef.current) selectScene(sceneId);
+    pendingUploadSceneIdRef.current = sceneId;
+    // Defer so scene switch paints before the native file dialog blocks the UI.
+    requestAnimationFrame(() => fileInputRef.current?.click());
+  };
+
+  const onFootageFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    const sceneId = pendingUploadSceneIdRef.current ?? selectedIdRef.current;
+    pendingUploadSceneIdRef.current = null;
+    if (!file || !sceneId) return;
+    if (!file.type.startsWith('video/') && !/\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
+      showToast('Please choose a video file (MP4, MOV, or WebM)');
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    objectUrlsRef.current.push(url);
+    const mediaDur = await probeMediaDuration(url, selected?.duration ?? 5);
+    const sceneDur = timelineRef.current.duration || selected?.duration || mediaDur;
+    const clipDur = Math.max(0.5, Math.min(mediaDur, sceneDur));
+
+    const videoTrack = timelineRef.current.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.video);
+    const lastEnd =
+      videoTrack?.clips.reduce((max, c) => Math.max(max, c.start + c.duration), 0) ?? 0;
+    const start = Math.min(lastEnd, Math.max(0, sceneDur - 0.1));
+
     pushHistory();
     setScenes((list) =>
       list.map((sc) => {
-        if (sc.id !== id) return sc;
-        const partNum = sc.mainParts.length + 1;
-        const filename = `${sc.title.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_take${partNum}.mp4`;
-        const mainParts = [...sc.mainParts, { filename }];
+        if (sc.id !== sceneId) return sc;
+        const mainParts = [...sc.mainParts, { filename: file.name, url }];
         return {
           ...sc,
           mainParts,
@@ -331,13 +1026,20 @@ export function StudioVideoEditingPanel() {
         };
       }),
     );
-    setSelectedId(id);
-    const sc = scenes.find((s) => s.id === id);
-    showToast(
-      sc && sc.mainParts.length >= 1
-        ? 'Second take detected — aligning script coverage…'
-        : 'Footage uploaded — re-cutting scene',
-    );
+
+    timelineApi.addClip(DEFAULT_TRACK_IDS.video, {
+      id: `vid-${sceneId}-${Date.now()}`,
+      type: 'video',
+      name: file.name,
+      sourceUrl: url,
+      start,
+      duration: clipDur,
+      sourceStart: 0,
+      sourceDuration: clipDur,
+      originalSourceDuration: mediaDur,
+      sceneId,
+    });
+    showToast('Footage added to Video track');
   };
 
   const movePart = (id: string, idx: number, dir: -1 | 1) => {
@@ -357,6 +1059,8 @@ export function StudioVideoEditingPanel() {
 
   const removePart = (id: string, idx: number) => {
     pushHistory();
+    const scene = scenes.find((s) => s.id === id);
+    const removed = scene?.mainParts[idx];
     setScenes((list) =>
       list.map((sc) => {
         if (sc.id !== id) return sc;
@@ -369,53 +1073,481 @@ export function StudioVideoEditingPanel() {
         };
       }),
     );
+    if (removed && id === selectedIdRef.current) {
+      const videoTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.video);
+      const clip = videoTrack?.clips.find(
+        (c) => c.name === removed.filename || c.sourceUrl === removed.url,
+      );
+      if (clip) {
+        timelineApi.selectClips([clip.id]);
+        timelineApi.deleteSelected();
+      }
+    }
   };
 
-  const insertSuggestion = (type: 'broll' | 'infographic', index: number) => {
+  const insertSuggestion = (type: 'broll' | 'infographic', item: Suggestion) => {
+    const target = selected;
+    if (!target) {
+      showToast('Generate voice and scenes first');
+      return;
+    }
+    if (type === 'infographic') return; // Remotion infographics use insertRemotionInfographic
+
+    const trackId = DEFAULT_TRACK_IDS.broll;
+    const alreadyOnTimeline = timelineApi.timeline.tracks
+      .find((t) => t.id === trackId)
+      ?.clips.some((c) => c.name === item.label);
+    if (alreadyOnTimeline) {
+      showToast('Already on the timeline');
+      return;
+    }
+
     pushHistory();
-    const list = type === 'broll' ? BROLL_SUGGESTIONS : INFOGRAPHIC_SUGGESTIONS;
-    const item = list[index];
-    if (!item) return;
-    const target = scenes.reduce((closest, scn) =>
-      Math.abs(scn.start - item.start) < Math.abs(closest.start - item.start) ? scn : closest,
-    scenes[0]);
     setScenes((prev) =>
       prev.map((sc) => {
         if (sc.id !== target.id) return sc;
-        if (type === 'broll') {
-          return { ...sc, broll: { label: item.label }, status: sc.status === 'needs' ? 'ready' : sc.status };
-        }
         return {
           ...sc,
-          infographic: {
+          broll: {
             label: item.label,
-            mode: item.mode ?? 'overlay',
-            placement: item.mode === 'overlay' ? 'Lower third' : null,
+            url: item.assetUrl,
+            thumbnailUrl: item.previewUrl,
           },
           status: sc.status === 'needs' ? 'ready' : sc.status,
         };
       }),
     );
-    setSelectedId(target.id);
+
+    const start = Math.max(0, Math.min(timelineApi.timeline.currentTime, Math.max(0, totalDuration - 0.1)));
+    const dur = Math.min(item.dur, Math.max(0.5, totalDuration - start));
+
+    timelineApi.addClip(DEFAULT_TRACK_IDS.broll, {
+      id: `br-${Date.now()}`,
+      type: 'broll',
+      name: item.label,
+      sourceUrl: item.assetUrl || item.previewUrl || undefined,
+      thumbnailUrl: item.previewUrl || undefined,
+      mediaKind: item.mediaKind === 'image' ? 'image' : 'video',
+      start,
+      duration: dur,
+      sourceStart: 0,
+      sourceDuration: dur,
+      originalSourceDuration: dur,
+      sceneId: target.id,
+    });
+
     showToast(`Inserted into ${target.title}`);
   };
 
-  const timelineWidth = Math.max(totalDuration * zoom, 560);
-  const rulerMarks = useMemo(() => {
-    const marks: number[] = [];
-    for (let t = 0; t <= totalDuration + 5; t += 10) marks.push(t);
-    return marks;
-  }, [totalDuration]);
+  const insertRemotionInfographic = useCallback(() => {
+    const target = selected;
+    const spec = target?.remotionInfographic;
+    if (!target || !spec) return;
 
-  const hasMedia = selected.mainParts.length > 0;
-  const isFullscreenInfo = selected.infographic?.mode === 'fullscreen';
-  const isOverlayInfo = selected.infographic?.mode === 'overlay';
+    const already = timelineApi.timeline.tracks
+      .find((t) => t.id === DEFAULT_TRACK_IDS.infographic)
+      ?.clips.some(
+        (c) =>
+          c.remotion?.compositionId === spec.compositionId &&
+          c.sceneId === target.id,
+      );
+    if (already) {
+      showToast('Already on the timeline');
+      return;
+    }
+
+    const label = remotionInfographicLabel(spec);
+    const start = resolveInfographicStartSeconds(spec.trigger, 0);
+    const durSec = remotionDurationSeconds(spec.durationFrames, EDITOR_FPS);
+    if (durSec <= 0) {
+      showToast('Invalid infographic duration');
+      return;
+    }
+
+    const isFull =
+      spec.placement === 'full_frame' ||
+      spec.placement === 'fullscreen' ||
+      spec.placement === 'full_screen' ||
+      (!spec.placement && spec.animationType.startsWith('full_screen_'));
+
+    pushHistory();
+    setScenes((prev) =>
+      prev.map((sc) =>
+        sc.id !== target.id
+          ? sc
+          : {
+              ...sc,
+              infographic: {
+                label,
+                mode: isFull ? 'fullscreen' : 'overlay',
+                placement: spec.placement || null,
+              },
+              status: sc.status === 'needs' ? 'ready' : sc.status,
+            },
+      ),
+    );
+
+    timelineApi.addClip(DEFAULT_TRACK_IDS.infographic, {
+      id: `info-remotion-${target.id}-${Date.now()}`,
+      type: 'infographic',
+      name: label,
+      text: label,
+      start,
+      duration: durSec,
+      sourceStart: 0,
+      sourceDuration: durSec,
+      originalSourceDuration: durSec,
+      sceneId: target.id,
+      placement: spec.placement,
+      mode: isFull ? 'fullscreen' : 'overlay',
+      remotion: {
+        compositionId: spec.compositionId,
+        animationType: spec.animationType,
+        props: spec.props,
+        durationFrames: spec.durationFrames,
+        trigger: spec.trigger,
+        placement: spec.placement,
+        renderEngineHint: spec.renderEngineHint,
+      },
+    });
+
+    showToast(`Inserted into ${target.title}`);
+  }, [selected, timelineApi, pushHistory, showToast]);
+
+  const remotionAlreadyOnTimeline = useMemo(() => {
+    const spec = selected?.remotionInfographic;
+    if (!spec) return false;
+    return Boolean(
+      timelineApi.timeline.tracks
+        .find((t) => t.id === DEFAULT_TRACK_IDS.infographic)
+        ?.clips.some(
+          (c) => c.remotion?.compositionId === spec.compositionId && c.sceneId === selected?.id,
+        ),
+    );
+  }, [selected, timelineApi.timeline.tracks]);
+
+  const addTextClip = useCallback(() => {
+    const start = timelineApi.timeline.currentTime;
+    const id = `txt-${Date.now()}`;
+    timelineApi.addClip(DEFAULT_TRACK_IDS.text, {
+      id,
+      type: 'text',
+      name: 'New text',
+      text: 'New text',
+      start,
+      duration: 3,
+      sourceStart: 0,
+      sourceDuration: 3,
+      sceneId: selectedId,
+    });
+    timelineApi.selectClips([id]);
+    showToast('Text clip added');
+  }, [timelineApi, selectedId, showToast]);
+
+  const timelineHasClipNamed = useCallback(
+    (trackId: string, name: string) =>
+      Boolean(
+        timelineApi.timeline.tracks
+          .find((t) => t.id === trackId)
+          ?.clips.some((c) => c.name === name),
+      ),
+    [timelineApi.timeline.tracks],
+  );
+
+  const toggleSceneText = useCallback((id: string) => {
+    setExpandedSceneText((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const beginResizeTimeline = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = timelinePanelHeight;
+    const move = (ev: PointerEvent) => {
+      const delta = startY - ev.clientY;
+      const next = Math.min(Math.round(window.innerHeight * 0.65), Math.max(150, startH + delta));
+      setTimelinePanelHeight(next);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setTimelinePanelHeight((h) => {
+        try {
+          window.localStorage.setItem('storio_timeline_height', String(h));
+        } catch {
+          /* ignore */
+        }
+        return h;
+      });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }, [timelinePanelHeight]);
+
+  const openSetupModal = useCallback(() => {
+    setStage('setup');
+    setSetupOpen(true);
+  }, []);
+
+  const closeSetupModal = useCallback(() => {
+    if (isSubmittingSetup) return;
+    setSetupOpen(false);
+    setStage('editor');
+  }, [isSubmittingSetup]);
+
+  const setupDialog = setupOpen ? (
+      <div
+        className="absolute inset-0 z-[60] flex items-center justify-center bg-black/45 p-4"
+        aria-label="AI video editing setup"
+        onClick={closeSetupModal}
+      >
+        <div
+          className="relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={closeSetupModal}
+            className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-[#f5f5f7] text-[#6e6e73] hover:bg-gray-200 hover:text-[#1d1d1f]"
+            aria-label="Close setup"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          {stage === 'setup' ? (
+            <>
+              <div className="flex-shrink-0 border-b border-gray-100 px-6 py-5">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-600">
+                  AI Video Editing
+                </p>
+                <h2 className="text-xl font-semibold tracking-tight text-[#1d1d1f]">
+                  {ideaTitle ? `Set up "${ideaTitle}"` : 'Set up your video'}
+                </h2>
+                <p className="mt-1 text-xs text-[#6e6e73]">
+                  Choose a video type, add your script, and pick a voice.
+                </p>
+              </div>
+
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+                {/* Face / faceless */}
+                <div>
+                  <p className="mb-2 text-[11px] font-semibold text-[#6e6e73]">
+                    Is this a with-face or faceless video?
+                  </p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setVideoKind('faceless')}
+                      className={`flex flex-col items-center gap-1.5 rounded-2xl border px-3 py-3.5 text-center transition-all ${
+                        videoKind === 'faceless'
+                          ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-sm'
+                          : 'border-gray-200 bg-[#fafafa] text-[#1d1d1f] hover:border-gray-300'
+                      }`}
+                    >
+                      <UserRoundX className="h-4.5 w-4.5" />
+                      <span className="text-xs font-semibold">Faceless video</span>
+                      <span className={`text-[10px] ${videoKind === 'faceless' ? 'text-white/65' : 'text-[#86868b]'}`}>
+                        AI voice over footage
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVideoKind('with-face')}
+                      className={`flex flex-col items-center gap-1.5 rounded-2xl border px-3 py-3.5 text-center transition-all ${
+                        videoKind === 'with-face'
+                          ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-sm'
+                          : 'border-gray-200 bg-[#fafafa] text-[#1d1d1f] hover:border-gray-300'
+                      }`}
+                    >
+                      <UserRound className="h-4.5 w-4.5" />
+                      <span className="text-xs font-semibold">With face video</span>
+                      <span className={`text-[10px] ${videoKind === 'with-face' ? 'text-white/65' : 'text-[#86868b]'}`}>
+                        You record each scene
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Voice selection */}
+                <div className={videoKind === 'with-face' ? 'pointer-events-none opacity-40' : ''}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-[11px] font-semibold text-[#6e6e73]">
+                      Voice {videoKind === 'with-face' && '(not needed for on-camera videos)'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!cloningAllowed) {
+                          showToast('Voice cloning is available on Plus and Pro plans');
+                          return;
+                        }
+                        setCloneOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#6e6e73] hover:text-[#1d1d1f]"
+                    >
+                      <Mic className="h-3 w-3" />
+                      {clonedAudioUrl ? 'Re-clone voice' : 'Clone your voice'}
+                    </button>
+                  </div>
+                  {voicesLoading ? (
+                    <div className="flex items-center justify-center py-6 text-[#6e6e73]">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {clonedAudioUrl && (
+                        <VoiceCard
+                          voice={clonedVoicePreset}
+                          active={selectedVoice === 'cloned'}
+                          onSelect={() => setSelectedVoice('cloned')}
+                          onPreview={(e) => handlePreviewVoice(e, 'cloned')}
+                          isPreviewing={previewVoiceId === 'cloned'}
+                        />
+                      )}
+                      {voicePresets.map((v) => (
+                        <VoiceCard
+                          key={v.id}
+                          voice={v}
+                          active={selectedVoice === v.id}
+                          onSelect={() => setSelectedVoice(v.id)}
+                          onPreview={(e) => handlePreviewVoice(e, v.id)}
+                          isPreviewing={previewVoiceId === v.id}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Script */}
+                <div>
+                  <p className="mb-2 text-[11px] font-semibold text-[#6e6e73]">Script</p>
+                  <textarea
+                    value={setupScript}
+                    onChange={(e) => setSetupScript(e.target.value)}
+                    placeholder={
+                      isUnlocked ? undefined : 'Paste or write the script for this video…'
+                    }
+                    rows={4}
+                    className="w-full min-h-[90px] max-h-[130px] resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2.5 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f] focus:ring-2 focus:ring-[#1d1d1f]/10"
+                  />
+                </div>
+              </div>
+
+              <div className="flex-shrink-0 border-t border-gray-100 p-4">
+                <button
+                  type="button"
+                  disabled={!canSubmitSetup}
+                  onClick={() => {
+                    if (videoKind === 'faceless') void runFacelessGenerate();
+                    else if (videoKind === 'with-face') runWithFaceGenerate();
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {isSubmittingSetup ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 text-amber-300" />
+                  )}
+                  {!videoKind
+                    ? 'Choose a video type'
+                    : videoKind === 'faceless'
+                      ? 'Generate video'
+                      : 'Get scene-wise script'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex-shrink-0 border-b border-gray-100 px-6 py-5">
+                <button
+                  type="button"
+                  onClick={() => setStage('setup')}
+                  className="mb-2 text-[11px] font-semibold text-[#6e6e73] hover:text-[#1d1d1f]"
+                >
+                  ← Back
+                </button>
+                <h2 className="text-xl font-semibold tracking-tight text-[#1d1d1f]">
+                  Upload your scenes
+                </h2>
+                <p className="mt-1 text-xs text-[#6e6e73]">
+                  Record and upload footage for each scene of the script, then generate.
+                </p>
+              </div>
+
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-6 py-4">
+                {faceScenes.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-[#fafafa] p-3"
+                  >
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-white border border-gray-200 text-[10px] font-semibold text-[#6e6e73]">
+                      {s.num}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-[#1d1d1f]">{s.title}</p>
+                      <p className="mt-0.5 line-clamp-2 text-[11px] text-[#6e6e73]">{s.script}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => uploadFaceSceneRecording(s.id)}
+                      className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold ${
+                        s.filename
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-gray-200 bg-white text-[#1d1d1f] hover:border-gray-300'
+                      }`}
+                    >
+                      {s.filename ? (
+                        <>
+                          <Check className="h-3 w-3" /> Uploaded
+                        </>
+                      ) : (
+                        <>
+                          <Video className="h-3 w-3" /> Upload
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex-shrink-0 border-t border-gray-100 p-4">
+                <p className="mb-2 text-center text-[11px] text-[#86868b]">
+                  {faceScenes.filter((s) => s.filename).length} of {faceScenes.length} scenes uploaded
+                </p>
+                <button
+                  type="button"
+                  disabled={!allFaceScenesUploaded}
+                  onClick={finishWithFaceSetup}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Sparkles className="h-4 w-4 text-amber-300" />
+                  Generate
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        </div>
+  ) : null;
 
   return (
     <div
       className="relative flex h-full min-h-0 w-full overflow-hidden rounded-2xl border border-gray-200 bg-[#f5f5f7] shadow-sm"
       aria-label="AI video editing"
     >
+      {setupDialog}
+
+      <VoiceCloneModal
+        open={cloneOpen}
+        onClose={() => setCloneOpen(false)}
+        onCloned={handleCloned}
+        userId={userId}
+      />
+
       {/* ── Left: Storyboard ── */}
       <aside className="flex h-full min-h-0 w-[min(280px,26%)] min-w-[220px] max-w-[300px] flex-shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white">
         <div className="flex-shrink-0 border-b border-gray-100 px-4 py-3.5">
@@ -424,17 +1556,34 @@ export function StudioVideoEditingPanel() {
           </p>
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-lg font-semibold tracking-tight text-[#1d1d1f]">Scenes</h2>
-            <button
-              type="button"
-              onClick={addScene}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] hover:bg-gray-200"
-              aria-label="Add scene"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
+            {hasScenes ? (
+              <button
+                type="button"
+                onClick={addScene}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-gray-200 bg-[#f5f5f7] text-[#1d1d1f] hover:bg-gray-200"
+                aria-label="Add scene"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
         </div>
 
+        {!hasScenes ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-5 text-center">
+            <p className="text-xs leading-relaxed text-[#86868b]">
+              No scenes yet. Generate a voiceover and scene breakdown to start editing.
+            </p>
+            <button
+              type="button"
+              onClick={openSetupModal}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black"
+            >
+              <Sparkles className="h-4 w-4 text-amber-300" />
+              Generate voice and scenes
+            </button>
+          </div>
+        ) : (
         <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3" style={{ scrollbarWidth: 'thin' }}>
           {scenes.map((sc) => {
             const active = sc.id === selectedId;
@@ -443,9 +1592,9 @@ export function StudioVideoEditingPanel() {
                 key={sc.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => setSelectedId(sc.id)}
+                onClick={() => selectScene(sc.id)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') setSelectedId(sc.id);
+                  if (e.key === 'Enter' || e.key === ' ') selectScene(sc.id);
                 }}
                 className={`cursor-pointer rounded-2xl border p-3 transition-colors ${
                   active
@@ -465,9 +1614,40 @@ export function StudioVideoEditingPanel() {
                     {sc.title}
                   </p>
                 </div>
-                <p className={`mb-2.5 text-xs leading-relaxed ${active ? 'text-white/65' : 'text-[#6e6e73]'}`}>
-                  {sc.desc}
-                </p>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSceneText(sc.id);
+                  }}
+                  className={`mb-2.5 flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold ${
+                    active
+                      ? 'bg-white/8 text-white/80 hover:bg-white/12'
+                      : 'border border-gray-100 bg-white text-[#6e6e73] hover:border-gray-200'
+                  }`}
+                >
+                  <span>Scene text</span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform ${expandedSceneText.has(sc.id) ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {expandedSceneText.has(sc.id) && (
+                  <p className={`mb-2.5 text-xs leading-relaxed ${active ? 'text-white/65' : 'text-[#6e6e73]'}`}>
+                    {sc.desc}
+                  </p>
+                )}
+                {sc.generationError && (
+                  <div
+                    className={`mb-2.5 flex items-start gap-1.5 rounded-lg px-2 py-1.5 text-[10px] leading-snug ${
+                      active
+                        ? 'bg-red-400/15 text-red-100'
+                        : 'border border-red-100 bg-red-50 text-red-700'
+                    }`}
+                  >
+                    <AlertTriangle className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                    <span className="line-clamp-2">{sc.generationError}</span>
+                  </div>
+                )}
                 <div className="mb-2.5 flex flex-wrap items-center gap-2 text-[11px]">
                   <span className={`tabular-nums ${active ? 'text-white/55' : 'text-[#86868b]'}`}>
                     {tc(sc.start)} · {sc.duration}s
@@ -482,11 +1662,12 @@ export function StudioVideoEditingPanel() {
 
                 <button
                   type="button"
+                  disabled={!sc.voiceoverUrl && !!sc.generationError}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setPlayingVO((cur) => (cur === sc.id ? null : sc.id));
+                    toggleVoiceoverPlayback(sc);
                   }}
-                  className={`mb-2.5 flex w-full items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-[11px] ${
+                  className={`mb-2.5 flex w-full items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
                     playingVO === sc.id
                       ? active
                         ? 'border-amber-300/40 bg-amber-400/15 text-amber-100'
@@ -497,7 +1678,13 @@ export function StudioVideoEditingPanel() {
                   }`}
                 >
                   {playingVO === sc.id ? <Pause className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-                  <span className="flex-1">{playingVO === sc.id ? 'Playing voiceover…' : 'Play voiceover'}</span>
+                  <span className="flex-1">
+                    {sc.generationError && !sc.voiceoverUrl
+                      ? 'Voiceover unavailable'
+                      : playingVO === sc.id
+                        ? 'Playing voiceover…'
+                        : 'Play voiceover'}
+                  </span>
                   <span className="tabular-nums opacity-60">{sc.duration}s</span>
                 </button>
 
@@ -565,7 +1752,7 @@ export function StudioVideoEditingPanel() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        uploadMain(sc.id);
+                        openUploadFootage(sc.id);
                       }}
                       className={`flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed px-3 py-2 text-[11px] font-semibold ${
                         active
@@ -582,7 +1769,7 @@ export function StudioVideoEditingPanel() {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      uploadMain(sc.id);
+                      openUploadFootage(sc.id);
                     }}
                     className={`flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold ${
                       active
@@ -598,23 +1785,35 @@ export function StudioVideoEditingPanel() {
             );
           })}
         </div>
+        )}
+        {hasScenes ? (
         <p className="flex-shrink-0 border-t border-gray-100 px-4 py-2.5 text-[11px] leading-relaxed text-[#86868b]">
-          Drop MP4, MOV or WebM. The agent re-cuts scenes automatically after each upload.
+          Drop MP4, MOV or WebM from your device. Uploaded clips appear on the Video track for the selected scene.
         </p>
+        ) : null}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.webm,.m4v"
+          className="hidden"
+          onChange={onFootageFileChosen}
+        />
       </aside>
 
       {/* ── Center: Preview + timeline ── */}
       <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f5f5f7]">
         <div className="flex h-11 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4">
           <p className="truncate text-xs text-[#6e6e73]">
-            <span className="font-semibold text-[#1d1d1f]">{selected.title}</span>
+            <span className="font-semibold text-[#1d1d1f]">
+              {selected ? selected.title : 'Preview'}
+            </span>
             {' · '}1080×1920 · 30fps
           </p>
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={undo}
-              disabled={!history.length}
+              disabled={!history.length && !timelineApi.historyLength}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] hover:bg-[#f5f5f7] hover:text-[#1d1d1f] disabled:opacity-30"
               title="Undo"
             >
@@ -623,11 +1822,20 @@ export function StudioVideoEditingPanel() {
             <button
               type="button"
               onClick={redo}
-              disabled={!future.length}
+              disabled={!future.length && !timelineApi.futureLength}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] hover:bg-[#f5f5f7] hover:text-[#1d1d1f] disabled:opacity-30"
               title="Redo"
             >
               <Redo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => timelineApi.splitSelectedAtPlayhead()}
+              disabled={!timelineApi.timeline.selectedClipIds.length}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] hover:bg-[#f5f5f7] disabled:opacity-30"
+              title="Split at playhead (S)"
+            >
+              <Scissors className="h-4 w-4" />
             </button>
             <button
               type="button"
@@ -639,99 +1847,19 @@ export function StudioVideoEditingPanel() {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3 sm:p-4 [container-type:size]">
-          <div
-            className={`relative flex max-h-full items-end justify-center overflow-hidden rounded-xl border border-gray-200 ${
-              hasMedia
-                ? 'bg-gradient-to-br from-slate-600 to-slate-900'
-                : 'bg-[length:24px_24px] bg-[linear-gradient(45deg,#e8e8ed_25%,transparent_25%),linear-gradient(-45deg,#e8e8ed_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e8e8ed_75%),linear-gradient(-45deg,transparent_75%,#e8e8ed_75%)] bg-[position:0_0,0_12px,12px_-12px,-12px_0] bg-white'
-            }`}
-            style={{
-              aspectRatio: '16 / 9',
-              width: 'min(100%, calc(100cqh * 16 / 9))',
-              maxWidth: '900px',
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-2 sm:p-3 [container-type:size]">
+          <TimelinePreview
+            timeline={timelineApi.timeline}
+            isPlaying={isPlaying}
+            onTimeUpdate={(t) => timelineApi.setCurrentTime(t)}
+            onEnded={() => {
+              setIsPlaying(false);
+              timelineApi.setCurrentTime(timelineApi.timeline.duration);
             }}
-          >
-            {hasMedia ? (
-              <>
-                <div className="absolute left-2.5 top-2.5 z-[2]">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">
-                    <Check className="h-3 w-3 text-emerald-300" />
-                    {selected.mainParts.length > 1
-                      ? selected.mainParts.map((p) => p.filename).join(' + ')
-                      : selected.mainParts[0]?.filename}
-                  </span>
-                </div>
-
-                {isFullscreenInfo && selected.infographic && (
-                  <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-violet-500/30 to-slate-900 px-6 text-center">
-                    <BarChart3 className="h-6 w-6 text-violet-200" />
-                    <p className="text-sm font-bold text-white">{selected.infographic.label}</p>
-                    <p className="flex items-center gap-1 text-[11px] text-white/70">
-                      <Sparkles className="h-3 w-3" /> Full-screen infographic — AI decided
-                    </p>
-                  </div>
-                )}
-
-                {isOverlayInfo && selected.infographic && (
-                  <div
-                    className={`absolute z-[3] flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/20 bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-violet-200 ${
-                      PLACEMENT_CLASS[selected.infographic.placement || 'Top-right']
-                    }`}
-                  >
-                    <Sparkles className="h-3 w-3" />
-                    {selected.infographic.label}
-                  </div>
-                )}
-
-                <div
-                  className={`absolute left-0 right-0 z-[2] px-5 py-4 ${
-                    textStyle.position === 'upper'
-                      ? 'top-0'
-                      : textStyle.position === 'middle'
-                        ? 'top-1/2 -translate-y-1/2 text-center'
-                        : 'bottom-0'
-                  }`}
-                  style={
-                    textStyle.background
-                      ? {
-                          background:
-                            textStyle.position === 'upper'
-                              ? `linear-gradient(to bottom, ${textStyle.bgColor}cc, transparent)`
-                              : textStyle.position === 'lower'
-                                ? `linear-gradient(to top, ${textStyle.bgColor}cc, transparent)`
-                                : 'transparent',
-                        }
-                      : undefined
-                  }
-                >
-                  <p
-                    className={`leading-snug text-white ${FONT_SIZE_CLASS[textStyle.fontSize]} ${FONT_FAMILY_CLASS[textStyle.fontStyle]} ${
-                      textStyle.fontStyle === 'display' ? '' : 'font-semibold'
-                    } ${
-                      textStyle.background && textStyle.position === 'middle'
-                        ? 'inline-block rounded-lg px-3.5 py-2'
-                        : ''
-                    }`}
-                    style={
-                      textStyle.background && textStyle.position === 'middle'
-                        ? { background: `${textStyle.bgColor}cc` }
-                        : undefined
-                    }
-                  >
-                    {selected.desc}
-                  </p>
-                </div>
-              </>
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
-                <p className="mb-2 text-base font-semibold text-[#1d1d1f]">Preview placeholder</p>
-                <p className="max-w-sm text-xs leading-relaxed text-[#6e6e73]">
-                  Upload footage for this scene from the left panel to see it render here.
-                </p>
-              </div>
-            )}
-          </div>
+            textStyle={textStyle}
+            fontSizeClass={FONT_SIZE_CLASS}
+            fontFamilyClass={FONT_FAMILY_CLASS}
+          />
         </div>
 
         {/* Transport */}
@@ -739,20 +1867,27 @@ export function StudioVideoEditingPanel() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setPlayheadSec(0)}
+              onClick={() => {
+                setIsPlaying(false);
+                timelineApi.setCurrentTime(0);
+              }}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] hover:bg-[#f5f5f7]"
             >
               <SkipBack className="h-4 w-4" />
             </button>
             <button
               type="button"
-              onClick={() => showToast('Playback preview only — connect a player when backend is ready')}
+              onClick={() => setIsPlaying((p) => !p)}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#1d1d1f] text-white"
             >
-              <Play className="h-3.5 w-3.5 fill-current" />
+              {isPlaying ? (
+                <Pause className="h-3.5 w-3.5 fill-current" />
+              ) : (
+                <Play className="h-3.5 w-3.5 fill-current" />
+              )}
             </button>
             <span className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-1 text-xs tabular-nums text-[#6e6e73]">
-              {tc(playheadSec)}
+              {tc(timelineApi.timeline.currentTime)}
             </span>
           </div>
           <div className="flex max-w-[220px] flex-1 items-center gap-2">
@@ -760,159 +1895,37 @@ export function StudioVideoEditingPanel() {
               type="range"
               min={0}
               max={totalDuration}
-              step={0.1}
-              value={playheadSec}
-              onChange={(e) => setPlayheadSec(Number(e.target.value))}
+              step={0.01}
+              value={timelineApi.timeline.currentTime}
+              onChange={(e) => {
+                setIsPlaying(false);
+                timelineApi.setCurrentTime(Number(e.target.value));
+              }}
               className="w-full accent-[#1d1d1f]"
             />
             <span className="text-[11px] tabular-nums text-[#86868b]">{tcShort(totalDuration)}</span>
           </div>
         </div>
 
-        {/* Timeline */}
-        <div className="max-h-[38%] min-h-[140px] flex-shrink-0 overflow-y-auto border-t border-gray-200 bg-white px-4 py-2.5">
-          <div className="mb-2 flex items-center gap-3">
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#6e6e73]">
-              Timeline · Layers
-            </span>
-            <span className="text-[11px] tabular-nums text-[#a1a1a6]">
-              playhead {tc(playheadSec)}
-            </span>
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.max(4, z - 4))}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 text-[#6e6e73] hover:text-[#1d1d1f]"
-              >
-                <Minus className="h-3 w-3" />
-              </button>
-              <span className="min-w-[44px] text-center text-[11px] tabular-nums text-[#6e6e73]">
-                {zoom}px/s
-              </span>
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.min(40, z + 4))}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 text-[#6e6e73] hover:text-[#1d1d1f]"
-              >
-                <Plus className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
-            <div className="relative" style={{ width: timelineWidth }}>
-              <div
-                className="relative mb-1.5 h-5 cursor-pointer border-b border-gray-100"
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const sec = Math.max(0, (e.clientX - rect.left) / zoom);
-                  setPlayheadSec(Math.round(sec * 10) / 10);
-                }}
-              >
-                {rulerMarks.map((t) => (
-                  <span
-                    key={t}
-                    className="absolute top-0 h-full border-l border-gray-200 pl-1 text-[10px] tabular-nums text-[#a1a1a6]"
-                    style={{ left: t * zoom }}
-                  >
-                    {tcShort(t)}
-                  </span>
-                ))}
-                <div
-                  className="pointer-events-none absolute bottom-0 top-0 z-[6] w-0.5 bg-amber-500"
-                  style={{ left: playheadSec * zoom }}
-                >
-                  <span className="absolute left-1/2 top-0 h-2 w-2.5 -translate-x-1/2 rounded-sm bg-amber-500" />
-                </div>
-              </div>
-
-              <TimelineTrack
-                name="Main footage"
-                count={scenes.filter((s) => s.mainParts.length > 0).length}
-                dotClass="bg-sky-500"
-              >
-                {scenes.map((sc) => {
-                  const left = sc.start * zoom;
-                  const width = sc.duration * zoom;
-                  const active = sc.id === selectedId;
-                  if (!sc.mainParts.length) {
-                    return (
-                      <button
-                        key={sc.id}
-                        type="button"
-                        onClick={() => setSelectedId(sc.id)}
-                        className="absolute top-0 flex h-9 items-center overflow-hidden rounded-lg border border-dashed border-gray-300 px-2.5 text-[11px] text-[#a1a1a6]"
-                        style={{ left, width }}
-                      >
-                        no footage
-                      </button>
-                    );
-                  }
-                  const label =
-                    sc.mainParts.length > 1
-                      ? `${sc.mainParts.length} parts joined`
-                      : sc.mainParts[0].filename;
-                  return (
-                    <button
-                      key={sc.id}
-                      type="button"
-                      onClick={() => setSelectedId(sc.id)}
-                      className={`absolute top-0 flex h-9 items-center overflow-hidden rounded-lg border px-2.5 text-left text-[11px] font-semibold text-sky-900 ${
-                        active
-                          ? 'border-amber-400 bg-sky-100 shadow-sm'
-                          : 'border-sky-200 bg-sky-50'
-                      }`}
-                      style={{ left, width }}
-                    >
-                      <span className="truncate">{label}</span>
-                    </button>
-                  );
-                })}
-              </TimelineTrack>
-
-              <TimelineTrack
-                name="B-roll"
-                count={scenes.filter((s) => s.broll).length}
-                dotClass="bg-teal-500"
-              >
-                {scenes
-                  .filter((s) => s.broll)
-                  .map((sc) => (
-                    <button
-                      key={sc.id}
-                      type="button"
-                      onClick={() => setSelectedId(sc.id)}
-                      className="absolute top-0 flex h-9 items-center overflow-hidden rounded-lg border border-teal-200 bg-teal-50 px-2.5 text-left text-[11px] font-semibold text-teal-900"
-                      style={{ left: sc.start * zoom, width: sc.duration * zoom }}
-                    >
-                      <span className="truncate">{sc.broll!.label}</span>
-                    </button>
-                  ))}
-              </TimelineTrack>
-
-              <TimelineTrack
-                name="Infographics"
-                count={scenes.filter((s) => s.infographic).length}
-                dotClass="bg-violet-500"
-              >
-                {scenes
-                  .filter((s) => s.infographic)
-                  .map((sc) => (
-                    <button
-                      key={sc.id}
-                      type="button"
-                      onClick={() => setSelectedId(sc.id)}
-                      className="absolute top-0 flex h-9 items-center overflow-hidden rounded-lg border border-violet-200 bg-violet-50 px-2.5 text-left text-[11px] font-semibold text-violet-900"
-                      style={{ left: sc.start * zoom, width: sc.duration * zoom }}
-                    >
-                      <span className="truncate">{sc.infographic!.label}</span>
-                    </button>
-                  ))}
-              </TimelineTrack>
-            </div>
-          </div>
+        {/* Resizable divider */}
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize timeline"
+          onPointerDown={beginResizeTimeline}
+          className="flex h-2 flex-shrink-0 cursor-row-resize items-center justify-center bg-gray-100 hover:bg-amber-100"
+        >
+          <span className="h-0.5 w-10 rounded-full bg-gray-300" />
         </div>
+
+        <TimelinePanel
+          api={timelineApi}
+          height={timelinePanelHeight}
+          sceneLabel={selected ? `${selected.num} · ${selected.title}` : 'No scenes yet'}
+          onTogglePlay={() => setIsPlaying((p) => !p)}
+        />
       </section>
+
 
       {/* ── Right: Agent suggestions ── */}
       <aside className="flex h-full min-h-0 w-[min(320px,28%)] min-w-[250px] max-w-[360px] flex-shrink-0 flex-col overflow-hidden border-l border-gray-200 bg-white">
@@ -927,18 +1940,68 @@ export function StudioVideoEditingPanel() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+          {timelineApi.selectedClip && (
+            <div className="border-b border-gray-100 px-4 py-3.5">
+              <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                Clip inspector
+              </p>
+              <p className="mb-1 truncate text-xs font-semibold text-[#1d1d1f]">
+                {timelineApi.selectedClip.name}
+              </p>
+              <p className="mb-2 text-[11px] capitalize text-[#6e6e73]">
+                {timelineApi.selectedClip.type}
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-[11px] tabular-nums text-[#1d1d1f]">
+                <div className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1.5">
+                  Start
+                  <div className="font-semibold">{tc(timelineApi.selectedClip.start)}</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1.5">
+                  Duration
+                  <div className="font-semibold">{tc(timelineApi.selectedClip.duration)}</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1.5">
+                  Source in
+                  <div className="font-semibold">{tc(timelineApi.selectedClip.sourceStart)}</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1.5">
+                  Source len
+                  <div className="font-semibold">{tc(timelineApi.selectedClip.sourceDuration)}</div>
+                </div>
+              </div>
+              {(timelineApi.selectedClip.type === 'text' ||
+                timelineApi.selectedClip.type === 'caption') && (
+                <textarea
+                  className="mt-2 w-full resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f]"
+                  rows={3}
+                  value={timelineApi.selectedClip.text || ''}
+                  onChange={(e) =>
+                    timelineApi.updateClip(timelineApi.selectedClip!.id, {
+                      text: e.target.value,
+                      name: e.target.value.slice(0, 48) || timelineApi.selectedClip!.name,
+                    })
+                  }
+                />
+              )}
+            </div>
+          )}
+
           <div className="border-b border-gray-100 px-4 py-3.5">
             <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
-              B-roll
+              B-roll videos
             </p>
             <div className="space-y-2.5">
-              {BROLL_SUGGESTIONS.map((item, i) => (
+              {(showDummyLibrary
+                ? BROLL_SUGGESTIONS
+                : (selected ? sceneBrollVideoSuggestions[selected.id] : undefined) ?? BROLL_SUGGESTIONS
+              ).map((item, i) => (
                 <SuggestionCard
-                  key={item.label}
+                  key={`${item.label}-${i}`}
                   item={item}
                   type="broll"
-                  selected={selected}
-                  onInsert={() => insertSuggestion('broll', i)}
+                  already={timelineHasClipNamed(DEFAULT_TRACK_IDS.broll, item.label)}
+                  onInsert={() => insertSuggestion('broll', item)}
+                  onPreview={() => setPreviewItem({ item, type: 'broll' })}
                 />
               ))}
             </div>
@@ -946,63 +2009,98 @@ export function StudioVideoEditingPanel() {
 
           <div className="border-b border-gray-100 px-4 py-3.5">
             <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
-              Infographics
+              B-roll images
             </p>
-            <div className="mb-3 space-y-2.5">
-              {INFOGRAPHIC_SUGGESTIONS.map((item, i) => (
-                <SuggestionCard
-                  key={item.label}
-                  item={item}
-                  type="infographic"
-                  selected={selected}
-                  onInsert={() => insertSuggestion('infographic', i)}
-                />
-              ))}
+            <div className="space-y-2.5">
+              {(() => {
+                const imageItems = showDummyLibrary
+                  ? BROLL_IMAGE_SUGGESTIONS
+                  : selected
+                    ? sceneBrollImageSuggestions[selected.id] ?? []
+                    : [];
+                if (imageItems.length === 0) {
+                  return (
+                    <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
+                      No matched images for this scene yet.
+                    </p>
+                  );
+                }
+                return imageItems.map((item, i) => (
+                  <SuggestionCard
+                    key={`${item.label}-${i}`}
+                    item={item}
+                    type="broll"
+                    already={timelineHasClipNamed(DEFAULT_TRACK_IDS.broll, item.label)}
+                    onInsert={() => insertSuggestion('broll', item)}
+                    onPreview={() => setPreviewItem({ item, type: 'broll' })}
+                  />
+                ));
+              })()}
             </div>
-            {selected.infographic && (
-              selected.infographic.mode === 'overlay' ? (
-                <div>
-                  <p className="mb-2 text-[11px] font-semibold text-[#6e6e73]">
-                    Placement — {selected.infographic.label}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PLACEMENT_OPTIONS.map((opt) => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => {
-                          pushHistory();
-                          updateScene(selected.id, {
-                            infographic: { ...selected.infographic!, placement: opt },
-                          });
-                        }}
-                        className={`rounded-md border px-2 py-1 text-[10px] font-medium ${
-                          selected.infographic?.placement === opt
-                            ? 'border-violet-300 bg-violet-50 text-violet-800'
-                            : 'border-gray-200 text-[#6e6e73] hover:border-gray-300'
-                        }`}
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[10px] leading-relaxed text-[#86868b]">
-                  <Sparkles className="mr-1 inline h-3 w-3 text-amber-500" />
-                  AI placed &quot;{selected.infographic.label}&quot; full-screen — no manual position needed.
-                </p>
-              )
-            )}
           </div>
 
+          {selected?.remotionInfographic ? (
+            <div className="border-b border-gray-100 px-4 py-3.5">
+              <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                Infographics
+              </p>
+              <div className="space-y-2.5">
+                <SuggestionCard
+                  item={{
+                    label: remotionInfographicLabel(selected.remotionInfographic),
+                    meta: `${selected.remotionInfographic.animationType} · ${selected.remotionInfographic.durationFrames}f · Remotion`,
+                    start: 0,
+                    dur: remotionDurationSeconds(
+                      selected.remotionInfographic.durationFrames,
+                      EDITOR_FPS,
+                    ),
+                    matchedScene: selected.title,
+                    matchPct: 100,
+                    mode:
+                      selected.remotionInfographic.placement === 'full_frame'
+                        ? 'fullscreen'
+                        : 'overlay',
+                  }}
+                  type="infographic"
+                  already={remotionAlreadyOnTimeline}
+                  onInsert={insertRemotionInfographic}
+                  onPreview={() => setPreviewRemotion(selected.remotionInfographic!)}
+                />
+              </div>
+            </div>
+          ) : null}
+
           <div className="px-4 py-3.5">
-            <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
-              Text &amp; captions
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                Text
+              </p>
+              <button
+                type="button"
+                onClick={addTextClip}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1 text-[11px] font-semibold text-[#1d1d1f] hover:bg-gray-200"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add text
+              </button>
+            </div>
+            <p className="mb-3 text-[11px] leading-relaxed text-[#86868b]">
+              Text track starts empty. Add as many text clips as you need — each can be moved and trimmed on the timeline.
             </p>
 
-            <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Position on screen</p>
-            <div className="mb-3 flex gap-1.5">
+            <div className="mb-1.5 flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-[#6e6e73]">Position on screen</p>
+              {(captionOffset.x !== 0 || captionOffset.y !== 0) && (
+                <button
+                  type="button"
+                  onClick={() => setCaptionOffset({ x: 0, y: 0 })}
+                  className="text-[10px] font-semibold text-[#6e6e73] hover:text-[#1d1d1f]"
+                >
+                  Reset drag
+                </button>
+              )}
+            </div>
+            <div className="mb-1 flex gap-1.5">
               {([
                 ['upper', 'Upper third'],
                 ['middle', 'Middle third'],
@@ -1011,7 +2109,10 @@ export function StudioVideoEditingPanel() {
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setTextStyle((t) => ({ ...t, position: value }))}
+                  onClick={() => {
+                    setTextStyle((t) => ({ ...t, position: value }));
+                    setCaptionOffset({ x: 0, y: 0 });
+                  }}
                   className={`flex-1 rounded-lg border px-1 py-1.5 text-[10px] font-semibold ${
                     textStyle.position === value
                       ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
@@ -1022,6 +2123,9 @@ export function StudioVideoEditingPanel() {
                 </button>
               ))}
             </div>
+            <p className="mb-3 text-[10px] leading-relaxed text-[#a1a1a6]">
+              Drag text on the preview to fine-tune its position.
+            </p>
 
             <div className="mb-2 flex items-center justify-between">
               <span className="text-[11px] font-semibold text-[#6e6e73]">Background</span>
@@ -1104,23 +2208,30 @@ export function StudioVideoEditingPanel() {
               <option value="typewriter">Typewriter</option>
             </select>
 
-            <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">
-              Caption text — scene {scenes.findIndex((x) => x.id === selected.id) + 1}
-            </p>
-            <textarea
-              value={selected.desc}
-              rows={3}
-              onChange={(e) => {
-                const value = e.target.value;
-                setScenes((list) =>
-                  list.map((s) => (s.id === selected.id ? { ...s, desc: value } : s)),
-                );
-              }}
-              className="w-full resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f] focus:ring-2 focus:ring-[#1d1d1f]/10"
-            />
-            <p className="mt-1.5 text-[10px] leading-relaxed text-[#a1a1a6]">
-              Editing wording only — timing stays locked to the voiceover alignment.
-            </p>
+            {timelineApi.selectedClip?.type === 'text' ? (
+              <>
+                <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Selected text</p>
+                <textarea
+                  value={timelineApi.selectedClip.text || ''}
+                  rows={3}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    timelineApi.updateClip(timelineApi.selectedClip!.id, {
+                      text: value,
+                      name: value.slice(0, 48) || 'Text',
+                    });
+                  }}
+                  className="w-full resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f] focus:ring-2 focus:ring-[#1d1d1f]/10"
+                />
+                <p className="mt-1.5 text-[10px] leading-relaxed text-[#a1a1a6]">
+                  Move and trim this clip on the Text track. Add more with “Add text”.
+                </p>
+              </>
+            ) : (
+              <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
+                Select a text clip on the timeline to edit its wording, or click Add text.
+              </p>
+            )}
           </div>
         </div>
 
@@ -1136,6 +2247,112 @@ export function StudioVideoEditingPanel() {
         </div>
       </aside>
 
+      {previewRemotion && (
+        <div
+          role="button"
+          tabIndex={-1}
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setPreviewRemotion(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-5 py-3">
+              <p className="truncate text-sm font-semibold text-[#1d1d1f]">
+                {remotionInfographicLabel(previewRemotion)}
+              </p>
+              <button
+                type="button"
+                onClick={() => setPreviewRemotion(null)}
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#f5f5f7] hover:bg-gray-200"
+              >
+                <X className="h-4 w-4 text-[#1d1d1f]" />
+              </button>
+            </div>
+            <div className="bg-black" style={{ aspectRatio: '16 / 9' }}>
+              <RemotionInfographicPreview spec={previewRemotion} />
+            </div>
+            <div className="flex flex-shrink-0 items-center justify-between gap-3 px-5 py-3">
+              <p className="text-xs text-[#6e6e73]">
+                {previewRemotion.animationType} · {previewRemotion.durationFrames} frames ·{' '}
+                {remotionDurationSeconds(previewRemotion.durationFrames, EDITOR_FPS).toFixed(1)}s
+                {previewRemotion.compositionId
+                  ? ` · id ${previewRemotion.compositionId}`
+                  : ''}
+              </p>
+              <button
+                type="button"
+                disabled={remotionAlreadyOnTimeline}
+                onClick={() => {
+                  insertRemotionInfographic();
+                  setPreviewRemotion(null);
+                }}
+                className="rounded-lg bg-[#1d1d1f] px-3 py-1.5 text-xs font-semibold text-white hover:bg-black disabled:opacity-40"
+              >
+                {remotionAlreadyOnTimeline ? 'Added' : 'Insert'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewItem && (
+        <div
+          role="button"
+          tabIndex={-1}
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setPreviewItem(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-5 py-3">
+              <p className="truncate text-sm font-semibold text-[#1d1d1f]">{previewItem.item.label}</p>
+              <button
+                type="button"
+                onClick={() => setPreviewItem(null)}
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#f5f5f7] hover:bg-gray-200"
+              >
+                <X className="h-4 w-4 text-[#1d1d1f]" />
+              </button>
+            </div>
+            <div className="flex items-center justify-center bg-black" style={{ aspectRatio: '16 / 9' }}>
+              {previewItem.item.mediaKind === 'video' && previewItem.item.assetUrl ? (
+                <video
+                  key={previewItem.item.assetUrl}
+                  src={previewItem.item.assetUrl}
+                  controls
+                  autoPlay
+                  className="h-full w-full"
+                />
+              ) : previewItem.item.mediaKind === 'image' && previewItem.item.assetUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={previewItem.item.assetUrl}
+                  alt={previewItem.item.label}
+                  className="max-h-full max-w-full object-contain"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-2 px-8 py-16 text-center text-white/70">
+                  <BarChart3 className="h-8 w-8" />
+                  <p className="text-sm">No preview asset yet — this is an AI-suggested clip.</p>
+                </div>
+              )}
+            </div>
+            <div className="flex-shrink-0 px-5 py-3 text-xs text-[#6e6e73]">
+              {previewItem.item.meta} · matched to {previewItem.item.matchedScene} ·{' '}
+              {previewItem.item.matchPct}% match
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className="pointer-events-none absolute bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-medium text-[#1d1d1f] shadow-lg">
           {toast}
@@ -1145,54 +2362,53 @@ export function StudioVideoEditingPanel() {
   );
 }
 
-function TimelineTrack({
-  name,
-  count,
-  dotClass,
-  children,
-}: {
-  name: string;
-  count: number;
-  dotClass: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="mb-1.5 flex h-9 items-center gap-3 last:mb-0">
-      <div className="flex w-[120px] flex-shrink-0 items-center gap-2">
-        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${dotClass}`} />
-        <span className="truncate text-xs font-semibold text-[#1d1d1f]">{name}</span>
-        <span className="text-[11px] text-[#a1a1a6]">{count}</span>
-      </div>
-      <div className="relative h-9 flex-1">{children}</div>
-    </div>
-  );
-}
-
 function SuggestionCard({
   item,
   type,
-  selected,
+  already,
   onInsert,
+  onPreview,
 }: {
   item: Suggestion;
   type: 'broll' | 'infographic';
-  selected: Scene;
+  already: boolean;
   onInsert: () => void;
+  onPreview: () => void;
 }) {
   const isInfo = type === 'infographic';
-  const already = isInfo
-    ? selected.infographic?.label === item.label
-    : selected.broll?.label === item.label;
 
   return (
-    <div className="rounded-2xl border border-amber-200/80 bg-amber-50/40 p-3">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onPreview}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onPreview();
+        }
+      }}
+      className="cursor-pointer rounded-2xl border border-amber-200/80 bg-amber-50/40 p-3 transition-colors hover:border-amber-300"
+    >
       <div className="mb-2 flex gap-2.5">
         <div
-          className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl ${
+          className={`relative flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl ${
             isInfo ? 'bg-violet-100 text-violet-700' : 'bg-teal-100 text-teal-700'
           }`}
         >
-          {isInfo ? <BarChart3 className="h-5 w-5" /> : <Film className="h-5 w-5" />}
+          {item.previewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.previewUrl} alt={item.label} className="h-full w-full object-cover" />
+          ) : isInfo ? (
+            <BarChart3 className="h-5 w-5" />
+          ) : (
+            <Film className="h-5 w-5" />
+          )}
+          {item.mediaKind === 'video' && (
+            <span className="absolute inset-0 flex items-center justify-center bg-black/25">
+              <Play className="h-3.5 w-3.5 fill-white text-white" />
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="mb-0.5 truncate text-xs font-bold text-[#1d1d1f]">{item.label}</p>
@@ -1223,7 +2439,10 @@ function SuggestionCard({
         </div>
         <button
           type="button"
-          onClick={onInsert}
+          onClick={(e) => {
+            e.stopPropagation();
+            onInsert();
+          }}
           className={`inline-flex flex-shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold ${
             already
               ? 'border-emerald-200 bg-emerald-50 text-emerald-700'

@@ -43,7 +43,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { ApiService } from '@/services/api';
 import { toast } from 'sonner';
 
-type VoicePreset = {
+export type VoicePreset = {
   /** Row id from pre-made-voices (string) or "cloned" */
   id: string;
   name: string;
@@ -66,7 +66,7 @@ const VOICE_WASHES = [
   'from-[#f0e6dc] via-[#e2d0c0] to-[#c8b09a]',
 ] as const;
 
-const CLONED_VOICE_WASH = 'from-[#e8e4df] via-[#d4cfc8] to-[#b8b2a8]';
+export const CLONED_VOICE_WASH = 'from-[#e8e4df] via-[#d4cfc8] to-[#b8b2a8]';
 
 type PreMadeVoiceRow = {
   id: number | string;
@@ -91,7 +91,7 @@ function mapPreMadeVoice(row: PreMadeVoiceRow, index: number): VoicePreset | nul
   };
 }
 
-async function fetchPreMadeVoices(): Promise<VoicePreset[]> {
+export async function fetchPreMadeVoices(): Promise<VoicePreset[]> {
   const attempts = [
     'id, name, audio, description, "reference-Id"',
     'id, name, audio, description, reference_id',
@@ -112,7 +112,7 @@ async function fetchPreMadeVoices(): Promise<VoicePreset[]> {
 }
 
 /** Load cloned voice URL + display name from user_profiles. */
-async function fetchClonedVoiceFromProfile(userId: string): Promise<{
+export async function fetchClonedVoiceFromProfile(userId: string): Promise<{
   audioUrl: string | null;
   name: string | null;
 }> {
@@ -155,7 +155,7 @@ function VoiceWaveform({ className = '' }: { className?: string }) {
   );
 }
 
-function VoiceCard({
+export function VoiceCard({
   voice,
   active,
   onSelect,

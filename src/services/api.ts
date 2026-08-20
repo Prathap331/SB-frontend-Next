@@ -82,6 +82,96 @@ export interface BrollSearchResponse {
   media: BrollMediaItem[];
 }
 
+// ── AI video editing (/edit-video) ───────────────────────────────────────────
+
+export interface EditVideoWordSegment {
+  word: string;
+  start: number;
+  end: number;
+  score: number;
+}
+
+export interface EditVideoVoiceover {
+  message?: string;
+  userId?: string;
+  voice?: string;
+  langCode?: string;
+  reference_id?: string;
+  storage_path?: string;
+  url?: string;
+}
+
+export interface EditVideoImageSrc {
+  original: string;
+  large2x: string;
+  large: string;
+  medium: string;
+  small: string;
+  portrait: string;
+  landscape: string;
+  tiny: string;
+}
+
+/** A matched stock photo from /edit-video's media.images (Pexels photo shape). */
+export interface EditVideoImage {
+  type?: string;
+  id: number;
+  url: string;
+  width: number;
+  height: number;
+  photographer?: { name: string; url: string };
+  avg_color?: string;
+  alt?: string | null;
+  src: EditVideoImageSrc;
+}
+
+export interface EditVideoMedia {
+  keywords: string[];
+  videos: {
+    total_results: number;
+    results: BrollVideo[];
+    error?: string | null;
+  };
+  images?: {
+    total_results: number;
+    results: EditVideoImage[];
+    error?: string | null;
+  };
+}
+
+export interface EditVideoAnimation {
+  animation_type?: string;
+  category?: string;
+  placement?: string;
+  z_index_layer?: string;
+  trigger?: string;
+  duration_frames?: number;
+  content_binding?: string;
+  render_engine_hint?: string;
+}
+
+export interface EditVideoScene {
+  scene_id: string;
+  vo_text: string;
+  visual_intent?: string;
+  on_screen_text?: string;
+  requires_animation?: boolean;
+  broll_keywords?: string[];
+  tagged_vo_text?: string;
+  voiceover?: EditVideoVoiceover | null;
+  /** Null when voiceover generation failed for this scene (see `error`) */
+  start: number | null;
+  end: number | null;
+  word_segments?: EditVideoWordSegment[];
+  error?: string | null;
+  media?: EditVideoMedia;
+  animation?: EditVideoAnimation | null;
+}
+
+export interface EditVideoResponse {
+  scenes: EditVideoScene[];
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 }
@@ -1513,6 +1603,49 @@ export class ApiService {
       null;
 
     return { audioUrl, raw: data };
+  }
+
+  /**
+   * Kick off faceless AI video editing via POST /edit-video.
+   * Payload: { userId, script, voice, langCode, durationMinutes }
+   * `voice` is the premade voice model id (or "user" for a cloned voice).
+   */
+  static async editVideo(params: {
+    userId: string;
+    script: string;
+    voice: string;
+    langCode: string;
+    durationMinutes: number;
+  }): Promise<EditVideoResponse> {
+    const url = `${this.BASE_URL}/edit-video`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: params.userId,
+        script: params.script,
+        voice: params.voice,
+        langCode: params.langCode,
+        durationMinutes: params.durationMinutes,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      let message = `Edit video failed: ${response.status} ${response.statusText}`;
+      try {
+        const parsed = JSON.parse(errorText);
+        message = parsed?.message || parsed?.error || message;
+      } catch {
+        if (errorText) message = errorText;
+      }
+      throw new Error(message);
+    }
+
+    const data = await response.json().catch(() => ({}));
+    const scenes = Array.isArray((data as { scenes?: unknown })?.scenes)
+      ? (data as { scenes: EditVideoScene[] }).scenes
+      : [];
+    return { ...(data as object), scenes } as EditVideoResponse;
   }
 
   /**

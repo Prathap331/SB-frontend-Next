@@ -8,7 +8,7 @@ import {
   Tag,
   Image as ImageIcon,
   Clapperboard,
-  AudioLines,
+  // AudioLines, // audio tab temporarily disabled
   Film,
   Check,
   Copy,
@@ -58,7 +58,7 @@ const TABS: { id: StudioTab; label: string; icon: React.ComponentType<{ classNam
   { id: 'script', label: 'Full Script', icon: FileText },
   { id: 'metadata', label: 'Metadata', icon: Tag },
   { id: 'thumbnails', label: 'Thumbnails', icon: ImageIcon },
-  { id: 'audio', label: 'Audio', icon: AudioLines },
+  // { id: 'audio', label: 'Audio', icon: AudioLines },
   { id: 'broll', label: 'B-Roll Videos', icon: Clapperboard },
   { id: 'video-editing', label: 'AI Video Editing', icon: Film },
 ];

@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  transpilePackages: ['remotion', '@remotion/player'],
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
