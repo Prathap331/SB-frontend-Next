@@ -1849,7 +1849,7 @@ useEffect(() => {
                 {studioTab === 'ideas' ? (
                   <NewTopicPrompt onFocusSearch={() => searchInputRef.current?.focus()} />
                 ) : studioTab === 'broll' ? (
-                  <StudioBRollPanel />
+                  <StudioBRollPanel onReturnToVideoEditing={() => setStudioTab('video-editing')} />
                 ) : studioTab === 'audio' ? (
                   <StudioAudioPanel
                     scriptText=""
@@ -1935,6 +1935,7 @@ useEffect(() => {
                 }
                 isUnlocked={activeScriptFromAssigned}
                 ideaTitle={activeScriptIdeaTitle}
+                onFindMoreBroll={() => setStudioTab('broll')}
               />
             </div>
           ) : (
@@ -2226,7 +2227,9 @@ useEffect(() => {
               />
             )}
 
-            {studioTab === 'broll' && <StudioBRollPanel />}
+            {studioTab === 'broll' && (
+              <StudioBRollPanel onReturnToVideoEditing={() => setStudioTab('video-editing')} />
+            )}
 
             {studioTab === 'audio' && (
               <StudioAudioPanel

@@ -26,6 +26,7 @@ import {
   Loader2,
   Video,
   Scissors,
+  Search,
 } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import {
@@ -49,6 +50,12 @@ import {
   saveVideoEditProject,
   loadVideoEditProject,
 } from '@/lib/video-editor';
+import {
+  listPickedBroll,
+  setBrollPickListener,
+  startBrollPickSession,
+  type PickedBrollItem,
+} from '@/lib/video-editor/broll-pick';
 import type { TimelineState } from '@/lib/video-editor/types';
 import { readInfographicFromEditScene, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, type RemotionInfographicSpec } from '@/lib/video-editor/infographics';
 import { TimelinePanel, TimelinePreview } from '@/components/studio/video-timeline';
@@ -429,10 +436,13 @@ export function StudioVideoEditingPanel({
   scriptText = '',
   isUnlocked = false,
   ideaTitle,
+  onFindMoreBroll,
 }: {
   scriptText?: string;
   isUnlocked?: boolean;
   ideaTitle?: string | null;
+  /** Navigate to the B-roll library tab to pick more media. */
+  onFindMoreBroll?: (kind: 'video' | 'image') => void;
 }) {
   const [stage, setStage] = useState<Stage>('editor');
   const [setupOpen, setSetupOpen] = useState(false);
@@ -530,10 +540,119 @@ export function StudioVideoEditingPanel({
   const [faceScenes, setFaceScenes] = useState<FaceSceneDraft[]>([]);
   const [sceneBrollVideoSuggestions, setSceneBrollVideoSuggestions] = useState<Record<string, Suggestion[]>>({});
   const [sceneBrollImageSuggestions, setSceneBrollImageSuggestions] = useState<Record<string, Suggestion[]>>({});
+  /** Media added via B-roll tab "Find more → Add" (always shown in sidebar sections). */
+  const [manualBrollVideos, setManualBrollVideos] = useState<Suggestion[]>([]);
+  const [manualBrollImages, setManualBrollImages] = useState<Suggestion[]>([]);
   const lastEditVideoResponseRef = useRef<EditVideoResponse | null>(null);
   const restoredCacheRef = useRef(false);
   const hasEditorProjectRef = useRef(false);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dedupeSuggestions = (items: Suggestion[]) => {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      const key = `${item.label}|${item.assetUrl || item.previewUrl || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const sidebarBrollVideos = useMemo(() => {
+    if (showDummyLibrary) {
+      return dedupeSuggestions([...manualBrollVideos, ...BROLL_SUGGESTIONS]);
+    }
+    const sceneItems = selected ? sceneBrollVideoSuggestions[selected.id] ?? [] : [];
+    const merged = dedupeSuggestions([...manualBrollVideos, ...sceneItems]);
+    return merged.length > 0 ? merged : BROLL_SUGGESTIONS;
+  }, [showDummyLibrary, manualBrollVideos, selected, sceneBrollVideoSuggestions]);
+
+  const sidebarBrollImages = useMemo(() => {
+    if (showDummyLibrary) {
+      return dedupeSuggestions([...manualBrollImages, ...BROLL_IMAGE_SUGGESTIONS]);
+    }
+    const sceneItems = selected ? sceneBrollImageSuggestions[selected.id] ?? [] : [];
+    return dedupeSuggestions([...manualBrollImages, ...sceneItems]);
+  }, [showDummyLibrary, manualBrollImages, selected, sceneBrollImageSuggestions]);
+
+  const suggestionFromPick = useCallback(
+    (picked: PickedBrollItem): Suggestion => ({
+      label: picked.label,
+      meta: picked.meta,
+      start: 0,
+      dur: Math.max(1, Math.round(picked.durationSeconds)),
+      matchedScene: selected?.title || 'Library',
+      matchPct: 100,
+      mediaKind: picked.kind === 'image' ? 'image' : 'video',
+      previewUrl: picked.previewUrl,
+      assetUrl: picked.assetUrl,
+    }),
+    [selected?.title],
+  );
+
+  const ingestPickedBroll = useCallback(
+    (picked: PickedBrollItem, opts?: { silent?: boolean }) => {
+      const suggestion = suggestionFromPick(picked);
+      const sceneKey = picked.sceneId || selectedIdRef.current || '';
+      const same = (s: Suggestion) =>
+        s.label === suggestion.label &&
+        (s.assetUrl || '') === (suggestion.assetUrl || '') &&
+        (s.previewUrl || '') === (suggestion.previewUrl || '');
+
+      // Always keep a copy in the manual lists so the sidebar still shows the item
+      // even if scene suggestion maps are later overwritten by project restore.
+      if (picked.kind === 'image') {
+        setManualBrollImages((prev) => (prev.some(same) ? prev : [suggestion, ...prev]));
+        if (sceneKey) {
+          setSceneBrollImageSuggestions((prev) => {
+            const list = prev[sceneKey] ?? [];
+            if (list.some(same)) return prev;
+            return { ...prev, [sceneKey]: [suggestion, ...list] };
+          });
+        }
+      } else {
+        setManualBrollVideos((prev) => (prev.some(same) ? prev : [suggestion, ...prev]));
+        if (sceneKey) {
+          setSceneBrollVideoSuggestions((prev) => {
+            const list = prev[sceneKey] ?? [];
+            if (list.some(same)) return prev;
+            return { ...prev, [sceneKey]: [suggestion, ...list] };
+          });
+        }
+      }
+
+      if (!opts?.silent) {
+        showToast(`Added to B-roll ${picked.kind === 'image' ? 'images' : 'videos'}`);
+      }
+    },
+    [suggestionFromPick, showToast],
+  );
+
+  const syncPickedBrollIntoSidebar = useCallback(() => {
+    listPickedBroll().forEach((item) => ingestPickedBroll(item, { silent: true }));
+  }, [ingestPickedBroll]);
+
+  useEffect(() => {
+    syncPickedBrollIntoSidebar();
+    setBrollPickListener((item) => ingestPickedBroll(item));
+    return () => setBrollPickListener(null);
+  }, [ingestPickedBroll, syncPickedBrollIntoSidebar]);
+
+  const handleFindMoreBroll = useCallback(
+    (kind: 'video' | 'image') => {
+      startBrollPickSession({
+        kind,
+        sceneId: selected?.id ?? null,
+        sceneTitle: selected?.title ?? null,
+      });
+      if (onFindMoreBroll) {
+        onFindMoreBroll(kind);
+      } else {
+        showToast('Open the B-roll Videos tab to find more media');
+      }
+    },
+    [selected?.id, selected?.title, onFindMoreBroll, showToast],
+  );
 
   useEffect(() => {
     setSetupScript(scriptText || '');
@@ -570,7 +689,11 @@ export function StudioVideoEditingPanel({
       false,
     );
     setStage('editor');
-  }, [userId, scriptText, setupScript, replaceTimelineState]);
+    // Re-apply library picks after restore overwrites suggestion maps.
+    queueMicrotask(() => {
+      listPickedBroll().forEach((item) => ingestPickedBroll(item, { silent: true }));
+    });
+  }, [userId, scriptText, setupScript, replaceTimelineState, ingestPickedBroll]);
 
   const persistProject = useCallback(
     (overrides?: {
@@ -1889,21 +2012,9 @@ export function StudioVideoEditingPanel({
             <span className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-1 text-xs tabular-nums text-[#6e6e73]">
               {tc(timelineApi.timeline.currentTime)}
             </span>
-          </div>
-          <div className="flex max-w-[220px] flex-1 items-center gap-2">
-            <input
-              type="range"
-              min={0}
-              max={totalDuration}
-              step={0.01}
-              value={timelineApi.timeline.currentTime}
-              onChange={(e) => {
-                setIsPlaying(false);
-                timelineApi.setCurrentTime(Number(e.target.value));
-              }}
-              className="w-full accent-[#1d1d1f]"
-            />
-            <span className="text-[11px] tabular-nums text-[#86868b]">{tcShort(totalDuration)}</span>
+            <span className="text-[11px] tabular-nums text-[#86868b]">
+              / {tcShort(totalDuration)}
+            </span>
           </div>
         </div>
 
@@ -1987,16 +2098,23 @@ export function StudioVideoEditingPanel({
           )}
 
           <div className="border-b border-gray-100 px-4 py-3.5">
-            <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
-              B-roll videos
-            </p>
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                B-roll videos
+              </p>
+              <button
+                type="button"
+                onClick={() => handleFindMoreBroll('video')}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-semibold text-[#1d1d1f] hover:border-gray-300 hover:bg-[#f5f5f7]"
+              >
+                <Search className="h-3 w-3" />
+                Find more
+              </button>
+            </div>
             <div className="space-y-2.5">
-              {(showDummyLibrary
-                ? BROLL_SUGGESTIONS
-                : (selected ? sceneBrollVideoSuggestions[selected.id] : undefined) ?? BROLL_SUGGESTIONS
-              ).map((item, i) => (
+              {sidebarBrollVideos.map((item, i) => (
                 <SuggestionCard
-                  key={`${item.label}-${i}`}
+                  key={`vid-${item.label}-${i}`}
                   item={item}
                   type="broll"
                   already={timelineHasClipNamed(DEFAULT_TRACK_IDS.broll, item.label)}
@@ -2008,34 +2126,36 @@ export function StudioVideoEditingPanel({
           </div>
 
           <div className="border-b border-gray-100 px-4 py-3.5">
-            <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
-              B-roll images
-            </p>
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                B-roll images
+              </p>
+              <button
+                type="button"
+                onClick={() => handleFindMoreBroll('image')}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-semibold text-[#1d1d1f] hover:border-gray-300 hover:bg-[#f5f5f7]"
+              >
+                <Search className="h-3 w-3" />
+                Find more
+              </button>
+            </div>
             <div className="space-y-2.5">
-              {(() => {
-                const imageItems = showDummyLibrary
-                  ? BROLL_IMAGE_SUGGESTIONS
-                  : selected
-                    ? sceneBrollImageSuggestions[selected.id] ?? []
-                    : [];
-                if (imageItems.length === 0) {
-                  return (
-                    <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
-                      No matched images for this scene yet.
-                    </p>
-                  );
-                }
-                return imageItems.map((item, i) => (
+              {sidebarBrollImages.length === 0 ? (
+                <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
+                  No matched images for this scene yet.
+                </p>
+              ) : (
+                sidebarBrollImages.map((item, i) => (
                   <SuggestionCard
-                    key={`${item.label}-${i}`}
+                    key={`img-${item.label}-${i}`}
                     item={item}
                     type="broll"
                     already={timelineHasClipNamed(DEFAULT_TRACK_IDS.broll, item.label)}
                     onInsert={() => insertSuggestion('broll', item)}
                     onPreview={() => setPreviewItem({ item, type: 'broll' })}
                   />
-                ));
-              })()}
+                ))
+              )}
             </div>
           </div>
 
@@ -2233,17 +2353,6 @@ export function StudioVideoEditingPanel({
               </p>
             )}
           </div>
-        </div>
-
-        <div className="flex-shrink-0 border-t border-gray-100 p-3">
-          <button
-            type="button"
-            onClick={() => showToast('Searching the wider media library…')}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] py-2.5 text-sm font-semibold text-white hover:bg-black"
-          >
-            <Sparkles className="h-4 w-4 text-amber-300" />
-            Find more
-          </button>
         </div>
       </aside>
 

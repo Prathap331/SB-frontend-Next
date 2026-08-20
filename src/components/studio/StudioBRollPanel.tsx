@@ -25,6 +25,7 @@ import {
   Gauge,
   Monitor,
   X,
+  Plus,
 } from 'lucide-react';
 import {
   ApiService,
@@ -34,6 +35,13 @@ import {
   type BrollVideoFile,
 } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
+import {
+  brollMediaToPick,
+  clearBrollPickSession,
+  enqueuePickedBroll,
+  readBrollPickSession,
+  type BrollPickSession,
+} from '@/lib/video-editor/broll-pick';
 
 type OrientationFilter = 'any' | BrollOrientation;
 type MediaTypeFilter = 'any' | 'video' | 'photo';
@@ -237,8 +245,14 @@ function FilterSection({
   );
 }
 
-export function StudioBRollPanel() {
+export function StudioBRollPanel({
+  onReturnToVideoEditing,
+}: {
+  /** When picking from AI Video Editing, return there after Add. */
+  onReturnToVideoEditing?: () => void;
+} = {}) {
   const router = useRouter();
+  const [pickSession, setPickSession] = useState<BrollPickSession | null>(null);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -269,6 +283,30 @@ export function StudioBRollPanel() {
     resolution: true,
     date: true,
   });
+
+  useEffect(() => {
+    const session = readBrollPickSession();
+    setPickSession(session);
+    if (session?.kind === 'video') setMediaType('video');
+    if (session?.kind === 'image') setMediaType('photo');
+  }, []);
+
+  const handleAddFromVideoEditing = useCallback(
+    (item: BrollMediaItem) => {
+      const session = pickSession ?? readBrollPickSession();
+      if (!session) return;
+      const itemKind = item.kind === 'photo' ? 'image' : 'video';
+      if (itemKind !== session.kind) return;
+
+      const preview = pickPreviewFile(item);
+      const picked = brollMediaToPick(item, session, preview?.link ?? null);
+      enqueuePickedBroll(picked);
+      clearBrollPickSession();
+      setPickSession(null);
+      onReturnToVideoEditing?.();
+    },
+    [pickSession, onReturnToVideoEditing],
+  );
 
   const toggleSection = (key: string) =>
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -671,6 +709,25 @@ export function StudioBRollPanel() {
 
   return (
     <div className="space-y-4">
+      {pickSession && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-950">
+          <p className="font-medium">
+            Picking {pickSession.kind === 'video' ? 'videos' : 'images'} for AI Video Editing
+            {pickSession.sceneTitle ? ` · ${pickSession.sceneTitle}` : ''}. Click Add next to Download.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              clearBrollPickSession();
+              setPickSession(null);
+              onReturnToVideoEditing?.();
+            }}
+            className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 font-semibold hover:bg-amber-100"
+          >
+            Back to editor
+          </button>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -897,18 +954,32 @@ export function StudioBRollPanel() {
                             {item.user.name}
                           </a>
                         </p>
-                        {downloadHref && (
+                        {(downloadHref || pickSession) && (
                           <div className="flex items-center gap-2">
-                            <a
-                              href={downloadHref}
-                              download
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-600 border border-gray-200 rounded-md px-2 py-1 hover:bg-gray-50"
-                            >
-                              <Download className="w-3 h-3" />
-                              Download
-                            </a>
+                            {downloadHref && (
+                              <a
+                                href={downloadHref}
+                                download
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-600 border border-gray-200 rounded-md px-2 py-1 hover:bg-gray-50"
+                              >
+                                <Download className="w-3 h-3" />
+                                Download
+                              </a>
+                            )}
+                            {pickSession &&
+                              ((pickSession.kind === 'video' && item.kind === 'video') ||
+                                (pickSession.kind === 'image' && item.kind === 'photo')) && (
+                              <button
+                                type="button"
+                                onClick={() => handleAddFromVideoEditing(item)}
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-[#1d1d1f] border border-[#1d1d1f] rounded-md px-2 py-1 hover:bg-black"
+                              >
+                                <Plus className="w-3 h-3" />
+                                Add
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
