@@ -168,8 +168,112 @@ export interface EditVideoScene {
   animation?: EditVideoAnimation | null;
 }
 
+/** A single track in the Remotion-style timeline (audio_<scene_id>, broll_<scene_id>, caption_word, ...). Exact per-type fields aren't fully specified, so extra fields pass through untyped. */
+export interface EditVideoTimelineTrack {
+  id: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
+export interface EditVideoTimeline {
+  fps: number;
+  total_frames: number;
+  resolution: { width: number; height: number };
+  tracks: EditVideoTimelineTrack[];
+}
+
 export interface EditVideoResponse {
+  video_id: string;
+  timeline: EditVideoTimeline;
   scenes: EditVideoScene[];
+  /** Scene ids where voice/tagging/whisperx generation failed */
+  failed_scene_ids?: string[];
+}
+
+export type EditVideoCaptionAnimationType =
+  | 'kinetic_caption'
+  | 'static_line'
+  | 'typewriter'
+  | 'word_pop';
+
+export interface SceneStyleUpdate {
+  font_size?: number;
+  text_color?: string;
+  outline_color?: string;
+  animation_type?: EditVideoCaptionAnimationType;
+  background_color?: string;
+}
+
+export interface SceneStyleUpdateResponse {
+  video_id: string;
+  scene_id: string;
+  timeline_version: number;
+  caption_style: Record<string, unknown>;
+  background_color?: string | null;
+  timeline: EditVideoTimeline;
+  needs_render: boolean;
+}
+
+export interface SceneVoiceUpdateResponse {
+  video_id: string;
+  scene_id: string;
+  voice: string;
+  timeline_version: number;
+  timeline: EditVideoTimeline;
+  needs_render: boolean;
+}
+
+export interface SceneTrimUpdate {
+  start: number;
+  end: number;
+}
+
+export interface SceneTrimUpdateResponse {
+  video_id: string;
+  scene_id: string;
+  trim: { start: number; end: number };
+  timeline_version: number;
+  timeline: EditVideoTimeline;
+  needs_render: boolean;
+}
+
+export type EditVideoInfographicAnimationType =
+  | 'full_screen_title_card'
+  | 'full_screen_quote_card'
+  | 'full_screen_data_viz'
+  | 'stat_counter_overlay'
+  | 'bullet_list_reveal'
+  | 'icon_sequence'
+  | 'icon_pop_in';
+
+export interface SceneInfographicUpdate {
+  animation_type?: EditVideoInfographicAnimationType;
+  props?: Record<string, unknown>;
+  duration_frames?: number;
+}
+
+export interface SceneInfographicUpdateResponse {
+  video_id: string;
+  scene_id: string;
+  animation: Record<string, unknown>;
+  infographic: { composition_id: string; props: Record<string, unknown>; [key: string]: unknown };
+  timeline_version: number;
+  timeline: EditVideoTimeline;
+  needs_render: boolean;
+}
+
+export interface SceneBrollSelectUpdate {
+  asset_id: number;
+  source: 'video' | 'image';
+}
+
+export interface SceneBrollSelectResponse {
+  video_id: string;
+  scene_id: string;
+  selected_asset: { asset_id: number; source: 'video' | 'image'; file_url: string };
+  timeline_version: number;
+  timeline: EditVideoTimeline;
+  needs_render: boolean;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -1605,10 +1709,28 @@ export class ApiService {
     return { audioUrl, raw: data };
   }
 
+  /** Shared error-parsing + JSON body handling for the /edit-video + /timeline family. */
+  private static async parseJsonOrThrow<T>(response: Response, actionLabel: string): Promise<T> {
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      let message = `${actionLabel} failed: ${response.status} ${response.statusText}`;
+      try {
+        const parsed = JSON.parse(errorText);
+        message = parsed?.message || parsed?.error || message;
+      } catch {
+        if (errorText) message = errorText;
+      }
+      throw new Error(message);
+    }
+    return response.json().catch(() => ({})) as Promise<T>;
+  }
+
   /**
    * Kick off faceless AI video editing via POST /edit-video.
    * Payload: { userId, script, voice, langCode, durationMinutes }
    * `voice` is the premade voice model id (or "user" for a cloned voice).
+   * Splits the script into scenes, generates voiceover/captions/b-roll/animations
+   * for each, builds the initial timeline, and persists it as a new `videos` row.
    */
   static async editVideo(params: {
     userId: string;
@@ -1628,24 +1750,152 @@ export class ApiService {
         durationMinutes: params.durationMinutes,
       }),
     });
+    const data = await this.parseJsonOrThrow<Record<string, unknown>>(response, 'Edit video');
+    const scenes = Array.isArray(data.scenes) ? (data.scenes as EditVideoScene[]) : [];
+    return { ...data, scenes } as EditVideoResponse;
+  }
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      let message = `Edit video failed: ${response.status} ${response.statusText}`;
-      try {
-        const parsed = JSON.parse(errorText);
-        message = parsed?.message || parsed?.error || message;
-      } catch {
-        if (errorText) message = errorText;
+  /** Update caption styling and/or scene background color via PATCH .../scene/{scene_id}/style. */
+  static async updateSceneStyle(
+    videoId: string,
+    sceneId: string,
+    payload: SceneStyleUpdate,
+  ): Promise<SceneStyleUpdateResponse> {
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/style`;
+    const response = await this.authorizedFetch(url, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow<SceneStyleUpdateResponse>(response, 'Update scene style');
+  }
+
+  /** Regenerate the voiceover for one scene via POST .../scene/{scene_id}/voice. Clears any prior trim on that scene. */
+  static async updateSceneVoice(
+    videoId: string,
+    sceneId: string,
+    voice: string,
+  ): Promise<SceneVoiceUpdateResponse> {
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/voice`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({ voice }),
+    });
+    return this.parseJsonOrThrow<SceneVoiceUpdateResponse>(response, 'Update scene voice');
+  }
+
+  /** Trim a scene's audio/caption window via PATCH .../scene/{scene_id}/trim. `start`/`end` are seconds relative to that scene's original clip. */
+  static async trimScene(
+    videoId: string,
+    sceneId: string,
+    payload: SceneTrimUpdate,
+  ): Promise<SceneTrimUpdateResponse> {
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/trim`;
+    const response = await this.authorizedFetch(url, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow<SceneTrimUpdateResponse>(response, 'Trim scene');
+  }
+
+  /** Change a scene's infographic/animation treatment via PATCH .../scene/{scene_id}/infographic. */
+  static async updateSceneInfographic(
+    videoId: string,
+    sceneId: string,
+    payload: SceneInfographicUpdate,
+  ): Promise<SceneInfographicUpdateResponse> {
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/infographic`;
+    const response = await this.authorizedFetch(url, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow<SceneInfographicUpdateResponse>(response, 'Update scene infographic');
+  }
+
+  /**
+   * Pick a specific b-roll candidate for a scene via PATCH .../scene/{scene_id}/broll.
+   * `asset_id` must already exist in that scene's media.videos/images results.
+   */
+  static async selectSceneBroll(
+    videoId: string,
+    sceneId: string,
+    payload: SceneBrollSelectUpdate,
+  ): Promise<SceneBrollSelectResponse> {
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/broll`;
+    const response = await this.authorizedFetch(url, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow<SceneBrollSelectResponse>(response, 'Select scene b-roll');
+  }
+
+  /**
+   * Render the whole video via POST /render/{video_id}.
+   * Response shape isn't fully pinned down yet, so this scans for a video URL
+   * under common field names (video_url, url, render_url, output_url, ...)
+   * the same way generateSpeech does for its audio URL.
+   */
+  static async renderVideo(videoId: string): Promise<{ videoUrl: string | null; raw: unknown }> {
+    const url = `${this.BASE_URL}/render/${encodeURIComponent(videoId)}`;
+    const response = await this.authorizedFetch(url, { method: 'POST' });
+    const data = await this.parseJsonOrThrow<unknown>(response, 'Render video');
+
+    const asStr = (v: unknown) => {
+      if (v == null) return '';
+      if (typeof v === 'string') return v.trim();
+      if (typeof v === 'number' || typeof v === 'bigint') return String(v).trim();
+      return '';
+    };
+
+    const pickUrl = (v: unknown): string | null => {
+      const direct = asStr(v);
+      if (/^https?:\/\//i.test(direct)) return direct;
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        const obj = v as Record<string, unknown>;
+        for (const key of [
+          'video_url',
+          'videoUrl',
+          'render_url',
+          'renderUrl',
+          'output_url',
+          'outputUrl',
+          'mp4_url',
+          'mp4Url',
+          'file_url',
+          'fileUrl',
+          'public_url',
+          'publicUrl',
+          'url',
+          'href',
+        ]) {
+          const found = asStr(obj[key]);
+          if (/^https?:\/\//i.test(found)) return found;
+        }
       }
-      throw new Error(message);
+      return null;
+    };
+
+    if (typeof data === 'string') {
+      return { videoUrl: pickUrl(data), raw: data };
+    }
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        const found = pickUrl(item);
+        if (found) return { videoUrl: found, raw: data };
+      }
     }
 
-    const data = await response.json().catch(() => ({}));
-    const scenes = Array.isArray((data as { scenes?: unknown })?.scenes)
-      ? (data as { scenes: EditVideoScene[] }).scenes
-      : [];
-    return { ...(data as object), scenes } as EditVideoResponse;
+    const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+    const nested =
+      (obj.data && typeof obj.data === 'object' ? obj.data : null) ??
+      (obj.result && typeof obj.result === 'object' ? obj.result : null) ??
+      (obj.render && typeof obj.render === 'object' ? obj.render : null) ??
+      (obj.video && typeof obj.video === 'object' ? obj.video : null) ??
+      {};
+
+    const videoUrl =
+      pickUrl(obj) || pickUrl(nested) || pickUrl(obj.video) || pickUrl(obj.render) || null;
+
+    return { videoUrl, raw: data };
   }
 
   /**

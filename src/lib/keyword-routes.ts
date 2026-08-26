@@ -223,6 +223,7 @@ export const BARE_APP_SEGMENTS = new Set([
 export const APP_LIBRARY_SEGMENTS = new Set([
   'content-vault',
   'my-scripts',
+  'my-videos',
   'profile',
 ]);
 

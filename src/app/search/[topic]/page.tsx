@@ -1935,6 +1935,7 @@ useEffect(() => {
                 }
                 isUnlocked={activeScriptFromAssigned}
                 ideaTitle={activeScriptIdeaTitle}
+                scriptRowId={activeScriptFromAssigned ? activeScriptRowId : null}
                 onFindMoreBroll={() => setStudioTab('broll')}
               />
             </div>

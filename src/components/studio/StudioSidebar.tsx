@@ -14,6 +14,7 @@ import {
   Lock,
   Vault,
   Video,
+  Clapperboard,
   FileText,
   ChevronDown,
   LogIn,
@@ -50,6 +51,7 @@ export type StudioSideView =
   | null
   | 'content-vault'
   | 'my-scripts'
+  | 'my-videos'
   | 'pricing'
   | ProfileTabId;
 
@@ -64,6 +66,8 @@ export function hrefForStudioView(view: Exclude<StudioSideView, null>): string {
       return '/app/content-vault';
     case 'my-scripts':
       return '/app/my-scripts';
+    case 'my-videos':
+      return '/app/my-videos';
     case 'pricing':
       return '/pricing';
     case 'profile':
@@ -82,6 +86,7 @@ export function studioViewFromLocation(
   const bare = stripKeywordPrefix(pathname);
   if (bare === '/content-vault' || bare.startsWith('/content-vault/')) return 'content-vault';
   if (bare === '/my-scripts' || bare.startsWith('/my-scripts/')) return 'my-scripts';
+  if (bare === '/my-videos' || bare.startsWith('/my-videos/')) return 'my-videos';
   if (bare === '/pricing' || bare.startsWith('/pricing/')) return 'pricing';
   if (bare === '/profile' || bare.startsWith('/profile/')) {
     const tab = searchParams.get('tab');
@@ -407,13 +412,22 @@ export default function StudioSidebar({
             collapsed={collapsed}
           />
           {isLoggedIn ? (
-            <SidebarLink
-              icon={FileText}
-              label="My Scripts"
-              active={activeView === 'my-scripts'}
-              onClick={() => go('my-scripts')}
-              collapsed={collapsed}
-            />
+            <>
+              <SidebarLink
+                icon={FileText}
+                label="My Scripts"
+                active={activeView === 'my-scripts'}
+                onClick={() => go('my-scripts')}
+                collapsed={collapsed}
+              />
+              <SidebarLink
+                icon={Clapperboard}
+                label="My Video"
+                active={activeView === 'my-videos'}
+                onClick={() => go('my-videos')}
+                collapsed={collapsed}
+              />
+            </>
           ) : (
             <SidebarLink
               icon={LogIn}

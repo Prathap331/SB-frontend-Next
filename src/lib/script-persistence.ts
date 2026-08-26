@@ -891,3 +891,91 @@ export async function appendScriptAudioUrl(opts: {
 
   return { ok: true, urls };
 }
+
+/** Read a previously rendered video URL off scripts_assigned.video (text), if any. */
+export async function getScriptVideoUrl(scriptRowId?: string | number | null): Promise<string | null> {
+  const assignedId = asTrimmedString(scriptRowId);
+  if (!assignedId) return null;
+
+  const { data, error } = await supabase
+    .from('scripts_assigned')
+    .select('video')
+    .eq('id', assignedId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const url = asTrimmedString((data as { video?: unknown }).video);
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
+/** Persist the rendered AI video URL onto scripts_assigned.video (text). */
+export async function saveScriptVideoUrl(opts: {
+  scriptRowId?: string | number | null;
+  userId?: string | null;
+  videoUrl: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const videoUrl = pickHttpUrl(opts.videoUrl) || asTrimmedString(opts.videoUrl);
+  if (!/^https?:\/\//i.test(videoUrl)) {
+    return { ok: false, error: 'Invalid video URL — expected a public http(s) link.' };
+  }
+
+  const assignedId = asTrimmedString(opts.scriptRowId);
+  if (!assignedId) {
+    return { ok: false, error: 'Missing scripts_assigned row id.' };
+  }
+
+  const userId = asTrimmedString(opts.userId);
+
+  let query = supabase.from('scripts_assigned').update({ video: videoUrl }).eq('id', assignedId);
+  if (userId) query = query.eq('userId', userId);
+
+  const { error: updateError } = await query;
+  if (updateError) {
+    console.error('[scripts_assigned video update]', updateError.message);
+    return { ok: false, error: updateError.message };
+  }
+
+  return { ok: true };
+}
+
+/** One generated video for the "My Video" library — fetched from scripts_assigned.video. */
+export type LibraryVideo = {
+  id: string;
+  topic: string;
+  title: string;
+  videoUrl: string;
+};
+
+/** List every scripts_assigned row for this user that has a rendered video, newest first. */
+export async function listUserVideos(userId: string): Promise<{
+  ok: boolean;
+  error?: string;
+  videos: LibraryVideo[];
+}> {
+  const { data, error } = await supabase
+    .from('scripts_assigned')
+    .select('id, topic, title, video, created_at')
+    .eq('userId', userId)
+    .not('video', 'is', null)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[scripts_assigned list videos]', error.message);
+    return { ok: false, error: error.message, videos: [] };
+  }
+
+  const videos: LibraryVideo[] = (data ?? [])
+    .map((row) => {
+      const videoUrl = asTrimmedString((row as { video?: unknown }).video);
+      if (!/^https?:\/\//i.test(videoUrl)) return null;
+      return {
+        id: asTrimmedString((row as { id?: unknown }).id),
+        topic: asTrimmedString((row as { topic?: unknown }).topic),
+        title: asTrimmedString((row as { title?: unknown }).title),
+        videoUrl,
+      };
+    })
+    .filter((v): v is LibraryVideo => Boolean(v));
+
+  return { ok: true, videos };
+}
