@@ -458,7 +458,7 @@ export function TimelinePreview({
       }`}
       style={{
         aspectRatio: '16 / 9',
-        width: 'min(100%, calc(100cqh * 16 / 9))',
+        width: 'min(100%, 900px)',
         maxWidth: '900px',
       }}
     >

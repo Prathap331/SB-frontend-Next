@@ -75,6 +75,9 @@ export function StudioStageNav({
   /** Tabs that cannot be selected (e.g. Content Ideas when opening a vault script) */
   disabled?: Partial<Record<StudioTab, boolean>>;
 }) {
+  // On mobile, the AI Video Editing tab needs all the width it can get for its
+  // own toolbar/preview, so collapse the stage tabs to icon-only there.
+  const compactOnMobile = active === 'video-editing';
   return (
     <div className="flex flex-wrap gap-2">
       {TABS.map(({ id, label, icon: Icon }) => {
@@ -88,8 +91,10 @@ export function StudioStageNav({
             onClick={() => {
               if (!isDisabled) onChange(id);
             }}
-            title={isDisabled ? 'Not available for this script' : undefined}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium border transition-all ${
+            title={compactOnMobile ? label : isDisabled ? 'Not available for this script' : undefined}
+            className={`inline-flex items-center gap-2 rounded-xl ${
+              compactOnMobile ? 'px-2.5 lg:px-4' : 'px-4'
+            } py-2 text-sm font-medium border transition-all ${
               isDisabled
                 ? 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed opacity-60'
                 : isActive
@@ -98,7 +103,7 @@ export function StudioStageNav({
             }`}
           >
             <Icon className="w-3.5 h-3.5" />
-            {label}
+            <span className={compactOnMobile ? 'hidden lg:inline' : ''}>{label}</span>
             {completed?.[id] && !isActive && !isDisabled && (
               <Check className="w-3.5 h-3.5 text-green-500" />
             )}

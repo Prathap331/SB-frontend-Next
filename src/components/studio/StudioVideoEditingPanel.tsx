@@ -27,6 +27,12 @@ import {
   Video,
   Scissors,
   Search,
+  Image as ImageIcon,
+  Type,
+  Layers,
+  Trash2,
+  Copy,
+  Crop,
 } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import {
@@ -68,7 +74,8 @@ import {
 } from '@/lib/video-editor/broll-pick';
 import type { TimelineState } from '@/lib/video-editor/types';
 import { readInfographicFromEditScene, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, type RemotionInfographicSpec } from '@/lib/video-editor/infographics';
-import { TimelinePanel, TimelinePreview } from '@/components/studio/video-timeline';
+import { TimelinePanel, TimelinePreview, TimelineClipView } from '@/components/studio/video-timeline';
+import { TRACK_ROW_HEIGHT } from '@/components/studio/video-timeline/trackLayout';
 import { RemotionInfographicPreview } from '@/remotion/RemotionInfographicPreview';
 import { formatTimecode, formatTimecodeShort } from '@/lib/video-editor/timecode';
 import { EDITOR_FPS } from '@/lib/video-editor/fps';
@@ -142,6 +149,15 @@ type PendingSceneEdits = {
   voice?: string;
   trim?: SceneTrimUpdate;
 };
+
+type LibraryTab = 'broll-videos' | 'broll-images' | 'infographics' | 'text';
+
+const LIBRARY_TABS: { id: LibraryTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'broll-videos', label: 'B-roll', icon: Film },
+  { id: 'broll-images', label: 'Images', icon: ImageIcon },
+  { id: 'infographics', label: 'Infographics', icon: BarChart3 },
+  { id: 'text', label: 'Text', icon: Type },
+];
 
 type TextStyle = {
   position: TextPosition;
@@ -466,6 +482,50 @@ function StatusPill({ status }: { status: SceneStatus }) {
   );
 }
 
+/** Mobile bottom-bar icon (Scenes / B-roll / Images / Infographics / Text) — opens a slide-up sheet. */
+function MobileBarIcon({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-semibold text-[#6e6e73]"
+    >
+      <Icon className="h-5 w-5" />
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+/** Mobile contextual tool button (Delete / Split / Trim / Duplicate) shown when a clip is selected. */
+function MobileToolButton({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7]"
+    >
+      <Icon className="h-4.5 w-4.5" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
 /* ── Component ─────────────────────────────────────────────────────────────── */
 
 export function StudioVideoEditingPanel({
@@ -534,6 +594,9 @@ export function StudioVideoEditingPanel({
   const [previewItem, setPreviewItem] = useState<{ item: Suggestion; type: 'broll' | 'infographic' } | null>(null);
   const [previewRemotion, setPreviewRemotion] = useState<RemotionInfographicSpec | null>(null);
   const [captionOffset, setCaptionOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [libraryTab, setLibraryTab] = useState<LibraryTab>('broll-videos');
+  /** Mobile: which bottom-bar slide-up sheet is open, if any. */
+  const [mobileSheet, setMobileSheet] = useState<'scenes' | 'library' | null>(null);
 
   const timelineApi = useVideoTimeline(createEmptyTimeline());
   const { setTimeline: replaceTimelineState } = timelineApi;
@@ -1974,6 +2037,9 @@ export function StudioVideoEditingPanel({
         userId={userId}
       />
 
+      {/* ── Desktop: 3-column layout ── */}
+      <div className="hidden h-full min-h-0 w-full lg:flex">
+
       {/* ── Left: Storyboard ── */}
       <aside className="flex h-full min-h-0 w-[min(280px,26%)] min-w-[220px] max-w-[300px] flex-shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white">
         <div className="flex-shrink-0 border-b border-gray-100 px-4 py-3.5">
@@ -2283,7 +2349,7 @@ export function StudioVideoEditingPanel({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-2 sm:p-3 [container-type:size]">
+        <div className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden p-2 sm:p-3 [container-type:size]">
           <TimelinePreview
             timeline={timelineApi.timeline}
             isPlaying={isPlaying}
@@ -2512,6 +2578,25 @@ export function StudioVideoEditingPanel({
             );
           })()}
 
+          <div className="sticky top-0 z-10 flex border-b border-gray-200 bg-white">
+            {LIBRARY_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setLibraryTab(t.id)}
+                className={`flex flex-1 flex-col items-center gap-1 border-b-2 px-1.5 py-2.5 text-[10px] font-semibold transition-colors ${
+                  libraryTab === t.id
+                    ? 'border-[#1d1d1f] text-[#1d1d1f]'
+                    : 'border-transparent text-[#86868b] hover:text-[#1d1d1f]'
+                }`}
+              >
+                <t.icon className="h-4 w-4" />
+                <span className="truncate">{t.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {libraryTab === 'broll-videos' && (
           <div className="border-b border-gray-100 px-4 py-3.5">
             <div className="mb-2.5 flex items-center justify-between gap-2">
               <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
@@ -2539,7 +2624,9 @@ export function StudioVideoEditingPanel({
               ))}
             </div>
           </div>
+          )}
 
+          {libraryTab === 'broll-images' && (
           <div className="border-b border-gray-100 px-4 py-3.5">
             <div className="mb-2.5 flex items-center justify-between gap-2">
               <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
@@ -2573,38 +2660,46 @@ export function StudioVideoEditingPanel({
               )}
             </div>
           </div>
+          )}
 
-          {selected?.remotionInfographic ? (
+          {libraryTab === 'infographics' && (
             <div className="border-b border-gray-100 px-4 py-3.5">
               <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
                 Infographics
               </p>
-              <div className="space-y-2.5">
-                <SuggestionCard
-                  item={{
-                    label: remotionInfographicLabel(selected.remotionInfographic),
-                    meta: `${selected.remotionInfographic.animationType} · ${selected.remotionInfographic.durationFrames}f · Remotion`,
-                    start: 0,
-                    dur: remotionDurationSeconds(
-                      selected.remotionInfographic.durationFrames,
-                      EDITOR_FPS,
-                    ),
-                    matchedScene: selected.title,
-                    matchPct: 100,
-                    mode:
-                      selected.remotionInfographic.placement === 'full_frame'
-                        ? 'fullscreen'
-                        : 'overlay',
-                  }}
-                  type="infographic"
-                  already={remotionAlreadyOnTimeline}
-                  onInsert={insertRemotionInfographic}
-                  onPreview={() => setPreviewRemotion(selected.remotionInfographic!)}
-                />
-              </div>
+              {selected?.remotionInfographic ? (
+                <div className="space-y-2.5">
+                  <SuggestionCard
+                    item={{
+                      label: remotionInfographicLabel(selected.remotionInfographic),
+                      meta: `${selected.remotionInfographic.animationType} · ${selected.remotionInfographic.durationFrames}f · Remotion`,
+                      start: 0,
+                      dur: remotionDurationSeconds(
+                        selected.remotionInfographic.durationFrames,
+                        EDITOR_FPS,
+                      ),
+                      matchedScene: selected.title,
+                      matchPct: 100,
+                      mode:
+                        selected.remotionInfographic.placement === 'full_frame'
+                          ? 'fullscreen'
+                          : 'overlay',
+                    }}
+                    type="infographic"
+                    already={remotionAlreadyOnTimeline}
+                    onInsert={insertRemotionInfographic}
+                    onPreview={() => setPreviewRemotion(selected.remotionInfographic!)}
+                  />
+                </div>
+              ) : (
+                <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
+                  No infographic suggested for this scene yet.
+                </p>
+              )}
             </div>
-          ) : null}
+          )}
 
+          {libraryTab === 'text' && (
           <div className="px-4 py-3.5">
             <div className="mb-2.5 flex items-center justify-between gap-2">
               <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
@@ -2773,8 +2868,555 @@ export function StudioVideoEditingPanel({
               </p>
             )}
           </div>
+          )}
         </div>
       </aside>
+
+      </div>
+
+      {/* ── Mobile: single-column layout ── */}
+      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f5f5f7] lg:hidden">
+        {/* Top toolbar — undo/redo/split/delete/duplicate live only in the clip-selected tools below */}
+        <div className="flex h-11 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-3">
+          <div className="w-[68px] flex-shrink-0" />
+          <p className="min-w-0 flex-1 truncate px-2 text-center text-xs font-semibold text-[#1d1d1f]">
+            {selected ? selected.title : 'Preview'}
+          </p>
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => setVideoPreviewOpen(true)}
+              disabled={!renderedVideoUrl}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] disabled:opacity-30"
+              title={renderedVideoUrl ? 'View the generated video' : 'Render a video first'}
+            >
+              <Film className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleRenderVideo()}
+              disabled={renderDisabled}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] disabled:opacity-30"
+              title="Render the whole video"
+            >
+              {isRendering ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73]"
+              title="More"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Preview — large, fills all remaining space above the controls */}
+        <div className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden p-2 [container-type:size]">
+          <TimelinePreview
+            timeline={timelineApi.timeline}
+            isPlaying={isPlaying}
+            onTimeUpdate={(t) => timelineApi.setCurrentTime(t)}
+            onEnded={() => {
+              setIsPlaying(false);
+              timelineApi.setCurrentTime(timelineApi.timeline.duration);
+            }}
+            textStyle={textStyle}
+            fontSizeClass={FONT_SIZE_CLASS}
+            fontFamilyClass={FONT_FAMILY_CLASS}
+          />
+        </div>
+
+        {/* Playback controls */}
+        <div className="flex flex-shrink-0 items-center justify-center gap-3 border-t border-gray-200 bg-white py-2">
+          <span className="text-xs font-semibold tabular-nums text-[#1d1d1f]">
+            {tc(timelineApi.timeline.currentTime)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setIsPlaying((p) => !p)}
+            className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-white"
+          >
+            {isPlaying ? (
+              <Pause className="h-4 w-4 fill-current" />
+            ) : (
+              <Play className="ml-0.5 h-4 w-4 fill-current" />
+            )}
+          </button>
+          <span className="text-xs tabular-nums text-[#86868b]">{tcShort(totalDuration)}</span>
+        </div>
+
+        {/* Tracks — compact rows only (no ruler/toolbar); tap a clip to select it and
+            bring up its tools in the bottom bar below. Trim still works via the same
+            drag handles as desktop once a clip is selected. */}
+        <div
+          className="flex-shrink-0 overflow-auto border-t border-gray-200 bg-white"
+          style={{ scrollbarWidth: 'thin', maxHeight: 160 }}
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest('[data-clip-id]')) return;
+            timelineApi.clearSelection();
+          }}
+        >
+          <div
+            className="relative"
+            style={{
+              width: Math.max(320, timelineApi.timeline.duration * timelineApi.timeline.pixelsPerSecond + 40),
+            }}
+          >
+            {timelineApi.timeline.tracks.map((track) => (
+              <div
+                key={track.id}
+                className="relative border-b border-gray-100 last:border-b-0"
+                style={{ height: TRACK_ROW_HEIGHT }}
+              >
+                {track.clips.length === 0 ? (
+                  <div className="flex h-full items-center px-3 text-[10px] text-[#a1a1a6]">
+                    {track.name}
+                  </div>
+                ) : (
+                  track.clips.map((clip) => (
+                    <TimelineClipView
+                      key={clip.id}
+                      clip={clip}
+                      pixelsPerSecond={timelineApi.timeline.pixelsPerSecond}
+                      selected={timelineApi.timeline.selectedClipIds.includes(clip.id)}
+                      trackLocked={track.locked}
+                      trackHeight={TRACK_ROW_HEIGHT}
+                      onSelect={(e) => timelineApi.selectClips([clip.id], e.metaKey || e.ctrlKey)}
+                      onBeginMove={timelineApi.beginMove}
+                      onBeginTrim={timelineApi.beginTrim}
+                      onPointerDelta={(dx, disableSnap) => timelineApi.applyPointerDelta(dx, { disableSnap })}
+                      onPointerEnd={timelineApi.endPointerInteraction}
+                    />
+                  ))
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom bar — icon nav, or the selected clip's tools */}
+        <div className="flex-shrink-0 border-t border-gray-200 bg-white">
+          {timelineApi.selectedClip ? (
+            <div className="flex items-center justify-around px-2 py-2">
+              <MobileToolButton icon={Trash2} label="Delete" onClick={() => timelineApi.deleteSelected()} />
+              <MobileToolButton icon={Scissors} label="Split" onClick={() => timelineApi.splitSelectedAtPlayhead()} />
+              <MobileToolButton
+                icon={Crop}
+                label="Trim"
+                onClick={() => showToast('Drag the amber handles on the clip to trim')}
+              />
+              <MobileToolButton icon={Copy} label="Duplicate" onClick={() => timelineApi.duplicateSelected()} />
+              <button
+                type="button"
+                onClick={() => timelineApi.clearSelection()}
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-white"
+                aria-label="Done"
+              >
+                <Check className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-stretch">
+              <MobileBarIcon icon={Layers} label="Scenes" onClick={() => setMobileSheet('scenes')} />
+              <MobileBarIcon
+                icon={Film}
+                label="B-roll"
+                onClick={() => {
+                  setLibraryTab('broll-videos');
+                  setMobileSheet('library');
+                }}
+              />
+              <MobileBarIcon
+                icon={ImageIcon}
+                label="Images"
+                onClick={() => {
+                  setLibraryTab('broll-images');
+                  setMobileSheet('library');
+                }}
+              />
+              <MobileBarIcon
+                icon={BarChart3}
+                label="Info"
+                onClick={() => {
+                  setLibraryTab('infographics');
+                  setMobileSheet('library');
+                }}
+              />
+              <MobileBarIcon
+                icon={Type}
+                label="Text"
+                onClick={() => {
+                  setLibraryTab('text');
+                  setMobileSheet('library');
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Slide-up sheet */}
+        {mobileSheet && (
+          <div
+            role="button"
+            tabIndex={-1}
+            className="fixed inset-0 z-[85] flex items-end bg-black/40"
+            onClick={() => setMobileSheet(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="flex max-h-[75vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3">
+                <p className="text-sm font-semibold text-[#1d1d1f]">
+                  {mobileSheet === 'scenes' ? 'Scenes' : LIBRARY_TABS.find((t) => t.id === libraryTab)?.label}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setMobileSheet(null)}
+                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#f5f5f7]"
+                >
+                  <X className="h-4 w-4 text-[#1d1d1f]" />
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+                {mobileSheet === 'scenes' && (
+                  <div className="p-3">
+                    {!hasScenes ? (
+                      <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
+                        <p className="text-xs leading-relaxed text-[#86868b]">
+                          No scenes yet. Generate a voiceover and scene breakdown to start editing.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMobileSheet(null);
+                            openSetupModal();
+                          }}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] px-4 py-2.5 text-sm font-semibold text-white"
+                        >
+                          <Sparkles className="h-4 w-4 text-amber-300" />
+                          Generate voice and scenes
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {scenes.map((sc) => {
+                          const active = sc.id === selectedId;
+                          return (
+                            <div
+                              key={sc.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => {
+                                selectScene(sc.id);
+                                setMobileSheet(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  selectScene(sc.id);
+                                  setMobileSheet(null);
+                                }
+                              }}
+                              className={`cursor-pointer rounded-2xl border p-3 transition-colors ${
+                                active
+                                  ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-sm'
+                                  : 'border-gray-200 bg-[#fafafa]'
+                              }`}
+                            >
+                              <div className="mb-2 flex items-start gap-2.5">
+                                <span
+                                  className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold tabular-nums ${
+                                    active ? 'bg-white/10 text-white/80' : 'bg-white border border-gray-200 text-[#6e6e73]'
+                                  }`}
+                                >
+                                  {sc.num}
+                                </span>
+                                <p className={`pt-1 text-sm font-semibold leading-snug ${active ? 'text-white' : 'text-[#1d1d1f]'}`}>
+                                  {sc.title}
+                                </p>
+                              </div>
+                              {sc.generationError && (
+                                <div
+                                  className={`mb-2.5 flex items-start gap-1.5 rounded-lg px-2 py-1.5 text-[10px] leading-snug ${
+                                    active ? 'bg-red-400/15 text-red-100' : 'border border-red-100 bg-red-50 text-red-700'
+                                  }`}
+                                >
+                                  <AlertTriangle className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                                  <span className="line-clamp-2">{sc.generationError}</span>
+                                </div>
+                              )}
+                              <div className="mb-2.5 flex flex-wrap items-center gap-2 text-[11px]">
+                                <span className={`tabular-nums ${active ? 'text-white/55' : 'text-[#86868b]'}`}>
+                                  {tc(sc.start)} · {sc.duration}s
+                                </span>
+                                {!active && <StatusPill status={sc.status} />}
+                              </div>
+                              <button
+                                type="button"
+                                disabled={!sc.voiceoverUrl && !!sc.generationError}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleVoiceoverPlayback(sc);
+                                }}
+                                className={`mb-2.5 flex w-full items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+                                  playingVO === sc.id
+                                    ? active
+                                      ? 'border-amber-300/40 bg-amber-400/15 text-amber-100'
+                                      : 'border-amber-200 bg-amber-50 text-amber-900'
+                                    : active
+                                      ? 'border-white/15 bg-white/5 text-white/80'
+                                      : 'border-gray-200 bg-white text-[#6e6e73]'
+                                }`}
+                              >
+                                {playingVO === sc.id ? <Pause className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                                <span className="flex-1">
+                                  {sc.generationError && !sc.voiceoverUrl
+                                    ? 'Voiceover unavailable'
+                                    : playingVO === sc.id
+                                      ? 'Playing voiceover…'
+                                      : 'Play voiceover'}
+                                </span>
+                                <span className="tabular-nums opacity-60">{sc.duration}s</span>
+                              </button>
+                              {sc.mainParts.length > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openUploadFootage(sc.id);
+                                  }}
+                                  className={`flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed px-3 py-2 text-[11px] font-semibold ${
+                                    active ? 'border-white/25 text-white/80' : 'border-gray-300 text-[#6e6e73]'
+                                  }`}
+                                >
+                                  <Upload className="h-3.5 w-3.5" />
+                                  Add another take
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openUploadFootage(sc.id);
+                                  }}
+                                  className={`flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold ${
+                                    active ? 'bg-white text-[#1d1d1f]' : 'bg-[#1d1d1f] text-white'
+                                  }`}
+                                >
+                                  <Upload className="h-3.5 w-3.5" />
+                                  Upload footage
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={addScene}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 px-3 py-2.5 text-xs font-semibold text-[#6e6e73]"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Add scene
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {mobileSheet === 'library' && (
+                  <div className="p-3">
+                    {libraryTab === 'broll-videos' && (
+                      <>
+                        <div className="mb-2.5 flex items-center justify-between gap-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                            B-roll videos
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleFindMoreBroll('video')}
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-semibold text-[#1d1d1f]"
+                          >
+                            <Search className="h-3 w-3" />
+                            Find more
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          {sidebarBrollVideos.map((item, i) => (
+                            <SuggestionCard
+                              key={`m-vid-${item.label}-${i}`}
+                              item={item}
+                              type="broll"
+                              already={timelineHasClipNamed(DEFAULT_TRACK_IDS.broll, item.label)}
+                              onInsert={() => insertSuggestion('broll', item)}
+                              onPreview={() => setPreviewItem({ item, type: 'broll' })}
+                            />
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    {libraryTab === 'broll-images' && (
+                      <>
+                        <div className="mb-2.5 flex items-center justify-between gap-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                            B-roll images
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleFindMoreBroll('image')}
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-semibold text-[#1d1d1f]"
+                          >
+                            <Search className="h-3 w-3" />
+                            Find more
+                          </button>
+                        </div>
+                        {sidebarBrollImages.length === 0 ? (
+                          <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
+                            No matched images for this scene yet.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2.5">
+                            {sidebarBrollImages.map((item, i) => (
+                              <SuggestionCard
+                                key={`m-img-${item.label}-${i}`}
+                                item={item}
+                                type="broll"
+                                already={timelineHasClipNamed(DEFAULT_TRACK_IDS.broll, item.label)}
+                                onInsert={() => insertSuggestion('broll', item)}
+                                onPreview={() => setPreviewItem({ item, type: 'broll' })}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {libraryTab === 'infographics' && (
+                      <>
+                        <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                          Infographics
+                        </p>
+                        {selected?.remotionInfographic ? (
+                          <SuggestionCard
+                            item={{
+                              label: remotionInfographicLabel(selected.remotionInfographic),
+                              meta: `${selected.remotionInfographic.animationType} · ${selected.remotionInfographic.durationFrames}f · Remotion`,
+                              start: 0,
+                              dur: remotionDurationSeconds(selected.remotionInfographic.durationFrames, EDITOR_FPS),
+                              matchedScene: selected.title,
+                              matchPct: 100,
+                              mode: selected.remotionInfographic.placement === 'full_frame' ? 'fullscreen' : 'overlay',
+                            }}
+                            type="infographic"
+                            already={remotionAlreadyOnTimeline}
+                            onInsert={insertRemotionInfographic}
+                            onPreview={() => setPreviewRemotion(selected.remotionInfographic!)}
+                          />
+                        ) : (
+                          <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
+                            No infographic suggested for this scene yet.
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {libraryTab === 'text' && (
+                      <>
+                        <div className="mb-2.5 flex items-center justify-between gap-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                            Text
+                          </p>
+                          <button
+                            type="button"
+                            onClick={addTextClip}
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1 text-[11px] font-semibold text-[#1d1d1f]"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Add text
+                          </button>
+                        </div>
+
+                        <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Position on screen</p>
+                        <div className="mb-3 flex gap-1.5">
+                          {([
+                            ['upper', 'Upper'],
+                            ['middle', 'Middle'],
+                            ['lower', 'Lower'],
+                          ] as const).map(([value, label]) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => {
+                                setTextStyle((t) => ({ ...t, position: value }));
+                                setCaptionOffset({ x: 0, y: 0 });
+                              }}
+                              className={`flex-1 rounded-lg border px-1 py-1.5 text-[10px] font-semibold ${
+                                textStyle.position === value
+                                  ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
+                                  : 'border-gray-200 text-[#6e6e73]'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+
+                        <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font size</p>
+                        <div className="mb-3 flex gap-1.5">
+                          {(['sm', 'md', 'lg'] as FontSize[]).map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => {
+                                setTextStyle((t) => ({ ...t, fontSize: size }));
+                                if (selected) recordPendingStyle(selected.id, { font_size: FONT_SIZE_PX[size] });
+                              }}
+                              className={`flex-1 rounded-lg border py-1.5 text-[11px] font-semibold uppercase ${
+                                textStyle.fontSize === size
+                                  ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
+                                  : 'border-gray-200 text-[#6e6e73]'
+                              }`}
+                            >
+                              {size === 'sm' ? 'S' : size === 'md' ? 'M' : 'L'}
+                            </button>
+                          ))}
+                        </div>
+
+                        {timelineApi.selectedClip?.type === 'text' ? (
+                          <textarea
+                            value={timelineApi.selectedClip.text || ''}
+                            rows={3}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              timelineApi.updateClip(timelineApi.selectedClip!.id, {
+                                text: value,
+                                name: value.slice(0, 48) || 'Text',
+                              });
+                            }}
+                            className="w-full resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f]"
+                          />
+                        ) : (
+                          <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
+                            Select a text clip on the timeline to edit its wording, or tap Add text.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {previewRemotion && (
         <div
