@@ -32,6 +32,8 @@ export type TimelineClip = {
 
   /** Optional link back to AI/story scene. */
   sceneId?: string;
+  /** Backend "beat" id for b-roll clips — `s{sceneNum}_b{nth}` — used by the split/insert endpoints. */
+  beatId?: string;
 
   zIndex?: number;
   volume?: number;

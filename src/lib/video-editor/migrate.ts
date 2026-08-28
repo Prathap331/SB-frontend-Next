@@ -28,6 +28,8 @@ export type LegacySceneLike = {
   /** Caption / on-screen text from AI */
   onScreenText?: string | null;
   wordSegments?: { word: string; start: number; end: number }[];
+  /** Natural start of speech within the generated voiceover audio (leading silence varies per take, e.g. 0.3–0.6s). */
+  voiceStart?: number;
 };
 
 const ACTIVE_TRACK_TYPES: TimelineTrackType[] = [
@@ -99,6 +101,10 @@ export function createSceneTimeline(scene: LegacySceneLike): TimelineState {
   const duration = Math.max(0.5, roundTime(scene.duration || 5));
 
   if (scene.voiceoverUrl) {
+    // Leading silence before speech actually starts varies per generated take
+    // (commonly ~0.3–0.6s) — default the trim window to that natural start
+    // instead of always assuming 0, so the trim UI reflects the real audio.
+    const voiceStart = Math.min(Math.max(0, scene.voiceStart ?? 0), Math.max(0, duration - 0.1));
     const voTrack = tracks.find((t) => t.id === DEFAULT_TRACK_IDS.voiceover)!;
     voTrack.clips.push(
       normalizeClip({
@@ -107,10 +113,10 @@ export function createSceneTimeline(scene: LegacySceneLike): TimelineState {
         type: 'voiceover',
         name: `${scene.title} VO`,
         sourceUrl: scene.voiceoverUrl,
-        start: 0,
-        duration,
-        sourceStart: 0,
-        sourceDuration: duration,
+        start: voiceStart,
+        duration: duration - voiceStart,
+        sourceStart: voiceStart,
+        sourceDuration: duration - voiceStart,
         originalSourceDuration: duration,
         sceneId: scene.id,
         volume: 1,

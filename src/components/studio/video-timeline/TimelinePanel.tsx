@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { UseVideoTimelineReturn } from '@/hooks/useVideoTimeline';
+import type { TimelineClip } from '@/lib/video-editor/types';
 import { TimelineRuler } from './TimelineRuler';
 import { TimelinePlayhead } from './TimelinePlayhead';
 import { TimelineClipView } from './TimelineClipView';
@@ -14,11 +15,15 @@ type Props = {
   height: number;
   onTogglePlay?: () => void;
   sceneLabel?: string;
+  /** Track ids to hide from the row list (e.g. the unused raw "video" track). */
+  hiddenTrackIds?: string[];
+  /** Fired right after a clip is split, with the pre-split clip and the split point (scene-local seconds). */
+  onClipSplit?: (clip: TimelineClip, splitAt: number) => void;
 };
 
 const LABEL_WIDTH = 148;
 
-export function TimelinePanel({ api, height, onTogglePlay, sceneLabel }: Props) {
+export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTrackIds, onClipSplit }: Props) {
   const {
     timeline,
     snapGuide,
@@ -48,7 +53,20 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel }: Props) 
     [timeline.duration, timeline.pixelsPerSecond],
   );
 
-  const tracksHeight = timeline.tracks.length * TRACK_ROW_HEIGHT;
+  const visibleTracks = useMemo(
+    () => (hiddenTrackIds?.length ? timeline.tracks.filter((t) => !hiddenTrackIds.includes(t.id)) : timeline.tracks),
+    [timeline.tracks, hiddenTrackIds],
+  );
+
+  const tracksHeight = visibleTracks.length * TRACK_ROW_HEIGHT;
+
+  const handleSplit = useCallback(() => {
+    const id = timeline.selectedClipIds[0];
+    const clip = id ? timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === id) : undefined;
+    const splitAt = timeline.currentTime;
+    splitSelectedAtPlayhead();
+    if (clip) onClipSplit?.(clip, splitAt);
+  }, [timeline, splitSelectedAtPlayhead, onClipSplit]);
 
   const onPointerDelta = useCallback(
     (deltaPx: number, disableSnap: boolean) => {
@@ -101,7 +119,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel }: Props) 
       }
       if (e.key.toLowerCase() === 's' && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
-        splitSelectedAtPlayhead();
+        handleSplit();
       }
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -116,10 +134,10 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel }: Props) 
     return () => window.removeEventListener('keydown', onKey);
   }, [
     deleteSelected,
+    handleSplit,
     onTogglePlay,
     redo,
     setCurrentTime,
-    splitSelectedAtPlayhead,
     timeline.currentTime,
     timeline.selectedClipIds.length,
     undo,
@@ -136,7 +154,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel }: Props) 
         hasSelection={timeline.selectedClipIds.length > 0}
         onUndo={undo}
         onRedo={redo}
-        onSplit={splitSelectedAtPlayhead}
+        onSplit={handleSplit}
         onDuplicate={duplicateSelected}
         onDelete={deleteSelected}
         onZoomIn={() => setPixelsPerSecond(timeline.pixelsPerSecond + 20)}
@@ -185,7 +203,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel }: Props) 
             className="sticky left-0 z-10 flex-shrink-0 border-r border-gray-200 bg-white"
             style={{ width: LABEL_WIDTH }}
           >
-            {timeline.tracks.map((track) => (
+            {visibleTracks.map((track) => (
               <TrackHeader
                 key={track.id}
                 track={track}
@@ -203,7 +221,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel }: Props) 
               />
             )}
 
-            {timeline.tracks.map((track) => {
+            {visibleTracks.map((track) => {
               const h = trackHeightPx(track);
               return (
                 <div

@@ -9,10 +9,14 @@ import { clipRemotionToInfographicData } from '@/remotion/data';
 import { Sparkles, Film, Volume2 } from 'lucide-react';
 
 type TextStyle = {
-  position: 'upper' | 'middle' | 'lower';
+  /** Always centred — the backend has no horizontal position field. */
+  offsetX: number;
+  /** Distance from the bottom edge of the frame, as a % of frame height. */
+  offsetY: number;
   background: boolean;
   bgColor: string;
-  fontSize: 'sm' | 'md' | 'lg';
+  textColor: string;
+  fontSize: number;
   fontStyle: string;
 };
 
@@ -22,9 +26,16 @@ type Props = {
   onTimeUpdate: (t: number) => void;
   onEnded: () => void;
   textStyle: TextStyle;
-  fontSizeClass: Record<string, string>;
   fontFamilyClass: Record<string, string>;
+  /** Fired while the on-screen text is dragged — x/y are percentages of the preview box. */
+  onTextPositionChange?: (x: number, y: number) => void;
+  /** Fired while a corner handle is dragged to resize the text. */
+  onTextResize?: (fontSize: number) => void;
+  /** Fired when the inline-edited text is changed — receives the clip id being edited. */
+  onTextEdit?: (clipId: string, text: string) => void;
 };
+
+type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br';
 
 function isImageClip(clip: TimelineClip | undefined | null): boolean {
   if (!clip) return false;
@@ -69,9 +80,67 @@ export function TimelinePreview({
   onTimeUpdate,
   onEnded,
   textStyle,
-  fontSizeClass,
   fontFamilyClass,
+  onTextPositionChange,
+  onTextResize,
+  onTextEdit,
 }: Props) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [editingText, setEditingText] = useState(false);
+
+  const beginDragText = (e: React.PointerEvent) => {
+    if (editingText) return;
+    e.stopPropagation();
+    const root = rootRef.current;
+    if (!root) return;
+    const rect = root.getBoundingClientRect();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let moved = false;
+    const move = (ev: PointerEvent) => {
+      if (!moved && (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3)) {
+        moved = true;
+      }
+      if (!moved || !onTextPositionChange) return;
+      // Horizontal position is always centred — the backend only supports a vertical zone/margin.
+      const fromTop = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
+      const fromBottom = Math.max(4, Math.min(96, 100 - fromTop));
+      onTextPositionChange(50, fromBottom);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      // A tap with no drag — edit the text in place instead of moving it.
+      if (!moved && onTextEdit) setEditingText(true);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  const beginResizeText = (e: React.PointerEvent, corner: ResizeCorner) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!onTextResize) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startFontSize = textStyle.fontSize;
+    // Dragging a corner away from the box centre grows the text; toward it shrinks.
+    const signX = corner === 'tl' || corner === 'bl' ? -1 : 1;
+    const signY = corner === 'tl' || corner === 'tr' ? -1 : 1;
+    const move = (ev: PointerEvent) => {
+      const dx = (ev.clientX - startX) * signX;
+      const dy = (ev.clientY - startY) * signY;
+      const next = Math.max(8, Math.min(300, Math.round(startFontSize + (dx + dy) / 2)));
+      onTextResize(next);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
   const videoARef = useRef<HTMLVideoElement>(null);
   const videoBRef = useRef<HTMLVideoElement>(null);
   const [activeBuf, setActiveBuf] = useState<'A' | 'B'>('A');
@@ -96,6 +165,9 @@ export function TimelinePreview({
   );
   const brollClip = active.find((c) => c.type === 'broll');
   const textClip = active.find((c) => c.type === 'text' || c.type === 'caption');
+  useEffect(() => {
+    setEditingText(false);
+  }, [textClip?.id]);
   const infoClip = active.find((c) => c.type === 'infographic');
   const voClip = active.find((c) => c.type === 'voiceover');
 
@@ -449,6 +521,7 @@ export function TimelinePreview({
 
   return (
     <div
+      ref={rootRef}
       className={`relative flex max-h-full items-end justify-center overflow-hidden rounded-xl border border-gray-200 ${
         hasVisual
           ? 'bg-gradient-to-br from-slate-700 to-slate-950'
@@ -548,35 +621,62 @@ export function TimelinePreview({
         </div>
       )}
 
-      {textClip?.text && (
+      {textClip && (textClip.text || editingText) && (
         <div
-          className={`absolute left-0 right-0 z-[2] px-5 py-4 ${
-            textStyle.position === 'upper'
-              ? 'top-0'
-              : textStyle.position === 'middle'
-                ? 'top-1/2 -translate-y-1/2 text-center'
-                : 'bottom-0'
-          }`}
-          style={
-            textStyle.background
-              ? {
-                  background:
-                    textStyle.position === 'upper'
-                      ? `linear-gradient(to bottom, ${textStyle.bgColor}cc, transparent)`
-                      : textStyle.position === 'lower'
-                        ? `linear-gradient(to top, ${textStyle.bgColor}cc, transparent)`
-                        : 'transparent',
-                }
-              : undefined
-          }
+          onPointerDown={beginDragText}
+          className="absolute z-[2] max-w-[85%] touch-none select-none rounded-lg px-3.5 py-2 text-center"
+          style={{
+            left: '50%',
+            bottom: `${textStyle.offsetY}%`,
+            transform: 'translateX(-50%)',
+            background: textStyle.background ? `${textStyle.bgColor}cc` : 'transparent',
+            cursor: editingText ? 'text' : onTextPositionChange ? 'grab' : undefined,
+          }}
         >
-          <p
-            className={`leading-snug text-white ${fontSizeClass[textStyle.fontSize] || ''} ${
-              fontFamilyClass[textStyle.fontStyle] || ''
-            } font-semibold`}
-          >
-            {textClip.text}
-          </p>
+          {editingText ? (
+            <textarea
+              autoFocus
+              value={textClip.text ?? ''}
+              onChange={(e) => onTextEdit?.(textClip.id, e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
+              onBlur={() => setEditingText(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setEditingText(false);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              rows={Math.max(1, (textClip.text ?? '').split('\n').length)}
+              className={`min-w-[80px] resize-none whitespace-pre-wrap border-none bg-transparent text-center leading-snug font-semibold outline-none ${fontFamilyClass[textStyle.fontStyle] || ''}`}
+              style={{ fontSize: `${textStyle.fontSize}px`, color: textStyle.textColor }}
+            />
+          ) : (
+            <p
+              className={`whitespace-pre-wrap leading-snug font-semibold ${fontFamilyClass[textStyle.fontStyle] || ''}`}
+              style={{ fontSize: `${textStyle.fontSize}px`, color: textStyle.textColor }}
+            >
+              {textClip.text}
+            </p>
+          )}
+
+          {!editingText && onTextResize && (
+            <>
+              <span
+                onPointerDown={(e) => beginResizeText(e, 'tl')}
+                className="absolute -left-1.5 -top-1.5 h-3 w-3 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-[#1d1d1f] shadow"
+              />
+              <span
+                onPointerDown={(e) => beginResizeText(e, 'tr')}
+                className="absolute -right-1.5 -top-1.5 h-3 w-3 cursor-nesw-resize touch-none rounded-full border-2 border-white bg-[#1d1d1f] shadow"
+              />
+              <span
+                onPointerDown={(e) => beginResizeText(e, 'bl')}
+                className="absolute -left-1.5 -bottom-1.5 h-3 w-3 cursor-nesw-resize touch-none rounded-full border-2 border-white bg-[#1d1d1f] shadow"
+              />
+              <span
+                onPointerDown={(e) => beginResizeText(e, 'br')}
+                className="absolute -right-1.5 -bottom-1.5 h-3 w-3 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-[#1d1d1f] shadow"
+              />
+            </>
+          )}
         </div>
       )}
     </div>

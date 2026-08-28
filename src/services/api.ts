@@ -196,12 +196,21 @@ export type EditVideoCaptionAnimationType =
   | 'typewriter'
   | 'word_pop';
 
+export type EditVideoTextVerticalPosition = 'top' | 'middle' | 'bottom';
+
 export interface SceneStyleUpdate {
   font_size?: number;
   text_color?: string;
   outline_color?: string;
   animation_type?: EditVideoCaptionAnimationType;
   background_color?: string;
+  /** Zone the text is anchored to on screen. */
+  vertical_position?: EditVideoTextVerticalPosition;
+  /** Distance of the text box from the bottom edge, as a % of frame height. */
+  margin_bottom_percent?: number;
+  /** Seconds (scene-local) the text clip starts/ends showing. */
+  text_start?: number;
+  text_end?: number;
 }
 
 export interface SceneStyleUpdateResponse {
@@ -212,6 +221,13 @@ export interface SceneStyleUpdateResponse {
   background_color?: string | null;
   timeline: EditVideoTimeline;
   needs_render: boolean;
+}
+
+export interface SceneVoiceUpdate {
+  voice: string;
+  /** Seconds (scene-local) the voice clip starts/ends. */
+  start: number;
+  end: number;
 }
 
 export interface SceneVoiceUpdateResponse {
@@ -250,6 +266,9 @@ export interface SceneInfographicUpdate {
   animation_type?: EditVideoInfographicAnimationType;
   props?: Record<string, unknown>;
   duration_frames?: number;
+  /** Seconds (scene-local) the infographic clip starts/ends. */
+  start_seconds?: number;
+  end_seconds?: number;
 }
 
 export interface SceneInfographicUpdateResponse {
@@ -265,6 +284,14 @@ export interface SceneInfographicUpdateResponse {
 export interface SceneBrollSelectUpdate {
   asset_id: number;
   source: 'video' | 'image';
+  /** `s{sceneNum}_b{nth}` — this scene's nth b-roll clip. */
+  beat_id: string;
+  motion_type?: string;
+  /** Seconds (scene-local) the b-roll clip starts/ends. */
+  start: number;
+  end: number;
+  /** Whether another b-roll clip follows immediately after this one in the scene. */
+  adjust_next_beat: boolean;
 }
 
 export interface SceneBrollSelectResponse {
@@ -274,6 +301,37 @@ export interface SceneBrollSelectResponse {
   timeline_version: number;
   timeline: EditVideoTimeline;
   needs_render: boolean;
+}
+
+export interface SceneBeatSplitUpdate {
+  /** Seconds (scene-local) where the beat is being split. */
+  split_at: number;
+}
+
+export interface SceneBeatSplitResponse {
+  video_id: string;
+  scene_id: string;
+  beat_id: string;
+  timeline_version: number;
+  timeline: EditVideoTimeline;
+  needs_render: boolean;
+  [key: string]: unknown;
+}
+
+export interface SceneBeatInsertUpdate {
+  /** Seconds (scene-local) the newly split-off clip starts/ends. */
+  start: number;
+  end: number;
+}
+
+export interface SceneBeatInsertResponse {
+  video_id: string;
+  scene_id: string;
+  beat_id: string;
+  timeline_version: number;
+  timeline: EditVideoTimeline;
+  needs_render: boolean;
+  [key: string]: unknown;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -1773,12 +1831,12 @@ export class ApiService {
   static async updateSceneVoice(
     videoId: string,
     sceneId: string,
-    voice: string,
+    payload: SceneVoiceUpdate,
   ): Promise<SceneVoiceUpdateResponse> {
     const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/voice`;
     const response = await this.authorizedFetch(url, {
       method: 'POST',
-      body: JSON.stringify({ voice }),
+      body: JSON.stringify(payload),
     });
     return this.parseJsonOrThrow<SceneVoiceUpdateResponse>(response, 'Update scene voice');
   }
@@ -1826,6 +1884,36 @@ export class ApiService {
       body: JSON.stringify(payload),
     });
     return this.parseJsonOrThrow<SceneBrollSelectResponse>(response, 'Select scene b-roll');
+  }
+
+  /** Split a b-roll "beat" into two clips via POST .../scene/{scene_id}/beat/{beat_id}/split. */
+  static async splitSceneBeat(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    payload: SceneBeatSplitUpdate,
+  ): Promise<SceneBeatSplitResponse> {
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/beat/${encodeURIComponent(beatId)}/split`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow<SceneBeatSplitResponse>(response, 'Split scene beat');
+  }
+
+  /** Register the boundaries of a beat's newly split-off second clip via POST .../scene/{scene_id}/beat/{beat_id}/insert. */
+  static async insertSceneBeat(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    payload: SceneBeatInsertUpdate,
+  ): Promise<SceneBeatInsertResponse> {
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/beat/${encodeURIComponent(beatId)}/insert`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow<SceneBeatInsertResponse>(response, 'Insert scene beat');
   }
 
   /**

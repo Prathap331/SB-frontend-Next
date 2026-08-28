@@ -8,8 +8,6 @@ import {
   Pause,
   Play,
   SkipBack,
-  Undo2,
-  Redo2,
   MoreHorizontal,
   Check,
   AlertTriangle,
@@ -33,6 +31,7 @@ import {
   Trash2,
   Copy,
   Crop,
+  Pipette,
 } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import {
@@ -51,11 +50,11 @@ import {
   ApiService,
   type EditVideoResponse,
   type EditVideoScene,
-  type EditVideoCaptionAnimationType,
   type EditVideoInfographicAnimationType,
   type SceneStyleUpdate,
   type SceneInfographicUpdate,
   type SceneTrimUpdate,
+  type EditVideoTextVerticalPosition,
 } from '@/services/api';
 import { useVideoTimeline } from '@/hooks/useVideoTimeline';
 import {
@@ -72,7 +71,7 @@ import {
   startBrollPickSession,
   type PickedBrollItem,
 } from '@/lib/video-editor/broll-pick';
-import type { TimelineState } from '@/lib/video-editor/types';
+import type { TimelineState, TimelineClip } from '@/lib/video-editor/types';
 import { readInfographicFromEditScene, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, type RemotionInfographicSpec } from '@/lib/video-editor/infographics';
 import { TimelinePanel, TimelinePreview, TimelineClipView } from '@/components/studio/video-timeline';
 import { TRACK_ROW_HEIGHT } from '@/components/studio/video-timeline/trackLayout';
@@ -85,10 +84,7 @@ import { EDITOR_FPS } from '@/lib/video-editor/fps';
 type SceneStatus = 'ready' | 'working' | 'needs';
 type JoinStatus = 'single' | 'join';
 type InfographicMode = 'overlay' | 'fullscreen';
-type TextPosition = 'upper' | 'middle' | 'lower';
-type FontSize = 'sm' | 'md' | 'lg';
 type FontStyle = 'sans' | 'serif' | 'mono' | 'display';
-type CaptionAnim = 'none' | 'fade' | 'slide' | 'typewriter';
 
 type MainPart = { filename: string; url?: string; thumbnailUrl?: string };
 type BrollClip = {
@@ -122,6 +118,8 @@ type Scene = {
   generationError?: string | null;
   onScreenText?: string | null;
   wordSegments?: { word: string; start: number; end: number }[];
+  /** Natural start of speech within the generated voiceover audio (from the first word segment). */
+  voiceStart?: number;
 };
 
 type Suggestion = {
@@ -144,7 +142,8 @@ type Suggestion = {
 
 /** Backend edits accumulated per scene while the user is working on it, flushed when they move on. */
 type PendingSceneEdits = {
-  style?: SceneStyleUpdate;
+  /** Marks that the text style changed — the full current style snapshot is sent on flush. */
+  style?: boolean;
   infographic?: SceneInfographicUpdate;
   voice?: string;
   trim?: SceneTrimUpdate;
@@ -160,38 +159,37 @@ const LIBRARY_TABS: { id: LibraryTab; label: string; icon: React.ComponentType<{
 ];
 
 type TextStyle = {
-  position: TextPosition;
+  /** Always centred — the backend has no horizontal position field. */
+  offsetX: number;
+  /** Distance from the bottom edge of the frame, as a % of frame height — matches `margin_bottom_percent` 1:1. */
+  offsetY: number;
   background: boolean;
   bgColor: string;
-  fontSize: FontSize;
+  textColor: string;
+  fontSize: number;
   fontStyle: FontStyle;
-  animation: CaptionAnim;
 };
+
+/** Builds a b-roll "beat" id: `s{sceneNum}_b{nth}` — the nth b-roll clip in that scene. */
+function makeBrollBeatId(sceneNum: string, nth: number): string {
+  const n = parseInt(sceneNum, 10) || 1;
+  return `s${n}_b${nth}`;
+}
+
+/** Maps the draggable vertical offset (% from bottom) to the backend's coarse position zone. */
+function verticalPositionFromOffsetY(offsetY: number): EditVideoTextVerticalPosition {
+  if (offsetY >= 65) return 'top';
+  if (offsetY <= 30) return 'bottom';
+  return 'middle';
+}
 
 /* ── Dummy data ────────────────────────────────────────────────────────────── */
-
-const FONT_SIZE_CLASS: Record<FontSize, string> = {
-  sm: 'text-sm',
-  md: 'text-base',
-  lg: 'text-xl',
-};
 
 const FONT_FAMILY_CLASS: Record<FontStyle, string> = {
   sans: 'font-sans',
   serif: 'font-serif',
   mono: 'font-mono',
   display: 'font-sans uppercase tracking-wide font-extrabold',
-};
-
-/** Local S/M/L presets → backend caption font_size (px). */
-const FONT_SIZE_PX: Record<FontSize, number> = { sm: 48, md: 72, lg: 110 };
-
-/** Local caption animation choice → backend animation_type enum. */
-const CAPTION_ANIMATION_TYPE: Record<CaptionAnim, EditVideoCaptionAnimationType> = {
-  none: 'static_line',
-  fade: 'kinetic_caption',
-  slide: 'word_pop',
-  typewriter: 'typewriter',
 };
 
 /** Placeholder library shown before the user generates voice + scenes. */
@@ -285,7 +283,22 @@ const BROLL_IMAGE_SUGGESTIONS: Suggestion[] = [
   },
 ];
 
-const BG_SWATCHES = ['#000000', '#1A1A1D', '#0F2E2A', '#2E1A0F', '#1A0F2E'];
+/** Default solid colour grid for the text/background colour picker. */
+const PRESET_COLORS = [
+  '#000000', '#404040', '#595959', '#808080', '#a6a6a6', '#d9d9d9', '#ffffff',
+  '#ff3b30', '#ff6961', '#ff69b4', '#dda0dd', '#b565d8', '#8a4fd1', '#5e3fc7',
+  '#1a8fd1', '#29b6d8', '#5bd1e0', '#4a90e2', '#3355d1', '#1a3fa8', '#141e8c',
+  '#1fa055', '#6fce6c', '#b9ec6c', '#f7e04d', '#f7b84d', '#f2924d', '#f2662d',
+];
+
+/** Small lookup so the colour search box accepts common colour names, not just hex. */
+const NAMED_COLORS: Record<string, string> = {
+  black: '#000000', white: '#ffffff', gray: '#808080', grey: '#808080',
+  red: '#ff3b30', pink: '#ff69b4', purple: '#8a4fd1', violet: '#b565d8',
+  blue: '#3355d1', navy: '#1a3fa8', teal: '#29b6d8', cyan: '#5bd1e0',
+  green: '#1fa055', lime: '#b9ec6c', yellow: '#f7e04d',
+  orange: '#f2924d', amber: '#f7b84d', brown: '#8a4fd1',
+};
 
 /* ── Setup / face-scene flow types ────────────────────────────────────────── */
 
@@ -428,6 +441,7 @@ function mapEditVideoResponse(res: EditVideoResponse): {
         start: Number(w.start) || 0,
         end: Number(w.end) || 0,
       })),
+      voiceStart: s.word_segments?.[0]?.start != null ? Number(s.word_segments[0].start) || 0 : 0,
     };
   });
 
@@ -526,6 +540,140 @@ function MobileToolButton({
   );
 }
 
+/** Canva-style colour picker: search, custom/eyedropper/current swatches, default colour grid. */
+function ColorPickerPanel({
+  title,
+  value,
+  onChange,
+  onClose,
+}: {
+  title: string;
+  value: string;
+  onChange: (hex: string) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const nativeInputRef = useRef<HTMLInputElement>(null);
+  const eyedropperSupported = typeof window !== 'undefined' && 'EyeDropper' in window;
+
+  const applySearch = () => {
+    const q = search.trim();
+    if (!q) return;
+    if (/^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(q)) {
+      onChange(q.startsWith('#') ? q : `#${q}`);
+      return;
+    }
+    const named = NAMED_COLORS[q.toLowerCase()];
+    if (named) onChange(named);
+  };
+
+  const pickWithEyedropper = async () => {
+    if (!eyedropperSupported) return;
+    try {
+      type EyeDropperCtor = new () => { open: () => Promise<{ sRGBHex: string }> };
+      const EyeDropperClass = (window as unknown as { EyeDropper: EyeDropperCtor }).EyeDropper;
+      const result = await new EyeDropperClass().open();
+      if (result?.sRGBHex) onChange(result.sRGBHex);
+    } catch {
+      /* user cancelled */
+    }
+  };
+
+  return (
+    <div
+      role="button"
+      tabIndex={-1}
+      className="fixed inset-0 z-[92] flex items-end justify-center bg-black/40 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex max-h-[80vh] w-full max-w-sm flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3">
+          <p className="text-sm font-semibold text-[#1d1d1f]">{title}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#f5f5f7]"
+          >
+            <X className="h-4 w-4 text-[#1d1d1f]" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4" style={{ scrollbarWidth: 'thin' }}>
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a1a1a6]" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applySearch();
+              }}
+              placeholder='Try "blue" or "#00c4cc"'
+              className="w-full rounded-xl border border-gray-200 bg-[#f5f5f7] py-2.5 pl-9 pr-3 text-sm text-[#1d1d1f] outline-none focus:border-[#1d1d1f]"
+            />
+          </div>
+
+          <div className="mb-4 flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => nativeInputRef.current?.click()}
+              className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full border border-gray-200"
+              style={{ background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' }}
+              title="Custom colour"
+            >
+              <input
+                ref={nativeInputRef}
+                type="color"
+                value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#000000'}
+                onChange={(e) => onChange(e.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+            </button>
+            {eyedropperSupported && (
+              <button
+                type="button"
+                onClick={() => void pickWithEyedropper()}
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-gray-200 text-[#6e6e73] hover:border-gray-300"
+                title="Eyedropper"
+              >
+                <Pipette className="h-4 w-4" />
+              </button>
+            )}
+            <span
+              className="h-9 w-9 flex-shrink-0 rounded-full border-2 border-[#1d1d1f]"
+              style={{ background: value }}
+              title={value}
+            />
+          </div>
+
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#6e6e73]">
+            Default colours
+          </p>
+          <div className="grid grid-cols-7 gap-2">
+            {PRESET_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onChange(c)}
+                className={`h-7 w-7 rounded-full border-2 ${
+                  value.toLowerCase() === c ? 'border-[#1d1d1f]' : 'border-transparent'
+                }`}
+                style={{ background: c }}
+                aria-label={c}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Component ─────────────────────────────────────────────────────────────── */
 
 export function StudioVideoEditingPanel({
@@ -580,20 +728,23 @@ export function StudioVideoEditingPanel({
     return Number.isFinite(n) ? Math.min(500, Math.max(150, n)) : 240;
   });
   const [textStyle, setTextStyle] = useState<TextStyle>({
-    position: 'lower',
+    offsetX: 50,
+    offsetY: 15,
     background: true,
     bgColor: '#000000',
-    fontSize: 'md',
+    textColor: '#ffffff',
+    fontSize: 72,
     fontStyle: 'sans',
-    animation: 'fade',
   });
+  const textStyleRef = useRef(textStyle);
+  textStyleRef.current = textStyle;
   const [history, setHistory] = useState<string[]>([]);
   const [future, setFuture] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [expandedSceneText, setExpandedSceneText] = useState<Set<string>>(new Set());
   const [previewItem, setPreviewItem] = useState<{ item: Suggestion; type: 'broll' | 'infographic' } | null>(null);
   const [previewRemotion, setPreviewRemotion] = useState<RemotionInfographicSpec | null>(null);
-  const [captionOffset, setCaptionOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [colorPickerTarget, setColorPickerTarget] = useState<'text' | 'background' | null>(null);
   const [libraryTab, setLibraryTab] = useState<LibraryTab>('broll-videos');
   /** Mobile: which bottom-bar slide-up sheet is open, if any. */
   const [mobileSheet, setMobileSheet] = useState<'scenes' | 'library' | null>(null);
@@ -713,13 +864,10 @@ export function StudioVideoEditingPanel({
       );
   }, []);
 
-  /** Merge a partial style patch into whatever's already pending for this scene. */
-  const recordPendingStyle = useCallback((sceneId: string, patch: SceneStyleUpdate) => {
+  /** Marks the text style as changed for this scene — the full snapshot is built and sent on flush. */
+  const recordPendingStyle = useCallback((sceneId: string) => {
     const current = pendingSceneEditsRef.current[sceneId] ?? {};
-    pendingSceneEditsRef.current[sceneId] = {
-      ...current,
-      style: { ...(current.style ?? {}), ...patch },
-    };
+    pendingSceneEditsRef.current[sceneId] = { ...current, style: true };
   }, []);
 
   const recordPendingInfographic = useCallback((sceneId: string, patch: SceneInfographicUpdate) => {
@@ -735,6 +883,15 @@ export function StudioVideoEditingPanel({
     pendingSceneEditsRef.current[sceneId] = { ...current, trim };
   }, []);
 
+  /** Looks up a scene's clip on a given track in the (about-to-be-left) timeline, for its scene-local start/end. */
+  const sceneClipBounds = useCallback((trackId: string, sceneId: string) => {
+    const clip = timelineRef.current.tracks
+      .find((t) => t.id === trackId)
+      ?.clips.find((c) => c.sceneId === sceneId);
+    if (!clip) return null;
+    return { start: clip.start, end: clip.start + clip.duration };
+  }, []);
+
   /** Called when the user leaves a scene — enqueues one request per edited field, in order. */
   const flushSceneEdits = useCallback(
     (sceneId: string) => {
@@ -743,7 +900,16 @@ export function StudioVideoEditingPanel({
       if (!pending || !videoId) return;
 
       if (pending.style) {
-        const style = pending.style;
+        const textBounds = sceneClipBounds(DEFAULT_TRACK_IDS.text, sceneId);
+        const ts = textStyleRef.current;
+        const style: SceneStyleUpdate = {
+          font_size: ts.fontSize,
+          text_color: ts.textColor,
+          background_color: ts.bgColor,
+          vertical_position: verticalPositionFromOffsetY(ts.offsetY),
+          margin_bottom_percent: Math.round(ts.offsetY),
+          ...(textBounds ? { text_start: textBounds.start, text_end: textBounds.end } : {}),
+        };
         enqueueRequest(() =>
           ApiService.updateSceneStyle(videoId, sceneId, style).then(
             () => {},
@@ -754,7 +920,11 @@ export function StudioVideoEditingPanel({
         );
       }
       if (pending.infographic) {
-        const infographic = pending.infographic;
+        const infoBounds = sceneClipBounds(DEFAULT_TRACK_IDS.infographic, sceneId);
+        const infographic: SceneInfographicUpdate = {
+          ...pending.infographic,
+          ...(infoBounds ? { start_seconds: infoBounds.start, end_seconds: infoBounds.end } : {}),
+        };
         enqueueRequest(() =>
           ApiService.updateSceneInfographic(videoId, sceneId, infographic).then(
             () => {},
@@ -766,8 +936,13 @@ export function StudioVideoEditingPanel({
       }
       if (pending.voice) {
         const voice = pending.voice;
+        const voiceBounds = sceneClipBounds(DEFAULT_TRACK_IDS.voiceover, sceneId);
         enqueueRequest(() =>
-          ApiService.updateSceneVoice(videoId, sceneId, voice).then(
+          ApiService.updateSceneVoice(videoId, sceneId, {
+            voice,
+            start: voiceBounds?.start ?? 0,
+            end: voiceBounds?.end ?? 0,
+          }).then(
             () => {},
             (err) => {
               showToast(err instanceof Error ? err.message : 'Failed to update voice');
@@ -787,7 +962,7 @@ export function StudioVideoEditingPanel({
         );
       }
     },
-    [videoId, enqueueRequest, showToast],
+    [videoId, enqueueRequest, showToast, sceneClipBounds],
   );
   flushSceneEditsRef.current = flushSceneEdits;
 
@@ -1586,6 +1761,10 @@ export function StudioVideoEditingPanel({
     const start = Math.max(0, Math.min(timelineApi.timeline.currentTime, Math.max(0, totalDuration - 0.1)));
     const dur = Math.min(item.dur, Math.max(0.5, totalDuration - start));
 
+    const brollTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll);
+    const existingForScene = brollTrack?.clips.filter((c) => c.sceneId === target.id).length ?? 0;
+    const beatId = makeBrollBeatId(target.num, existingForScene + 1);
+
     timelineApi.addClip(DEFAULT_TRACK_IDS.broll, {
       id: `br-${Date.now()}`,
       type: 'broll',
@@ -1599,6 +1778,7 @@ export function StudioVideoEditingPanel({
       sourceDuration: dur,
       originalSourceDuration: dur,
       sceneId: target.id,
+      beatId,
     });
 
     showToast(`Inserted into ${target.title}`);
@@ -1612,8 +1792,19 @@ export function StudioVideoEditingPanel({
       const sceneId = target.id;
       const assetId = item.assetId ?? Math.floor(Math.random() * 1_000_000_000);
       const source = item.source ?? (item.mediaKind === 'image' ? 'image' : 'video');
+      const clipEnd = start + dur;
+      const hasNextBeat = Boolean(
+        brollTrack?.clips.some((c) => c.sceneId === sceneId && c.start >= clipEnd - 0.05),
+      );
       enqueueRequest(() =>
-        ApiService.selectSceneBroll(videoId, sceneId, { asset_id: assetId, source }).then(
+        ApiService.selectSceneBroll(videoId, sceneId, {
+          asset_id: assetId,
+          source,
+          beat_id: beatId,
+          start,
+          end: clipEnd,
+          adjust_next_beat: hasNextBeat,
+        }).then(
           () => {},
           (err) => {
             showToast(err instanceof Error ? err.message : 'Failed to save b-roll selection');
@@ -1622,6 +1813,52 @@ export function StudioVideoEditingPanel({
       );
     }
   };
+
+  /**
+   * Fires after a b-roll clip ("beat") gets split on the timeline — tells the backend where the
+   * split happened, then registers the boundaries of the newly split-off second clip. The right
+   * half becomes its own beat, so it's assigned the next beat id in that scene.
+   */
+  const handleClipSplit = useCallback(
+    (clip: TimelineClip, splitAt: number) => {
+      if (!videoId || clip.trackId !== DEFAULT_TRACK_IDS.broll || !clip.sceneId || !clip.beatId) return;
+      const sceneId = clip.sceneId;
+      const beatId = clip.beatId;
+      const rightStart = splitAt;
+      const rightEnd = clip.start + clip.duration;
+
+      // The right half becomes its own beat — assign it the next beat id for this scene
+      // (splitClip() ids the new clip `${clip.id}-b`).
+      const sceneNum = scenes.find((s) => s.id === sceneId)?.num;
+      if (sceneNum) {
+        const brollTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll);
+        const existingForScene = brollTrack?.clips.filter((c) => c.sceneId === sceneId).length ?? 0;
+        const newBeatId = makeBrollBeatId(sceneNum, existingForScene + 1);
+        timelineApi.updateClip(`${clip.id}-b`, { beatId: newBeatId });
+      }
+
+      enqueueRequest(async () => {
+        try {
+          await ApiService.splitSceneBeat(videoId, sceneId, beatId, { split_at: splitAt });
+          await ApiService.insertSceneBeat(videoId, sceneId, beatId, { start: rightStart, end: rightEnd });
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : 'Failed to save clip split');
+        }
+      });
+    },
+    [videoId, enqueueRequest, showToast, scenes, timelineApi],
+  );
+
+  /** Mobile bottom-bar Split button — captures the selected clip before splitting so handleClipSplit can sync it. */
+  const splitSelectedClip = useCallback(() => {
+    const id = timelineApi.timeline.selectedClipIds[0];
+    const clip = id
+      ? timelineApi.timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === id)
+      : undefined;
+    const splitAt = timelineApi.timeline.currentTime;
+    timelineApi.splitSelectedAtPlayhead();
+    if (clip) handleClipSplit(clip, splitAt);
+  }, [timelineApi, handleClipSplit]);
 
   const insertRemotionInfographic = useCallback(() => {
     const target = selected;
@@ -2294,61 +2531,7 @@ export function StudioVideoEditingPanel({
 
       {/* ── Center: Preview + timeline ── */}
       <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f5f5f7]">
-        <div className="flex h-11 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4">
-          <p className="truncate text-xs text-[#6e6e73]">
-            <span className="font-semibold text-[#1d1d1f]">
-              {selected ? selected.title : 'Preview'}
-            </span>
-            {' · '}1080×1920 · 30fps
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setVideoPreviewOpen(true)}
-              disabled={!renderedVideoUrl}
-              className="mr-1 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7] disabled:cursor-not-allowed disabled:opacity-40"
-              title={renderedVideoUrl ? 'View the generated video' : 'Render a video first'}
-            >
-              <Film className="h-3.5 w-3.5" />
-              Generated video
-            </button>
-            <button
-              type="button"
-              onClick={undo}
-              disabled={!history.length && !timelineApi.historyLength}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] hover:bg-[#f5f5f7] hover:text-[#1d1d1f] disabled:opacity-30"
-              title="Undo"
-            >
-              <Undo2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={redo}
-              disabled={!future.length && !timelineApi.futureLength}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] hover:bg-[#f5f5f7] hover:text-[#1d1d1f] disabled:opacity-30"
-              title="Redo"
-            >
-              <Redo2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => timelineApi.splitSelectedAtPlayhead()}
-              disabled={!timelineApi.timeline.selectedClipIds.length}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] hover:bg-[#f5f5f7] disabled:opacity-30"
-              title="Split at playhead (S)"
-            >
-              <Scissors className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] hover:bg-[#f5f5f7]"
-              title="More"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
+        {/* Undo/redo/split live in the timeline toolbar below — no separate header needed. */}
         <div className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden p-2 sm:p-3 [container-type:size]">
           <TimelinePreview
             timeline={timelineApi.timeline}
@@ -2359,8 +2542,18 @@ export function StudioVideoEditingPanel({
               timelineApi.setCurrentTime(timelineApi.timeline.duration);
             }}
             textStyle={textStyle}
-            fontSizeClass={FONT_SIZE_CLASS}
             fontFamilyClass={FONT_FAMILY_CLASS}
+            onTextPositionChange={(_x, y) => {
+              setTextStyle((t) => ({ ...t, offsetY: y }));
+              if (selected) recordPendingStyle(selected.id);
+            }}
+            onTextResize={(fontSize) => {
+              setTextStyle((t) => ({ ...t, fontSize }));
+              if (selected) recordPendingStyle(selected.id);
+            }}
+            onTextEdit={(clipId, text) =>
+              timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' })
+            }
           />
         </div>
 
@@ -2396,28 +2589,40 @@ export function StudioVideoEditingPanel({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void handleRenderVideo()}
-            disabled={renderDisabled}
-            title={
-              !videoId
-                ? 'Generate the video first'
-                : !hasEdited
-                  ? 'Edit something before rendering'
-                  : queuedRequestCount > 0
-                    ? 'Waiting for pending edits to save…'
-                    : 'Render the whole video'
-            }
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1d1d1f] px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            {isRendering ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Film className="h-3.5 w-3.5" />
-            )}
-            Render video
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleRenderVideo()}
+              disabled={renderDisabled}
+              title={
+                !videoId
+                  ? 'Generate the video first'
+                  : !hasEdited
+                    ? 'Edit something before rendering'
+                    : queuedRequestCount > 0
+                      ? 'Waiting for pending edits to save…'
+                      : 'Render the whole video'
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1d1d1f] px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              {isRendering ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Film className="h-3.5 w-3.5" />
+              )}
+              Render video
+            </button>
+            <button
+              type="button"
+              onClick={() => setVideoPreviewOpen(true)}
+              disabled={!renderedVideoUrl}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7] disabled:cursor-not-allowed disabled:opacity-40"
+              title={renderedVideoUrl ? 'View the generated video' : 'Render a video first'}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Generated video
+            </button>
+          </div>
         </div>
 
         {/* Resizable divider */}
@@ -2436,6 +2641,8 @@ export function StudioVideoEditingPanel({
           height={timelinePanelHeight}
           sceneLabel={selected ? `${selected.num} · ${selected.title}` : 'No scenes yet'}
           onTogglePlay={() => setIsPlaying((p) => !p)}
+          hiddenTrackIds={[DEFAULT_TRACK_IDS.video]}
+          onClipSplit={handleClipSplit}
         />
       </section>
 
@@ -2453,52 +2660,6 @@ export function StudioVideoEditingPanel({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-          {timelineApi.selectedClip && (
-            <div className="border-b border-gray-100 px-4 py-3.5">
-              <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
-                Clip inspector
-              </p>
-              <p className="mb-1 truncate text-xs font-semibold text-[#1d1d1f]">
-                {timelineApi.selectedClip.name}
-              </p>
-              <p className="mb-2 text-[11px] capitalize text-[#6e6e73]">
-                {timelineApi.selectedClip.type}
-              </p>
-              <div className="grid grid-cols-2 gap-2 text-[11px] tabular-nums text-[#1d1d1f]">
-                <div className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1.5">
-                  Start
-                  <div className="font-semibold">{tc(timelineApi.selectedClip.start)}</div>
-                </div>
-                <div className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1.5">
-                  Duration
-                  <div className="font-semibold">{tc(timelineApi.selectedClip.duration)}</div>
-                </div>
-                <div className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1.5">
-                  Source in
-                  <div className="font-semibold">{tc(timelineApi.selectedClip.sourceStart)}</div>
-                </div>
-                <div className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1.5">
-                  Source len
-                  <div className="font-semibold">{tc(timelineApi.selectedClip.sourceDuration)}</div>
-                </div>
-              </div>
-              {(timelineApi.selectedClip.type === 'text' ||
-                timelineApi.selectedClip.type === 'caption') && (
-                <textarea
-                  className="mt-2 w-full resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f]"
-                  rows={3}
-                  value={timelineApi.selectedClip.text || ''}
-                  onChange={(e) =>
-                    timelineApi.updateClip(timelineApi.selectedClip!.id, {
-                      text: e.target.value,
-                      name: e.target.value.slice(0, 48) || timelineApi.selectedClip!.name,
-                    })
-                  }
-                />
-              )}
-            </div>
-          )}
-
           {selectedVoiceoverClip && (() => {
             const clip = selectedVoiceoverClip;
             const original = clip.originalSourceDuration ?? selected!.duration;
@@ -2718,44 +2879,22 @@ export function StudioVideoEditingPanel({
               Text track starts empty. Add as many text clips as you need — each can be moved and trimmed on the timeline.
             </p>
 
-            <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-[11px] font-semibold text-[#6e6e73]">Position on screen</p>
-              {(captionOffset.x !== 0 || captionOffset.y !== 0) && (
-                <button
-                  type="button"
-                  onClick={() => setCaptionOffset({ x: 0, y: 0 })}
-                  className="text-[10px] font-semibold text-[#6e6e73] hover:text-[#1d1d1f]"
-                >
-                  Reset drag
-                </button>
-              )}
-            </div>
-            <div className="mb-1 flex gap-1.5">
-              {([
-                ['upper', 'Upper third'],
-                ['middle', 'Middle third'],
-                ['lower', 'Lower third'],
-              ] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => {
-                    setTextStyle((t) => ({ ...t, position: value }));
-                    setCaptionOffset({ x: 0, y: 0 });
-                  }}
-                  className={`flex-1 rounded-lg border px-1 py-1.5 text-[10px] font-semibold ${
-                    textStyle.position === value
-                      ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
-                      : 'border-gray-200 text-[#6e6e73] hover:border-gray-300'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
             <p className="mb-3 text-[10px] leading-relaxed text-[#a1a1a6]">
-              Drag text on the preview to fine-tune its position.
+              Drag the text directly on the preview to position it.
             </p>
+
+            <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Text colour</p>
+            <button
+              type="button"
+              onClick={() => setColorPickerTarget('text')}
+              className="mb-3 flex w-full items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-[#1d1d1f] hover:border-gray-300"
+            >
+              <span
+                className="h-5 w-5 flex-shrink-0 rounded-full border border-gray-200"
+                style={{ background: textStyle.textColor }}
+              />
+              {textStyle.textColor}
+            </button>
 
             <div className="mb-2 flex items-center justify-between">
               <span className="text-[11px] font-semibold text-[#6e6e73]">Background</span>
@@ -2776,42 +2915,33 @@ export function StudioVideoEditingPanel({
               </button>
             </div>
             {textStyle.background && (
-              <div className="mb-3 flex gap-1.5">
-                {BG_SWATCHES.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setTextStyle((t) => ({ ...t, bgColor: c }))}
-                    className={`h-5 w-5 rounded-md border-2 ${
-                      textStyle.bgColor === c ? 'border-amber-500' : 'border-transparent'
-                    }`}
-                    style={{ background: c }}
-                    aria-label={`Background ${c}`}
-                  />
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={() => setColorPickerTarget('background')}
+                className="mb-3 flex w-full items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-[#1d1d1f] hover:border-gray-300"
+              >
+                <span
+                  className="h-5 w-5 flex-shrink-0 rounded-full border border-gray-200"
+                  style={{ background: textStyle.bgColor }}
+                />
+                {textStyle.bgColor}
+              </button>
             )}
 
-            <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font size</p>
-            <div className="mb-3 flex gap-1.5">
-              {(['sm', 'md', 'lg'] as FontSize[]).map((size) => (
-                <button
-                  key={size}
-                  type="button"
-                  onClick={() => {
-                    setTextStyle((t) => ({ ...t, fontSize: size }));
-                    if (selected) recordPendingStyle(selected.id, { font_size: FONT_SIZE_PX[size] });
-                  }}
-                  className={`flex-1 rounded-lg border py-1.5 text-[11px] font-semibold uppercase ${
-                    textStyle.fontSize === size
-                      ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
-                      : 'border-gray-200 text-[#6e6e73]'
-                  }`}
-                >
-                  {size === 'sm' ? 'S' : size === 'md' ? 'M' : 'L'}
-                </button>
-              ))}
-            </div>
+            <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font size (px)</p>
+            <input
+              type="number"
+              min={8}
+              max={300}
+              step={1}
+              value={textStyle.fontSize}
+              onChange={(e) => {
+                const next = Math.max(8, Math.min(300, Number(e.target.value) || textStyle.fontSize));
+                setTextStyle((t) => ({ ...t, fontSize: next }));
+                if (selected) recordPendingStyle(selected.id);
+              }}
+              className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
+            />
 
             <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font style</p>
             <select
@@ -2825,22 +2955,6 @@ export function StudioVideoEditingPanel({
               <option value="serif">Serif — editorial</option>
               <option value="mono">Mono — technical</option>
               <option value="display">Display — bold</option>
-            </select>
-
-            <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Animation</p>
-            <select
-              value={textStyle.animation}
-              onChange={(e) => {
-                const next = e.target.value as CaptionAnim;
-                setTextStyle((t) => ({ ...t, animation: next }));
-                if (selected) recordPendingStyle(selected.id, { animation_type: CAPTION_ANIMATION_TYPE[next] });
-              }}
-              className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
-            >
-              <option value="none">None</option>
-              <option value="fade">Fade in</option>
-              <option value="slide">Slide up</option>
-              <option value="typewriter">Typewriter</option>
             </select>
 
             {timelineApi.selectedClip?.type === 'text' ? (
@@ -2890,7 +3004,7 @@ export function StudioVideoEditingPanel({
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] disabled:opacity-30"
               title={renderedVideoUrl ? 'View the generated video' : 'Render a video first'}
             >
-              <Film className="h-4 w-4" />
+              <Upload className="h-4 w-4" />
             </button>
             <button
               type="button"
@@ -2902,7 +3016,7 @@ export function StudioVideoEditingPanel({
               {isRendering ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Upload className="h-4 w-4" />
+                <Film className="h-4 w-4" />
               )}
             </button>
             <button
@@ -2926,8 +3040,18 @@ export function StudioVideoEditingPanel({
               timelineApi.setCurrentTime(timelineApi.timeline.duration);
             }}
             textStyle={textStyle}
-            fontSizeClass={FONT_SIZE_CLASS}
             fontFamilyClass={FONT_FAMILY_CLASS}
+            onTextPositionChange={(_x, y) => {
+              setTextStyle((t) => ({ ...t, offsetY: y }));
+              if (selected) recordPendingStyle(selected.id);
+            }}
+            onTextResize={(fontSize) => {
+              setTextStyle((t) => ({ ...t, fontSize }));
+              if (selected) recordPendingStyle(selected.id);
+            }}
+            onTextEdit={(clipId, text) =>
+              timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' })
+            }
           />
         </div>
 
@@ -2967,7 +3091,9 @@ export function StudioVideoEditingPanel({
               width: Math.max(320, timelineApi.timeline.duration * timelineApi.timeline.pixelsPerSecond + 40),
             }}
           >
-            {timelineApi.timeline.tracks.map((track) => (
+            {timelineApi.timeline.tracks
+              .filter((track) => track.id !== DEFAULT_TRACK_IDS.video)
+              .map((track) => (
               <div
                 key={track.id}
                 className="relative border-b border-gray-100 last:border-b-0"
@@ -3004,7 +3130,7 @@ export function StudioVideoEditingPanel({
           {timelineApi.selectedClip ? (
             <div className="flex items-center justify-around px-2 py-2">
               <MobileToolButton icon={Trash2} label="Delete" onClick={() => timelineApi.deleteSelected()} />
-              <MobileToolButton icon={Scissors} label="Split" onClick={() => timelineApi.splitSelectedAtPlayhead()} />
+              <MobileToolButton icon={Scissors} label="Split" onClick={splitSelectedClip} />
               <MobileToolButton
                 icon={Crop}
                 label="Trim"
@@ -3344,51 +3470,69 @@ export function StudioVideoEditingPanel({
                           </button>
                         </div>
 
-                        <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Position on screen</p>
-                        <div className="mb-3 flex gap-1.5">
-                          {([
-                            ['upper', 'Upper'],
-                            ['middle', 'Middle'],
-                            ['lower', 'Lower'],
-                          ] as const).map(([value, label]) => (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() => {
-                                setTextStyle((t) => ({ ...t, position: value }));
-                                setCaptionOffset({ x: 0, y: 0 });
-                              }}
-                              className={`flex-1 rounded-lg border px-1 py-1.5 text-[10px] font-semibold ${
-                                textStyle.position === value
-                                  ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
-                                  : 'border-gray-200 text-[#6e6e73]'
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
+                        <p className="mb-3 text-[10px] leading-relaxed text-[#a1a1a6]">
+                          Drag the text directly on the preview to position it.
+                        </p>
 
-                        <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font size</p>
-                        <div className="mb-3 flex gap-1.5">
-                          {(['sm', 'md', 'lg'] as FontSize[]).map((size) => (
-                            <button
-                              key={size}
-                              type="button"
-                              onClick={() => {
-                                setTextStyle((t) => ({ ...t, fontSize: size }));
-                                if (selected) recordPendingStyle(selected.id, { font_size: FONT_SIZE_PX[size] });
-                              }}
-                              className={`flex-1 rounded-lg border py-1.5 text-[11px] font-semibold uppercase ${
-                                textStyle.fontSize === size
-                                  ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
-                                  : 'border-gray-200 text-[#6e6e73]'
+                        <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Text colour</p>
+                        <button
+                          type="button"
+                          onClick={() => setColorPickerTarget('text')}
+                          className="mb-3 flex w-full items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-[#1d1d1f]"
+                        >
+                          <span
+                            className="h-5 w-5 flex-shrink-0 rounded-full border border-gray-200"
+                            style={{ background: textStyle.textColor }}
+                          />
+                          {textStyle.textColor}
+                        </button>
+
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-[#6e6e73]">Background</span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={textStyle.background}
+                            onClick={() => setTextStyle((t) => ({ ...t, background: !t.background }))}
+                            className={`relative h-[19px] w-[34px] rounded-full transition-colors ${
+                              textStyle.background ? 'bg-[#1d1d1f]' : 'bg-gray-300'
+                            }`}
+                          >
+                            <span
+                              className={`absolute top-0.5 h-[15px] w-[15px] rounded-full bg-white transition-all ${
+                                textStyle.background ? 'left-[17px]' : 'left-0.5'
                               }`}
-                            >
-                              {size === 'sm' ? 'S' : size === 'md' ? 'M' : 'L'}
-                            </button>
-                          ))}
+                            />
+                          </button>
                         </div>
+                        {textStyle.background && (
+                          <button
+                            type="button"
+                            onClick={() => setColorPickerTarget('background')}
+                            className="mb-3 flex w-full items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-[#1d1d1f]"
+                          >
+                            <span
+                              className="h-5 w-5 flex-shrink-0 rounded-full border border-gray-200"
+                              style={{ background: textStyle.bgColor }}
+                            />
+                            {textStyle.bgColor}
+                          </button>
+                        )}
+
+                        <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font size (px)</p>
+                        <input
+                          type="number"
+                          min={8}
+                          max={300}
+                          step={1}
+                          value={textStyle.fontSize}
+                          onChange={(e) => {
+                            const next = Math.max(8, Math.min(300, Number(e.target.value) || textStyle.fontSize));
+                            setTextStyle((t) => ({ ...t, fontSize: next }));
+                            if (selected) recordPendingStyle(selected.id);
+                          }}
+                          className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
+                        />
 
                         {timelineApi.selectedClip?.type === 'text' ? (
                           <textarea
@@ -3417,6 +3561,22 @@ export function StudioVideoEditingPanel({
           </div>
         )}
       </div>
+
+      {colorPickerTarget && (
+        <ColorPickerPanel
+          title={colorPickerTarget === 'text' ? 'Text colour' : 'Background colour'}
+          value={colorPickerTarget === 'text' ? textStyle.textColor : textStyle.bgColor}
+          onChange={(hex) => {
+            if (colorPickerTarget === 'text') {
+              setTextStyle((t) => ({ ...t, textColor: hex }));
+            } else {
+              setTextStyle((t) => ({ ...t, bgColor: hex }));
+            }
+            if (selected) recordPendingStyle(selected.id);
+          }}
+          onClose={() => setColorPickerTarget(null)}
+        />
+      )}
 
       {previewRemotion && (
         <div
