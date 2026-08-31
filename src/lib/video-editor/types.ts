@@ -66,6 +66,9 @@ export type TimelineClip = {
 
   /** Lightweight waveform peaks (0–1), when available. */
   waveformPeaks?: number[];
+
+  /** Word-level timing for a voiceover clip (scene-local seconds) — drives burned-in captions. */
+  wordSegments?: { word: string; start: number; end: number }[];
 };
 
 export type TimelineTrack = {

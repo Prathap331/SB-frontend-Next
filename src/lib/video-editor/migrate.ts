@@ -30,6 +30,8 @@ export type LegacySceneLike = {
   wordSegments?: { word: string; start: number; end: number }[];
   /** Natural start of speech within the generated voiceover audio (leading silence varies per take, e.g. 0.3–0.6s). */
   voiceStart?: number;
+  /** Backend-selected b-roll segments for this scene — auto-placed on the timeline by default. */
+  beats?: { beatId: string; start: number; end: number; assetUrl: string; source: 'video' | 'image'; motionType?: string }[];
 };
 
 const ACTIVE_TRACK_TYPES: TimelineTrackType[] = [
@@ -63,6 +65,28 @@ function emptyTracks(): TimelineTrack[] {
 
 function makeId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/** Builds normalized b-roll clips from a scene's backend-selected beats. */
+function buildBrollClipsFromBeats(scene: LegacySceneLike): TimelineClip[] {
+  return (scene.beats ?? []).map((beat) => {
+    const dur = Math.max(0.1, roundTime(beat.end - beat.start));
+    return normalizeClip({
+      id: `br-${beat.beatId}`,
+      trackId: DEFAULT_TRACK_IDS.broll,
+      type: 'broll',
+      name: beat.beatId,
+      sourceUrl: beat.assetUrl,
+      mediaKind: beat.source,
+      start: roundTime(beat.start),
+      duration: dur,
+      sourceStart: 0,
+      sourceDuration: dur,
+      originalSourceDuration: dur,
+      sceneId: scene.id,
+      beatId: beat.beatId,
+    });
+  });
 }
 
 /** Drop legacy caption/music tracks from cached timelines. */
@@ -101,10 +125,10 @@ export function createSceneTimeline(scene: LegacySceneLike): TimelineState {
   const duration = Math.max(0.5, roundTime(scene.duration || 5));
 
   if (scene.voiceoverUrl) {
-    // Leading silence before speech actually starts varies per generated take
-    // (commonly ~0.3–0.6s) — default the trim window to that natural start
-    // instead of always assuming 0, so the trim UI reflects the real audio.
-    const voiceStart = Math.min(Math.max(0, scene.voiceStart ?? 0), Math.max(0, duration - 0.1));
+    // Always seed the full, untrimmed clip by default so every scene has a working
+    // voiceover on the timeline without the user needing to add or fix anything —
+    // any natural leading-silence trim is offered as a suggestion in the trim UI
+    // instead (see StudioVideoEditingPanel's trim defaults), not baked in here.
     const voTrack = tracks.find((t) => t.id === DEFAULT_TRACK_IDS.voiceover)!;
     voTrack.clips.push(
       normalizeClip({
@@ -113,15 +137,23 @@ export function createSceneTimeline(scene: LegacySceneLike): TimelineState {
         type: 'voiceover',
         name: `${scene.title} VO`,
         sourceUrl: scene.voiceoverUrl,
-        start: voiceStart,
-        duration: duration - voiceStart,
-        sourceStart: voiceStart,
-        sourceDuration: duration - voiceStart,
+        start: 0,
+        duration,
+        sourceStart: 0,
+        sourceDuration: duration,
         originalSourceDuration: duration,
         sceneId: scene.id,
         volume: 1,
+        wordSegments: scene.wordSegments,
       }),
     );
+  }
+
+  if (scene.beats?.length) {
+    // B-roll comes back pre-selected by the backend — placed on the timeline by default,
+    // same as the voiceover, so there's nothing the user has to add manually.
+    const brollTrack = tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll)!;
+    brollTrack.clips.push(...buildBrollClipsFromBeats(scene));
   }
 
   return {
@@ -131,6 +163,62 @@ export function createSceneTimeline(scene: LegacySceneLike): TimelineState {
     selectedClipIds: [],
     pixelsPerSecond: DEFAULT_PPS,
   };
+}
+
+/**
+ * Backfills a scene's voiceover clip onto an existing timeline if it's missing (e.g. a
+ * project cached before a mapper fix, or before voiceover generation finished) — leaves
+ * every other track/clip untouched so it never clobbers the user's own edits.
+ */
+export function ensureVoiceoverClip(state: TimelineState, scene: LegacySceneLike): TimelineState {
+  if (!scene.voiceoverUrl) return state;
+  const voTrack = state.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.voiceover);
+  if (!voTrack || voTrack.clips.some((c) => c.type === 'voiceover')) return state;
+
+  const duration = Math.max(0.5, roundTime(scene.duration || 5));
+  const tracks = state.tracks.map((t) =>
+    t.id !== DEFAULT_TRACK_IDS.voiceover
+      ? t
+      : {
+          ...t,
+          clips: [
+            ...t.clips,
+            normalizeClip({
+              id: `vo-${scene.id}`,
+              trackId: DEFAULT_TRACK_IDS.voiceover,
+              type: 'voiceover',
+              name: `${scene.title} VO`,
+              sourceUrl: scene.voiceoverUrl!,
+              start: 0,
+              duration,
+              sourceStart: 0,
+              sourceDuration: duration,
+              originalSourceDuration: duration,
+              sceneId: scene.id,
+              volume: 1,
+              wordSegments: scene.wordSegments,
+            }),
+          ],
+        },
+  );
+  return { ...state, tracks, duration: recomputeTimelineDuration(tracks, state.duration) };
+}
+
+/**
+ * Backfills any of a scene's backend-selected beats that are missing from the b-roll track
+ * (matched by beat id) — leaves clips the user already has (edited or not) untouched.
+ */
+export function ensureBrollBeats(state: TimelineState, scene: LegacySceneLike): TimelineState {
+  const missing = (scene.beats ?? []).filter(
+    (beat) => !state.tracks.some((t) => t.id === DEFAULT_TRACK_IDS.broll && t.clips.some((c) => c.beatId === beat.beatId)),
+  );
+  if (!missing.length) return state;
+
+  const newClips = buildBrollClipsFromBeats({ ...scene, beats: missing });
+  const tracks = state.tracks.map((t) =>
+    t.id !== DEFAULT_TRACK_IDS.broll ? t : { ...t, clips: [...t.clips, ...newClips] },
+  );
+  return { ...state, tracks, duration: recomputeTimelineDuration(tracks, state.duration) };
 }
 
 /** Create a map of per-scene timelines (VO only / empty layers). */

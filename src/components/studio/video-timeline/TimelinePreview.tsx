@@ -9,7 +9,7 @@ import { clipRemotionToInfographicData } from '@/remotion/data';
 import { Sparkles, Film, Volume2 } from 'lucide-react';
 
 type TextStyle = {
-  /** Always centred — the backend has no horizontal position field. */
+  /** Distance from the left edge of the frame, as a % of frame width. */
   offsetX: number;
   /** Distance from the bottom edge of the frame, as a % of frame height. */
   offsetY: number;
@@ -17,7 +17,9 @@ type TextStyle = {
   bgColor: string;
   textColor: string;
   fontSize: number;
+  /** CSS font-family value, e.g. "Inter". */
   fontStyle: string;
+  animationStyle: string;
 };
 
 type Props = {
@@ -26,7 +28,6 @@ type Props = {
   onTimeUpdate: (t: number) => void;
   onEnded: () => void;
   textStyle: TextStyle;
-  fontFamilyClass: Record<string, string>;
   /** Fired while the on-screen text is dragged — x/y are percentages of the preview box. */
   onTextPositionChange?: (x: number, y: number) => void;
   /** Fired while a corner handle is dragged to resize the text. */
@@ -36,6 +37,63 @@ type Props = {
 };
 
 type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br';
+
+/** animation-name → { duration, timing } for each backend text_animation_style value. */
+const TEXT_ANIMATION_CSS: Record<string, { duration: string; timing: string }> = {
+  fade_in: { duration: '0.5s', timing: 'ease' },
+  slide_in_left: { duration: '0.5s', timing: 'ease' },
+  slide_in_right: { duration: '0.5s', timing: 'ease' },
+  slide_up: { duration: '0.5s', timing: 'ease' },
+  slide_down: { duration: '0.5s', timing: 'ease' },
+  zoom_in: { duration: '0.45s', timing: 'ease' },
+  bounce: { duration: '0.6s', timing: 'ease' },
+  pop: { duration: '0.3s', timing: 'ease' },
+  typewriter: { duration: '0.9s', timing: 'steps(14, end)' },
+  wipe: { duration: '0.7s', timing: 'linear' },
+};
+
+const TEXT_ANIMATION_KEYFRAMES = `
+@keyframes txtAnim-fade_in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes txtAnim-slide_in_left { from { opacity: 0; transform: translate(calc(-50% - 40px), 0); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes txtAnim-slide_in_right { from { opacity: 0; transform: translate(calc(-50% + 40px), 0); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes txtAnim-slide_up { from { opacity: 0; transform: translate(-50%, 40px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes txtAnim-slide_down { from { opacity: 0; transform: translate(-50%, -40px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes txtAnim-zoom_in { from { opacity: 0; transform: translate(-50%, 0) scale(0.55); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes txtAnim-bounce { 0% { opacity: 0; transform: translate(-50%, 0) scale(0.3); } 50% { opacity: 1; transform: translate(-50%, 0) scale(1.12); } 70% { transform: translate(-50%, 0) scale(0.94); } 100% { transform: translate(-50%, 0) scale(1); } }
+@keyframes txtAnim-pop { 0% { opacity: 0; transform: translate(-50%, 0) scale(0.5); } 70% { opacity: 1; transform: translate(-50%, 0) scale(1.1); } 100% { transform: translate(-50%, 0) scale(1); } }
+@keyframes txtAnim-typewriter { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes txtAnim-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+`;
+
+type CaptionLine = { text: string; start: number; end: number };
+
+/** Groups word-level segments into readable caption lines (standard burned-in-caption chunking). */
+function buildCaptionLines(
+  words: { word: string; start: number; end: number }[] | undefined,
+): CaptionLine[] {
+  if (!words?.length) return [];
+  const lines: CaptionLine[] = [];
+  let current: { word: string; start: number; end: number }[] = [];
+
+  const flush = () => {
+    if (!current.length) return;
+    lines.push({
+      text: current.map((w) => w.word).join(' '),
+      start: current[0].start,
+      end: current[current.length - 1].end,
+    });
+    current = [];
+  };
+
+  for (const w of words) {
+    const prev = current[current.length - 1];
+    const gap = prev ? w.start - prev.end : 0;
+    if (current.length >= 8 || gap > 0.6) flush();
+    current.push(w);
+  }
+  flush();
+  return lines;
+}
 
 function isImageClip(clip: TimelineClip | undefined | null): boolean {
   if (!clip) return false;
@@ -80,7 +138,6 @@ export function TimelinePreview({
   onTimeUpdate,
   onEnded,
   textStyle,
-  fontFamilyClass,
   onTextPositionChange,
   onTextResize,
   onTextEdit,
@@ -102,10 +159,10 @@ export function TimelinePreview({
         moved = true;
       }
       if (!moved || !onTextPositionChange) return;
-      // Horizontal position is always centred — the backend only supports a vertical zone/margin.
+      const fromLeft = Math.max(4, Math.min(96, ((ev.clientX - rect.left) / rect.width) * 100));
       const fromTop = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
       const fromBottom = Math.max(4, Math.min(96, 100 - fromTop));
-      onTextPositionChange(50, fromBottom);
+      onTextPositionChange(fromLeft, fromBottom);
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -170,6 +227,13 @@ export function TimelinePreview({
   }, [textClip?.id]);
   const infoClip = active.find((c) => c.type === 'infographic');
   const voClip = active.find((c) => c.type === 'voiceover');
+
+  const captionLines = useMemo(() => buildCaptionLines(voClip?.wordSegments), [voClip]);
+  const activeCaption = useMemo(() => {
+    if (!voClip || !captionLines.length) return null;
+    const local = localMediaTime(voClip, timeline.currentTime);
+    return captionLines.find((l) => local >= l.start && local < l.end) ?? null;
+  }, [voClip, captionLines, timeline.currentTime]);
 
   const remotionInfoClip = useMemo(() => {
     if (!infoClip?.remotion) return null;
@@ -621,18 +685,36 @@ export function TimelinePreview({
         </div>
       )}
 
+      {activeCaption && (
+        <div className="pointer-events-none absolute bottom-[7%] left-1/2 z-[1] max-w-[88%] -translate-x-1/2 rounded-md bg-black/70 px-3 py-1.5 text-center">
+          <p className="text-[15px] font-bold leading-snug text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.8)] sm:text-lg">
+            {activeCaption.text}
+          </p>
+        </div>
+      )}
+
       {textClip && (textClip.text || editingText) && (
         <div
+          key={textClip.id}
           onPointerDown={beginDragText}
           className="absolute z-[2] max-w-[85%] touch-none select-none rounded-lg px-3.5 py-2 text-center"
           style={{
-            left: '50%',
+            left: `${textStyle.offsetX}%`,
             bottom: `${textStyle.offsetY}%`,
             transform: 'translateX(-50%)',
             background: textStyle.background ? `${textStyle.bgColor}cc` : 'transparent',
             cursor: editingText ? 'text' : onTextPositionChange ? 'grab' : undefined,
+            ...(editingText
+              ? {}
+              : {
+                  animationName: `txtAnim-${textStyle.animationStyle}`,
+                  animationDuration: TEXT_ANIMATION_CSS[textStyle.animationStyle]?.duration ?? '0.5s',
+                  animationTimingFunction: TEXT_ANIMATION_CSS[textStyle.animationStyle]?.timing ?? 'ease',
+                  animationFillMode: 'both' as const,
+                }),
           }}
         >
+          <style>{TEXT_ANIMATION_KEYFRAMES}</style>
           {editingText ? (
             <textarea
               autoFocus
@@ -645,13 +727,13 @@ export function TimelinePreview({
               }}
               onPointerDown={(e) => e.stopPropagation()}
               rows={Math.max(1, (textClip.text ?? '').split('\n').length)}
-              className={`min-w-[80px] resize-none whitespace-pre-wrap border-none bg-transparent text-center leading-snug font-semibold outline-none ${fontFamilyClass[textStyle.fontStyle] || ''}`}
-              style={{ fontSize: `${textStyle.fontSize}px`, color: textStyle.textColor }}
+              className="min-w-[80px] resize-none whitespace-pre-wrap border-none bg-transparent text-center leading-snug font-semibold outline-none"
+              style={{ fontSize: `${textStyle.fontSize}px`, color: textStyle.textColor, fontFamily: textStyle.fontStyle }}
             />
           ) : (
             <p
-              className={`whitespace-pre-wrap leading-snug font-semibold ${fontFamilyClass[textStyle.fontStyle] || ''}`}
-              style={{ fontSize: `${textStyle.fontSize}px`, color: textStyle.textColor }}
+              className="whitespace-pre-wrap leading-snug font-semibold"
+              style={{ fontSize: `${textStyle.fontSize}px`, color: textStyle.textColor, fontFamily: textStyle.fontStyle }}
             >
               {textClip.text}
             </p>

@@ -150,6 +150,26 @@ export interface EditVideoAnimation {
   render_engine_hint?: string;
 }
 
+/** One backend-selected b-roll asset for a scene beat. */
+export interface EditVideoBeatAsset {
+  asset_id: number;
+  file_url: string;
+  source: 'video' | 'image';
+  width?: number;
+  height?: number;
+}
+
+/** A scene "beat" — the backend's own b-roll segmentation + pick, already resolved (not a candidate list). */
+export interface EditVideoBeat {
+  beat_id: string;
+  start: number;
+  end: number;
+  keywords?: string[];
+  preferred_media_type?: 'video' | 'image';
+  motion_type?: string;
+  selected_asset?: EditVideoBeatAsset | null;
+}
+
 export interface EditVideoScene {
   scene_id: string;
   vo_text: string;
@@ -159,6 +179,17 @@ export interface EditVideoScene {
   broll_keywords?: string[];
   tagged_vo_text?: string;
   voiceover?: EditVideoVoiceover | null;
+  /** Direct voiceover audio URL for this scene (the current real field name). */
+  voice_url?: string;
+  /** Older/alternate field names for the same URL — kept as fallbacks. */
+  file_url?: string;
+  /** Precise scene duration, when provided — preferred over computing from start/end. */
+  duration_seconds?: number;
+  /** Backend-selected b-roll segments for this scene (already resolved, auto-placed on the timeline). */
+  beats?: EditVideoBeat[];
+  /** Legacy/alternate scene-local voice start/end field names — kept as fallbacks; `start`/`end` are the real source. */
+  scene_start_sec?: number;
+  scene_end_sec?: number;
   /** Null when voiceover generation failed for this scene (see `error`) */
   start: number | null;
   end: number | null;
@@ -166,6 +197,31 @@ export interface EditVideoScene {
   error?: string | null;
   media?: EditVideoMedia;
   animation?: EditVideoAnimation | null;
+  infographics?: unknown;
+  caption_style?: unknown;
+  background_color?: string | null;
+}
+
+/** A full-screen/callout text overlay suggested for one scene (distinct from a graphic infographic). */
+export interface EditVideoTextListItem {
+  scene_id: string;
+  animation_type: string;
+  placement: string;
+  text: string;
+  duration_frames: number;
+  text_animation_style: string;
+}
+
+/** A Remotion-style graphic infographic suggested for one scene. */
+export interface EditVideoInfographicListItem {
+  scene_id: string;
+  composition_id?: string;
+  animation_type?: string;
+  props?: Record<string, unknown>;
+  duration_frames?: number;
+  trigger?: string;
+  placement?: string;
+  render_engine_hint?: string;
 }
 
 /** A single track in the Remotion-style timeline (audio_<scene_id>, broll_<scene_id>, caption_word, ...). Exact per-type fields aren't fully specified, so extra fields pass through untyped. */
@@ -188,6 +244,10 @@ export interface EditVideoResponse {
   scenes: EditVideoScene[];
   /** Scene ids where voice/tagging/whisperx generation failed */
   failed_scene_ids?: string[];
+  /** Full-screen/callout text overlays, scene-scoped. */
+  text_list?: EditVideoTextListItem[];
+  /** Graphic infographics, scene-scoped. */
+  infographics_list?: EditVideoInfographicListItem[];
 }
 
 export type EditVideoCaptionAnimationType =
@@ -197,6 +257,18 @@ export type EditVideoCaptionAnimationType =
   | 'word_pop';
 
 export type EditVideoTextVerticalPosition = 'top' | 'middle' | 'bottom';
+export type EditVideoTextHorizontalPosition = 'left' | 'center' | 'right';
+export type EditVideoTextAnimationStyle =
+  | 'fade_in'
+  | 'slide_in_left'
+  | 'slide_in_right'
+  | 'slide_up'
+  | 'slide_down'
+  | 'zoom_in'
+  | 'bounce'
+  | 'pop'
+  | 'typewriter'
+  | 'wipe';
 
 export interface SceneStyleUpdate {
   font_size?: number;
@@ -208,9 +280,14 @@ export interface SceneStyleUpdate {
   vertical_position?: EditVideoTextVerticalPosition;
   /** Distance of the text box from the bottom edge, as a % of frame height. */
   margin_bottom_percent?: number;
+  /** left | center (default) | right */
+  horizontal_position?: EditVideoTextHorizontalPosition;
+  /** Distance from the left/right edge, as a % of frame width. */
+  margin_horizontal_percent?: number;
   /** Seconds (scene-local) the text clip starts/ends showing. */
   text_start?: number;
   text_end?: number;
+  text_animation_style?: EditVideoTextAnimationStyle;
 }
 
 export interface SceneStyleUpdateResponse {
@@ -228,6 +305,10 @@ export interface SceneVoiceUpdate {
   /** Seconds (scene-local) the voice clip starts/ends. */
   start: number;
   end: number;
+  /** 1–10 */
+  volume: number;
+  loudness_normalization: boolean;
+  text_normalization: boolean;
 }
 
 export interface SceneVoiceUpdateResponse {
@@ -1796,6 +1877,12 @@ export class ApiService {
     voice: string;
     langCode: string;
     durationMinutes: number;
+    /** 1–10 */
+    volume: number;
+    /** Evens out volume levels across audio blocks/sections. */
+    loudnessNormalization: boolean;
+    /** Improves reading accuracy for numbers, currency amounts, and similar text. */
+    textNormalization: boolean;
   }): Promise<EditVideoResponse> {
     const url = `${this.BASE_URL}/edit-video`;
     const response = await this.authorizedFetch(url, {
@@ -1806,6 +1893,9 @@ export class ApiService {
         voice: params.voice,
         langCode: params.langCode,
         durationMinutes: params.durationMinutes,
+        volume: params.volume,
+        loudness_normalization: params.loudnessNormalization,
+        text_normalization: params.textNormalization,
       }),
     });
     const data = await this.parseJsonOrThrow<Record<string, unknown>>(response, 'Edit video');
