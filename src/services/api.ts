@@ -204,6 +204,8 @@ export interface EditVideoScene {
 
 /** A full-screen/callout text overlay suggested for one scene (distinct from a graphic infographic). */
 export interface EditVideoTextListItem {
+  /** Overlay id — used by DELETE /timeline/{video_id}/overlay/{id}. */
+  id?: string | number;
   scene_id: string;
   animation_type: string;
   placement: string;
@@ -214,6 +216,8 @@ export interface EditVideoTextListItem {
 
 /** A Remotion-style graphic infographic suggested for one scene. */
 export interface EditVideoInfographicListItem {
+  /** Overlay id — used by DELETE /timeline/{video_id}/overlay/{id}. */
+  id?: string | number;
   scene_id: string;
   composition_id?: string;
   animation_type?: string;
@@ -288,6 +292,8 @@ export interface SceneStyleUpdate {
   text_start?: number;
   text_end?: number;
   text_animation_style?: EditVideoTextAnimationStyle;
+  /** Custom on-screen text the user wrote. */
+  text?: string;
 }
 
 export interface SceneStyleUpdateResponse {
@@ -298,6 +304,8 @@ export interface SceneStyleUpdateResponse {
   background_color?: string | null;
   timeline: EditVideoTimeline;
   needs_render: boolean;
+  /** Overlay id for the customized text — used by DELETE /timeline/{video_id}/overlay/{id}. */
+  text_id?: string | number;
 }
 
 export interface SceneVoiceUpdate {
@@ -412,6 +420,27 @@ export interface SceneBeatInsertResponse {
   timeline_version: number;
   timeline: EditVideoTimeline;
   needs_render: boolean;
+  [key: string]: unknown;
+}
+
+export type TimelineContentType = 'video' | 'image';
+
+export interface TimelineBrollInsert {
+  asset_id: number;
+  source: 'video' | 'image';
+  /** Seconds (scene-local) the clip starts/ends on the timeline. */
+  start: number;
+  end: number;
+  duration: number;
+  motion_type?: string;
+}
+
+export interface TimelineBrollInsertResponse {
+  video_id: string;
+  timeline_version?: number;
+  timeline?: EditVideoTimeline;
+  needs_render?: boolean;
+  beat_id?: string;
   [key: string]: unknown;
 }
 
@@ -1968,7 +1997,7 @@ export class ApiService {
     sceneId: string,
     payload: SceneBrollSelectUpdate,
   ): Promise<SceneBrollSelectResponse> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/broll`;
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/broll`;
     const response = await this.authorizedFetch(url, {
       method: 'PATCH',
       body: JSON.stringify(payload),
@@ -2004,6 +2033,44 @@ export class ApiService {
       body: JSON.stringify(payload),
     });
     return this.parseJsonOrThrow<SceneBeatInsertResponse>(response, 'Insert scene beat');
+  }
+
+  /**
+   * Insert a Pexels (Find more) asset onto the timeline via POST .../broll/insert.
+   * Unlike selectSceneBroll, the asset does not need to already exist in the scene's media list.
+   */
+  static async insertTimelineBroll(
+    videoId: string,
+    payload: TimelineBrollInsert,
+  ): Promise<TimelineBrollInsertResponse> {
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/broll/insert`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow<TimelineBrollInsertResponse>(response, 'Insert b-roll');
+  }
+
+  /** Remove a video or image beat via DELETE .../scene/{scene_id}/content?content_type=&beat_id=. */
+  static async deleteSceneContent(
+    videoId: string,
+    sceneId: string,
+    params: { content_type: TimelineContentType; beat_id: string },
+  ): Promise<unknown> {
+    const query = new URLSearchParams({
+      content_type: params.content_type,
+      beat_id: params.beat_id,
+    });
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/content?${query.toString()}`;
+    const response = await this.authorizedFetch(url, { method: 'DELETE' });
+    return this.parseJsonOrThrow<unknown>(response, 'Delete scene content');
+  }
+
+  /** Remove an infographic or customized-text overlay via DELETE .../overlay/{id}. */
+  static async deleteTimelineOverlay(videoId: string, overlayId: string): Promise<unknown> {
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/overlay/${encodeURIComponent(overlayId)}`;
+    const response = await this.authorizedFetch(url, { method: 'DELETE' });
+    return this.parseJsonOrThrow<unknown>(response, 'Delete overlay');
   }
 
   /**

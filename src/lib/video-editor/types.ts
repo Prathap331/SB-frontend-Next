@@ -32,8 +32,10 @@ export type TimelineClip = {
 
   /** Optional link back to AI/story scene. */
   sceneId?: string;
-  /** Backend "beat" id for b-roll clips — `s{sceneNum}_b{nth}` — used by the split/insert endpoints. */
+  /** Backend "beat" id for b-roll clips — `s{sceneNum}_b{nth}` — used by the split/insert/delete endpoints. */
   beatId?: string;
+  /** Backend overlay id for infographics (from infographics_list/text_list) or customized text (from style `text_id`). */
+  overlayId?: string;
 
   zIndex?: number;
   volume?: number;

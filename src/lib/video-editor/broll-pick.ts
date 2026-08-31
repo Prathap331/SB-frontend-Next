@@ -17,6 +17,8 @@ export type PickedBrollItem = {
   previewUrl: string | null;
   assetUrl: string | null;
   durationSeconds: number;
+  /** Real Pexels photo/video id — sent as `asset_id` on POST .../broll/insert. */
+  assetId?: number;
 };
 
 const SESSION_KEY = 'storio_broll_pick_session_v1';
@@ -137,5 +139,6 @@ export function brollMediaToPick(
     previewUrl: item.thumbnail || null,
     assetUrl,
     durationSeconds: dur,
+    assetId: Number.isFinite(item.id) ? item.id : undefined,
   };
 }

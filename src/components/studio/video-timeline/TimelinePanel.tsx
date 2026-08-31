@@ -19,11 +19,13 @@ type Props = {
   hiddenTrackIds?: string[];
   /** Fired right after a clip is split, with the pre-split clip and the split point (scene-local seconds). */
   onClipSplit?: (clip: TimelineClip, splitAt: number) => void;
+  /** Replaces the default delete (e.g. to also sync deletions to the backend). */
+  onDelete?: () => void;
 };
 
 const LABEL_WIDTH = 148;
 
-export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTrackIds, onClipSplit }: Props) {
+export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTrackIds, onClipSplit, onDelete }: Props) {
   const {
     timeline,
     snapGuide,
@@ -44,6 +46,8 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
     historyLength,
     futureLength,
   } = api;
+
+  const handleDelete = onDelete ?? deleteSelected;
 
   /** One shared scroller keeps track labels and clip rows pixel-aligned. */
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -110,7 +114,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && timeline.selectedClipIds.length) {
         e.preventDefault();
-        deleteSelected();
+        handleDelete();
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -133,7 +137,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [
-    deleteSelected,
+    handleDelete,
     handleSplit,
     onTogglePlay,
     redo,
@@ -156,7 +160,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
         onRedo={redo}
         onSplit={handleSplit}
         onDuplicate={duplicateSelected}
-        onDelete={deleteSelected}
+        onDelete={handleDelete}
         onZoomIn={() => setPixelsPerSecond(timeline.pixelsPerSecond + 20)}
         onZoomOut={() => setPixelsPerSecond(timeline.pixelsPerSecond - 20)}
       />

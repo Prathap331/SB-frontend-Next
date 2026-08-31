@@ -62,6 +62,19 @@ describe('remotion infographic timing', () => {
     expect(parseRemotionInfographic(null)).toBeNull();
   });
 
+  it('carries overlay id from id / overlay_id', () => {
+    expect(parseRemotionInfographic({
+      id: 'ov-123',
+      animation_type: 'full_screen_title_card',
+      duration_frames: 90,
+    })?.overlayId).toBe('ov-123');
+    expect(parseRemotionInfographic({
+      overlay_id: 447,
+      animation_type: 'stat_counter_overlay',
+      duration_frames: 60,
+    })?.overlayId).toBe('447');
+  });
+
   it('hides section when backend sets infographics: null', () => {
     expect(
       readInfographicFromEditScene({

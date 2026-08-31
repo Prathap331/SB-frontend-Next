@@ -20,6 +20,8 @@ export type RemotionInfographicSpec = {
   trigger: string;
   placement: string;
   renderEngineHint?: string;
+  /** Backend overlay id from infographics_list / text_list — used when deleting. */
+  overlayId?: string;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -36,6 +38,12 @@ function asPositiveInt(value: unknown): number | null {
 function asString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   return value;
+}
+
+function asOverlayId(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
 }
 
 /**
@@ -70,6 +78,9 @@ export function parseRemotionInfographic(raw: unknown): RemotionInfographicSpec 
   const trigger = asString(obj.trigger) ?? 'scene_start';
   const placement = asString(obj.placement) ?? 'full_frame';
 
+  const overlayId =
+    asOverlayId(obj.id) ?? asOverlayId(obj.overlay_id) ?? asOverlayId(obj.text_id);
+
   return {
     compositionId: compositionIdRaw || animationType,
     animationType,
@@ -78,6 +89,7 @@ export function parseRemotionInfographic(raw: unknown): RemotionInfographicSpec 
     trigger,
     placement,
     renderEngineHint: asString(obj.render_engine_hint),
+    ...(overlayId ? { overlayId } : {}),
   };
 }
 

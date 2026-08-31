@@ -52,6 +52,7 @@ import {
   type EditVideoScene,
   type EditVideoInfographicAnimationType,
   type SceneStyleUpdate,
+  type SceneStyleUpdateResponse,
   type SceneInfographicUpdate,
   type EditVideoTextVerticalPosition,
   type EditVideoTextHorizontalPosition,
@@ -144,6 +145,8 @@ type Suggestion = {
   /** Pexels asset id — present for AI-suggested media, used to persist the pick via PATCH .../broll */
   assetId?: number | null;
   source?: 'video' | 'image' | null;
+  /** True when the user picked this from Pexels via Find more — persist via POST .../broll/insert. */
+  fromPexels?: boolean;
 };
 
 /** Backend edits accumulated per scene while the user is working on it, flushed when they move on. */
@@ -590,11 +593,32 @@ function extractSceneGraphicsOverlays(
 /** Best-effort adapter: a text_list item into a RemotionInfographicSpec so it reuses the same insert/render pipeline. */
 function textListItemToSpec(item: EditVideoTextListItem): RemotionInfographicSpec | null {
   return parseRemotionInfographic({
+    id: item.id,
     animation_type: item.animation_type,
     placement: item.placement,
     duration_frames: item.duration_frames,
     props: { title: item.text },
   });
+}
+
+/** Identity for exclusive text-vs-graphics placement: same overlay id, or same visible card. */
+function overlayFingerprint(spec: RemotionInfographicSpec): string {
+  return `${spec.animationType.trim().toLowerCase()}|${spec.durationFrames}|${remotionInfographicLabel(spec).trim().toLowerCase()}`;
+}
+
+function asOverlayId(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
+function overlayIdFromStyleResponse(res: SceneStyleUpdateResponse): string | undefined {
+  const style = res.caption_style && typeof res.caption_style === 'object' ? res.caption_style : null;
+  return (
+    asOverlayId(res.text_id) ??
+    asOverlayId(style?.text_id) ??
+    asOverlayId(style?.id)
+  );
 }
 
 /** Builds a library-card-shaped Suggestion from a Remotion spec, for the shared SuggestionCard component. */
@@ -1072,6 +1096,30 @@ export function StudioVideoEditingPanel({
     return { start: clip.start, end: clip.start + clip.duration };
   }, []);
 
+  /** Writes a clip patch onto a scene's stored timeline, and onto the live timeline if that scene is active. */
+  const patchSceneClip = useCallback(
+    (sceneId: string, clipId: string, patch: Partial<TimelineClip>) => {
+      setSceneTimelines((prev) => {
+        const tl = prev[sceneId];
+        if (!tl) return prev;
+        return {
+          ...prev,
+          [sceneId]: {
+            ...tl,
+            tracks: tl.tracks.map((t) => ({
+              ...t,
+              clips: t.clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c)),
+            })),
+          },
+        };
+      });
+      if (selectedIdRef.current === sceneId) {
+        timelineApi.updateClip(clipId, patch);
+      }
+    },
+    [timelineApi],
+  );
+
   /** Called when the user leaves a scene — enqueues one request per edited field, in order. */
   const flushSceneEdits = useCallback(
     (sceneId: string) => {
@@ -1080,7 +1128,12 @@ export function StudioVideoEditingPanel({
       if (!pending || !videoId) return;
 
       if (pending.style) {
-        const textBounds = sceneClipBounds(DEFAULT_TRACK_IDS.text, sceneId);
+        const textTrack = timelineRef.current.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.text);
+        const selectedClipId = timelineRef.current.selectedClipIds[0];
+        const textClip =
+          textTrack?.clips.find((c) => c.id === selectedClipId && c.type === 'text') ??
+          textTrack?.clips.find((c) => c.sceneId === sceneId) ??
+          textTrack?.clips[0];
         const ts = textStyleRef.current;
         const style: SceneStyleUpdate = {
           font_size: ts.fontSize,
@@ -1091,11 +1144,23 @@ export function StudioVideoEditingPanel({
           horizontal_position: horizontalPositionFromOffsetX(ts.offsetX),
           margin_horizontal_percent: Math.round(ts.offsetX),
           text_animation_style: ts.animationStyle,
-          ...(textBounds ? { text_start: textBounds.start, text_end: textBounds.end } : {}),
+          ...(textClip
+            ? {
+                text_start: textClip.start,
+                text_end: textClip.start + textClip.duration,
+                text: textClip.text ?? '',
+              }
+            : {}),
         };
+        const textClipId = textClip?.id;
         enqueueRequest(() =>
           ApiService.updateSceneStyle(videoId, sceneId, style).then(
-            () => {},
+            (res) => {
+              const textId = overlayIdFromStyleResponse(res);
+              if (textId && textClipId) {
+                patchSceneClip(sceneId, textClipId, { overlayId: textId });
+              }
+            },
             (err) => {
               showToast(err instanceof Error ? err.message : 'Failed to save caption style');
             },
@@ -1143,7 +1208,7 @@ export function StudioVideoEditingPanel({
         );
       }
     },
-    [videoId, enqueueRequest, showToast, sceneClipBounds, scenes],
+    [videoId, enqueueRequest, showToast, sceneClipBounds, scenes, patchSceneClip],
   );
   flushSceneEditsRef.current = flushSceneEdits;
 
@@ -1274,22 +1339,38 @@ export function StudioVideoEditingPanel({
     return dedupeSuggestions([...manualBrollImages, ...sceneItems]);
   }, [showDummyLibrary, manualBrollImages, selected, sceneBrollImageSuggestions]);
 
-  /** Full-screen/callout text overlays (text_list) for the selected scene, adapted to the Remotion spec pipeline. */
-  const textOverlaysForSelectedScene = useMemo(() => {
-    if (!selected) return [];
-    const items = sceneTextOverlays[selected.id] ?? [];
-    return items
-      .map((item) => textListItemToSpec(item))
-      .filter((s): s is RemotionInfographicSpec => s != null);
-  }, [selected, sceneTextOverlays]);
-
-  /** Graphic infographics (infographics_list) for the selected scene — falls back to the legacy singular field. */
+  /** Graphic infographics (infographics_list) for the selected scene — never mixed with text_list. */
   const graphicsForSelectedScene = useMemo(() => {
     if (!selected) return [];
     const list = sceneGraphicsOverlays[selected.id];
     if (list && list.length > 0) return list;
-    return selected.remotionInfographic ? [selected.remotionInfographic] : [];
-  }, [selected, sceneGraphicsOverlays]);
+    const fallback = selected.remotionInfographic;
+    if (!fallback) return [];
+    const textFps = new Set(
+      (sceneTextOverlays[selected.id] ?? [])
+        .map(textListItemToSpec)
+        .filter((s): s is RemotionInfographicSpec => s != null)
+        .map(overlayFingerprint),
+    );
+    if (textFps.has(overlayFingerprint(fallback))) return [];
+    return [fallback];
+  }, [selected, sceneGraphicsOverlays, sceneTextOverlays]);
+
+  /** Full-screen/callout text overlays (text_list) — excluded when the same item is already in infographics_list. */
+  const textOverlaysForSelectedScene = useMemo(() => {
+    if (!selected) return [];
+    const graphics = sceneGraphicsOverlays[selected.id] ?? [];
+    const graphicIds = new Set(graphics.map((s) => s.overlayId).filter((id): id is string => Boolean(id)));
+    const graphicFps = new Set(graphics.map(overlayFingerprint));
+    return (sceneTextOverlays[selected.id] ?? [])
+      .map((item) => textListItemToSpec(item))
+      .filter((s): s is RemotionInfographicSpec => s != null)
+      .filter((s) => {
+        if (s.overlayId && graphicIds.has(s.overlayId)) return false;
+        if (graphicFps.has(overlayFingerprint(s))) return false;
+        return true;
+      });
+  }, [selected, sceneTextOverlays, sceneGraphicsOverlays]);
 
   const suggestionFromPick = useCallback(
     (picked: PickedBrollItem): Suggestion => ({
@@ -1302,6 +1383,9 @@ export function StudioVideoEditingPanel({
       mediaKind: picked.kind === 'image' ? 'image' : 'video',
       previewUrl: picked.previewUrl,
       assetUrl: picked.assetUrl,
+      assetId: picked.assetId ?? null,
+      source: picked.kind === 'image' ? 'image' : 'video',
+      fromPexels: true,
     }),
     [selected?.title],
   );
@@ -2071,9 +2155,10 @@ export function StudioVideoEditingPanel({
     const brollTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll);
     const existingForScene = brollTrack?.clips.filter((c) => c.sceneId === target.id).length ?? 0;
     const beatId = makeBrollBeatId(target.num, existingForScene + 1);
+    const clipId = `br-${Date.now()}`;
 
     timelineApi.addClip(DEFAULT_TRACK_IDS.broll, {
-      id: `br-${Date.now()}`,
+      id: clipId,
       type: 'broll',
       name: item.label,
       sourceUrl: item.assetUrl || item.previewUrl || undefined,
@@ -2091,9 +2176,6 @@ export function StudioVideoEditingPanel({
     showToast(`Inserted into ${target.title}`);
 
     // Persist the pick server-side whenever we have a video + a real asset URL.
-    // asset_id doesn't need to be the real Pexels id (manually-picked library
-    // items don't have one) — the url is what actually matters, so fall back
-    // to a synthetic id rather than skipping the save.
     const assetUrl = item.assetUrl || item.previewUrl;
     if (videoId && assetUrl) {
       const sceneId = target.id;
@@ -2103,21 +2185,43 @@ export function StudioVideoEditingPanel({
       const hasNextBeat = Boolean(
         brollTrack?.clips.some((c) => c.sceneId === sceneId && c.start >= clipEnd - 0.05),
       );
-      enqueueRequest(() =>
-        ApiService.selectSceneBroll(videoId, sceneId, {
-          asset_id: assetId,
-          source,
-          beat_id: beatId,
-          start,
-          end: clipEnd,
-          adjust_next_beat: hasNextBeat,
-        }).then(
-          () => {},
-          (err) => {
-            showToast(err instanceof Error ? err.message : 'Failed to save b-roll selection');
-          },
-        ),
-      );
+
+      if (item.fromPexels && item.assetId != null) {
+        enqueueRequest(() =>
+          ApiService.insertTimelineBroll(videoId, {
+            asset_id: item.assetId as number,
+            source,
+            start,
+            end: clipEnd,
+            duration: dur,
+            motion_type: 'zoom_in',
+          }).then(
+            (res) => {
+              const returnedBeat = asOverlayId(res.beat_id);
+              if (returnedBeat) patchSceneClip(sceneId, clipId, { beatId: returnedBeat });
+            },
+            (err) => {
+              showToast(err instanceof Error ? err.message : 'Failed to insert b-roll');
+            },
+          ),
+        );
+      } else {
+        enqueueRequest(() =>
+          ApiService.selectSceneBroll(videoId, sceneId, {
+            asset_id: assetId,
+            source,
+            beat_id: beatId,
+            start,
+            end: clipEnd,
+            adjust_next_beat: hasNextBeat,
+          }).then(
+            () => {},
+            (err) => {
+              showToast(err instanceof Error ? err.message : 'Failed to save b-roll selection');
+            },
+          ),
+        );
+      }
     }
   };
 
@@ -2234,6 +2338,7 @@ export function StudioVideoEditingPanel({
       sourceDuration: durSec,
       originalSourceDuration: durSec,
       sceneId: target.id,
+      overlayId: spec.overlayId,
       placement: spec.placement,
       mode: isFull ? 'fullscreen' : 'overlay',
       remotion: {
@@ -2273,6 +2378,7 @@ export function StudioVideoEditingPanel({
   const addTextClip = useCallback(() => {
     const start = timelineApi.timeline.currentTime;
     const id = `txt-${Date.now()}`;
+    const sceneId = selectedId;
     timelineApi.addClip(DEFAULT_TRACK_IDS.text, {
       id,
       type: 'text',
@@ -2282,11 +2388,53 @@ export function StudioVideoEditingPanel({
       duration: 3,
       sourceStart: 0,
       sourceDuration: 3,
-      sceneId: selectedId,
+      sceneId,
     });
     timelineApi.selectClips([id]);
+    if (sceneId) recordPendingStyle(sceneId);
     showToast('Text clip added');
-  }, [timelineApi, selectedId, showToast]);
+  }, [timelineApi, selectedId, showToast, recordPendingStyle]);
+
+  const syncClipDeletion = useCallback(
+    (clip: TimelineClip) => {
+      if (!videoId) return;
+      const sceneId = clip.sceneId || selectedIdRef.current;
+      if (clip.type === 'broll' && clip.beatId && sceneId) {
+        const contentType = clip.mediaKind === 'image' ? 'image' : 'video';
+        enqueueRequest(() =>
+          ApiService.deleteSceneContent(videoId, sceneId, {
+            content_type: contentType,
+            beat_id: clip.beatId!,
+          }).then(
+            () => {},
+            (err) => {
+              showToast(err instanceof Error ? err.message : 'Failed to delete media');
+            },
+          ),
+        );
+        return;
+      }
+      if ((clip.type === 'infographic' || clip.type === 'text') && clip.overlayId) {
+        enqueueRequest(() =>
+          ApiService.deleteTimelineOverlay(videoId, clip.overlayId!).then(
+            () => {},
+            (err) => {
+              showToast(err instanceof Error ? err.message : 'Failed to delete overlay');
+            },
+          ),
+        );
+      }
+    },
+    [videoId, enqueueRequest, showToast],
+  );
+
+  const handleDeleteSelected = useCallback(() => {
+    const ids = new Set(timelineApi.timeline.selectedClipIds);
+    if (!ids.size) return;
+    const clips = timelineApi.timeline.tracks.flatMap((t) => t.clips).filter((c) => ids.has(c.id));
+    timelineApi.deleteSelected();
+    clips.forEach(syncClipDeletion);
+  }, [timelineApi, syncClipDeletion]);
 
   const timelineHasClipNamed = useCallback(
     (trackId: string, name: string) =>
@@ -2932,9 +3080,10 @@ export function StudioVideoEditingPanel({
               setTextStyle((t) => ({ ...t, fontSize }));
               if (selected) recordPendingStyle(selected.id);
             }}
-            onTextEdit={(clipId, text) =>
-              timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' })
-            }
+            onTextEdit={(clipId, text) => {
+              timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' });
+              if (selected) recordPendingStyle(selected.id);
+            }}
           />
         </div>
 
@@ -3024,6 +3173,7 @@ export function StudioVideoEditingPanel({
           onTogglePlay={() => setIsPlaying((p) => !p)}
           hiddenTrackIds={[DEFAULT_TRACK_IDS.video]}
           onClipSplit={handleClipSplit}
+          onDelete={handleDeleteSelected}
         />
       </section>
 
@@ -3408,6 +3558,7 @@ export function StudioVideoEditingPanel({
                       text: value,
                       name: value.slice(0, 48) || 'Text',
                     });
+                    if (selected) recordPendingStyle(selected.id);
                   }}
                   className="w-full resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f] focus:ring-2 focus:ring-[#1d1d1f]/10"
                 />
@@ -3487,9 +3638,10 @@ export function StudioVideoEditingPanel({
               setTextStyle((t) => ({ ...t, fontSize }));
               if (selected) recordPendingStyle(selected.id);
             }}
-            onTextEdit={(clipId, text) =>
-              timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' })
-            }
+            onTextEdit={(clipId, text) => {
+              timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' });
+              if (selected) recordPendingStyle(selected.id);
+            }}
           />
         </div>
 
@@ -3567,7 +3719,7 @@ export function StudioVideoEditingPanel({
         <div className="flex-shrink-0 border-t border-gray-200 bg-white">
           {timelineApi.selectedClip ? (
             <div className="flex items-center justify-around px-2 py-2">
-              <MobileToolButton icon={Trash2} label="Delete" onClick={() => timelineApi.deleteSelected()} />
+              <MobileToolButton icon={Trash2} label="Delete" onClick={handleDeleteSelected} />
               <MobileToolButton icon={Scissors} label="Split" onClick={splitSelectedClip} />
               <MobileToolButton
                 icon={Crop}
@@ -3992,6 +4144,7 @@ export function StudioVideoEditingPanel({
                                 text: value,
                                 name: value.slice(0, 48) || 'Text',
                               });
+                              if (selected) recordPendingStyle(selected.id);
                             }}
                             className="w-full resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f]"
                           />
