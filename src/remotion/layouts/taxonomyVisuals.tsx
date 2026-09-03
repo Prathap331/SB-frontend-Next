@@ -4,6 +4,12 @@ import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import type { InfographicData } from '../types';
 import { LucideIconView } from '../icons';
 import { readAccentColor, readNonEmptyString, readStringArray, readIconNames } from '../props';
+import {
+  OVERLAY_DESIGN_W,
+  isCenterXPlacement,
+  isRightPlacement,
+  resolveOverlayGeometry,
+} from '../placement';
 
 export type Clock = {
   frame: number;
@@ -37,6 +43,7 @@ type BaseAnim = {
   caption?: string;
   items: string[];
   color: string;
+  placement: string;
   geometry: GeometryPx;
   icons: string[];
   iconLayout?: string;
@@ -60,8 +67,9 @@ function defaultGeometry(type: string): GeometryPx {
       return { x: 1600, y: 700, width: 260, height: 260 };
     case 'speed_ramp_indicator':
       return { x: 1700, y: 64, width: 160, height: 80 };
-    case 'icon_sequence':
     case 'icon_pop_in':
+      return { x: 1696, y: 64, width: 160, height: 160 };
+    case 'icon_sequence':
     case 'stat_counter_overlay':
       return { x: 64, y: 360, width: 720, height: 280 };
     default:
@@ -163,21 +171,25 @@ function ClockIconRow({
   );
 }
 
-function readGeometry(props: Record<string, unknown>, type: string): GeometryPx {
+function readGeometry(
+  props: Record<string, unknown>,
+  type: string,
+  placement: string | undefined,
+): GeometryPx {
   const defaults = defaultGeometry(type);
   const raw = props.geometryPx;
+  let parsed: Partial<GeometryPx> | null = null;
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const g = raw as Record<string, unknown>;
-    const n = (v: unknown, d: number) =>
-      typeof v === 'number' && Number.isFinite(v) ? v : d;
-    return {
-      x: n(g.x, defaults.x),
-      y: n(g.y, defaults.y),
-      width: n(g.width, defaults.width),
-      height: n(g.height, defaults.height),
+    const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+    parsed = {
+      x: n(g.x),
+      y: n(g.y),
+      width: n(g.width),
+      height: n(g.height),
     };
   }
-  return defaults;
+  return resolveOverlayGeometry(parsed, placement, defaults);
 }
 
 function readMotion(props: Record<string, unknown>): MotionXY | null {
@@ -219,6 +231,9 @@ function readBase(data: InfographicData): BaseAnim {
   const type = (data.animation_type || '').trim().toLowerCase();
   const { text, lines } = displayTextOf(data.props);
   const icons = readIconNames(data.props);
+  const placement =
+    data.placement ||
+    (typeof data.props.placement === 'string' ? data.props.placement : '');
   return {
     type,
     text,
@@ -230,7 +245,8 @@ function readBase(data: InfographicData): BaseAnim {
     caption: readNonEmptyString(data.props, 'caption'),
     items: readStringArray(data.props, 'items'),
     color: readAccentColor(data.props, '#F5A623'),
-    geometry: readGeometry(data.props, type),
+    placement,
+    geometry: readGeometry(data.props, type, placement),
     icons,
     iconLayout:
       typeof data.props.iconLayout === 'string' ? data.props.iconLayout : undefined,
@@ -239,15 +255,40 @@ function readBase(data: InfographicData): BaseAnim {
   };
 }
 
+function motionProgress(clock: Clock, motion: MotionXY | null): number {
+  if (!motion) return 1;
+  const style = (motion.style || '').toLowerCase();
+  const popFast = style.includes('pop') || style.includes('bounce');
+  const span = popFast
+    ? Math.max(1, Math.round(clock.fps * 0.4))
+    : Math.max(1, clock.durationInFrames - 1);
+  const raw = Math.min(1, clock.frame / span);
+  return popFast ? 1 - (1 - raw) ** 3 : raw;
+}
+
 function xyAt(clock: Clock, p: BaseAnim): { x: number; y: number } {
   const { geometry: g, motion } = p;
   if (!motion) return { x: g.x, y: g.y };
-  const t =
-    clock.durationInFrames > 1 ? Math.min(1, clock.frame / (clock.durationInFrames - 1)) : 1;
+  const t = motionProgress(clock, motion);
   return {
     x: motion.startX + (motion.endX - motion.startX) * t,
     y: motion.startY + (motion.endY - motion.startY) * t,
   };
+}
+
+/** Scale 80% → 100% with a slight bounce overshoot when motion_style asks for it. */
+function popScaleAt(clock: Clock, motion: MotionXY | null): number {
+  const style = (motion?.style || '').toLowerCase();
+  const bounce = style.includes('bounce') || style.includes('pop');
+  const dur = Math.max(1, clock.fps * (bounce ? 0.42 : 0.35));
+  const t = Math.min(1, clock.frame / dur);
+  if (!bounce) return 0.8 + 0.2 * (1 - (1 - t) ** 3);
+  if (t < 0.72) {
+    const u = t / 0.72;
+    return 0.8 + 0.26 * (1 - (1 - u) ** 3);
+  }
+  const u = (t - 0.72) / 0.28;
+  return 1.06 - 0.06 * (1 - (1 - u) ** 2);
 }
 
 function box(p: BaseAnim, clock: Clock, extra?: CSSProperties): CSSProperties {
@@ -737,24 +778,41 @@ function SpeedRamp({ p, clock }: { p: BaseAnim; clock: Clock }) {
 }
 
 function IconGraphic({ p, clock }: { p: BaseAnim; clock: Clock }) {
-  const names = p.icons;
+  const names = p.icons.length ? p.icons : p.type === 'icon_pop_in' ? ['arrow-right'] : [];
   const layout = (p.iconLayout || (names.length > 1 ? 'sequence' : 'cluster')).toLowerCase();
   const isPop = p.type === 'icon_pop_in' || names.length <= 1;
-  const pop = easeOut(clock, 0.35);
-  const iconSize = Math.min(52, Math.max(36, p.geometry.height * 0.35));
+  const { x, y } = xyAt(clock, p);
+  const iconBox = isPop
+    ? Math.max(96, Math.min(p.geometry.width, p.geometry.height))
+    : Math.min(88, Math.max(48, p.geometry.height * 0.4));
+  const iconSize = Math.round(iconBox * 0.58);
   const connect = (p.motion?.style || p.type).toLowerCase().includes('connect');
+  const growLeft = isRightPlacement(p.placement) || x > OVERLAY_DESIGN_W * 0.62;
+  const alignItems = growLeft
+    ? 'flex-end'
+    : isCenterXPlacement(p.placement)
+      ? 'center'
+      : 'flex-start';
+  const textAlign = growLeft ? 'right' : alignItems === 'center' ? 'center' : 'left';
+  const iconSpan = isPop ? iconBox : p.geometry.width;
+  const scale = isPop ? popScaleAt(clock, p.motion) : 1;
   return (
     <Fill>
       <div
-        style={box(p, clock, {
+        style={{
+          position: 'absolute',
+          left: growLeft ? undefined : x,
+          right: growLeft ? OVERLAY_DESIGN_W - (x + iconSpan) : undefined,
+          top: y,
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'flex-start',
-          justifyContent: 'center',
-          gap: 16,
-          opacity: fadeIn(clock, 0.25),
-          transform: isPop ? `scale(${0.8 + 0.2 * pop})` : undefined,
-        })}
+          alignItems,
+          gap: 14,
+          maxWidth: 420,
+          overflow: 'visible',
+          opacity: fadeIn(clock, 0.2),
+          pointerEvents: 'none',
+        }}
       >
         <div
           style={{
@@ -762,7 +820,10 @@ function IconGraphic({ p, clock }: { p: BaseAnim; clock: Clock }) {
             flexDirection: layout === 'stack' ? 'column' : 'row',
             flexWrap: layout === 'cluster' ? 'wrap' : undefined,
             alignItems: 'center',
+            justifyContent: growLeft ? 'flex-end' : 'flex-start',
             gap: layout === 'pair' ? 28 : 16,
+            transform: `scale(${scale})`,
+            transformOrigin: growLeft ? 'top right' : 'top left',
           }}
         >
           {names.map((name, index) => {
@@ -789,14 +850,15 @@ function IconGraphic({ p, clock }: { p: BaseAnim; clock: Clock }) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: iconSize + 36,
-                    height: iconSize + 36,
-                    borderRadius: 20,
-                    backgroundColor: 'rgba(12, 16, 22, 0.55)',
-                    boxShadow: `0 0 22px ${p.color}44`,
+                    width: iconBox,
+                    height: iconBox,
+                    flexShrink: 0,
+                    borderRadius: '50%',
+                    backgroundColor: p.color,
+                    boxShadow: `0 8px 28px ${p.color}99, 0 0 0 6px rgba(255,255,255,0.18)`,
                   }}
                 >
-                  <LucideSvg name={name} size={iconSize} color={p.color} />
+                  <LucideSvg name={name} size={iconSize} color="#ffffff" />
                 </div>
               </Fragment>
             );
@@ -806,9 +868,13 @@ function IconGraphic({ p, clock }: { p: BaseAnim; clock: Clock }) {
           <span
             style={{
               color: 'white',
-              fontSize: Math.min(34, Math.max(22, p.geometry.height * 0.18)),
+              fontSize: 28,
               fontWeight: 700,
               lineHeight: 1.25,
+              textAlign,
+              maxWidth: 400,
+              textShadow: '0 2px 12px rgba(0,0,0,0.7)',
+              whiteSpace: 'normal',
             }}
           >
             {p.text}

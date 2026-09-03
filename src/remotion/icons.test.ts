@@ -1,5 +1,5 @@
 import { resolveLucideIcon } from './icons';
-import { readIconNames, readTextAnimationStyle } from './props';
+import { iconNamesFromContentBinding, readIconNames, readTextAnimationStyle } from './props';
 import { Circle } from 'lucide-react';
 
 describe('backend lucide icon library', () => {
@@ -47,6 +47,11 @@ describe('backend lucide icon library', () => {
 
   it('prefers icon_name over icons when both are present', () => {
     expect(readIconNames({ icon_name: ['globe'], icons: ['shield'] })).toEqual(['globe']);
+  });
+
+  it('reads fallback_icon from content_binding when icon_name is missing', () => {
+    expect(iconNamesFromContentBinding('fallback_icon:arrow-right')).toEqual(['arrow-right']);
+    expect(readIconNames({ content_binding: 'fallback_icon:arrow-right' })).toEqual(['arrow-right']);
   });
 
   it('reads the backend text animation style under either key', () => {

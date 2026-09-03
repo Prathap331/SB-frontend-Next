@@ -4,6 +4,7 @@ import type { TimelineClip } from '@/lib/video-editor/types';
 import { EDITOR_FPS } from '@/lib/video-editor/fps';
 import { clipRemotionToInfographicData } from '@/remotion/data';
 import { InfographicVisual } from '@/remotion/compositions/DataDrivenInfographic';
+import { readIconNames } from '@/remotion/props';
 
 const DESIGN_W = 1920;
 const DESIGN_H = 1080;
@@ -37,6 +38,7 @@ export function TimelineOverlayPreview({ clip, currentTime, width, height }: Pro
 
   const scaleX = width / DESIGN_W;
   const scaleY = height / DESIGN_H;
+  const iconNames = readIconNames(data.props);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-[4] overflow-hidden">
@@ -53,10 +55,7 @@ export function TimelineOverlayPreview({ clip, currentTime, width, height }: Pro
       >
         <InfographicVisual
           data={data}
-          icon_name={
-            (data.props.icon_name as string | string[] | undefined) ??
-            (data.props.iconName as string | string[] | undefined)
-          }
+          icon_name={iconNames.length === 1 ? iconNames[0] : iconNames.length ? iconNames : undefined}
           clock={{ frame, fps: EDITOR_FPS, durationInFrames }}
         />
       </div>

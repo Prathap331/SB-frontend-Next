@@ -23,6 +23,7 @@ import {
   rebaseOverlaySpec,
   rebaseSeededText,
   isOverlayGraphicTrack,
+  parseIconList,
 } from './infographics';
 import { EDITOR_FPS } from './fps';
 import { frameWindowSeconds, toSceneLocalSeconds } from './timings';
@@ -292,11 +293,40 @@ function applyOverlayTracks(
         const graphic = rebaseOverlaySpec(parsed, scene.start, scene.duration);
         const alreadyGraphic = next.tracks
           .find((t) => t.id === DEFAULT_TRACK_IDS.infographic)
-          ?.clips.some(
+          ?.clips.find(
             (c) =>
               (graphic.overlayId && c.overlayId === graphic.overlayId) ||
               (graphic.beatId && c.beatId === graphic.beatId),
           );
+        if (alreadyGraphic?.remotion) {
+          const have = parseIconList(
+            alreadyGraphic.remotion.props.icon_name ?? alreadyGraphic.remotion.props.icons,
+          );
+          const incoming = parseIconList(graphic.props.icon_name ?? graphic.props.icons);
+          if (!have.length && incoming.length) {
+            next = {
+              ...next,
+              tracks: next.tracks.map((t) =>
+                t.id !== DEFAULT_TRACK_IDS.infographic
+                  ? t
+                  : {
+                      ...t,
+                      clips: t.clips.map((c) =>
+                        c.id === alreadyGraphic.id && c.remotion
+                          ? {
+                              ...c,
+                              remotion: {
+                                ...c.remotion,
+                                props: { ...c.remotion.props, ...graphic.props },
+                              },
+                            }
+                          : c,
+                      ),
+                    },
+              ),
+            };
+          }
+        }
         if (!alreadyGraphic) {
           const durSec = remotionDurationSeconds(graphic.durationFrames);
           if (durSec > 0) {

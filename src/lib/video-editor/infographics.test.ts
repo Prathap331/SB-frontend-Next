@@ -187,6 +187,69 @@ describe('remotion infographic timing', () => {
     expect(remotionInfographicLabel(spec!)).toBe('globe (+3)');
   });
 
+  it('keeps icon_pop_in display_text, icon, placement, and geometry', () => {
+    const spec = parseRemotionInfographic({
+      track_id: 'anim_s1_s1_beat1',
+      scene_id: 's1',
+      beat_id: 's1_beat1',
+      type: 'animation',
+      layer: 'foreground',
+      animation_type: 'icon_pop_in',
+      category: 'overlay_graphic',
+      placement: 'top_right',
+      geometry_px: { x: 1696, y: 64, width: 160, height: 160 },
+      motion: {
+        start_xy_px: [1696.0, 44.0],
+        end_xy_px: [1696.0, 64.0],
+        motion_style: 'pop-in with slight bounce, scale 80% to 100%',
+      },
+      icon_name: 'arrow-right',
+      icon_layout: null,
+      display_text: 'Show a cinema exterior',
+      color_hint: '#F5A623',
+      startFrame: 0,
+      endFrame: 90,
+      start_sec: 0.0,
+      end_sec: 3.0,
+      duration_frames: 90,
+    });
+    expect(spec).not.toBeNull();
+    expect(spec?.placement).toBe('top_right');
+    expect(spec?.props.placement).toBe('top_right');
+    expect(spec?.props.icon_name).toBe('arrow-right');
+    expect(spec?.props.displayText).toBe('Show a cinema exterior');
+    expect(spec?.props.title).toBe('Show a cinema exterior');
+    expect(spec?.props.geometryPx).toEqual({ x: 1696, y: 64, width: 160, height: 160 });
+    expect(spec?.props.motion).toEqual({
+      startX: 1696,
+      startY: 44,
+      endX: 1696,
+      endY: 64,
+      style: 'pop-in with slight bounce, scale 80% to 100%',
+    });
+    expect(spec?.props.color).toBe('#F5A623');
+    expect(spec?.startSeconds).toBe(0);
+    expect(spec?.durationFrames).toBe(90);
+    expect(remotionInfographicLabel(spec!)).toBe('Show a cinema exterior');
+    expect(isOverlayGraphicTrack({
+      animation_type: 'icon_pop_in',
+      category: 'overlay_graphic',
+    })).toBe(true);
+  });
+
+  it('recovers icon_name from content_binding fallback_icon', () => {
+    const spec = parseRemotionInfographic({
+      animation_type: 'icon_pop_in',
+      placement: 'top_right',
+      display_text: 'Show a cinema exterior',
+      content_binding: 'fallback_icon:arrow-right',
+      startFrame: 0,
+      endFrame: 90,
+    });
+    expect(spec?.props.icon_name).toBe('arrow-right');
+    expect(spec?.props.icons).toEqual(['arrow-right']);
+  });
+
   it('parses geometry_px and displayText for overlay compositions', () => {
     const spec = parseRemotionInfographic({
       animation_type: 'lower_third',

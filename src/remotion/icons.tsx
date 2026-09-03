@@ -307,7 +307,15 @@ export function resolveLucideIcon(name: string): LucideIcon {
   return ICONS[key] ?? Circle;
 }
 
-/** Lucide SVG for Remotion + timeline preview. Explicit stroke so icons are not invisible. */
+/** Hand-drawn 24×24 strokes so the preview never depends on Lucide painting. */
+const INLINE_PATHS: Record<string, string[]> = {
+  arrowright: ['M5 12h14', 'm12 5 7 7-7 7'],
+  arrowleft: ['M19 12H5', 'm12 19-7-7 7-7'],
+  arrowup: ['M12 19V5', 'm5 12 7-7 7 7'],
+  arrowdown: ['M12 5v14', 'm19 12-7 7-7-7'],
+};
+
+/** Lucide SVG for Remotion + timeline preview. Pixel size + stroke so scale() cannot hide it. */
 export function LucideIconView({
   name,
   size = 64,
@@ -318,15 +326,46 @@ export function LucideIconView({
   color?: string;
 }) {
   if (!name?.trim()) return null;
+  const key = name.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  const paths = INLINE_PATHS[key];
+  const svgStyle = {
+    display: 'block',
+    width: size,
+    height: size,
+    minWidth: size,
+    minHeight: size,
+    flexShrink: 0,
+    overflow: 'visible' as const,
+    color,
+  };
+  if (paths) {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth={2.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+        style={svgStyle}
+      >
+        {paths.map((d) => (
+          <path key={d} d={d} />
+        ))}
+      </svg>
+    );
+  }
   const Cmp = resolveLucideIcon(name);
   return (
     <Cmp
       size={size}
       color={color}
-      strokeWidth={2}
-      absoluteStrokeWidth
+      strokeWidth={2.5}
       fill="none"
-      style={{ display: 'block', color, flexShrink: 0, overflow: 'visible' }}
+      style={svgStyle}
     />
   );
 }

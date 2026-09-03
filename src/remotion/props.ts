@@ -24,6 +24,18 @@ export function readStringArray(
   return v.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
 }
 
+/** `content_binding: "fallback_icon:arrow-right"` from overlay tracks. */
+export function iconNamesFromContentBinding(value: unknown): string[] {
+  if (typeof value !== 'string' || !value.trim()) return [];
+  const names: string[] = [];
+  const re = /(?:fallback_icon|icon_name)\s*[:=]\s*([a-z0-9][a-z0-9_-]*)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(value))) {
+    if (match[1]) names.push(match[1]);
+  }
+  return names;
+}
+
 /** `icon_name` / `iconName` / `icons` as a string, comma list, or string[]. */
 export function readIconNames(props: Record<string, unknown>): string[] {
   const fromUnknown = (value: unknown): string[] => {
@@ -31,6 +43,8 @@ export function readIconNames(props: Record<string, unknown>): string[] {
     if (typeof value === 'string') {
       const t = value.trim();
       if (!t) return [];
+      const fromBinding = iconNamesFromContentBinding(t);
+      if (fromBinding.length) return fromBinding;
       if (t.includes(',')) return t.split(',').map((part) => part.trim()).filter(Boolean);
       return [t];
     }
@@ -45,7 +59,7 @@ export function readIconNames(props: Record<string, unknown>): string[] {
     const list = fromUnknown(props[key]);
     if (list.length) return list;
   }
-  return [];
+  return fromUnknown(props.content_binding ?? props.contentBinding);
 }
 
 /**

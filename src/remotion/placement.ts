@@ -34,6 +34,96 @@ export function isFullFramePlacement(placement: string | undefined): boolean {
   return normalizePlacement(placement) === 'full_frame';
 }
 
+/** Backend overlay tracks are authored against a 1920×1080 frame. */
+export const OVERLAY_DESIGN_W = 1920;
+export const OVERLAY_DESIGN_H = 1080;
+const EDGE_MARGIN = 64;
+
+export type OverlayGeometryPx = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+function finitePx(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Pixel origin for an overlay of `width`×`height` on the 1920×1080 design frame.
+ * `top_right` + 160×160 → { x: 1696, y: 64 } (1920 − 160 − 64).
+ */
+export function placementToDesignPx(
+  placement: string | undefined,
+  width: number,
+  height: number,
+  canvasW = OVERLAY_DESIGN_W,
+  canvasH = OVERLAY_DESIGN_H,
+): { x: number; y: number } {
+  const kind = normalizePlacement(placement);
+  const mx = EDGE_MARGIN;
+  const my = EDGE_MARGIN;
+  switch (kind) {
+    case 'top_left':
+      return { x: mx, y: my };
+    case 'top_right':
+      return { x: canvasW - width - mx, y: my };
+    case 'top':
+      return { x: (canvasW - width) / 2, y: my };
+    case 'bottom_left':
+      return { x: mx, y: canvasH - height - my };
+    case 'bottom_right':
+      return { x: canvasW - width - mx, y: canvasH - height - my };
+    case 'bottom':
+    case 'overlay':
+      return { x: (canvasW - width) / 2, y: canvasH - height - my };
+    case 'center_left':
+      return { x: mx, y: (canvasH - height) / 2 };
+    case 'center_right':
+      return { x: canvasW - width - mx, y: (canvasH - height) / 2 };
+    case 'center':
+    case 'full_frame':
+    default:
+      return { x: (canvasW - width) / 2, y: (canvasH - height) / 2 };
+  }
+}
+
+/**
+ * Prefer explicit `geometry_px`. If x/y are missing, fall back to `placement`
+ * so icon overlays still land in the correct corner.
+ */
+export function resolveOverlayGeometry(
+  geometryPx: Partial<OverlayGeometryPx> | null | undefined,
+  placement: string | undefined,
+  fallback: OverlayGeometryPx,
+): OverlayGeometryPx {
+  const width = finitePx(geometryPx?.width) ?? fallback.width;
+  const height = finitePx(geometryPx?.height) ?? fallback.height;
+  const explicitX = finitePx(geometryPx?.x);
+  const explicitY = finitePx(geometryPx?.y);
+  if (explicitX != null && explicitY != null) {
+    return { x: explicitX, y: explicitY, width, height };
+  }
+  const fromPlacement = placementToDesignPx(placement, width, height);
+  return {
+    x: explicitX ?? fromPlacement.x,
+    y: explicitY ?? fromPlacement.y,
+    width,
+    height,
+  };
+}
+
+export function isRightPlacement(placement: string | undefined): boolean {
+  const kind = normalizePlacement(placement);
+  return kind === 'top_right' || kind === 'bottom_right' || kind === 'center_right';
+}
+
+export function isCenterXPlacement(placement: string | undefined): boolean {
+  const kind = normalizePlacement(placement);
+  return kind === 'top' || kind === 'bottom' || kind === 'center' || kind === 'overlay' || kind === 'full_frame';
+}
+
 /**
  * Outer AbsoluteFill: transparent for overlays so the video stays visible.
  * Full-frame layouts may paint their own opaque background inside.

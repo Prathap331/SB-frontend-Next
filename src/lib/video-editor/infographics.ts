@@ -1,5 +1,6 @@
 import { EDITOR_FPS, framesToSeconds, secondsToFrame } from './fps';
 import { frameWindowSeconds, toSceneLocalSeconds } from './timings';
+import { iconNamesFromContentBinding } from '@/remotion/props';
 
 /** Backend `infographics` / Remotion payload (read-only shape from /edit-video). */
 export type BackendInfographicPayload = {
@@ -221,6 +222,10 @@ function collectIcons(obj: Record<string, unknown>, props: Record<string, unknow
     const list = parseIconList(src);
     if (list.length) return list;
   }
+  const fromBinding = iconNamesFromContentBinding(
+    obj.content_binding ?? obj.contentBinding ?? props.content_binding ?? props.contentBinding,
+  );
+  if (fromBinding.length) return fromBinding;
   return [];
 }
 
@@ -321,6 +326,7 @@ export function mergeOverlayTrackOntoItem(
     ...track,
     ...itemRec,
     icon_name: parseIconList(itemRec.icon_name).length ? itemRec.icon_name : (track.icon_name ?? itemRec.icon_name),
+    content_binding: itemRec.content_binding ?? track.content_binding,
     icon_layout: itemRec.icon_layout ?? track.icon_layout,
     motion: itemRec.motion ?? track.motion,
     display_text: itemRec.display_text ?? track.display_text,
@@ -483,6 +489,9 @@ export function parseRemotionInfographic(raw: unknown): RemotionInfographicSpec 
     asString(obj.highlight_target_text) ?? asString(props.highlightTargetText) ?? asString(props.highlight_target_text);
   if (highlight) props.highlightTargetText = highlight;
   if (obj.display_text != null && props.displayText == null) props.displayText = obj.display_text;
+  const contentBinding =
+    asString(obj.content_binding) ?? asString(obj.contentBinding) ?? asString(props.content_binding);
+  if (contentBinding) props.contentBinding = contentBinding;
   if (icons.length && props.iconName == null) props.iconName = icons.length === 1 ? icons[0] : icons;
   const hasCopy =
     Boolean(asString(props.title) || asString(props.label) || asString(props.quote)) ||
@@ -503,6 +512,7 @@ export function parseRemotionInfographic(raw: unknown): RemotionInfographicSpec 
   } else if (placement === 'fullscreen' || placement === 'full_screen') {
     placement = 'full_frame';
   }
+  if (placement) props.placement = placement;
 
   const overlayId =
     asOverlayId(obj.id) ??

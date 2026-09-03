@@ -736,12 +736,21 @@ function extractSceneGraphicsOverlays(
   const push = (sceneId: string, spec: RemotionInfographicSpec | null) => {
     if (!spec) return;
     const existing = map[sceneId] ?? [];
-    const dup = existing.some(
-      (s) =>
-        (spec.overlayId && s.overlayId === spec.overlayId) ||
-        (spec.beatId && s.beatId === spec.beatId && spec.animationType === s.animationType),
-    );
-    if (dup) return;
+    const sameAs = (s: RemotionInfographicSpec) =>
+      (spec.overlayId && s.overlayId === spec.overlayId) ||
+      Boolean(spec.beatId && s.beatId === spec.beatId && spec.animationType === s.animationType);
+    const dupIndex = existing.findIndex(sameAs);
+    if (dupIndex >= 0) {
+      const current = existing[dupIndex]!;
+      const currentIcons = Array.isArray(current.props.icons) ? current.props.icons.length : 0;
+      const nextIcons = Array.isArray(spec.props.icons) ? spec.props.icons.length : 0;
+      if (nextIcons > currentIcons) {
+        const copy = existing.slice();
+        copy[dupIndex] = spec;
+        map[sceneId] = copy;
+      }
+      return;
+    }
     (map[sceneId] ??= []).push(spec);
   };
   for (const item of res?.infographics_list ?? []) {
