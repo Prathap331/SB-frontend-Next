@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import type { RemotionInfographicSpec } from '@/lib/video-editor/infographics';
 import { InfographicRenderer } from '@/remotion/InfographicRenderer';
 import { specToInfographicData } from '@/remotion/data';
@@ -12,7 +13,8 @@ type Props = {
 
 /** Modal / library preview — passes the complete InfographicData into Remotion. */
 export function RemotionInfographicPreview({ spec, width = 1920, height = 1080 }: Props) {
-  const data = specToInfographicData(spec);
+  // Stable identity so the autoplaying Player is not handed a new payload each render.
+  const data = useMemo(() => specToInfographicData(spec), [spec]);
 
   if (spec.durationFrames <= 0) {
     return (

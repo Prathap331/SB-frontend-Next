@@ -454,9 +454,22 @@ export function parseRemotionInfographic(raw: unknown): RemotionInfographicSpec 
     props.items = fromDisplay.items;
   }
   const icons = collectIcons(obj, props);
-  if (icons.length) props.icons = icons;
+  if (icons.length) {
+    props.icons = icons;
+    // Hand the backend's own key through untouched (single name stays a string, a list
+    // stays a list) so the Remotion component receives `icon_name` exactly as sent.
+    props.icon_name = icons.length === 1 ? icons[0] : icons;
+  }
   const iconLayout = asString(obj.icon_layout) ?? asString(props.icon_layout) ?? asString(props.iconLayout);
   if (iconLayout) props.iconLayout = iconLayout;
+  // The entrance style the backend picked for on-screen text. Without this the Remotion
+  // composition fell back to its own generic fade, so the library preview and the
+  // timeline's CSS text overlay animated differently for the same overlay.
+  const textAnimationStyle =
+    asString(obj.text_animation_style) ??
+    asString(props.textAnimationStyle) ??
+    asString(props.text_animation_style);
+  if (textAnimationStyle?.trim()) props.textAnimationStyle = textAnimationStyle.trim();
   const motion = parseOverlayMotion(obj.motion) ?? parseOverlayMotion(props.motion);
   if (motion) props.motion = motion;
   const colorHint = asString(obj.color_hint)?.trim();

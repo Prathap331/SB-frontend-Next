@@ -113,6 +113,56 @@ function LucideSvg({
   return <LucideIconView name={name} size={size} color={color} />;
 }
 
+function ClockIconRow({
+  p,
+  clock,
+  size = 36,
+  stacked = true,
+}: {
+  p: BaseAnim;
+  clock: Clock;
+  size?: number;
+  stacked?: boolean;
+}) {
+  if (!p.icons.length) return null;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: stacked ? 16 : 0,
+        marginRight: stacked ? 0 : 16,
+        flexShrink: 0,
+      }}
+    >
+      {p.icons.map((name, index) => {
+        const appear = interp(clock.frame, [index * 6, index * 6 + 8], [0, 1]);
+        return (
+          <div
+            key={`${name}-${index}`}
+            style={{
+              opacity: appear,
+              transform: `scale(${0.75 + 0.25 * appear})`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: size + 20,
+              height: size + 20,
+              borderRadius: 14,
+              backgroundColor: 'rgba(12, 16, 22, 0.55)',
+              boxShadow: `0 0 16px ${p.color}44`,
+            }}
+          >
+            <LucideSvg name={name} size={size} color={p.color} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function readGeometry(props: Record<string, unknown>, type: string): GeometryPx {
   const defaults = defaultGeometry(type);
   const raw = props.geometryPx;
@@ -346,10 +396,12 @@ function LowerThird({ p, clock }: { p: BaseAnim; clock: Clock }) {
           display: 'flex',
           alignItems: 'center',
           padding: '0 24px',
+          gap: 16,
           background: 'rgba(0,0,0,0.55)',
           borderLeft: `6px solid ${p.color}`,
         })}
       >
+        <ClockIconRow p={p} clock={clock} size={32} stacked={false} />
         <span style={{ color: 'white', fontSize: 40, fontWeight: 700, fontFamily: 'Arial Black, sans-serif' }}>
           {p.text}
         </span>
@@ -370,8 +422,11 @@ function KineticCaption({ p, clock }: { p: BaseAnim; clock: Clock }) {
           justifyContent: 'center',
           transform: `scale(${0.8 + 0.2 * pop})`,
           opacity,
+          flexDirection: 'column',
+          gap: 12,
         })}
       >
+        <ClockIconRow p={p} clock={clock} size={40} />
         <span
           style={{
             color: 'white',
@@ -401,8 +456,10 @@ function CalloutTextbox({ p, clock }: { p: BaseAnim; clock: Clock }) {
           display: 'flex',
           alignItems: 'center',
           padding: '0 28px',
+          gap: 16,
         })}
       >
+        <ClockIconRow p={p} clock={clock} size={32} stacked={false} />
         <span style={{ color: 'white', fontSize: 34, fontWeight: 600, lineHeight: 1.3 }}>
           {p.lines.length > 1 ? p.lines.join('\n') : p.text}
         </span>
@@ -780,6 +837,7 @@ function TitleCardVisual({ p, clock }: { p: BaseAnim; clock: Clock }) {
       }}
     >
       <div style={{ textAlign: 'center', transform: `translateY(${y}px)`, color: p.color }}>
+        <ClockIconRow p={p} clock={clock} size={44} />
         <div style={{ width: 64, height: 2, backgroundColor: p.color, margin: '0 auto 28px' }} />
         <div style={{ fontSize: 72, fontWeight: 600, fontFamily: 'Georgia, serif', letterSpacing: '-0.02em' }}>
           {title}
@@ -818,6 +876,7 @@ function QuoteCardVisual({ p, clock }: { p: BaseAnim; clock: Clock }) {
       }}
     >
       <div style={{ textAlign: 'center', transform: `translateY(${y}px)`, maxWidth: 1400 }}>
+        <ClockIconRow p={p} clock={clock} size={44} />
         <div style={{ fontSize: 96, lineHeight: 1, color: 'rgba(212,175,55,0.85)', marginBottom: 12 }}>“</div>
         <div
           style={{
@@ -866,6 +925,7 @@ function DataVizVisual({ p, clock }: { p: BaseAnim; clock: Clock }) {
       }}
     >
       <div style={{ textAlign: 'center', transform: `scale(${scale})` }}>
+        <ClockIconRow p={p} clock={clock} size={44} />
         <div
           style={{
             color: '#f8fafc',
@@ -921,6 +981,7 @@ function BulletListVisual({ p, clock }: { p: BaseAnim; clock: Clock }) {
       }}
     >
       <div style={{ width: '100%', maxWidth: 900 }}>
+        <ClockIconRow p={p} clock={clock} size={40} />
         {title ? (
           <div
             style={{

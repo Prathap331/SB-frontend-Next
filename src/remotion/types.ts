@@ -14,6 +14,8 @@ export type InfographicData = {
 
 export type InfographicRemotionInputProps = {
   data: InfographicData;
+  /** Backend `icon_name` — one Lucide id or a list — passed straight into the composition. */
+  icon_name?: string | string[];
 };
 
 export function isInfographicData(value: unknown): value is InfographicData {

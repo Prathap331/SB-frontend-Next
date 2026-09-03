@@ -13,7 +13,7 @@ import {
   readString,
   readStringArray,
 } from '../props';
-import { OverlayMotionFrame } from './overlays';
+import { IconRow, OverlayMotionFrame } from './overlays';
 
 type LayoutProps = {
   data: InfographicData;
@@ -62,6 +62,7 @@ export function TitleCardLayout({ data }: LayoutProps) {
           zIndex: 1,
         }}
       >
+        <IconRow data={data} />
         <div
           style={{
             width: 64,
@@ -139,6 +140,7 @@ export function QuoteCardLayout({ data }: LayoutProps) {
             : contentPanelStyle(data.placement).transform,
         }}
       >
+        <IconRow data={data} />
         <div
           style={{
             fontSize: isFullFramePlacement(data.placement) ? 96 : 56,
@@ -222,6 +224,7 @@ export function DataVizLayout({ data }: LayoutProps) {
           zIndex: 1,
         }}
       >
+        <IconRow data={data} />
         <div
           style={{
             transform: `scale(${scale})`,
@@ -285,6 +288,7 @@ export function BulletListLayout({ data }: LayoutProps) {
           maxWidth: isFullFramePlacement(data.placement) ? 900 : undefined,
         }}
       >
+        <IconRow data={data} align={isFullFramePlacement(data.placement) ? 'flex-start' : 'center'} />
         {title ? (
           <h2
             style={{
@@ -421,6 +425,8 @@ export function GenericPropsLayout({ data }: LayoutProps) {
     'colorHint',
     'iconName',
     'highlightTargetText',
+    'textAnimationStyle',
+    'text_animation_style',
   ]);
   const extraEntries = Object.entries(data.props).filter(([key, value]) => {
     if (knownKeys.has(key)) return false;

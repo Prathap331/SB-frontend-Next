@@ -198,6 +198,9 @@ function IconSequenceInner({ data, icons }: LayoutProps & { icons: string[] }) {
   const color = readAccentColor(data.props, '#6F7F93');
   const layout = (readString(data.props, 'iconLayout') ?? 'sequence').toLowerCase();
   const isPop = (data.animation_type || '').toLowerCase() === 'icon_pop_in' || icons.length <= 1;
+  const connect = `${readOverlayMotion(data.props)?.style || ''} ${data.animation_type || ''}`
+    .toLowerCase()
+    .includes('connect');
   const title = readNonEmptyString(data.props, 'title');
   const textItems = readStringArray(data.props, 'items');
 
@@ -428,5 +431,60 @@ export function OverlayTextLayout({ data }: LayoutProps) {
         ) : null}
       </div>
     </OverlayMotionFrame>
+  );
+}
+
+/**
+ * Icon row for layouts that are not icon-first (title / quote / data-viz / bullets).
+ * Renders whatever `icon_name` the backend sent — one name or a list — so an icon is
+ * never silently dropped just because the animation type is not `icon_*`.
+ */
+export function IconRow({
+  data,
+  size = 44,
+  align = 'center',
+}: {
+  data: InfographicData;
+  size?: number;
+  align?: 'center' | 'flex-start';
+}) {
+  const frame = useCurrentFrame();
+  const { durationInFrames, fps } = useVideoConfig();
+  const { fadeInEnd, fadeOutStart } = useFadeWindow(frame, durationInFrames, fps);
+  const icons = readIconNames(data.props);
+  const color = readAccentColor(data.props);
+  if (icons.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: align,
+        gap: 18,
+        marginBottom: 24,
+      }}
+    >
+      {icons.map((name, index) => (
+        <div
+          key={`${name}-${index}`}
+          style={{
+            opacity: itemRevealOpacity(frame, index, fadeInEnd, fadeOutStart, durationInFrames, 6),
+            transform: `scale(${springScale(frame, fps, index * 5)})`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: size + 28,
+            height: size + 28,
+            borderRadius: 16,
+            backgroundColor: 'rgba(12, 16, 22, 0.55)',
+            boxShadow: `0 0 18px ${color}44`,
+          }}
+        >
+          <LucideIconView name={name} size={size} color={color} />
+        </div>
+      ))}
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import { resolveInfographicRenderer } from '@/remotion/registry';
 import { parseRemotionInfographic } from '@/lib/video-editor/infographics';
 import { specToInfographicData } from '@/remotion/data';
-import { DataDrivenInfographic } from '@/remotion/compositions/DataDrivenInfographic';
+import { DataDrivenInfographic, withIconNameProp } from '@/remotion/compositions/DataDrivenInfographic';
 
 describe('data-driven infographic resolver', () => {
   it('CASE 1: TitleCard by animation_type — full data object into Remotion', () => {
@@ -158,5 +158,52 @@ describe('data-driven infographic resolver', () => {
       expect(resolved.renderer.animationType).toBe('full_screen_color_wash');
       expect(resolved.renderer.layout).toBe('known');
     }
+  });
+
+  it('passes icon_name as a Remotion input prop — a list stays a list', () => {
+    const spec = parseRemotionInfographic({
+      animation_type: 'icon_sequence',
+      icon_name: ['coins', 'trending-up', 'wallet'],
+      duration_frames: 90,
+      placement: 'center_left',
+    });
+    expect(spec).not.toBeNull();
+    const resolved = resolveInfographicRenderer(specToInfographicData(spec!));
+    expect(resolved.ok).toBe(true);
+    if (resolved.ok) {
+      expect(resolved.renderer.inputProps.icon_name).toEqual(['coins', 'trending-up', 'wallet']);
+      expect(resolved.renderer.inputProps.data.props.icon_name).toEqual([
+        'coins',
+        'trending-up',
+        'wallet',
+      ]);
+    }
+  });
+
+  it('passes a single icon_name string through to Remotion', () => {
+    const spec = parseRemotionInfographic({
+      animation_type: 'icon_pop_in',
+      icon_name: 'brain-circuit',
+      duration_frames: 60,
+      placement: 'top_right',
+    });
+    const resolved = resolveInfographicRenderer(specToInfographicData(spec!));
+    expect(resolved.ok).toBe(true);
+    if (resolved.ok) {
+      expect(resolved.renderer.inputProps.icon_name).toBe('brain-circuit');
+    }
+  });
+
+  it('merges an icon_name list onto Remotion data.props', () => {
+    const spec = parseRemotionInfographic({
+      animation_type: 'callout_textbox',
+      display_text: 'Follow the money',
+      duration_frames: 90,
+      placement: 'bottom',
+    });
+    const data = specToInfographicData(spec!);
+    const merged = withIconNameProp(data, ['coins', 'trending-up']);
+    expect(merged.props.icon_name).toEqual(['coins', 'trending-up']);
+    expect(merged.props.icons).toEqual(['coins', 'trending-up']);
   });
 });

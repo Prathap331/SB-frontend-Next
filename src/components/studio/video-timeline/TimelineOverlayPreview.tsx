@@ -3,7 +3,7 @@
 import type { TimelineClip } from '@/lib/video-editor/types';
 import { EDITOR_FPS } from '@/lib/video-editor/fps';
 import { clipRemotionToInfographicData } from '@/remotion/data';
-import { TaxonomyVisual } from '@/remotion/layouts/taxonomyVisuals';
+import { InfographicVisual } from '@/remotion/compositions/DataDrivenInfographic';
 
 const DESIGN_W = 1920;
 const DESIGN_H = 1080;
@@ -16,8 +16,8 @@ type Props = {
 };
 
 /**
- * Timeline overlay preview: 1920×1080 taxonomy visuals, CSS-scaled to the
- * preview frame. No Remotion Player — keeps playback smooth.
+ * Timeline overlay preview: same InfographicVisual as the library Remotion
+ * Player (layout + text_animation_style + icon_name), CSS-scaled to the frame.
  */
 export function TimelineOverlayPreview({ clip, currentTime, width, height }: Props) {
   const remotion = clip.remotion;
@@ -51,8 +51,12 @@ export function TimelineOverlayPreview({ clip, currentTime, width, height }: Pro
           transformOrigin: 'top left',
         }}
       >
-        <TaxonomyVisual
+        <InfographicVisual
           data={data}
+          icon_name={
+            (data.props.icon_name as string | string[] | undefined) ??
+            (data.props.iconName as string | string[] | undefined)
+          }
           clock={{ frame, fps: EDITOR_FPS, durationInFrames }}
         />
       </div>

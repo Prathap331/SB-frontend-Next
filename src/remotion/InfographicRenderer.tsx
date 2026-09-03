@@ -58,15 +58,17 @@ export function InfographicRenderer({
       ? `${spec.overlayId ?? spec.compositionId}:${spec.animationType}:${spec.durationFrames}`
       : '';
 
+  // Keyed on the payload objects themselves, not a field signature: `setCurrentTime`
+  // shallow-copies timeline state, so clip.remotion keeps its identity across playback
+  // frames (no Player churn), while an actual props edit — new text, new icon_name —
+  // rebuilds here. A signature that omitted `props` left the timeline showing stale
+  // content while the library preview showed the edited version.
   const data = useMemo((): InfographicData | null => {
     if (dataProp) return dataProp;
     if (spec) return specToInfographicData(spec);
     if (clip?.remotion) return clipRemotionToInfographicData(clip.remotion);
     return null;
-    // clip.remotion / spec objects are captured via remotionSig so identity churn
-    // during playback does not rebuild inputProps and remount the Player.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataProp, remotionSig]);
+  }, [dataProp, spec, clip?.remotion]);
 
   const resolved = useMemo(() => {
     if (!data) return null;

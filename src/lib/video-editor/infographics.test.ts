@@ -10,6 +10,8 @@ import {
   sceneLocalOverlayStart,
   seededTextFromOverlayItem,
 } from './infographics';
+import { remotionPayloadFromSpec } from './infographics';
+import { clipRemotionToInfographicData, specToInfographicData } from '@/remotion/data';
 
 describe('remotion infographic timing', () => {
   it('treats duration_frames as frames at EDITOR_FPS', () => {
@@ -336,5 +338,54 @@ describe('remotion infographic timing', () => {
         animation: { animation_type: 'lower_third', duration_frames: 90 },
       }),
     ).toBeNull();
+  });
+});
+
+describe('library preview and video preview parity', () => {
+  const item = {
+    id: 'ov-1',
+    animation_type: 'callout_textbox',
+    display_text: 'Follow the money',
+    text_animation_style: 'slide_in_left',
+    icon_name: ['coins', 'trending-up'],
+    placement: 'bottom',
+    color_hint: '#F5A623',
+    start: 1,
+    end: 4,
+  };
+
+  it('carries text_animation_style into the Remotion props', () => {
+    const spec = parseRemotionInfographic(item);
+    expect(spec?.props.textAnimationStyle).toBe('slide_in_left');
+  });
+
+  it('hands icon_name to Remotion as sent — a list stays a list', () => {
+    const spec = parseRemotionInfographic(item);
+    expect(spec?.props.icon_name).toEqual(['coins', 'trending-up']);
+    expect(spec?.props.icons).toEqual(['coins', 'trending-up']);
+  });
+
+  it('hands a single icon_name through as a string', () => {
+    const spec = parseRemotionInfographic({ ...item, icon_name: 'brain-circuit' });
+    expect(spec?.props.icon_name).toBe('brain-circuit');
+    expect(spec?.props.icons).toEqual(['brain-circuit']);
+  });
+
+  it('splits a comma-separated icon_name into names', () => {
+    const spec = parseRemotionInfographic({ ...item, icon_name: 'globe, network, shield' });
+    expect(spec?.props.icon_name).toEqual(['globe', 'network', 'shield']);
+  });
+
+  it('builds identical InfographicData for the library card and the timeline clip', () => {
+    const spec = parseRemotionInfographic(item)!;
+    const fromLibrary = specToInfographicData(spec);
+    const fromTimelineClip = clipRemotionToInfographicData(remotionPayloadFromSpec(spec));
+    expect(fromTimelineClip).toEqual(fromLibrary);
+  });
+
+  it('keeps the animation style on a seeded text overlay clip payload', () => {
+    const seeded = seededTextFromOverlayItem(item);
+    expect(seeded?.animationStyle).toBe('slide_in_left');
+    expect(seeded?.remotion?.props.textAnimationStyle).toBe('slide_in_left');
   });
 });

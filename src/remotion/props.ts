@@ -41,11 +41,23 @@ export function readIconNames(props: Record<string, unknown>): string[] {
     }
     return [];
   };
-  for (const key of ['icons', 'iconName', 'icon_name', 'icon_names', 'icon']) {
+  for (const key of ['icon_name', 'iconName', 'icons', 'icon_names', 'icon']) {
     const list = fromUnknown(props[key]);
     if (list.length) return list;
   }
   return [];
+}
+
+/**
+ * Backend `text_animation_style` (fade_in, slide_in_left, typewriter, …) as handed to
+ * Remotion. Same value the timeline's CSS text overlay uses, so both render alike.
+ */
+export function readTextAnimationStyle(props: Record<string, unknown>): string | undefined {
+  for (const key of ['textAnimationStyle', 'text_animation_style', 'animationStyle']) {
+    const v = readNonEmptyString(props, key);
+    if (v) return v;
+  }
+  return undefined;
 }
 
 export function readObjectArray(

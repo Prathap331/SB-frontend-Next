@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import { DataDrivenInfographic } from './compositions/DataDrivenInfographic';
 import type { InfographicData, InfographicRemotionInputProps } from './types';
-import { propsHaveRenderableContent } from './props';
+import { propsHaveRenderableContent, readIconNames } from './props';
 
 /**
  * Known animation layouts implemented in the data-driven composition.
@@ -126,13 +126,23 @@ export function resolveInfographicRenderer(data: InfographicData): InfographicRe
     return { ok: false, animationType, reason: 'empty_props' };
   }
 
+  const iconNames = readIconNames(data.props ?? {});
+  const icon_name =
+    iconNames.length === 0
+      ? undefined
+      : typeof data.props.icon_name === 'string' && !data.props.icon_name.includes(',')
+        ? data.props.icon_name
+        : iconNames.length === 1
+          ? iconNames[0]
+          : iconNames;
+
   return {
     ok: true,
     renderer: {
       animationType,
       layout: known ? 'known' : 'generic',
       component: DataDrivenInfographic,
-      inputProps: { data },
+      inputProps: icon_name != null ? { data, icon_name } : { data },
     },
   };
 }
