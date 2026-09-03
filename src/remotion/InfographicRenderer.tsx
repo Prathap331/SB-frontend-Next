@@ -9,8 +9,12 @@ import {
 } from '@/lib/video-editor/infographics';
 import type { TimelineClip } from '@/lib/video-editor/types';
 import type { InfographicData } from '@/remotion/types';
+import { isFullFramePlacement } from '@/remotion/placement';
 import { useEffect, useMemo, useRef } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
+
+const DESIGN_WIDTH = 1920;
+const DESIGN_HEIGHT = 1080;
 
 type Props = {
   /** Preferred: complete backend-shaped infographic object. */
@@ -41,18 +45,28 @@ export function InfographicRenderer({
   clip,
   currentTime = 0,
   startSeconds,
-  width = 1920,
-  height = 1080,
+  width = DESIGN_WIDTH,
+  height = DESIGN_HEIGHT,
   previewMode = false,
 }: Props) {
   const playerRef = useRef<PlayerRef>(null);
+  const lastFrameRef = useRef<number | null>(null);
+
+  const remotionSig = clip?.remotion
+    ? `${clip.id}:${clip.remotion.animationType}:${clip.remotion.durationFrames}:${clip.remotion.placement}`
+    : spec
+      ? `${spec.overlayId ?? spec.compositionId}:${spec.animationType}:${spec.durationFrames}`
+      : '';
 
   const data = useMemo((): InfographicData | null => {
     if (dataProp) return dataProp;
     if (spec) return specToInfographicData(spec);
     if (clip?.remotion) return clipRemotionToInfographicData(clip.remotion);
     return null;
-  }, [dataProp, spec, clip]);
+    // clip.remotion / spec objects are captured via remotionSig so identity churn
+    // during playback does not rebuild inputProps and remount the Player.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataProp, remotionSig]);
 
   const resolved = useMemo(() => {
     if (!data) return null;
@@ -79,22 +93,33 @@ export function InfographicRenderer({
   useEffect(() => {
     if (previewMode) return;
     const player = playerRef.current;
-    if (!player || !resolved || !('ok' in resolved) || !resolved.ok) return;
+    if (!player || !resolved || !resolved.ok) return;
+    if (lastFrameRef.current === localFrame) return;
+    lastFrameRef.current = localFrame;
     try {
-      player.pause();
       player.seekTo(localFrame);
     } catch {
       /* Player may not be ready on first paint */
     }
-  }, [localFrame, resolved, durationFrames, previewMode]);
+  }, [localFrame, resolved, previewMode]);
+
+  useEffect(() => {
+    lastFrameRef.current = null;
+  }, [remotionSig]);
+
+  const inputProps = useMemo(
+    () => (resolved && resolved.ok ? resolved.renderer.inputProps : null),
+    [resolved],
+  );
 
   if (!data || durationFrames <= 0) return null;
 
-  if (!resolved || !resolved.ok) {
+  if (!resolved || !resolved.ok || !inputProps) {
+    const fail = resolved && !resolved.ok ? resolved : null;
     const message =
-      resolved && 'reason' in resolved && resolved.reason === 'unsupported_engine'
-        ? `Unsupported infographic render engine: ${'engine' in resolved ? resolved.engine : ''}`
-        : `Unsupported infographic animation: ${resolved?.animationType || data.animation_type || 'unknown'}`;
+      fail && fail.reason === 'unsupported_engine'
+        ? `Unsupported infographic render engine: ${'engine' in fail ? fail.engine : ''}`
+        : `Unsupported infographic animation: ${fail && 'animationType' in fail ? fail.animationType : data.animation_type || 'unknown'}`;
     return (
       <div
         className={
@@ -112,24 +137,75 @@ export function InfographicRenderer({
     ? 'relative h-full w-full overflow-hidden'
     : 'absolute inset-0 z-[4] overflow-hidden';
 
+  if (!previewMode && (width <= 0 || height <= 0)) return null;
+
+  const isFull = isFullFramePlacement(data.placement);
+  const scaleX = width / DESIGN_WIDTH;
+  const scaleY = height / DESIGN_HEIGHT;
+  const uniform = Math.min(scaleX, scaleY);
+
   return (
     <div className={shellClass} style={{ pointerEvents: previewMode ? 'auto' : 'none' }}>
-      <Player
-        ref={playerRef}
-        component={resolved.renderer.component}
-        inputProps={resolved.renderer.inputProps}
-        durationInFrames={durationFrames}
-        compositionWidth={width}
-        compositionHeight={height}
-        fps={EDITOR_FPS}
-        style={{ width: '100%', height: '100%', background: 'transparent' }}
-        controls={previewMode}
-        loop={previewMode}
-        autoPlay={previewMode}
-        clickToPlay={false}
-        doubleClickToFullscreen={false}
-        acknowledgeRemotionLicense
-      />
+      {previewMode ? (
+        <Player
+          ref={playerRef}
+          component={resolved.renderer.component}
+          inputProps={inputProps}
+          durationInFrames={durationFrames}
+          compositionWidth={width}
+          compositionHeight={height}
+          fps={EDITOR_FPS}
+          style={{ width: '100%', height: '100%', background: 'transparent' }}
+          controls
+          loop
+          autoPlay
+          clickToPlay={false}
+          doubleClickToFullscreen={false}
+          acknowledgeRemotionLicense
+        />
+      ) : (
+        <div
+          style={
+            isFull
+              ? {
+                  position: 'absolute',
+                  inset: 0,
+                  width: DESIGN_WIDTH,
+                  height: DESIGN_HEIGHT,
+                  transform: `scale(${scaleX}, ${scaleY})`,
+                  transformOrigin: 'top left',
+                }
+              : {
+                  position: 'absolute',
+                  left: '50%',
+                  top: '50%',
+                  width: DESIGN_WIDTH,
+                  height: DESIGN_HEIGHT,
+                  marginLeft: -DESIGN_WIDTH / 2,
+                  marginTop: -DESIGN_HEIGHT / 2,
+                  transform: `scale(${uniform})`,
+                  transformOrigin: 'center center',
+                }
+          }
+        >
+          <Player
+            ref={playerRef}
+            component={resolved.renderer.component}
+            inputProps={inputProps}
+            durationInFrames={durationFrames}
+            compositionWidth={DESIGN_WIDTH}
+            compositionHeight={DESIGN_HEIGHT}
+            fps={EDITOR_FPS}
+            style={{ width: DESIGN_WIDTH, height: DESIGN_HEIGHT, background: 'transparent' }}
+            controls={false}
+            loop={false}
+            autoPlay={false}
+            clickToPlay={false}
+            doubleClickToFullscreen={false}
+            acknowledgeRemotionLicense
+          />
+        </div>
+      )}
     </div>
   );
 }

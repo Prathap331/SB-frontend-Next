@@ -86,9 +86,11 @@ export interface BrollSearchResponse {
 
 export interface EditVideoWordSegment {
   word: string;
-  start: number;
-  end: number;
-  score: number;
+  start?: number;
+  end?: number;
+  startFrame?: number;
+  endFrame?: number;
+  score?: number;
 }
 
 export interface EditVideoVoiceover {
@@ -164,10 +166,18 @@ export interface EditVideoBeat {
   beat_id: string;
   start: number;
   end: number;
+  startFrame?: number;
+  endFrame?: number;
+  start_sec?: number;
+  end_sec?: number;
   keywords?: string[];
   preferred_media_type?: 'video' | 'image';
   motion_type?: string;
   selected_asset?: EditVideoBeatAsset | null;
+  /** Present after a manual /broll override — preferred over selected_asset when both exist. */
+  broll_override?: EditVideoBeatAsset | null;
+  media?: EditVideoMedia;
+  trim?: { start: number; end: number };
 }
 
 export interface EditVideoScene {
@@ -200,6 +210,8 @@ export interface EditVideoScene {
   infographics?: unknown;
   caption_style?: unknown;
   background_color?: string | null;
+  /** Present only after a /trim edit. */
+  trim?: { start: number; end: number };
 }
 
 /** A full-screen/callout text overlay suggested for one scene (distinct from a graphic infographic). */
@@ -207,11 +219,30 @@ export interface EditVideoTextListItem {
   /** Overlay id — used by DELETE /timeline/{video_id}/overlay/{id}. */
   id?: string | number;
   scene_id: string;
+  beat_id?: string;
   animation_type: string;
+  category?: string;
   placement: string;
-  text: string;
-  duration_frames: number;
-  text_animation_style: string;
+  /** Legacy field — newer payloads use `display_text`. */
+  text?: string;
+  display_text?: string | string[] | null;
+  color_hint?: string | null;
+  duration_frames?: number;
+  text_animation_style?: string;
+  icon_name?: string | string[] | null;
+  icon_layout?: string | null;
+  motion?: {
+    start_xy_px?: number[];
+    end_xy_px?: number[];
+    motion_style?: string;
+  } | null;
+  /** Scene-local seconds the overlay is on screen. */
+  start?: number;
+  end?: number;
+  start_sec?: number;
+  end_sec?: number;
+  startFrame?: number;
+  endFrame?: number;
 }
 
 /** A Remotion-style graphic infographic suggested for one scene. */
@@ -219,13 +250,31 @@ export interface EditVideoInfographicListItem {
   /** Overlay id — used by DELETE /timeline/{video_id}/overlay/{id}. */
   id?: string | number;
   scene_id: string;
+  beat_id?: string;
   composition_id?: string;
   animation_type?: string;
+  category?: string;
   props?: Record<string, unknown>;
   duration_frames?: number;
   trigger?: string;
   placement?: string;
+  display_text?: string | string[] | null;
+  color_hint?: string | null;
+  icon_name?: string | string[] | null;
+  icon_layout?: string | null;
+  motion?: {
+    start_xy_px?: number[];
+    end_xy_px?: number[];
+    motion_style?: string;
+  } | null;
   render_engine_hint?: string;
+  /** Scene-local seconds the overlay is on screen. */
+  start?: number;
+  end?: number;
+  start_sec?: number;
+  end_sec?: number;
+  startFrame?: number;
+  endFrame?: number;
 }
 
 /** A single track in the Remotion-style timeline (audio_<scene_id>, broll_<scene_id>, caption_word, ...). Exact per-type fields aren't fully specified, so extra fields pass through untyped. */
@@ -306,26 +355,6 @@ export interface SceneStyleUpdateResponse {
   needs_render: boolean;
   /** Overlay id for the customized text — used by DELETE /timeline/{video_id}/overlay/{id}. */
   text_id?: string | number;
-}
-
-export interface SceneVoiceUpdate {
-  voice: string;
-  /** Seconds (scene-local) the voice clip starts/ends. */
-  start: number;
-  end: number;
-  /** 1–10 */
-  volume: number;
-  loudness_normalization: boolean;
-  text_normalization: boolean;
-}
-
-export interface SceneVoiceUpdateResponse {
-  video_id: string;
-  scene_id: string;
-  voice: string;
-  timeline_version: number;
-  timeline: EditVideoTimeline;
-  needs_render: boolean;
 }
 
 export interface SceneTrimUpdate {
@@ -1944,20 +1973,6 @@ export class ApiService {
       body: JSON.stringify(payload),
     });
     return this.parseJsonOrThrow<SceneStyleUpdateResponse>(response, 'Update scene style');
-  }
-
-  /** Regenerate the voiceover for one scene via POST .../scene/{scene_id}/voice. Clears any prior trim on that scene. */
-  static async updateSceneVoice(
-    videoId: string,
-    sceneId: string,
-    payload: SceneVoiceUpdate,
-  ): Promise<SceneVoiceUpdateResponse> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/voice`;
-    const response = await this.authorizedFetch(url, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    return this.parseJsonOrThrow<SceneVoiceUpdateResponse>(response, 'Update scene voice');
   }
 
   /** Trim a scene's audio/caption window via PATCH .../scene/{scene_id}/trim. `start`/`end` are seconds relative to that scene's original clip. */

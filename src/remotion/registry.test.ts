@@ -143,4 +143,20 @@ describe('data-driven infographic resolver', () => {
       expect(resolved.reason).toBe('empty_props');
     }
   });
+
+  it('taxonomy visual-only types resolve even with empty copy', () => {
+    const spec = parseRemotionInfographic({
+      animation_type: 'full_screen_color_wash',
+      color_hint: '#111827',
+      duration_frames: 30,
+      placement: 'full_frame',
+    });
+    expect(spec).not.toBeNull();
+    const resolved = resolveInfographicRenderer(specToInfographicData(spec!));
+    expect(resolved.ok).toBe(true);
+    if (resolved.ok) {
+      expect(resolved.renderer.animationType).toBe('full_screen_color_wash');
+      expect(resolved.renderer.layout).toBe('known');
+    }
+  });
 });

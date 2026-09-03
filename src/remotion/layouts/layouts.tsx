@@ -7,11 +7,13 @@ import { contentPanelStyle, isFullFramePlacement, rootFillStyle } from '../place
 import { itemRevealOpacity, slideY, springScale, useFadeWindow } from '../animation';
 import {
   propsHaveRenderableContent,
+  readAccentColor,
   readNonEmptyString,
   readObjectArray,
   readString,
   readStringArray,
 } from '../props';
+import { OverlayMotionFrame } from './overlays';
 
 type LayoutProps = {
   data: InfographicData;
@@ -36,6 +38,7 @@ export function TitleCardLayout({ data }: LayoutProps) {
   const { fadeInEnd, fadeOutStart, opacity } = useFadeWindow(frame, durationInFrames, fps);
   const title = readString(data.props, 'title') ?? '';
   const subtitle = readNonEmptyString(data.props, 'subtitle');
+  const color = readAccentColor(data.props);
   const y = slideY(frame, fadeInEnd, 28);
   const subtitleOpacity = interpolate(
     frame,
@@ -63,14 +66,14 @@ export function TitleCardLayout({ data }: LayoutProps) {
           style={{
             width: 64,
             height: 2,
-            backgroundColor: 'rgba(255,255,255,0.55)',
+            backgroundColor: color,
             margin: '0 auto 28px',
           }}
         />
         <h1
           style={{
             margin: 0,
-            color: '#f5f5f7',
+            color,
             fontSize: isFullFramePlacement(data.placement) ? 72 : 42,
             fontWeight: 600,
             letterSpacing: '-0.02em',
@@ -104,6 +107,7 @@ export function QuoteCardLayout({ data }: LayoutProps) {
   const { fadeInEnd, fadeOutStart, opacity } = useFadeWindow(frame, durationInFrames, fps, 0.5);
   const quote = readString(data.props, 'quote') ?? '';
   const attribution = readNonEmptyString(data.props, 'attribution');
+  const color = readAccentColor(data.props);
   const y = slideY(frame, fadeInEnd, 20);
   const scale = springScale(frame, fps);
   const attrOpacity = interpolate(
@@ -149,7 +153,7 @@ export function QuoteCardLayout({ data }: LayoutProps) {
         <p
           style={{
             margin: 0,
-            color: '#f2f0ea',
+            color,
             fontSize: isFullFramePlacement(data.placement) ? 48 : 28,
             fontWeight: 500,
             lineHeight: 1.35,
@@ -356,7 +360,7 @@ export function BulletListLayout({ data }: LayoutProps) {
 export function GenericPropsLayout({ data }: LayoutProps) {
   const frame = useCurrentFrame();
   const { durationInFrames, fps } = useVideoConfig();
-  const { fadeInEnd, fadeOutStart, opacity } = useFadeWindow(frame, durationInFrames, fps);
+  const { fadeInEnd, fadeOutStart } = useFadeWindow(frame, durationInFrames, fps);
 
   if (!propsHaveRenderableContent(data.props)) {
     return (
@@ -400,6 +404,23 @@ export function GenericPropsLayout({ data }: LayoutProps) {
     'label',
     'caption',
     'items',
+    'color',
+    'accent',
+    'color_hint',
+    'background',
+    'backgroundColor',
+    'bg',
+    'icons',
+    'icon_name',
+    'iconLayout',
+    'icon_layout',
+    'motion',
+    'motion_style',
+    'geometryPx',
+    'displayText',
+    'colorHint',
+    'iconName',
+    'highlightTargetText',
   ]);
   const extraEntries = Object.entries(data.props).filter(([key, value]) => {
     if (knownKeys.has(key)) return false;
@@ -408,17 +429,16 @@ export function GenericPropsLayout({ data }: LayoutProps) {
     if (Array.isArray(value)) return value.length > 0;
     return false;
   });
+  const color =
+    readAccentColor(data.props);
 
   return (
-    <AbsoluteFill style={rootFillStyle(data.placement)}>
-      {isFullFramePlacement(data.placement) ? <FullFrameBackdrop /> : null}
+    <OverlayMotionFrame data={data}>
       <div
         style={{
-          ...contentPanelStyle(data.placement),
-          opacity,
           fontFamily: 'system-ui, -apple-system, sans-serif',
           zIndex: 1,
-          color: '#f5f5f7',
+          color,
         }}
       >
         {label ? (
@@ -511,6 +531,6 @@ export function GenericPropsLayout({ data }: LayoutProps) {
           );
         })}
       </div>
-    </AbsoluteFill>
+    </OverlayMotionFrame>
   );
 }

@@ -17,7 +17,6 @@ import {
   findClip,
   recomputeTimelineDuration,
   replaceTrackClips,
-  roundTime,
   snapTime,
   splitClip,
   updateClipInState,
@@ -99,10 +98,11 @@ export function useVideoTimeline(initial?: TimelineState) {
   }, [timeline]);
 
   const setCurrentTime = useCallback((t: number) => {
-    setTimeline((prev) => ({
-      ...prev,
-      currentTime: roundTime(Math.max(0, Math.min(prev.duration, t))),
-    }));
+    setTimeline((prev) => {
+      const next = Math.max(0, Math.min(prev.duration, t));
+      if (Math.abs(prev.currentTime - next) < 0.0005) return prev;
+      return { ...prev, currentTime: next };
+    });
   }, []);
 
   const setPixelsPerSecond = useCallback((pps: number) => {

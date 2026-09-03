@@ -1,12 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { TimelineClip, TimelineState } from '@/lib/video-editor/types';
 import { getActiveClipsAtTime } from '@/lib/video-editor/math';
 import { isInfographicActiveAtTime } from '@/lib/video-editor/infographics';
-import { InfographicRenderer } from '@/remotion/InfographicRenderer';
-import { clipRemotionToInfographicData } from '@/remotion/data';
+import { TimelineOverlayPreview } from '@/components/studio/video-timeline/TimelineOverlayPreview';
 import { Sparkles, Film, Volume2 } from 'lucide-react';
+import {
+  captionTextAtTime,
+  DEFAULT_CAPTION_STYLE,
+  type CaptionStyle,
+} from '@/lib/video-editor/captions';
 
 type TextStyle = {
   /** Distance from the left edge of the frame, as a % of frame width. */
@@ -54,10 +58,10 @@ const TEXT_ANIMATION_CSS: Record<string, { duration: string; timing: string }> =
 
 const TEXT_ANIMATION_KEYFRAMES = `
 @keyframes txtAnim-fade_in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes txtAnim-slide_in_left { from { opacity: 0; transform: translate(calc(-50% - 40px), 0); } to { opacity: 1; transform: translate(-50%, 0); } }
-@keyframes txtAnim-slide_in_right { from { opacity: 0; transform: translate(calc(-50% + 40px), 0); } to { opacity: 1; transform: translate(-50%, 0); } }
-@keyframes txtAnim-slide_up { from { opacity: 0; transform: translate(-50%, 40px); } to { opacity: 1; transform: translate(-50%, 0); } }
-@keyframes txtAnim-slide_down { from { opacity: 0; transform: translate(-50%, -40px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes txtAnim-slide_in_left { from { opacity: 0; transform: translate(calc(-50% - var(--preview-slide, 40px)), 0); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes txtAnim-slide_in_right { from { opacity: 0; transform: translate(calc(-50% + var(--preview-slide, 40px)), 0); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes txtAnim-slide_up { from { opacity: 0; transform: translate(-50%, var(--preview-slide, 40px)); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes txtAnim-slide_down { from { opacity: 0; transform: translate(-50%, calc(var(--preview-slide, 40px) * -1)); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes txtAnim-zoom_in { from { opacity: 0; transform: translate(-50%, 0) scale(0.55); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
 @keyframes txtAnim-bounce { 0% { opacity: 0; transform: translate(-50%, 0) scale(0.3); } 50% { opacity: 1; transform: translate(-50%, 0) scale(1.12); } 70% { transform: translate(-50%, 0) scale(0.94); } 100% { transform: translate(-50%, 0) scale(1); } }
 @keyframes txtAnim-pop { 0% { opacity: 0; transform: translate(-50%, 0) scale(0.5); } 70% { opacity: 1; transform: translate(-50%, 0) scale(1.1); } 100% { transform: translate(-50%, 0) scale(1); } }
@@ -65,34 +69,19 @@ const TEXT_ANIMATION_KEYFRAMES = `
 @keyframes txtAnim-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 `;
 
-type CaptionLine = { text: string; start: number; end: number };
+const CAPTION_ANIMATION_KEYFRAMES = `
+@keyframes caption-pop { 0% { opacity: 0; transform: scale(0.55); } 70% { opacity: 1; transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes caption-zoom { 0% { opacity: 0; transform: scale(0.7); } 100% { opacity: 1; transform: scale(1); } }
+`;
 
-/** Groups word-level segments into readable caption lines (standard burned-in-caption chunking). */
-function buildCaptionLines(
-  words: { word: string; start: number; end: number }[] | undefined,
-): CaptionLine[] {
-  if (!words?.length) return [];
-  const lines: CaptionLine[] = [];
-  let current: { word: string; start: number; end: number }[] = [];
-
-  const flush = () => {
-    if (!current.length) return;
-    lines.push({
-      text: current.map((w) => w.word).join(' '),
-      start: current[0].start,
-      end: current[current.length - 1].end,
-    });
-    current = [];
+function captionStyleFromClip(clip: TimelineClip | undefined | null): CaptionStyle {
+  const raw = clip?.captionStyle;
+  if (!raw) return DEFAULT_CAPTION_STYLE;
+  return {
+    ...DEFAULT_CAPTION_STYLE,
+    ...raw,
+    animationType: (raw.animationType as CaptionStyle['animationType']) || DEFAULT_CAPTION_STYLE.animationType,
   };
-
-  for (const w of words) {
-    const prev = current[current.length - 1];
-    const gap = prev ? w.start - prev.end : 0;
-    if (current.length >= 8 || gap > 0.6) flush();
-    current.push(w);
-  }
-  flush();
-  return lines;
 }
 
 function isImageClip(clip: TimelineClip | undefined | null): boolean {
@@ -112,6 +101,26 @@ function isImageClip(clip: TimelineClip | undefined | null): boolean {
 
 function localMediaTime(clip: TimelineClip, globalTime: number): number {
   return Math.max(0, globalTime - clip.start + (clip.sourceStart || 0));
+}
+
+const DESIGN_WIDTH = 1920;
+
+function previewOverlayScale(width: number): number {
+  if (!Number.isFinite(width) || width <= 0) return 0;
+  return width / DESIGN_WIDTH;
+}
+
+function kenBurnsCss(clip: TimelineClip | undefined | null, currentTime: number): CSSProperties | undefined {
+  const kb = clip?.kenBurns;
+  if (!kb || !clip) return undefined;
+  const p = clip.duration > 0 ? Math.min(1, Math.max(0, (currentTime - clip.start) / clip.duration)) : 0;
+  const x = kb.startX + (kb.endX - kb.startX) * p;
+  const y = kb.startY + (kb.endY - kb.startY) * p;
+  return {
+    transform: `scale(1.12) translate(${x / 19.2}%, ${y / 10.8}%)`,
+    transformOrigin: 'center center',
+    filter: kb.colorHint ? `sepia(0.18) saturate(1.1)` : undefined,
+  };
 }
 
 function findNextAdjacentClip(clip: TimelineClip, timeline: TimelineState): TimelineClip | null {
@@ -144,6 +153,28 @@ export function TimelinePreview({
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [editingText, setEditingText] = useState(false);
+  const [frameSize, setFrameSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      setFrameSize((prev) =>
+        Math.abs(prev.w - rect.width) < 0.5 && Math.abs(prev.h - rect.height) < 0.5
+          ? prev
+          : { w: rect.width, h: rect.height },
+      );
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const overlayScale = previewOverlayScale(frameSize.w);
+  const scaleDesignPx = (designPx: number, minPx = 8) =>
+    Math.max(minPx, designPx * overlayScale);
 
   const beginDragText = (e: React.PointerEvent) => {
     if (editingText) return;
@@ -209,7 +240,15 @@ export function TimelinePreview({
   const timeRef = useRef(timeline.currentTime);
   const isPlayingRef = useRef(isPlaying);
   const mediaClipIdRef = useRef<string | null>(null);
-  timeRef.current = timeline.currentTime;
+  const mediaClipRef = useRef<TimelineClip | undefined>(undefined);
+  const voClipRef = useRef<TimelineClip | undefined>(undefined);
+  const voMutedRef = useRef(false);
+  const durationRef = useRef(timeline.duration);
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+  const onEndedRef = useRef(onEnded);
+  if (!isPlaying) {
+    timeRef.current = timeline.currentTime;
+  }
   isPlayingRef.current = isPlaying;
 
   const active = useMemo(
@@ -221,19 +260,19 @@ export function TimelinePreview({
     (c) => c.type === 'video' && timeline.tracks.find((t) => t.id === c.trackId)?.visible,
   );
   const brollClip = active.find((c) => c.type === 'broll');
-  const textClip = active.find((c) => c.type === 'text' || c.type === 'caption');
+  const textClip = active.find((c) => c.type === 'text');
   useEffect(() => {
     setEditingText(false);
   }, [textClip?.id]);
   const infoClip = active.find((c) => c.type === 'infographic');
   const voClip = active.find((c) => c.type === 'voiceover');
-
-  const captionLines = useMemo(() => buildCaptionLines(voClip?.wordSegments), [voClip]);
-  const activeCaption = useMemo(() => {
-    if (!voClip || !captionLines.length) return null;
-    const local = localMediaTime(voClip, timeline.currentTime);
-    return captionLines.find((l) => local >= l.start && local < l.end) ?? null;
-  }, [voClip, captionLines, timeline.currentTime]);
+  const voTrack = timeline.tracks.find((t) => t.type === 'voiceover');
+  const voTrackClip = voClip ?? voTrack?.clips.find((c) => c.type === 'voiceover');
+  const captionStyle = captionStyleFromClip(voTrackClip);
+  const activeCaption = useMemo(
+    () => captionTextAtTime(voTrackClip?.wordSegments, captionStyle.animationType, timeline.currentTime),
+    [voTrackClip, captionStyle.animationType, timeline.currentTime],
+  );
 
   const remotionInfoClip = useMemo(() => {
     if (!infoClip?.remotion) return null;
@@ -245,12 +284,26 @@ export function TimelinePreview({
     return infoClip;
   }, [infoClip, timeline.currentTime]);
 
+  const remotionTextClip = useMemo(() => {
+    if (!textClip?.remotion) return null;
+    const frames = textClip.remotion.durationFrames;
+    if (!Number.isFinite(frames) || frames <= 0) return null;
+    const dur = textClip.duration > 0 ? textClip.duration : textClip.sourceDuration;
+    if (!isInfographicActiveAtTime(timeline.currentTime, textClip.start, dur)) return null;
+    return textClip;
+  }, [textClip, timeline.currentTime]);
+
   const mediaClip = brollClip || videoClip;
   const mediaIsImage = isImageClip(mediaClip);
   const displayUrl = mediaClip?.sourceUrl || mediaClip?.thumbnailUrl || null;
   const displayThumb = mediaClip?.thumbnailUrl || null;
-  const voTrack = timeline.tracks.find((t) => t.type === 'voiceover');
   const voMuted = Boolean(voTrack?.muted);
+  mediaClipRef.current = mediaClip;
+  voClipRef.current = voClip;
+  voMutedRef.current = voMuted;
+  durationRef.current = timeline.duration;
+  onTimeUpdateRef.current = onTimeUpdate;
+  onEndedRef.current = onEnded;
 
   const getBuf = (which: 'A' | 'B') => (which === 'A' ? videoARef.current : videoBRef.current);
   const getActiveVideo = () => getBuf(activeBufRef.current);
@@ -498,21 +551,27 @@ export function TimelinePreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, voClip?.id, voClip?.sourceUrl, voMuted]);
 
-  // Drive currentTime: video clock (when playable), else VO, else soft clock (images / gaps).
+  // Drive currentTime from a stable rAF loop. Clip identity is read from refs so
+  // swapping clips / missing video never restarts the clock (which froze the playhead).
   useEffect(() => {
     if (!isPlaying) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
       return;
     }
     let last = performance.now();
     const tick = (now: number) => {
       if (!isPlayingRef.current) return;
+      const dt = Math.min(0.08, Math.max(0, (now - last) / 1000));
+      last = now;
 
+      const activeMedia = mediaClipRef.current;
+      const activeVo = voClipRef.current;
+      const duration = durationRef.current;
       const video = getActiveVideo();
       const audio = audioRef.current;
-      const activeMedia = mediaClip;
-      const activeVo = voClip;
-      const useVideoClock =
+
+      const videoReady =
         Boolean(activeMedia?.sourceUrl) &&
         !isImageClip(activeMedia) &&
         video &&
@@ -522,66 +581,56 @@ export function TimelinePreview({
         !video.ended &&
         video.readyState >= 2;
 
-      if (useVideoClock && video && activeMedia) {
-        const global = activeMedia.start + (video.currentTime - (activeMedia.sourceStart || 0));
-        // Clamp within the clip so we don't overshoot into a blank before React swaps clips
+      let next = timeRef.current + dt;
+
+      if (videoReady && video && activeMedia) {
+        const fromVideo = activeMedia.start + (video.currentTime - (activeMedia.sourceStart || 0));
         const clipEnd = activeMedia.start + activeMedia.duration;
-        const clamped = Math.min(global, clipEnd - 0.001);
-        timeRef.current = clamped;
-        onTimeUpdate(clamped);
-        if (global >= timeline.duration - 0.001) {
-          onEnded();
-          return;
-        }
-        // When this clip is exhausted, advance soft-clock onto the next frame so the
-        // next clip becomes active immediately (prefetch swap can then take over).
-        if (global >= clipEnd - 0.001) {
-          const next = Math.min(timeline.duration, clipEnd);
-          timeRef.current = next;
-          onTimeUpdate(next);
+        if (fromVideo >= clipEnd - 0.02) {
+          // Advance onto / past the cut so the next clip or gap becomes active.
+          next = Math.max(next, clipEnd);
+        } else {
+          next = fromVideo;
         }
       } else if (
         audio &&
         activeVo?.sourceUrl &&
-        !voMuted &&
+        !voMutedRef.current &&
         !audio.paused &&
         !audio.ended &&
-        audio.readyState >= 2 &&
-        // Prefer soft/video clock when a visual clip owns the playhead
-        !(activeMedia?.sourceUrl && !isImageClip(activeMedia))
+        audio.readyState >= 2
       ) {
-        const global = activeVo.start + (audio.currentTime - activeVo.sourceStart);
-        timeRef.current = global;
-        onTimeUpdate(global);
-        if (global >= timeline.duration) {
-          onEnded();
-          return;
-        }
-      } else {
-        const dt = Math.min(0.05, (now - last) / 1000);
-        last = now;
-        const next = timeRef.current + dt;
-        timeRef.current = next;
-        onTimeUpdate(next);
-        if (next >= timeline.duration) {
-          onEnded();
-          return;
+        const fromAudio = activeVo.start + (audio.currentTime - (activeVo.sourceStart || 0));
+        const voEnd = activeVo.start + activeVo.duration;
+        if (fromAudio >= voEnd - 0.02 && voEnd < duration - 0.05) {
+          next = Math.max(next, voEnd);
+        } else {
+          next = fromAudio;
         }
       }
 
+      if (next >= duration) {
+        timeRef.current = duration;
+        onTimeUpdateRef.current(duration);
+        onEndedRef.current();
+        return;
+      }
+      timeRef.current = next;
+      onTimeUpdateRef.current(next);
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, mediaClip, voClip, voMuted, onEnded, onTimeUpdate, timeline.duration, mediaIsImage]);
+  }, [isPlaying]);
 
   const hasVisual = Boolean(displayUrl || displayThumb || videoClip || brollClip);
   const hasVoiceOnly = Boolean(voClip?.sourceUrl) && !hasVisual;
   const showImage = Boolean(mediaIsImage && (displayUrl || displayThumb));
   const showVideo = Boolean(mediaClip?.sourceUrl && !mediaIsImage);
+  const kenStyle = kenBurnsCss(mediaClip, timeline.currentTime);
 
   return (
     <div
@@ -597,6 +646,7 @@ export function TimelinePreview({
         aspectRatio: '16 / 9',
         width: 'min(100%, 900px)',
         maxWidth: '900px',
+        ['--preview-slide' as string]: `${40 * overlayScale}px`,
       }}
     >
       <audio ref={audioRef} preload="auto" className="hidden" />
@@ -609,6 +659,7 @@ export function TimelinePreview({
           opacity: showVideo && activeBuf === 'A' ? 1 : 0,
           pointerEvents: 'none',
           zIndex: showVideo && activeBuf === 'A' ? 1 : 0,
+          ...(showVideo && activeBuf === 'A' ? kenStyle : {}),
         }}
         playsInline
         preload="auto"
@@ -621,6 +672,7 @@ export function TimelinePreview({
           opacity: showVideo && activeBuf === 'B' ? 1 : 0,
           pointerEvents: 'none',
           zIndex: showVideo && activeBuf === 'B' ? 1 : 0,
+          ...(showVideo && activeBuf === 'B' ? kenStyle : {}),
         }}
         playsInline
         preload="auto"
@@ -631,8 +683,9 @@ export function TimelinePreview({
         // eslint-disable-next-line @next/next/no-img-element -- remote stock stills; Next Image not required here
         <img
           src={displayUrl || displayThumb || ''}
-          alt={mediaClip?.name || 'B-roll'}
+          alt={mediaClip?.name || 'Video'}
           className="absolute inset-0 z-[1] h-full w-full object-cover"
+          style={kenStyle}
         />
       ) : null}
 
@@ -664,10 +717,20 @@ export function TimelinePreview({
       ) : null}
 
       {remotionInfoClip?.remotion ? (
-        <InfographicRenderer
-          data={clipRemotionToInfographicData(remotionInfoClip.remotion)}
+        <TimelineOverlayPreview
           clip={remotionInfoClip}
           currentTime={timeline.currentTime}
+          width={frameSize.w}
+          height={frameSize.h}
+        />
+      ) : null}
+
+      {remotionTextClip?.remotion && !editingText ? (
+        <TimelineOverlayPreview
+          clip={remotionTextClip}
+          currentTime={timeline.currentTime}
+          width={frameSize.w}
+          height={frameSize.h}
         />
       ) : null}
 
@@ -685,31 +748,76 @@ export function TimelinePreview({
         </div>
       )}
 
-      {activeCaption && (
-        <div className="pointer-events-none absolute bottom-[7%] left-1/2 z-[1] max-w-[88%] -translate-x-1/2 rounded-md bg-black/70 px-3 py-1.5 text-center">
-          <p className="text-[15px] font-bold leading-snug text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.8)] sm:text-lg">
-            {activeCaption.text}
+      {activeCaption && overlayScale > 0 && (
+        <div
+          className="pointer-events-none absolute z-[1] max-w-[88%]"
+          style={{
+            left: `${captionStyle.offsetX}%`,
+            bottom: `${captionStyle.offsetY}%`,
+            padding: `${6 * overlayScale}px ${12 * overlayScale}px`,
+            transform:
+              captionStyle.horizontalPosition === 'left'
+                ? 'none'
+                : captionStyle.horizontalPosition === 'right'
+                  ? 'translateX(-100%)'
+                  : 'translateX(-50%)',
+            textAlign:
+              captionStyle.horizontalPosition === 'left'
+                ? 'left'
+                : captionStyle.horizontalPosition === 'right'
+                  ? 'right'
+                  : 'center',
+          }}
+        >
+          <style>{CAPTION_ANIMATION_KEYFRAMES}</style>
+          <p
+            key={activeCaption}
+            className="font-bold leading-snug"
+            style={{
+              fontSize: `${scaleDesignPx(captionStyle.fontSize)}px`,
+              color: captionStyle.textColor,
+              textShadow: `0 ${overlayScale}px ${2 * overlayScale}px ${captionStyle.outlineColor}, 0 0 ${6 * overlayScale}px ${captionStyle.outlineColor}`,
+              animationName:
+                captionStyle.animationType === 'word_pop'
+                  ? 'caption-pop'
+                  : captionStyle.animationType === 'kinetic_caption'
+                    ? 'caption-zoom'
+                    : undefined,
+              animationDuration: captionStyle.animationType === 'word_pop' ? '0.28s' : '0.22s',
+              animationTimingFunction: 'ease',
+              animationFillMode: 'both',
+            }}
+          >
+            {activeCaption}
           </p>
         </div>
       )}
 
-      {textClip && (textClip.text || editingText) && (
+      {textClip && overlayScale > 0 && (textClip.text || editingText) && (!remotionTextClip || editingText) && (
         <div
           key={textClip.id}
           onPointerDown={beginDragText}
-          className="absolute z-[2] max-w-[85%] touch-none select-none rounded-lg px-3.5 py-2 text-center"
+          className="absolute z-[2] max-w-[85%] touch-none select-none rounded-lg text-center"
           style={{
-            left: `${textStyle.offsetX}%`,
-            bottom: `${textStyle.offsetY}%`,
-            transform: 'translateX(-50%)',
+            left: `${textClip.offsetX ?? textStyle.offsetX}%`,
+            bottom: `${textClip.offsetY ?? textStyle.offsetY}%`,
+            padding: `${8 * overlayScale}px ${14 * overlayScale}px`,
+            transform:
+              (textClip.offsetX ?? textStyle.offsetX) < 30
+                ? 'none'
+                : (textClip.offsetX ?? textStyle.offsetX) > 70
+                  ? 'translateX(-100%)'
+                  : 'translateX(-50%)',
             background: textStyle.background ? `${textStyle.bgColor}cc` : 'transparent',
             cursor: editingText ? 'text' : onTextPositionChange ? 'grab' : undefined,
             ...(editingText
               ? {}
               : {
-                  animationName: `txtAnim-${textStyle.animationStyle}`,
-                  animationDuration: TEXT_ANIMATION_CSS[textStyle.animationStyle]?.duration ?? '0.5s',
-                  animationTimingFunction: TEXT_ANIMATION_CSS[textStyle.animationStyle]?.timing ?? 'ease',
+                  animationName: `txtAnim-${textClip.animationStyle || textStyle.animationStyle}`,
+                  animationDuration:
+                    TEXT_ANIMATION_CSS[textClip.animationStyle || textStyle.animationStyle]?.duration ?? '0.5s',
+                  animationTimingFunction:
+                    TEXT_ANIMATION_CSS[textClip.animationStyle || textStyle.animationStyle]?.timing ?? 'ease',
                   animationFillMode: 'both' as const,
                 }),
           }}
@@ -728,12 +836,20 @@ export function TimelinePreview({
               onPointerDown={(e) => e.stopPropagation()}
               rows={Math.max(1, (textClip.text ?? '').split('\n').length)}
               className="min-w-[80px] resize-none whitespace-pre-wrap border-none bg-transparent text-center leading-snug font-semibold outline-none"
-              style={{ fontSize: `${textStyle.fontSize}px`, color: textStyle.textColor, fontFamily: textStyle.fontStyle }}
+              style={{
+                fontSize: `${scaleDesignPx(textStyle.fontSize)}px`,
+                color: textClip.textColor || textStyle.textColor,
+                fontFamily: textStyle.fontStyle,
+              }}
             />
           ) : (
             <p
               className="whitespace-pre-wrap leading-snug font-semibold"
-              style={{ fontSize: `${textStyle.fontSize}px`, color: textStyle.textColor, fontFamily: textStyle.fontStyle }}
+              style={{
+                fontSize: `${scaleDesignPx(textStyle.fontSize)}px`,
+                color: textClip.textColor || textStyle.textColor,
+                fontFamily: textStyle.fontStyle,
+              }}
             >
               {textClip.text}
             </p>

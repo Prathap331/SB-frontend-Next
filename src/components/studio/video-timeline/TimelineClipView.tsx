@@ -147,7 +147,10 @@ export const TimelineClipView = memo(function TimelineClipView({
 
       <div className="relative z-[1] flex h-full flex-col justify-center px-2 py-0.5">
         <span className="truncate text-[10px] font-semibold leading-tight">{clip.name}</span>
-        {(clip.type === 'text' || clip.type === 'caption') && clip.text && trackHeight >= 36 && (
+        {(clip.type === 'text' || clip.type === 'caption' || clip.type === 'infographic') &&
+          clip.text &&
+          clip.text !== clip.name &&
+          trackHeight >= 36 && (
           <span className="truncate text-[9px] opacity-70">{clip.text}</span>
         )}
       </div>

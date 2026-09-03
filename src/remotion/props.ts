@@ -21,7 +21,31 @@ export function readStringArray(
 ): string[] {
   const v = props[key];
   if (!Array.isArray(v)) return [];
-  return v.filter((item): item is string => typeof item === 'string');
+  return v.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
+}
+
+/** `icon_name` / `iconName` / `icons` as a string, comma list, or string[]. */
+export function readIconNames(props: Record<string, unknown>): string[] {
+  const fromUnknown = (value: unknown): string[] => {
+    if (value == null) return [];
+    if (typeof value === 'string') {
+      const t = value.trim();
+      if (!t) return [];
+      if (t.includes(',')) return t.split(',').map((part) => part.trim()).filter(Boolean);
+      return [t];
+    }
+    if (Array.isArray(value)) return value.flatMap(fromUnknown);
+    if (value && typeof value === 'object') {
+      const rec = value as Record<string, unknown>;
+      return fromUnknown(rec.name ?? rec.icon ?? rec.icon_name ?? rec.iconName ?? rec.value);
+    }
+    return [];
+  };
+  for (const key of ['icons', 'iconName', 'icon_name', 'icon_names', 'icon']) {
+    const list = fromUnknown(props[key]);
+    if (list.length) return list;
+  }
+  return [];
 }
 
 export function readObjectArray(
@@ -33,6 +57,18 @@ export function readObjectArray(
   return v.filter(
     (item): item is Record<string, unknown> =>
       Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+  );
+}
+
+export function readAccentColor(
+  props: Record<string, unknown>,
+  fallback = '#f5f5f7',
+): string {
+  return (
+    readNonEmptyString(props, 'color') ??
+    readNonEmptyString(props, 'accent') ??
+    readNonEmptyString(props, 'colorHint') ??
+    fallback
   );
 }
 

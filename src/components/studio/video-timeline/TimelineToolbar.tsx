@@ -6,6 +6,7 @@ import { formatTimecode } from '@/lib/video-editor/timecode';
 type Props = {
   currentTime: number;
   duration: number;
+  timeOrigin?: number;
   pixelsPerSecond: number;
   canUndo: boolean;
   canRedo: boolean;
@@ -22,6 +23,7 @@ type Props = {
 export function TimelineToolbar({
   currentTime,
   duration,
+  timeOrigin = 0,
   pixelsPerSecond,
   canUndo,
   canRedo,
@@ -38,7 +40,7 @@ export function TimelineToolbar({
     <div className="flex flex-shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5">
       <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#6e6e73]">Timeline</span>
       <span className="text-[11px] tabular-nums text-[#a1a1a6]">
-        {formatTimecode(currentTime)} / {formatTimecode(duration)}
+        {formatTimecode(currentTime + timeOrigin)} / {formatTimecode(duration + timeOrigin)}
       </span>
 
       <div className="ml-2 flex items-center gap-1">

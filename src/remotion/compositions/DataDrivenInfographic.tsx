@@ -1,21 +1,25 @@
 'use client';
 
 import React from 'react';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import type { InfographicRemotionInputProps } from '../types';
 import {
   BulletListLayout,
   DataVizLayout,
-  GenericPropsLayout,
   QuoteCardLayout,
   TitleCardLayout,
 } from '../layouts/layouts';
+import { IconOverlayLayout } from '../layouts/overlays';
+import { TaxonomyVisual } from '../layouts/taxonomyVisuals';
 
 /**
  * Single Remotion composition for all backend infographics.
- * Receives the COMPLETE InfographicData object — never individual hard-coded fields.
- * Layout is chosen by animation_type (not composition_id).
+ * The 7 remapped types keep their dedicated layouts; everything else uses
+ * the shared taxonomy visuals (same clock-driven preview as the timeline).
  */
 export const DataDrivenInfographic: React.FC<InfographicRemotionInputProps> = ({ data }) => {
+  const frame = useCurrentFrame();
+  const { fps, durationInFrames } = useVideoConfig();
   const type = (data.animation_type || '').trim();
 
   switch (type) {
@@ -27,8 +31,10 @@ export const DataDrivenInfographic: React.FC<InfographicRemotionInputProps> = ({
       return <DataVizLayout data={data} />;
     case 'bullet_list_reveal':
       return <BulletListLayout data={data} />;
+    case 'icon_sequence':
+    case 'icon_pop_in':
+      return <IconOverlayLayout data={data} />;
     default:
-      // Unknown animation_type: render props generically when possible.
-      return <GenericPropsLayout data={data} />;
+      return <TaxonomyVisual data={data} clock={{ frame, fps, durationInFrames }} />;
   }
 };

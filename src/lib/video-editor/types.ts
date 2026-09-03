@@ -50,6 +50,22 @@ export type TimelineClip = {
   placement?: string | null;
   mode?: 'overlay' | 'fullscreen' | null;
 
+  /** On-screen text look, when this clip is a text overlay (from text_list / animation tracks). */
+  textColor?: string;
+  bgColor?: string;
+  offsetX?: number;
+  offsetY?: number;
+  animationStyle?: string;
+
+  /** Ken Burns pan/zoom applied to a b-roll clip (from timeline `type: animation`). */
+  kenBurns?: {
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    colorHint?: string;
+  };
+
   /**
    * Remotion-backed infographic (composition_id + frame duration).
    * Timeline still stores start/duration in seconds; Remotion uses frames.
@@ -71,6 +87,18 @@ export type TimelineClip = {
 
   /** Word-level timing for a voiceover clip (scene-local seconds) — drives burned-in captions. */
   wordSegments?: { word: string; start: number; end: number }[];
+
+  /** Per-clip caption look (from caption_word.style / scene.caption_style). */
+  captionStyle?: {
+    offsetX: number;
+    offsetY: number;
+    fontSize: number;
+    textColor: string;
+    outlineColor: string;
+    verticalPosition: 'top' | 'middle' | 'bottom';
+    horizontalPosition: 'left' | 'center' | 'right';
+    animationType: string;
+  };
 };
 
 export type TimelineTrack = {

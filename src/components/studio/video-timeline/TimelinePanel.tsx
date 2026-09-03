@@ -21,11 +21,13 @@ type Props = {
   onClipSplit?: (clip: TimelineClip, splitAt: number) => void;
   /** Replaces the default delete (e.g. to also sync deletions to the backend). */
   onDelete?: () => void;
+  /** Project time (seconds) at the left edge of this scene's timeline. */
+  timeOrigin?: number;
 };
 
 const LABEL_WIDTH = 148;
 
-export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTrackIds, onClipSplit, onDelete }: Props) {
+export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTrackIds, onClipSplit, onDelete, timeOrigin = 0 }: Props) {
   const {
     timeline,
     snapGuide,
@@ -152,6 +154,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
       <TimelineToolbar
         currentTime={timeline.currentTime}
         duration={timeline.duration}
+        timeOrigin={timeOrigin}
         pixelsPerSecond={timeline.pixelsPerSecond}
         canUndo={historyLength > 0}
         canRedo={futureLength > 0}
@@ -196,6 +199,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
               duration={timeline.duration}
               pixelsPerSecond={timeline.pixelsPerSecond}
               width={contentWidth}
+              timeOrigin={timeOrigin}
               onSeek={setCurrentTime}
             />
           </div>
