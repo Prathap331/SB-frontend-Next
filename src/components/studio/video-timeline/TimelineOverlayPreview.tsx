@@ -2,6 +2,7 @@
 
 import type { TimelineClip } from '@/lib/video-editor/types';
 import { EDITOR_FPS } from '@/lib/video-editor/fps';
+import { enrichRemotionFromSpecs, type RemotionInfographicSpec } from '@/lib/video-editor/infographics';
 import { clipRemotionToInfographicData } from '@/remotion/data';
 import { InfographicVisual } from '@/remotion/compositions/DataDrivenInfographic';
 import { readIconNames } from '@/remotion/props';
@@ -14,14 +15,23 @@ type Props = {
   currentTime: number;
   width: number;
   height: number;
+  overlaySpecs?: RemotionInfographicSpec[];
 };
 
 /**
  * Timeline overlay preview: same InfographicVisual as the library Remotion
  * Player (layout + text_animation_style + icon_name), CSS-scaled to the frame.
  */
-export function TimelineOverlayPreview({ clip, currentTime, width, height }: Props) {
-  const remotion = clip.remotion;
+export function TimelineOverlayPreview({
+  clip,
+  currentTime,
+  width,
+  height,
+  overlaySpecs = [],
+}: Props) {
+  const remotion = clip.remotion
+    ? enrichRemotionFromSpecs(clip.remotion, overlaySpecs, clip)
+    : clip.remotion;
   if (!remotion || width <= 0 || height <= 0) return null;
   const data = clipRemotionToInfographicData(remotion);
 

@@ -778,13 +778,13 @@ function SpeedRamp({ p, clock }: { p: BaseAnim; clock: Clock }) {
 }
 
 function IconGraphic({ p, clock }: { p: BaseAnim; clock: Clock }) {
-  const names = p.icons.length ? p.icons : p.type === 'icon_pop_in' ? ['arrow-right'] : [];
+  const names = p.icons;
   const layout = (p.iconLayout || (names.length > 1 ? 'sequence' : 'cluster')).toLowerCase();
   const isPop = p.type === 'icon_pop_in' || names.length <= 1;
   const { x, y } = xyAt(clock, p);
   const iconBox = isPop
-    ? Math.max(96, Math.min(p.geometry.width, p.geometry.height))
-    : Math.min(88, Math.max(48, p.geometry.height * 0.4));
+    ? Math.max(96, Math.min(p.geometry.width, p.geometry.height) || 160)
+    : Math.max(88, Math.min(112, p.geometry.height * 0.45 || 88));
   const iconSize = Math.round(iconBox * 0.58);
   const connect = (p.motion?.style || p.type).toLowerCase().includes('connect');
   const growLeft = isRightPlacement(p.placement) || x > OVERLAY_DESIGN_W * 0.62;

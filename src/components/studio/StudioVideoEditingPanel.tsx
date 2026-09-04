@@ -33,6 +33,7 @@ import {
   Crop,
   Pipette,
   Download,
+  Subtitles,
 } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import {
@@ -53,11 +54,12 @@ import {
   type EditVideoScene,
   type EditVideoInfographicAnimationType,
   type SceneStyleUpdate,
-  type SceneStyleUpdateResponse,
   type SceneInfographicUpdate,
+  type BeatAnimationUpdateResponse,
   type EditVideoTextVerticalPosition,
   type EditVideoTextHorizontalPosition,
   type EditVideoTextAnimationStyle,
+  type EditVideoCaptionAnimationType,
   type EditVideoTextListItem,
 } from '@/services/api';
 import { useVideoTimeline } from '@/hooks/useVideoTimeline';
@@ -74,6 +76,8 @@ import {
   videosRowToEditVideoResponse,
   hydrateSceneTimelinesFromVideosRow,
   resolveBeatAsset,
+  brollDisplayName,
+  clipMediaKind,
 } from '@/lib/video-editor';
 import {
   listPickedBroll,
@@ -82,18 +86,20 @@ import {
   type PickedBrollItem,
 } from '@/lib/video-editor/broll-pick';
 import type { TimelineState, TimelineClip } from '@/lib/video-editor/types';
-import { readInfographicFromEditScene, parseRemotionInfographic, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, seededTextFromOverlayItem, kenBurnsFromTrack, mergeOverlayTrackOntoItem, rebaseOverlaySpec, rebaseSeededText, isOverlayGraphicTrack, type RemotionInfographicSpec, type SeededTextOverlay } from '@/lib/video-editor/infographics';
+import { readInfographicFromEditScene, parseRemotionInfographic, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, seededTextFromOverlayItem, kenBurnsFromTrack, mergeOverlayTrackOntoItem, rebaseOverlaySpec, rebaseSeededText, isOverlayGraphicTrack, collectSceneGraphicsOverlays, buildBeatAnimationUpdate, overlayDisplayTextForEditor, displayTextPayloadFromEditor, placementToPreviewOffsets, type RemotionInfographicSpec, type SeededTextOverlay } from '@/lib/video-editor/infographics';
 import { audioWindowSeconds, frameWindowSeconds, toSceneLocalSeconds } from '@/lib/video-editor/timings';
 import { TimelinePanel, TimelinePreview, TimelineClipView } from '@/components/studio/video-timeline';
 import { TRACK_ROW_HEIGHT } from '@/components/studio/video-timeline/trackLayout';
 import { RemotionInfographicPreview } from '@/remotion/RemotionInfographicPreview';
 import { LucideIconView } from '@/remotion/icons';
+import { placementToDesignPx } from '@/remotion/placement';
 import { formatTimecode, formatTimecodeShort } from '@/lib/video-editor/timecode';
 import { EDITOR_FPS } from '@/lib/video-editor/fps';
 import {
   captionStyleForScene,
   captionWordsForScene,
   findAudioTrack,
+  DEFAULT_CAPTION_STYLE,
   type CaptionStyle,
 } from '@/lib/video-editor/captions';
 
@@ -171,18 +177,49 @@ type Suggestion = {
   source?: 'video' | 'image' | null;
   /** True when the user picked this from Pexels via Find more — persist via POST .../broll/insert. */
   fromPexels?: boolean;
+  /** Backend beat id when this card was previously on the timeline and then removed. */
+  beatId?: string;
   /** Lucide names from infographics_list — shown on the card thumbnail. */
   icons?: string[];
 };
 
-/** Backend edits accumulated per scene while the user is working on it, flushed when they move on. */
-type PendingSceneEdits = {
-  /** Marks that the text style changed — the full current style snapshot is sent on flush. */
-  style?: boolean;
-  infographic?: SceneInfographicUpdate;
+type PendingSplit = {
+  beatId: string;
+  leftClipId: string;
+  rightClipId: string;
+  splitAtLocal: number;
+  newBeatId: string;
 };
 
-type LibraryTab = 'broll-videos' | 'broll-images' | 'infographics' | 'text';
+type PendingDelete = {
+  sceneId: string;
+  kind: 'broll' | 'overlay';
+  beatId?: string;
+  overlayId?: string;
+  contentType?: 'video' | 'image';
+};
+
+/** Backend edits accumulated per scene while the user is working on it, flushed when they move on. */
+type PendingSceneEdits = {
+  /** Burned-in captions — PATCH .../scene/{scene_id}/style. */
+  captionStyle?: boolean;
+  /** Text / infographic overlay clip ids — PATCH .../beat/{beat_id}/animation. */
+  overlayClipIds?: string[];
+  infographic?: SceneInfographicUpdate;
+  /** B-roll clips to upsert via select/insert using their current start/end. */
+  brollClipIds?: string[];
+  trim?: { start: number; end: number };
+  splits?: PendingSplit[];
+};
+
+type LibraryTab = 'broll-videos' | 'broll-images' | 'infographics' | 'text' | 'captions';
+type ColorPickerTarget =
+  | 'text'
+  | 'background'
+  | 'caption-text'
+  | 'caption-outline'
+  | 'caption-bg'
+  | 'info-color';
 
 function assetUrlKey(url?: string | null): string {
   if (!url) return '';
@@ -217,6 +254,7 @@ const LIBRARY_TABS: { id: LibraryTab; label: string; icon: React.ComponentType<{
   { id: 'broll-images', label: 'Images', icon: ImageIcon },
   { id: 'infographics', label: 'Infographics', icon: BarChart3 },
   { id: 'text', label: 'Text', icon: Type },
+  { id: 'captions', label: 'Captions', icon: Subtitles },
 ];
 
 type TextStyle = {
@@ -246,10 +284,40 @@ const TEXT_ANIMATIONS: { id: EditVideoTextAnimationStyle; label: string }[] = [
   { id: 'wipe', label: 'Wipe' },
 ];
 
+const CAPTION_ANIMATIONS: { id: EditVideoCaptionAnimationType; label: string }[] = [
+  { id: 'static_line', label: 'Static line' },
+  { id: 'kinetic_caption', label: 'Kinetic' },
+  { id: 'typewriter', label: 'Typewriter' },
+  { id: 'word_pop', label: 'Word pop' },
+];
+
+const INFOGRAPHIC_PLACEMENTS: { id: string; label: string }[] = [
+  { id: 'top_left', label: 'Top left' },
+  { id: 'top', label: 'Top' },
+  { id: 'top_right', label: 'Top right' },
+  { id: 'center_left', label: 'Middle left' },
+  { id: 'center', label: 'Center' },
+  { id: 'center_right', label: 'Middle right' },
+  { id: 'bottom_left', label: 'Bottom left' },
+  { id: 'bottom', label: 'Bottom' },
+  { id: 'bottom_right', label: 'Bottom right' },
+  { id: 'full_frame', label: 'Full frame' },
+];
+
 /** Builds a b-roll "beat" id: `s{sceneNum}_b{nth}` — the nth b-roll clip in that scene. */
 function makeBrollBeatId(sceneNum: string, nth: number): string {
   const n = parseInt(sceneNum, 10) || 1;
   return `s${n}_b${nth}`;
+}
+
+function makeTextBeatId(sceneNum: string): string {
+  const n = parseInt(sceneNum, 10) || 1;
+  return `s${n}_txt_${Date.now().toString(36)}`;
+}
+
+function makeOverlayBeatId(sceneNum: string, kind: 'txt' | 'gfx'): string {
+  const n = parseInt(sceneNum, 10) || 1;
+  return `s${n}_${kind}_${Date.now().toString(36)}`;
 }
 
 /** Maps the draggable vertical offset (% from bottom) to the backend's coarse position zone. */
@@ -264,6 +332,55 @@ function horizontalPositionFromOffsetX(offsetX: number): EditVideoTextHorizontal
   if (offsetX <= 30) return 'left';
   if (offsetX >= 70) return 'right';
   return 'center';
+}
+
+function marginHorizontalPercent(offsetX: number, horizontal: EditVideoTextHorizontalPosition): number {
+  if (horizontal === 'right') return Math.round(Math.max(0, Math.min(100, 100 - offsetX)));
+  return Math.round(Math.max(0, Math.min(100, offsetX)));
+}
+
+function findTimelineClip(timeline: TimelineState, clipId: string): TimelineClip | undefined {
+  for (const track of timeline.tracks) {
+    const clip = track.clips.find((c) => c.id === clipId);
+    if (clip) return clip;
+  }
+  return undefined;
+}
+
+function overlayIdFromBeatResponse(res: BeatAnimationUpdateResponse): string | undefined {
+  const animation = res.animation && typeof res.animation === 'object' ? res.animation : null;
+  return (
+    asOverlayId(res.overlay_id) ??
+    asOverlayId(res.text_id) ??
+    asOverlayId(animation?.id) ??
+    asOverlayId(animation?.overlay_id)
+  );
+}
+
+function collectSyncedIds(timelines: TimelineState[]): { beats: Set<string>; overlays: Set<string> } {
+  const beats = new Set<string>();
+  const overlays = new Set<string>();
+  for (const tl of timelines) {
+    for (const track of tl.tracks) {
+      for (const clip of track.clips) {
+        if (clip.beatId) beats.add(clip.beatId);
+        if (clip.overlayId) overlays.add(clip.overlayId);
+      }
+    }
+  }
+  return { beats, overlays };
+}
+
+function offsetYForVertical(position: EditVideoTextVerticalPosition): number {
+  if (position === 'top') return 82;
+  if (position === 'middle') return 48;
+  return 12;
+}
+
+function offsetXForHorizontal(position: EditVideoTextHorizontalPosition): number {
+  if (position === 'left') return 8;
+  if (position === 'right') return 92;
+  return 50;
 }
 
 /* ── Dummy data ────────────────────────────────────────────────────────────── */
@@ -545,7 +662,7 @@ function mapEditVideoResponse(res: EditVideoResponse): {
         brollVideoSuggestions[s.scene_id] = videoBeats.map((b, bi) => {
           const asset = resolveBeatAsset(b)!;
           return {
-            label: b.keywords?.[0] || b.beat_id,
+            label: brollDisplayName({ keywords: b.keywords, mediaKind: 'video', index: bi }),
             meta: `${asset.width ?? '?'}×${asset.height ?? '?'}`,
             start: 0,
             dur: Math.max(0.5, b.end - b.start),
@@ -563,7 +680,7 @@ function mapEditVideoResponse(res: EditVideoResponse): {
         brollImageSuggestions[s.scene_id] = imageBeats.map((b, bi) => {
           const asset = resolveBeatAsset(b)!;
           return {
-            label: b.keywords?.[0] || b.beat_id,
+            label: brollDisplayName({ keywords: b.keywords, mediaKind: 'image', index: bi }),
             meta: `${asset.width ?? '?'}×${asset.height ?? '?'}`,
             start: 0,
             dur: Math.max(0.5, b.end - b.start),
@@ -605,25 +722,9 @@ function mapEditVideoResponse(res: EditVideoResponse): {
       if (kb) kenByBeat.set(kb.beatId, kb);
     }
 
-    const seededInfographics: RemotionInfographicSpec[] = [];
-    const seenInfoKeys = new Set<string>();
-    const pushInfo = (spec: RemotionInfographicSpec | null) => {
-      if (!spec) return;
-      const rebased = rebaseOverlaySpec(spec, rebaseStart, duration);
-      const key = rebased.overlayId || rebased.beatId || `${rebased.animationType}-${rebased.startSeconds ?? 0}`;
-      if (seenInfoKeys.has(key)) return;
-      seenInfoKeys.add(key);
-      seededInfographics.push(rebased);
-    };
-    for (const item of res.infographics_list ?? []) {
-      if (item.scene_id !== s.scene_id) continue;
-      pushInfo(parseRemotionInfographic(mergeOverlayTrackOntoItem(item, timelineTracks, s.scene_id)));
-    }
-    for (const track of timelineTracks) {
-      if (typeof track.scene_id === 'string' && track.scene_id !== s.scene_id) continue;
-      if (!isOverlayGraphicTrack(track)) continue;
-      pushInfo(parseRemotionInfographic(track));
-    }
+    const seededInfographics = (collectSceneGraphicsOverlays(res.infographics_list, timelineTracks)[s.scene_id] ?? []).map(
+      (spec) => rebaseOverlaySpec(spec, rebaseStart, duration),
+    );
 
     const seededTextOverlays: SeededTextOverlay[] = [];
     const seenTextKeys = new Set<string>();
@@ -673,7 +774,7 @@ function mapEditVideoResponse(res: EditVideoResponse): {
       // B-roll `startFrame`/`endFrame` ÷ 30, then shifted by this scene's audio origin.
       beats: beats
         .filter((b) => resolveBeatAsset(b)?.file_url)
-        .map((b) => {
+        .map((b, bi) => {
           const asset = resolveBeatAsset(b)!;
           const kb = kenByBeat.get(b.beat_id);
           const brollTrack = timelineTracks.find(
@@ -691,6 +792,11 @@ function mapEditVideoResponse(res: EditVideoResponse): {
             : Math.max(beatStart + 0.1, b.end - origin);
           return {
             beatId: b.beat_id,
+            name: brollDisplayName({
+              keywords: b.keywords,
+              mediaKind: asset.source === 'image' ? 'image' : 'video',
+              index: bi,
+            }),
             start: beatStart,
             end: beatEnd,
             assetUrl: asset.file_url,
@@ -731,39 +837,7 @@ function extractSceneTextOverlays(
 function extractSceneGraphicsOverlays(
   res: EditVideoResponse | null | undefined,
 ): Record<string, RemotionInfographicSpec[]> {
-  const map: Record<string, RemotionInfographicSpec[]> = {};
-  const tracks = res?.timeline?.tracks ?? [];
-  const push = (sceneId: string, spec: RemotionInfographicSpec | null) => {
-    if (!spec) return;
-    const existing = map[sceneId] ?? [];
-    const sameAs = (s: RemotionInfographicSpec) =>
-      (spec.overlayId && s.overlayId === spec.overlayId) ||
-      Boolean(spec.beatId && s.beatId === spec.beatId && spec.animationType === s.animationType);
-    const dupIndex = existing.findIndex(sameAs);
-    if (dupIndex >= 0) {
-      const current = existing[dupIndex]!;
-      const currentIcons = Array.isArray(current.props.icons) ? current.props.icons.length : 0;
-      const nextIcons = Array.isArray(spec.props.icons) ? spec.props.icons.length : 0;
-      if (nextIcons > currentIcons) {
-        const copy = existing.slice();
-        copy[dupIndex] = spec;
-        map[sceneId] = copy;
-      }
-      return;
-    }
-    (map[sceneId] ??= []).push(spec);
-  };
-  for (const item of res?.infographics_list ?? []) {
-    if (!item?.scene_id) continue;
-    push(item.scene_id, parseRemotionInfographic(mergeOverlayTrackOntoItem(item, tracks, item.scene_id)));
-  }
-  for (const track of tracks) {
-    if (!isOverlayGraphicTrack(track)) continue;
-    const sceneId = typeof track.scene_id === 'string' ? track.scene_id : '';
-    if (!sceneId) continue;
-    push(sceneId, parseRemotionInfographic(track));
-  }
-  return map;
+  return collectSceneGraphicsOverlays(res?.infographics_list, res?.timeline?.tracks);
 }
 
 /** Best-effort adapter: a text_list item into a RemotionInfographicSpec so it reuses the same insert/render pipeline. */
@@ -780,15 +854,6 @@ function asOverlayId(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return undefined;
-}
-
-function overlayIdFromStyleResponse(res: SceneStyleUpdateResponse): string | undefined {
-  const style = res.caption_style && typeof res.caption_style === 'object' ? res.caption_style : null;
-  return (
-    asOverlayId(res.text_id) ??
-    asOverlayId(style?.text_id) ??
-    asOverlayId(style?.id)
-  );
 }
 
 /** Builds a library-card-shaped Suggestion from a Remotion spec, for the shared SuggestionCard component. */
@@ -868,7 +933,7 @@ function StatusPill({ status }: { status: SceneStatus }) {
   );
 }
 
-/** Mobile bottom-bar icon (Scenes / B-roll / Images / Infographics / Text) — opens a slide-up sheet. */
+/** Mobile bottom-bar icon (Scenes / library tabs) — opens a slide-up sheet. */
 function MobileBarIcon({
   icon: Icon,
   label,
@@ -909,6 +974,199 @@ function MobileToolButton({
       <Icon className="h-4.5 w-4.5" />
       <span>{label}</span>
     </button>
+  );
+}
+
+function CaptionStyleFields({
+  style,
+  onPatch,
+  onPickColor,
+}: {
+  style: CaptionStyle;
+  onPatch: (patch: Partial<CaptionStyle>) => void;
+  onPickColor: (target: 'caption-text' | 'caption-outline' | 'caption-bg') => void;
+}) {
+  const hasBackground = Boolean(style.backgroundColor);
+  return (
+    <>
+      <p className="mb-3 text-[10px] leading-relaxed text-[#a1a1a6]">
+        Drag the captions on the preview to position them. Changes apply to this scene&apos;s burned-in captions.
+      </p>
+
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Text colour</p>
+      <button
+        type="button"
+        onClick={() => onPickColor('caption-text')}
+        className="mb-3 flex w-full items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-[#1d1d1f] hover:border-gray-300"
+      >
+        <span
+          className="h-5 w-5 flex-shrink-0 rounded-full border border-gray-200"
+          style={{ background: style.textColor }}
+        />
+        {style.textColor}
+      </button>
+
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Outline colour</p>
+      <button
+        type="button"
+        onClick={() => onPickColor('caption-outline')}
+        className="mb-3 flex w-full items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-[#1d1d1f] hover:border-gray-300"
+      >
+        <span
+          className="h-5 w-5 flex-shrink-0 rounded-full border border-gray-200"
+          style={{ background: style.outlineColor }}
+        />
+        {style.outlineColor}
+      </button>
+
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-[#6e6e73]">Background</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={hasBackground}
+          onClick={() => onPatch({ backgroundColor: hasBackground ? null : '#000000' })}
+          className={`relative h-[19px] w-[34px] rounded-full transition-colors ${
+            hasBackground ? 'bg-[#1d1d1f]' : 'bg-gray-300'
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-[15px] w-[15px] rounded-full bg-white transition-all ${
+              hasBackground ? 'left-[17px]' : 'left-0.5'
+            }`}
+          />
+        </button>
+      </div>
+      {hasBackground && (
+        <button
+          type="button"
+          onClick={() => onPickColor('caption-bg')}
+          className="mb-3 flex w-full items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-[#1d1d1f] hover:border-gray-300"
+        >
+          <span
+            className="h-5 w-5 flex-shrink-0 rounded-full border border-gray-200"
+            style={{ background: style.backgroundColor || '#000000' }}
+          />
+          {style.backgroundColor}
+        </button>
+      )}
+
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font size (px)</p>
+      <input
+        type="number"
+        min={8}
+        max={300}
+        step={1}
+        value={style.fontSize}
+        onChange={(e) => {
+          const next = Math.max(8, Math.min(300, Number(e.target.value) || style.fontSize));
+          onPatch({ fontSize: next });
+        }}
+        className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
+      />
+
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Animation</p>
+      <select
+        value={style.animationType}
+        onChange={(e) => onPatch({ animationType: e.target.value as EditVideoCaptionAnimationType })}
+        className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
+      >
+        {CAPTION_ANIMATIONS.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.label}
+          </option>
+        ))}
+      </select>
+
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Vertical position</p>
+      <select
+        value={style.verticalPosition}
+        onChange={(e) => {
+          const verticalPosition = e.target.value as EditVideoTextVerticalPosition;
+          onPatch({ verticalPosition, offsetY: offsetYForVertical(verticalPosition) });
+        }}
+        className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
+      >
+        <option value="top">Top</option>
+        <option value="middle">Middle</option>
+        <option value="bottom">Bottom</option>
+      </select>
+
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Horizontal position</p>
+      <select
+        value={style.horizontalPosition}
+        onChange={(e) => {
+          const horizontalPosition = e.target.value as EditVideoTextHorizontalPosition;
+          onPatch({ horizontalPosition, offsetX: offsetXForHorizontal(horizontalPosition) });
+        }}
+        className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
+      >
+        <option value="left">Left</option>
+        <option value="center">Center</option>
+        <option value="right">Right</option>
+      </select>
+    </>
+  );
+}
+
+function InfographicOverlayFields({
+  clip,
+  onDisplayText,
+  onPlacement,
+  onPickColor,
+}: {
+  clip: TimelineClip;
+  onDisplayText: (value: string) => void;
+  onPlacement: (placement: string) => void;
+  onPickColor: () => void;
+}) {
+  const displayValue = overlayDisplayTextForEditor(clip.remotion?.props, clip.text || '');
+  const placement = clip.placement || clip.remotion?.placement || 'center';
+  const color =
+    (typeof clip.remotion?.props.colorHint === 'string' && clip.remotion.props.colorHint) ||
+    (typeof clip.remotion?.props.color === 'string' && clip.remotion.props.color) ||
+    clip.textColor ||
+    '#ffffff';
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-3.5">
+      <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+        Edit overlay
+      </p>
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Display text</p>
+      <textarea
+        value={displayValue}
+        rows={3}
+        onChange={(e) => onDisplayText(e.target.value)}
+        className="mb-3 w-full resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f] focus:ring-2 focus:ring-[#1d1d1f]/10"
+      />
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Position</p>
+      <select
+        value={INFOGRAPHIC_PLACEMENTS.some((p) => p.id === placement) ? placement : 'center'}
+        onChange={(e) => onPlacement(e.target.value)}
+        className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
+      >
+        {INFOGRAPHIC_PLACEMENTS.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.label}
+          </option>
+        ))}
+      </select>
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Colour hint</p>
+      <button
+        type="button"
+        onClick={onPickColor}
+        className="mb-1 flex w-full items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-medium text-[#1d1d1f] hover:border-gray-300"
+      >
+        <span
+          className="h-5 w-5 flex-shrink-0 rounded-full border border-gray-200"
+          style={{ background: color }}
+        />
+        {color}
+      </button>
+      <p className="text-[10px] leading-relaxed text-[#a1a1a6]">
+        Colour hint is styling only — it is not shown as on-screen copy.
+      </p>
+    </div>
   );
 }
 
@@ -1083,6 +1341,12 @@ export function StudioVideoEditingPanel({
   const flushSceneEditsRef = useRef<((sceneId: string) => void) | null>(null);
   /** Accumulates in-progress style/infographic edits per scene until the user moves on. */
   const pendingSceneEditsRef = useRef<Record<string, PendingSceneEdits>>({});
+  /** Backend deletes — sent only when the user confirms Render, so clips can be re-inserted first. */
+  const pendingDeletesRef = useRef<PendingDelete[]>([]);
+  const syncedBeatIdsRef = useRef<Set<string>>(new Set());
+  const syncedOverlayIdsRef = useRef<Set<string>>(new Set());
+  const flushPendingDeletesRef = useRef<(() => void) | null>(null);
+  const [detachedBrollCards, setDetachedBrollCards] = useState<Record<string, Suggestion[]>>({});
 
   const [timelinePanelHeight, setTimelinePanelHeight] = useState(() => {
     if (typeof window === 'undefined') return 240;
@@ -1102,13 +1366,16 @@ export function StudioVideoEditingPanel({
   });
   const textStyleRef = useRef(textStyle);
   textStyleRef.current = textStyle;
+  const [captionStyle, setCaptionStyle] = useState<CaptionStyle>({ ...DEFAULT_CAPTION_STYLE });
+  const captionStyleRef = useRef(captionStyle);
+  captionStyleRef.current = captionStyle;
   const [history, setHistory] = useState<string[]>([]);
   const [future, setFuture] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [expandedSceneText, setExpandedSceneText] = useState<Set<string>>(new Set());
   const [previewItem, setPreviewItem] = useState<{ item: Suggestion; type: 'broll' | 'infographic' } | null>(null);
   const [previewRemotion, setPreviewRemotion] = useState<RemotionInfographicSpec | null>(null);
-  const [colorPickerTarget, setColorPickerTarget] = useState<'text' | 'background' | null>(null);
+  const [colorPickerTarget, setColorPickerTarget] = useState<ColorPickerTarget | null>(null);
   const [libraryTab, setLibraryTab] = useState<LibraryTab>('broll-videos');
   /** Mobile: which bottom-bar slide-up sheet is open, if any. */
   const [mobileSheet, setMobileSheet] = useState<'scenes' | 'library' | null>(null);
@@ -1158,6 +1425,7 @@ export function StudioVideoEditingPanel({
       setSceneTimelines(maps);
       replaceTimelineState(target, false);
       setSelectedId(nextId);
+      setCaptionStyle(scene.captionStyle ?? { ...DEFAULT_CAPTION_STYLE });
     },
     [scenes, replaceTimelineState],
   );
@@ -1245,11 +1513,32 @@ export function StudioVideoEditingPanel({
       );
   }, []);
 
-  /** Marks the text style as changed for this scene — the full snapshot is built and sent on flush. */
-  const recordPendingStyle = useCallback((sceneId: string) => {
+  /** Marks burned-in caption style as changed for this scene. */
+  const recordPendingCaption = useCallback((sceneId: string) => {
     const current = pendingSceneEditsRef.current[sceneId] ?? {};
-    pendingSceneEditsRef.current[sceneId] = { ...current, style: true };
+    pendingSceneEditsRef.current[sceneId] = { ...current, captionStyle: true };
   }, []);
+
+  const recordPendingOverlay = useCallback(
+    (sceneId: string, clipId?: string, types?: Array<'text' | 'infographic'>) => {
+      const current = pendingSceneEditsRef.current[sceneId] ?? {};
+      const ids = new Set(current.overlayClipIds ?? []);
+      if (clipId) {
+        ids.add(clipId);
+      } else {
+        const wanted = new Set(types ?? ['text', 'infographic']);
+        for (const track of timelineRef.current.tracks) {
+          for (const clip of track.clips) {
+            if (clip.sceneId === sceneId && wanted.has(clip.type as 'text' | 'infographic')) {
+              ids.add(clip.id);
+            }
+          }
+        }
+      }
+      pendingSceneEditsRef.current[sceneId] = { ...current, overlayClipIds: [...ids] };
+    },
+    [],
+  );
 
   const recordPendingInfographic = useCallback((sceneId: string, patch: SceneInfographicUpdate) => {
     const current = pendingSceneEditsRef.current[sceneId] ?? {};
@@ -1257,6 +1546,40 @@ export function StudioVideoEditingPanel({
       ...current,
       infographic: { ...(current.infographic ?? {}), ...patch },
     };
+  }, []);
+
+  const recordPendingBroll = useCallback((sceneId: string, clipId: string) => {
+    const current = pendingSceneEditsRef.current[sceneId] ?? {};
+    const ids = new Set(current.brollClipIds ?? []);
+    ids.add(clipId);
+    pendingSceneEditsRef.current[sceneId] = { ...current, brollClipIds: [...ids] };
+  }, []);
+
+  const recordPendingTrim = useCallback((sceneId: string, trim: { start: number; end: number }) => {
+    const current = pendingSceneEditsRef.current[sceneId] ?? {};
+    pendingSceneEditsRef.current[sceneId] = { ...current, trim };
+  }, []);
+
+  const recordPendingSplit = useCallback((sceneId: string, split: PendingSplit) => {
+    const current = pendingSceneEditsRef.current[sceneId] ?? {};
+    pendingSceneEditsRef.current[sceneId] = {
+      ...current,
+      splits: [...(current.splits ?? []), split],
+    };
+  }, []);
+
+  const cancelPendingDelete = useCallback((opts: { beatId?: string | null; overlayId?: string | null }) => {
+    pendingDeletesRef.current = pendingDeletesRef.current.filter((op) => {
+      if (opts.beatId && op.beatId === opts.beatId) return false;
+      if (opts.overlayId && op.overlayId === opts.overlayId) return false;
+      return true;
+    });
+  }, []);
+
+  const clipExistsOnTimelines = useCallback((match: (clip: TimelineClip) => boolean) => {
+    const maps: Record<string, TimelineState> = { ...sceneTimelinesRef.current };
+    if (selectedIdRef.current) maps[selectedIdRef.current] = timelineRef.current;
+    return Object.values(maps).some((tl) => tl.tracks.some((t) => t.clips.some(match)));
   }, []);
 
   /** Looks up a scene's clip on a given track in the (about-to-be-left) timeline, for its scene-local start/end. */
@@ -1292,6 +1615,30 @@ export function StudioVideoEditingPanel({
     [timelineApi],
   );
 
+  const updateCaptionStyle = useCallback(
+    (patch: Partial<CaptionStyle>) => {
+      setCaptionStyle((prev) => ({ ...prev, ...patch }));
+      const sceneId = selectedIdRef.current;
+      if (!sceneId) return;
+      setScenes((prev) =>
+        prev.map((s) =>
+          s.id === sceneId
+            ? { ...s, captionStyle: { ...(s.captionStyle ?? DEFAULT_CAPTION_STYLE), ...patch } }
+            : s,
+        ),
+      );
+      const voClip = timelineRef.current.tracks
+        .find((t) => t.id === DEFAULT_TRACK_IDS.voiceover)
+        ?.clips.find((c) => c.sceneId === sceneId || c.type === 'voiceover');
+      if (voClip) {
+        const merged = { ...(voClip.captionStyle ?? DEFAULT_CAPTION_STYLE), ...patch };
+        patchSceneClip(sceneId, voClip.id, { captionStyle: merged });
+      }
+      recordPendingCaption(sceneId);
+    },
+    [patchSceneClip, recordPendingCaption],
+  );
+
   /** Called when the user leaves a scene — enqueues one request per edited field, in order. */
   const flushSceneEdits = useCallback(
     (sceneId: string) => {
@@ -1299,46 +1646,166 @@ export function StudioVideoEditingPanel({
       delete pendingSceneEditsRef.current[sceneId];
       if (!pending || !videoId) return;
 
-      if (pending.style) {
-        const textTrack = timelineRef.current.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.text);
-        const selectedClipId = timelineRef.current.selectedClipIds[0];
-        const textClip =
-          textTrack?.clips.find((c) => c.id === selectedClipId && c.type === 'text') ??
-          textTrack?.clips.find((c) => c.sceneId === sceneId) ??
-          textTrack?.clips[0];
-        const ts = textStyleRef.current;
+      if (pending.trim) {
+        const trim = pending.trim;
+        enqueueRequest(() =>
+          ApiService.trimScene(videoId, sceneId, { start: trim.start, end: trim.end }).then(
+            () => {},
+            (err) => {
+              showToast(err instanceof Error ? err.message : 'Failed to save trim');
+            },
+          ),
+        );
+      }
+
+      if (pending.splits?.length) {
+        for (const split of pending.splits) {
+          const left = findTimelineClip(timelineRef.current, split.leftClipId);
+          const right = findTimelineClip(timelineRef.current, split.rightClipId);
+          if (!left || !right) continue;
+          if (!syncedBeatIdsRef.current.has(split.beatId)) continue;
+          enqueueRequest(async () => {
+            try {
+              await ApiService.splitSceneBeat(videoId, sceneId, split.beatId, {
+                split_at: split.splitAtLocal,
+              });
+              await ApiService.insertSceneBeat(videoId, sceneId, split.beatId, {
+                start: right.start,
+                end: right.start + right.duration,
+              });
+              if (split.newBeatId) syncedBeatIdsRef.current.add(split.newBeatId);
+              if (right.beatId) syncedBeatIdsRef.current.add(right.beatId);
+            } catch (err) {
+              showToast(err instanceof Error ? err.message : 'Failed to save clip split');
+            }
+          });
+        }
+      }
+
+      if (pending.brollClipIds?.length) {
+        const brollClips = timelineRef.current.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll)?.clips ?? [];
+        for (const clipId of pending.brollClipIds) {
+          const clip = findTimelineClip(timelineRef.current, clipId);
+          if (!clip || clip.type !== 'broll') continue;
+          const source = clip.mediaKind === 'image' ? 'image' : 'video';
+          const start = clip.start;
+          const end = clip.start + clip.duration;
+          const beatId = clip.beatId;
+          const assetId = clip.assetId;
+          const alreadySynced = Boolean(beatId && syncedBeatIdsRef.current.has(beatId));
+          const hasNextBeat = brollClips.some(
+            (c) => c.id !== clip.id && c.sceneId === sceneId && c.start >= end - 0.05,
+          );
+
+          if (clip.fromPexels && assetId != null && !alreadySynced) {
+            enqueueRequest(() =>
+              ApiService.insertTimelineBroll(videoId, {
+                asset_id: assetId,
+                source,
+                scene_id: sceneId,
+                start,
+                end,
+              }).then(
+                (res) => {
+                  const returnedBeat = asOverlayId(res.beat_id);
+                  if (returnedBeat) {
+                    syncedBeatIdsRef.current.add(returnedBeat);
+                    patchSceneClip(sceneId, clip.id, { beatId: returnedBeat });
+                  } else if (beatId) {
+                    syncedBeatIdsRef.current.add(beatId);
+                  }
+                },
+                (err) => {
+                  showToast(err instanceof Error ? err.message : 'Failed to insert b-roll');
+                },
+              ),
+            );
+            continue;
+          }
+
+          if (assetId != null && beatId) {
+            enqueueRequest(() =>
+              ApiService.selectSceneBroll(videoId, sceneId, {
+                asset_id: assetId,
+                source,
+                beat_id: beatId,
+                start,
+                end,
+                adjust_next_beat: hasNextBeat,
+              }).then(
+                () => {
+                  syncedBeatIdsRef.current.add(beatId);
+                },
+                (err) => {
+                  showToast(err instanceof Error ? err.message : 'Failed to save b-roll selection');
+                },
+              ),
+            );
+          }
+        }
+      }
+
+      if (pending.captionStyle) {
+        const cs = captionStyleRef.current;
         const style: SceneStyleUpdate = {
-          font_size: ts.fontSize,
-          text_color: ts.textColor,
-          background_color: ts.bgColor,
-          vertical_position: verticalPositionFromOffsetY(ts.offsetY),
-          margin_bottom_percent: Math.round(ts.offsetY),
-          horizontal_position: horizontalPositionFromOffsetX(ts.offsetX),
-          margin_horizontal_percent: Math.round(ts.offsetX),
-          text_animation_style: ts.animationStyle,
-          ...(textClip
-            ? {
-                text_start: textClip.start,
-                text_end: textClip.start + textClip.duration,
-                text: textClip.text ?? '',
-              }
-            : {}),
+          font_size: cs.fontSize,
+          text_color: cs.textColor,
+          outline_color: cs.outlineColor,
+          animation_type: cs.animationType,
+          background_color: cs.backgroundColor ?? null,
+          vertical_position: cs.verticalPosition,
+          margin_bottom_percent: Math.round(cs.offsetY),
+          horizontal_position: cs.horizontalPosition,
+          margin_horizontal_percent: marginHorizontalPercent(cs.offsetX, cs.horizontalPosition),
         };
-        const textClipId = textClip?.id;
         enqueueRequest(() =>
           ApiService.updateSceneStyle(videoId, sceneId, style).then(
-            (res) => {
-              const textId = overlayIdFromStyleResponse(res);
-              if (textId && textClipId) {
-                patchSceneClip(sceneId, textClipId, { overlayId: textId });
-              }
-            },
+            () => {},
             (err) => {
               showToast(err instanceof Error ? err.message : 'Failed to save caption style');
             },
           ),
         );
       }
+
+      if (pending.overlayClipIds?.length) {
+        const sceneNum =
+          scenes.find((s) => s.id === sceneId)?.num ?? sceneId.replace(/^s/i, '') ?? '1';
+        const ts = textStyleRef.current;
+        for (const clipId of pending.overlayClipIds) {
+          const clip = findTimelineClip(timelineRef.current, clipId);
+          if (!clip || (clip.type !== 'text' && clip.type !== 'infographic')) continue;
+          const beatId =
+            clip.beatId || makeOverlayBeatId(sceneNum, clip.type === 'text' ? 'txt' : 'gfx');
+          if (!clip.beatId) {
+            patchSceneClip(sceneId, clip.id, { beatId });
+          }
+          const payload = buildBeatAnimationUpdate(clip, {
+            textColor: ts.textColor,
+            animationStyle: ts.animationStyle,
+            fontSize: ts.fontSize,
+            bgColor: ts.bgColor,
+            background: ts.background,
+          });
+          if (!payload) continue;
+          enqueueRequest(() =>
+            ApiService.updateBeatAnimation(videoId, sceneId, beatId, payload).then(
+              (res) => {
+                const overlayId = overlayIdFromBeatResponse(res);
+                if (overlayId) {
+                  syncedOverlayIdsRef.current.add(overlayId);
+                  patchSceneClip(sceneId, clip.id, { overlayId, beatId });
+                }
+                if (beatId) syncedBeatIdsRef.current.add(beatId);
+              },
+              (err) => {
+                showToast(err instanceof Error ? err.message : 'Failed to save overlay');
+              },
+            ),
+          );
+        }
+      }
+
       if (pending.infographic) {
         const infoBounds = sceneClipBounds(DEFAULT_TRACK_IDS.infographic, sceneId);
         const infographic: SceneInfographicUpdate = {
@@ -1355,9 +1822,48 @@ export function StudioVideoEditingPanel({
         );
       }
     },
-    [videoId, enqueueRequest, showToast, sceneClipBounds, patchSceneClip],
+    [videoId, enqueueRequest, showToast, sceneClipBounds, patchSceneClip, scenes],
   );
   flushSceneEditsRef.current = flushSceneEdits;
+
+  const flushPendingDeletes = useCallback(() => {
+    if (!videoId) return;
+    const ops = pendingDeletesRef.current;
+    pendingDeletesRef.current = [];
+    for (const op of ops) {
+      if (op.kind === 'broll' && op.beatId && op.sceneId) {
+        if (clipExistsOnTimelines((c) => c.beatId === op.beatId)) continue;
+        enqueueRequest(() =>
+          ApiService.deleteSceneContent(videoId, op.sceneId, {
+            content_type: op.contentType ?? 'video',
+            beat_id: op.beatId!,
+          }).then(
+            () => {
+              syncedBeatIdsRef.current.delete(op.beatId!);
+            },
+            (err) => {
+              showToast(err instanceof Error ? err.message : 'Failed to delete media');
+            },
+          ),
+        );
+        continue;
+      }
+      if (op.kind === 'overlay' && op.overlayId) {
+        if (clipExistsOnTimelines((c) => c.overlayId === op.overlayId)) continue;
+        enqueueRequest(() =>
+          ApiService.deleteTimelineOverlay(videoId, op.overlayId!).then(
+            () => {
+              syncedOverlayIdsRef.current.delete(op.overlayId!);
+            },
+            (err) => {
+              showToast(err instanceof Error ? err.message : 'Failed to delete overlay');
+            },
+          ),
+        );
+      }
+    }
+  }, [videoId, enqueueRequest, showToast, clipExistsOnTimelines]);
+  flushPendingDeletesRef.current = flushPendingDeletes;
 
   /** Flush whatever's still pending for the active scene if the editor unmounts. */
   useEffect(() => {
@@ -1383,14 +1889,21 @@ export function StudioVideoEditingPanel({
 
   const openRenderConfirm = useCallback(() => {
     if (!videoId) return;
-    if (selectedIdRef.current) flushSceneEditsRef.current?.(selectedIdRef.current);
     setRenderConfirmOpen(true);
   }, [videoId]);
 
   const handleRenderVideo = useCallback(async () => {
-    if (!videoId || queuedRequestCount > 0 || isRendering) return;
+    if (!videoId || isRendering) return;
     setIsRendering(true);
     try {
+      const pendingIds = new Set(Object.keys(pendingSceneEditsRef.current));
+      if (selectedIdRef.current) pendingIds.add(selectedIdRef.current);
+      for (const sceneId of pendingIds) {
+        flushSceneEditsRef.current?.(sceneId);
+      }
+      flushPendingDeletesRef.current?.();
+      await requestQueueRef.current.catch(() => {});
+
       const { videoUrl } = await ApiService.renderVideo(videoId);
       if (!videoUrl) {
         showToast('Render finished, but no video URL was returned');
@@ -1414,7 +1927,7 @@ export function StudioVideoEditingPanel({
     } finally {
       setIsRendering(false);
     }
-  }, [videoId, queuedRequestCount, isRendering, scriptRowId, userId, showToast]);
+  }, [videoId, isRendering, scriptRowId, userId, showToast]);
 
   const closeVideoPreview = useCallback(() => {
     previewVideoRef.current?.pause();
@@ -1482,6 +1995,10 @@ export function StudioVideoEditingPanel({
     setTrimDraft(null);
   }, [selected?.id]);
 
+  useEffect(() => {
+    setCaptionStyle(selected?.captionStyle ?? { ...DEFAULT_CAPTION_STYLE });
+  }, [selected?.id]);
+
   /** Sends the trim window for the active scene's voiceover clip — only fires on the "Trim" button click. */
   const commitTrim = useCallback(() => {
     if (!selected || !videoId || !selectedVoiceoverClip) return;
@@ -1496,16 +2013,9 @@ export function StudioVideoEditingPanel({
       };
     const sceneId = selected.id;
     sceneTrimCommittedRef.current[sceneId] = draft;
-    enqueueRequest(() =>
-      ApiService.trimScene(videoId, sceneId, { start: draft.start, end: draft.end }).then(
-        () => {},
-        (err) => {
-          showToast(err instanceof Error ? err.message : 'Failed to save trim');
-        },
-      ),
-    );
+    recordPendingTrim(sceneId, draft);
     showToast('Trim saved');
-  }, [selected, videoId, selectedVoiceoverClip, trimDraft, enqueueRequest, showToast]);
+  }, [selected, videoId, selectedVoiceoverClip, trimDraft, recordPendingTrim, showToast]);
 
   const dedupeSuggestions = (items: Suggestion[]) => {
     const seen = new Set<string>();
@@ -1517,22 +2027,112 @@ export function StudioVideoEditingPanel({
     });
   };
 
+  const brollTrackClips = useMemo(
+    () => timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll)?.clips ?? [],
+    [timelineApi.timeline.tracks],
+  );
+
+  /** B-roll clips of the selected scene — the media library mirrors these one-for-one. */
+  const sceneBrollClips = useMemo(() => {
+    const sceneId = selected?.id;
+    return brollTrackClips.filter(
+      (c) =>
+        Boolean(c.sourceUrl || c.thumbnailUrl) &&
+        (!sceneId || !c.sceneId || c.sceneId === sceneId),
+    );
+  }, [brollTrackClips, selected?.id]);
+
+  /**
+   * One card per clip on the track. Built from the clip itself — not by filtering the
+   * backend's candidate lists, whose asset URLs often differ from the picked asset, which
+   * left most clips without a card. Scene suggestions only enrich the card (size, match %).
+   */
+  const cardFromBrollClip = useCallback(
+    (clip: TimelineClip, index: number): Suggestion => {
+      const kind = clipMediaKind(clip);
+      const pool = selected
+        ? kind === 'image'
+          ? sceneBrollImageSuggestions[selected.id] ?? []
+          : sceneBrollVideoSuggestions[selected.id] ?? []
+        : [];
+      const match = pool.find((item) => clipMatchesSuggestion(clip, item));
+      return {
+        label: clip.name || brollDisplayName({ mediaKind: kind, index }),
+        meta: match?.meta ?? (kind === 'image' ? 'Image on timeline' : 'Video on timeline'),
+        start: clip.start,
+        dur: Math.max(0.1, Math.round(clip.duration * 10) / 10),
+        matchedScene: selected?.title ?? 'Timeline',
+        matchPct: match?.matchPct ?? 100,
+        mediaKind: kind,
+        previewUrl: clip.thumbnailUrl || clip.sourceUrl || match?.previewUrl || null,
+        assetUrl: clip.sourceUrl || match?.assetUrl || null,
+        assetId: clip.assetId ?? match?.assetId ?? null,
+        source: kind,
+        fromPexels: clip.fromPexels ?? match?.fromPexels,
+        beatId: clip.beatId,
+      };
+    },
+    [selected, sceneBrollImageSuggestions, sceneBrollVideoSuggestions],
+  );
+
+  /** Uploads still staged in the library — hidden once their clip is on the track. */
+  const stagedUploads = useCallback(
+    (uploads: Suggestion[]) =>
+      dedupeSuggestions(uploads).filter(
+        (item) => !sceneBrollClips.some((c) => clipMatchesSuggestion(c, item)),
+      ),
+    [sceneBrollClips],
+  );
+
   const sidebarBrollVideos = useMemo(() => {
     if (showDummyLibrary) {
       return dedupeSuggestions([...manualBrollVideos, ...BROLL_SUGGESTIONS]);
     }
-    const sceneItems = selected ? sceneBrollVideoSuggestions[selected.id] ?? [] : [];
-    const merged = dedupeSuggestions([...manualBrollVideos, ...sceneItems]);
-    return merged.length > 0 ? merged : BROLL_SUGGESTIONS;
-  }, [showDummyLibrary, manualBrollVideos, selected, sceneBrollVideoSuggestions]);
+    const sceneId = selected?.id ?? '';
+    const onTimeline = sceneBrollClips
+      .filter((c) => clipMediaKind(c) === 'video')
+      .map(cardFromBrollClip);
+    const detached = (detachedBrollCards[sceneId] ?? []).filter((item) => {
+      if (item.mediaKind === 'image') return false;
+      return !sceneBrollClips.some(
+        (c) => clipMatchesSuggestion(c, item) || (item.beatId && c.beatId === item.beatId),
+      );
+    });
+    return dedupeSuggestions([...stagedUploads(manualBrollVideos), ...detached, ...onTimeline]);
+  }, [
+    showDummyLibrary,
+    manualBrollVideos,
+    sceneBrollClips,
+    cardFromBrollClip,
+    stagedUploads,
+    detachedBrollCards,
+    selected?.id,
+  ]);
 
   const sidebarBrollImages = useMemo(() => {
     if (showDummyLibrary) {
       return dedupeSuggestions([...manualBrollImages, ...BROLL_IMAGE_SUGGESTIONS]);
     }
-    const sceneItems = selected ? sceneBrollImageSuggestions[selected.id] ?? [] : [];
-    return dedupeSuggestions([...manualBrollImages, ...sceneItems]);
-  }, [showDummyLibrary, manualBrollImages, selected, sceneBrollImageSuggestions]);
+    const sceneId = selected?.id ?? '';
+    const onTimeline = sceneBrollClips
+      .filter((c) => clipMediaKind(c) === 'image')
+      .map(cardFromBrollClip);
+    const detached = (detachedBrollCards[sceneId] ?? []).filter((item) => {
+      if (item.mediaKind === 'video') return false;
+      return !sceneBrollClips.some(
+        (c) => clipMatchesSuggestion(c, item) || (item.beatId && c.beatId === item.beatId),
+      );
+    });
+    return dedupeSuggestions([...stagedUploads(manualBrollImages), ...detached, ...onTimeline]);
+  }, [
+    showDummyLibrary,
+    manualBrollImages,
+    sceneBrollClips,
+    cardFromBrollClip,
+    stagedUploads,
+    detachedBrollCards,
+    selected?.id,
+  ]);
 
   /** Graphic infographics (infographics_list) for the selected scene — never mixed with text_list. */
   const graphicsForSelectedScene = useMemo(() => {
@@ -1566,6 +2166,16 @@ export function StudioVideoEditingPanel({
         return true;
       });
   }, [selected, sceneTextOverlays, sceneGraphicsOverlays]);
+
+  const overlaySpecsForPreview = useMemo(
+    () => [
+      ...Object.values(sceneGraphicsOverlays).flat(),
+      ...Object.values(sceneTextOverlays).flatMap((items) =>
+        items.map(textListItemToSpec).filter((s): s is RemotionInfographicSpec => s != null),
+      ),
+    ],
+    [sceneGraphicsOverlays, sceneTextOverlays],
+  );
 
   const overlayClipsForCards = useMemo(
     () =>
@@ -1758,6 +2368,11 @@ export function StudioVideoEditingPanel({
         : createSceneTimelinesMap(mappedScenes);
       setSceneTimelines(maps);
       replaceTimelineState((firstId && maps[firstId]) || maps[mappedScenes[0].id], false);
+      const synced = collectSyncedIds(Object.values(maps));
+      syncedBeatIdsRef.current = synced.beats;
+      syncedOverlayIdsRef.current = synced.overlays;
+      pendingDeletesRef.current = [];
+      setDetachedBrollCards({});
       setStage('editor');
       queueMicrotask(() => {
         listPickedBroll().forEach((item) => ingestPickedBroll(item, { silent: true }));
@@ -1929,6 +2544,11 @@ export function StudioVideoEditingPanel({
       setSelectedId(firstId);
       const timeline = maps[firstId];
       replaceTimelineState(timeline, false);
+      const synced = collectSyncedIds(Object.values(maps));
+      syncedBeatIdsRef.current = synced.beats;
+      syncedOverlayIdsRef.current = synced.overlays;
+      pendingDeletesRef.current = [];
+      setDetachedBrollCards({});
       setStage('editor');
       setSetupOpen(false);
       showToast('Video generated');
@@ -2292,8 +2912,9 @@ export function StudioVideoEditingPanel({
 
     const brollTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll);
     const existingForScene = brollTrack?.clips.filter((c) => c.sceneId === target.id).length ?? 0;
-    const beatId = makeBrollBeatId(target.num, existingForScene + 1);
+    const beatId = item.beatId || makeBrollBeatId(target.num, existingForScene + 1);
     const clipId = `br-${Date.now()}`;
+    const assetId = item.assetId ?? Math.floor(Math.random() * 1_000_000_000);
 
     timelineApi.addClip(DEFAULT_TRACK_IDS.broll, {
       id: clipId,
@@ -2309,58 +2930,24 @@ export function StudioVideoEditingPanel({
       originalSourceDuration: dur,
       sceneId: target.id,
       beatId,
+      assetId,
+      fromPexels: Boolean(item.fromPexels),
+    });
+
+    cancelPendingDelete({ beatId: item.beatId });
+    setDetachedBrollCards((prev) => {
+      const list = prev[target.id] ?? [];
+      const next = list.filter((s) => {
+        if (item.beatId && s.beatId === item.beatId) return false;
+        if (urlsMatch(s.assetUrl, item.assetUrl) || urlsMatch(s.previewUrl, item.previewUrl)) return false;
+        return true;
+      });
+      if (next.length === list.length) return prev;
+      return { ...prev, [target.id]: next };
     });
 
     showToast(`Inserted into ${target.title}`);
-
-    // Persist the pick server-side whenever we have a video + a real asset URL.
-    const assetUrl = item.assetUrl || item.previewUrl;
-    if (videoId && assetUrl) {
-      const sceneId = target.id;
-      const assetId = item.assetId ?? Math.floor(Math.random() * 1_000_000_000);
-      const source = item.source ?? (item.mediaKind === 'image' ? 'image' : 'video');
-      const clipEnd = start + dur;
-      const hasNextBeat = Boolean(
-        brollTrack?.clips.some((c) => c.sceneId === sceneId && c.start >= clipEnd - 0.05),
-      );
-
-      if (item.fromPexels && item.assetId != null) {
-        enqueueRequest(() =>
-          ApiService.insertTimelineBroll(videoId, {
-            asset_id: item.assetId as number,
-            source,
-            start,
-            end: clipEnd,
-            duration: dur,
-            motion_type: 'zoom_in',
-          }).then(
-            (res) => {
-              const returnedBeat = asOverlayId(res.beat_id);
-              if (returnedBeat) patchSceneClip(sceneId, clipId, { beatId: returnedBeat });
-            },
-            (err) => {
-              showToast(err instanceof Error ? err.message : 'Failed to insert b-roll');
-            },
-          ),
-        );
-      } else {
-        enqueueRequest(() =>
-          ApiService.selectSceneBroll(videoId, sceneId, {
-            asset_id: assetId,
-            source,
-            beat_id: beatId,
-            start,
-            end: clipEnd,
-            adjust_next_beat: hasNextBeat,
-          }).then(
-            () => {},
-            (err) => {
-              showToast(err instanceof Error ? err.message : 'Failed to save b-roll selection');
-            },
-          ),
-        );
-      }
-    }
+    recordPendingBroll(target.id, clipId);
   };
 
   /**
@@ -2370,40 +2957,34 @@ export function StudioVideoEditingPanel({
    */
   const handleClipSplit = useCallback(
     (clip: TimelineClip, splitAt: number) => {
-      if (!videoId || clip.trackId !== DEFAULT_TRACK_IDS.broll || !clip.sceneId || !clip.beatId) return;
+      if (clip.trackId !== DEFAULT_TRACK_IDS.broll || !clip.sceneId || !clip.beatId) return;
       const sceneId = clip.sceneId;
       const beatId = clip.beatId;
-      // split_at is relative to the clip's own start, not the timeline (e.g. a 30s clip split at
-      // its 15th second sends 15, regardless of where that clip sits on the timeline).
       const splitAtLocal = splitAt - clip.start;
-      // Left/right pieces are contiguous right after a split — insert reflects the gap between
-      // them (with a small inset), which is only meaningfully non-zero once the user pulls the
-      // two beats apart; immediately after splitting it's a single point at the split boundary.
-      const leftEnd = splitAt;
-      const rightStart = splitAt;
-      const insertStart = leftEnd + 1;
-      const insertEnd = Math.max(insertStart, rightStart - 1);
-
-      // The right half becomes its own beat — assign it the next beat id for this scene
-      // (splitClip() ids the new clip `${clip.id}-b`).
+      const rightClipId = `${clip.id}-b`;
+      let newBeatId = beatId;
       const sceneNum = scenes.find((s) => s.id === sceneId)?.num;
       if (sceneNum) {
         const brollTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll);
         const existingForScene = brollTrack?.clips.filter((c) => c.sceneId === sceneId).length ?? 0;
-        const newBeatId = makeBrollBeatId(sceneNum, existingForScene + 1);
-        timelineApi.updateClip(`${clip.id}-b`, { beatId: newBeatId });
+        newBeatId = makeBrollBeatId(sceneNum, existingForScene + 1);
+        timelineApi.updateClip(rightClipId, {
+          beatId: newBeatId,
+          assetId: clip.assetId,
+          fromPexels: clip.fromPexels,
+        });
       }
-
-      enqueueRequest(async () => {
-        try {
-          await ApiService.splitSceneBeat(videoId, sceneId, beatId, { split_at: splitAtLocal });
-          await ApiService.insertSceneBeat(videoId, sceneId, beatId, { start: insertStart, end: insertEnd });
-        } catch (err) {
-          showToast(err instanceof Error ? err.message : 'Failed to save clip split');
-        }
+      recordPendingSplit(sceneId, {
+        beatId,
+        leftClipId: clip.id,
+        rightClipId,
+        splitAtLocal,
+        newBeatId,
       });
+      recordPendingBroll(sceneId, clip.id);
+      recordPendingBroll(sceneId, rightClipId);
     },
-    [videoId, enqueueRequest, showToast, scenes, timelineApi],
+    [scenes, timelineApi, recordPendingSplit, recordPendingBroll],
   );
 
   /** Mobile bottom-bar Split button — captures the selected clip before splitting so handleClipSplit can sync it. */
@@ -2465,6 +3046,7 @@ export function StudioVideoEditingPanel({
       ),
     );
 
+    cancelPendingDelete({ overlayId: spec.overlayId });
     timelineApi.addClip(DEFAULT_TRACK_IDS.infographic, {
       id: `info-remotion-${target.id}-${Date.now()}`,
       type: 'infographic',
@@ -2477,6 +3059,7 @@ export function StudioVideoEditingPanel({
       originalSourceDuration: durSec,
       sceneId: target.id,
       overlayId: spec.overlayId,
+      beatId: spec.beatId || makeOverlayBeatId(target.num, 'gfx'),
       placement: spec.placement,
       mode: isFull ? 'fullscreen' : 'overlay',
       remotion: {
@@ -2496,7 +3079,7 @@ export function StudioVideoEditingPanel({
       animation_type: spec.animationType as EditVideoInfographicAnimationType,
       duration_frames: spec.durationFrames,
     });
-  }, [selected, timelineApi, pushHistory, showToast, recordPendingInfographic]);
+  }, [selected, timelineApi, pushHistory, showToast, recordPendingInfographic, cancelPendingDelete]);
 
   const isRemotionAlreadyOnTimeline = useCallback(
     (spec: RemotionInfographicSpec | null | undefined) => {
@@ -2521,6 +3104,9 @@ export function StudioVideoEditingPanel({
     const start = timelineApi.timeline.currentTime;
     const id = `txt-${Date.now()}`;
     const sceneId = selectedId;
+    const sceneNum = selected?.num ?? '1';
+    const ts = textStyleRef.current;
+    const beatId = makeTextBeatId(sceneNum);
     timelineApi.addClip(DEFAULT_TRACK_IDS.text, {
       id,
       type: 'text',
@@ -2531,43 +3117,171 @@ export function StudioVideoEditingPanel({
       sourceStart: 0,
       sourceDuration: 3,
       sceneId,
+      beatId,
+      offsetX: ts.offsetX,
+      offsetY: ts.offsetY,
+      textColor: ts.textColor,
+      bgColor: ts.bgColor,
+      animationStyle: ts.animationStyle,
     });
     timelineApi.selectClips([id]);
-    if (sceneId) recordPendingStyle(sceneId);
+    if (sceneId) recordPendingOverlay(sceneId, id);
     showToast('Text clip added');
-  }, [timelineApi, selectedId, showToast, recordPendingStyle]);
+  }, [timelineApi, selectedId, selected?.num, showToast, recordPendingOverlay]);
 
-  const syncClipDeletion = useCallback(
-    (clip: TimelineClip) => {
-      if (!videoId) return;
+  const applyInfographicDisplayText = useCallback(
+    (clip: TimelineClip, value: string) => {
+      const previous = clip.remotion?.props.displayText ?? clip.remotion?.props.display_text;
+      const payload = displayTextPayloadFromEditor(value, previous);
+      const first = Array.isArray(payload) ? payload[0] : payload;
+      const label = (first || 'Infographic').slice(0, 48);
+      timelineApi.updateClip(clip.id, {
+        text: Array.isArray(payload) ? payload.join('\n') : payload,
+        name: label,
+        remotion: clip.remotion
+          ? {
+              ...clip.remotion,
+              props: {
+                ...clip.remotion.props,
+                displayText: payload,
+                ...(typeof payload === 'string' ? { title: payload } : {}),
+              },
+            }
+          : clip.remotion,
+      });
       const sceneId = clip.sceneId || selectedIdRef.current;
-      if (clip.type === 'broll' && clip.beatId && sceneId) {
-        const contentType = clip.mediaKind === 'image' ? 'image' : 'video';
-        enqueueRequest(() =>
-          ApiService.deleteSceneContent(videoId, sceneId, {
-            content_type: contentType,
-            beat_id: clip.beatId!,
-          }).then(
-            () => {},
-            (err) => {
-              showToast(err instanceof Error ? err.message : 'Failed to delete media');
-            },
-          ),
-        );
+      if (sceneId) recordPendingOverlay(sceneId, clip.id);
+    },
+    [timelineApi, recordPendingOverlay],
+  );
+
+  const applyInfographicPlacement = useCallback(
+    (clip: TimelineClip, placement: string) => {
+      const remotion = clip.remotion;
+      const geo =
+        remotion?.props.geometryPx && typeof remotion.props.geometryPx === 'object'
+          ? (remotion.props.geometryPx as { width?: number; height?: number })
+          : undefined;
+      const w = typeof geo?.width === 'number' ? geo.width : 520;
+      const h = typeof geo?.height === 'number' ? geo.height : 160;
+      const pos = placementToDesignPx(placement, w, h);
+      const offsets = placementToPreviewOffsets(placement);
+      timelineApi.updateClip(clip.id, {
+        placement,
+        offsetX: offsets.offsetX,
+        offsetY: offsets.offsetY,
+        remotion: remotion
+          ? {
+              ...remotion,
+              placement,
+              props: { ...remotion.props, geometryPx: { ...pos, width: w, height: h } },
+            }
+          : remotion,
+      });
+      const sceneId = clip.sceneId || selectedIdRef.current;
+      if (sceneId) recordPendingOverlay(sceneId, clip.id);
+    },
+    [timelineApi, recordPendingOverlay],
+  );
+
+  const applyInfographicColor = useCallback(
+    (clip: TimelineClip, hex: string) => {
+      timelineApi.updateClip(clip.id, {
+        textColor: hex,
+        remotion: clip.remotion
+          ? {
+              ...clip.remotion,
+              props: { ...clip.remotion.props, colorHint: hex, color: hex },
+            }
+          : clip.remotion,
+      });
+      const sceneId = clip.sceneId || selectedIdRef.current;
+      if (sceneId) recordPendingOverlay(sceneId, clip.id);
+    },
+    [timelineApi, recordPendingOverlay],
+  );
+
+  const queueClipDeletion = useCallback(
+    (clip: TimelineClip) => {
+      const sceneId = clip.sceneId || selectedIdRef.current;
+      if (!sceneId) return;
+
+      const pending = pendingSceneEditsRef.current[sceneId];
+      if (pending) {
+        pendingSceneEditsRef.current[sceneId] = {
+          ...pending,
+          overlayClipIds: pending.overlayClipIds?.filter((id) => id !== clip.id),
+          brollClipIds: pending.brollClipIds?.filter((id) => id !== clip.id),
+        };
+      }
+
+      if (clip.type === 'broll') {
+        const kind = clipMediaKind(clip);
+        const pool =
+          kind === 'image'
+            ? sceneBrollImageSuggestions[sceneId] ?? []
+            : sceneBrollVideoSuggestions[sceneId] ?? [];
+        const match = pool.find((item) => clipMatchesSuggestion(clip, item));
+        const card: Suggestion = {
+          label: clip.name || (kind === 'image' ? 'Image' : 'Video'),
+          meta: 'Removed from timeline',
+          start: clip.start,
+          dur: Math.max(0.1, Math.round(clip.duration * 10) / 10),
+          matchedScene: scenes.find((s) => s.id === sceneId)?.title ?? 'Timeline',
+          matchPct: match?.matchPct ?? 100,
+          mediaKind: kind,
+          previewUrl: clip.thumbnailUrl || clip.sourceUrl || match?.previewUrl || null,
+          assetUrl: clip.sourceUrl || match?.assetUrl || null,
+          assetId: clip.assetId ?? match?.assetId ?? null,
+          source: kind,
+          fromPexels: clip.fromPexels ?? match?.fromPexels,
+          beatId: clip.beatId,
+        };
+        setDetachedBrollCards((prev) => {
+          const list = prev[sceneId] ?? [];
+          if (
+            list.some(
+              (s) =>
+                (clip.beatId && s.beatId === clip.beatId) ||
+                urlsMatch(s.assetUrl, clip.sourceUrl) ||
+                urlsMatch(s.previewUrl, clip.thumbnailUrl),
+            )
+          ) {
+            return prev;
+          }
+          return { ...prev, [sceneId]: [card, ...list] };
+        });
+        if (clip.beatId && syncedBeatIdsRef.current.has(clip.beatId)) {
+          const already = pendingDeletesRef.current.some(
+            (op) => op.kind === 'broll' && op.beatId === clip.beatId,
+          );
+          if (!already) {
+            pendingDeletesRef.current.push({
+              sceneId,
+              kind: 'broll',
+              beatId: clip.beatId,
+              contentType: kind === 'image' ? 'image' : 'video',
+            });
+          }
+        }
         return;
       }
+
       if ((clip.type === 'infographic' || clip.type === 'text') && clip.overlayId) {
-        enqueueRequest(() =>
-          ApiService.deleteTimelineOverlay(videoId, clip.overlayId!).then(
-            () => {},
-            (err) => {
-              showToast(err instanceof Error ? err.message : 'Failed to delete overlay');
-            },
-          ),
+        if (!syncedOverlayIdsRef.current.has(clip.overlayId)) return;
+        const already = pendingDeletesRef.current.some(
+          (op) => op.kind === 'overlay' && op.overlayId === clip.overlayId,
         );
+        if (!already) {
+          pendingDeletesRef.current.push({
+            sceneId,
+            kind: 'overlay',
+            overlayId: clip.overlayId,
+          });
+        }
       }
     },
-    [videoId, enqueueRequest, showToast],
+    [scenes, sceneBrollImageSuggestions, sceneBrollVideoSuggestions],
   );
 
   const handleDeleteSelected = useCallback(() => {
@@ -2575,8 +3289,8 @@ export function StudioVideoEditingPanel({
     if (!ids.size) return;
     const clips = timelineApi.timeline.tracks.flatMap((t) => t.clips).filter((c) => ids.has(c.id));
     timelineApi.deleteSelected();
-    clips.forEach(syncClipDeletion);
-  }, [timelineApi, syncClipDeletion]);
+    clips.forEach(queueClipDeletion);
+  }, [timelineApi, queueClipDeletion]);
 
   const timelineHasSuggestion = useCallback(
     (trackId: string, item: Suggestion) =>
@@ -3208,6 +3922,7 @@ export function StudioVideoEditingPanel({
           <TimelinePreview
             timeline={timelineApi.timeline}
             isPlaying={isPlaying}
+            overlaySpecs={overlaySpecsForPreview}
             onTimeUpdate={(t) => timelineApi.setCurrentTime(t)}
             onEnded={() => {
               setIsPlaying(false);
@@ -3225,15 +3940,23 @@ export function StudioVideoEditingPanel({
                     timelineApi.timeline.currentTime < c.start + c.duration,
                 );
               if (activeText) timelineApi.updateClip(activeText.id, { offsetX: x, offsetY: y });
-              if (selected) recordPendingStyle(selected.id);
+              if (selected && activeText) recordPendingOverlay(selected.id, activeText.id);
+            }}
+            onCaptionPositionChange={(x, y) => {
+              updateCaptionStyle({
+                offsetX: x,
+                offsetY: y,
+                verticalPosition: verticalPositionFromOffsetY(y),
+                horizontalPosition: horizontalPositionFromOffsetX(x),
+              });
             }}
             onTextResize={(fontSize) => {
               setTextStyle((t) => ({ ...t, fontSize }));
-              if (selected) recordPendingStyle(selected.id);
+              if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
             }}
             onTextEdit={(clipId, text) => {
               timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' });
-              if (selected) recordPendingStyle(selected.id);
+              if (selected) recordPendingOverlay(selected.id, clipId);
             }}
           />
         </div>
@@ -3431,7 +4154,7 @@ export function StudioVideoEditingPanel({
                 key={t.id}
                 type="button"
                 onClick={() => setLibraryTab(t.id)}
-                className={`flex flex-1 flex-col items-center gap-1 border-b-2 px-1.5 py-2.5 text-[10px] font-semibold transition-colors ${
+                className={`flex flex-1 flex-col items-center gap-1 border-b-2 px-0.5 py-2 text-[10px] font-semibold transition-colors ${
                   libraryTab === t.id
                     ? 'border-[#1d1d1f] text-[#1d1d1f]'
                     : 'border-transparent text-[#86868b] hover:text-[#1d1d1f]'
@@ -3469,16 +4192,22 @@ export function StudioVideoEditingPanel({
               </div>
             </div>
             <div className="space-y-2.5">
-              {sidebarBrollVideos.map((item, i) => (
-                <SuggestionCard
-                  key={`vid-${item.label}-${i}`}
-                  item={item}
-                  type="broll"
-                  already={timelineHasSuggestion(DEFAULT_TRACK_IDS.broll, item)}
-                  onInsert={() => insertSuggestion('broll', item)}
-                  onPreview={() => setPreviewItem({ item, type: 'broll' })}
-                />
-              ))}
+              {sidebarBrollVideos.length === 0 ? (
+                <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
+                  No videos on this scene&apos;s timeline yet.
+                </p>
+              ) : (
+                sidebarBrollVideos.map((item, i) => (
+                  <SuggestionCard
+                    key={`vid-${item.label}-${i}`}
+                    item={item}
+                    type="broll"
+                    already={timelineHasSuggestion(DEFAULT_TRACK_IDS.broll, item)}
+                    onInsert={() => insertSuggestion('broll', item)}
+                    onPreview={() => setPreviewItem({ item, type: 'broll' })}
+                  />
+                ))
+              )}
             </div>
           </div>
           )}
@@ -3511,7 +4240,7 @@ export function StudioVideoEditingPanel({
             <div className="space-y-2.5">
               {sidebarBrollImages.length === 0 ? (
                 <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
-                  No matched images for this scene yet.
+                  No images on this scene&apos;s timeline yet.
                 </p>
               ) : (
                 sidebarBrollImages.map((item, i) => (
@@ -3574,6 +4303,14 @@ export function StudioVideoEditingPanel({
                   No infographic suggested for this scene yet.
                 </p>
               )}
+              {timelineApi.selectedClip?.type === 'infographic' && (
+                <InfographicOverlayFields
+                  clip={timelineApi.selectedClip}
+                  onDisplayText={(value) => applyInfographicDisplayText(timelineApi.selectedClip!, value)}
+                  onPlacement={(placement) => applyInfographicPlacement(timelineApi.selectedClip!, placement)}
+                  onPickColor={() => setColorPickerTarget('info-color')}
+                />
+              )}
             </div>
           )}
 
@@ -3619,7 +4356,10 @@ export function StudioVideoEditingPanel({
                 type="button"
                 role="switch"
                 aria-checked={textStyle.background}
-                onClick={() => setTextStyle((t) => ({ ...t, background: !t.background }))}
+                onClick={() => {
+                  setTextStyle((t) => ({ ...t, background: !t.background }));
+                  if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
+                }}
                 className={`relative h-[19px] w-[34px] rounded-full transition-colors ${
                   textStyle.background ? 'bg-[#1d1d1f]' : 'bg-gray-300'
                 }`}
@@ -3655,7 +4395,7 @@ export function StudioVideoEditingPanel({
               onChange={(e) => {
                 const next = Math.max(8, Math.min(300, Number(e.target.value) || textStyle.fontSize));
                 setTextStyle((t) => ({ ...t, fontSize: next }));
-                if (selected) recordPendingStyle(selected.id);
+                if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
               }}
               className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
             />
@@ -3683,7 +4423,12 @@ export function StudioVideoEditingPanel({
               onChange={(e) => {
                 const next = e.target.value as EditVideoTextAnimationStyle;
                 setTextStyle((t) => ({ ...t, animationStyle: next }));
-                if (selected) recordPendingStyle(selected.id);
+                if (timelineApi.selectedClip?.type === 'text') {
+                  timelineApi.updateClip(timelineApi.selectedClip.id, { animationStyle: next });
+                  if (selected) recordPendingOverlay(selected.id, timelineApi.selectedClip.id);
+                } else if (selected) {
+                  recordPendingOverlay(selected.id, undefined, ['text']);
+                }
               }}
               className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
             >
@@ -3706,7 +4451,7 @@ export function StudioVideoEditingPanel({
                       text: value,
                       name: value.slice(0, 48) || 'Text',
                     });
-                    if (selected) recordPendingStyle(selected.id);
+                    if (selected) recordPendingOverlay(selected.id, timelineApi.selectedClip!.id);
                   }}
                   className="w-full resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f] focus:ring-2 focus:ring-[#1d1d1f]/10"
                 />
@@ -3720,6 +4465,19 @@ export function StudioVideoEditingPanel({
               </p>
             )}
           </div>
+          )}
+
+          {libraryTab === 'captions' && (
+            <div className="px-4 py-3.5">
+              <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                Captions
+              </p>
+              <CaptionStyleFields
+                style={captionStyle}
+                onPatch={updateCaptionStyle}
+                onPickColor={(target) => setColorPickerTarget(target)}
+              />
+            </div>
           )}
         </div>
       </aside>
@@ -3776,6 +4534,7 @@ export function StudioVideoEditingPanel({
           <TimelinePreview
             timeline={timelineApi.timeline}
             isPlaying={isPlaying}
+            overlaySpecs={overlaySpecsForPreview}
             onTimeUpdate={(t) => timelineApi.setCurrentTime(t)}
             onEnded={() => {
               setIsPlaying(false);
@@ -3793,15 +4552,23 @@ export function StudioVideoEditingPanel({
                     timelineApi.timeline.currentTime < c.start + c.duration,
                 );
               if (activeText) timelineApi.updateClip(activeText.id, { offsetX: x, offsetY: y });
-              if (selected) recordPendingStyle(selected.id);
+              if (selected && activeText) recordPendingOverlay(selected.id, activeText.id);
+            }}
+            onCaptionPositionChange={(x, y) => {
+              updateCaptionStyle({
+                offsetX: x,
+                offsetY: y,
+                verticalPosition: verticalPositionFromOffsetY(y),
+                horizontalPosition: horizontalPositionFromOffsetX(x),
+              });
             }}
             onTextResize={(fontSize) => {
               setTextStyle((t) => ({ ...t, fontSize }));
-              if (selected) recordPendingStyle(selected.id);
+              if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
             }}
             onTextEdit={(clipId, text) => {
               timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' });
-              if (selected) recordPendingStyle(selected.id);
+              if (selected) recordPendingOverlay(selected.id, clipId);
             }}
           />
         </div>
@@ -3929,6 +4696,14 @@ export function StudioVideoEditingPanel({
                 label="Text"
                 onClick={() => {
                   setLibraryTab('text');
+                  setMobileSheet('library');
+                }}
+              />
+              <MobileBarIcon
+                icon={Subtitles}
+                label="Captions"
+                onClick={() => {
+                  setLibraryTab('captions');
                   setMobileSheet('library');
                 }}
               />
@@ -4106,18 +4881,24 @@ export function StudioVideoEditingPanel({
                             </button>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-2.5">
-                          {sidebarBrollVideos.map((item, i) => (
-                            <SuggestionCard
-                              key={`m-vid-${item.label}-${i}`}
-                              item={item}
-                              type="broll"
-                              already={timelineHasSuggestion(DEFAULT_TRACK_IDS.broll, item)}
-                              onInsert={() => insertSuggestion('broll', item)}
-                              onPreview={() => setPreviewItem({ item, type: 'broll' })}
-                            />
-                          ))}
-                        </div>
+                        {sidebarBrollVideos.length === 0 ? (
+                          <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
+                            No videos on this scene&apos;s timeline yet.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2.5">
+                            {sidebarBrollVideos.map((item, i) => (
+                              <SuggestionCard
+                                key={`m-vid-${item.label}-${i}`}
+                                item={item}
+                                type="broll"
+                                already={timelineHasSuggestion(DEFAULT_TRACK_IDS.broll, item)}
+                                onInsert={() => insertSuggestion('broll', item)}
+                                onPreview={() => setPreviewItem({ item, type: 'broll' })}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </>
                     )}
 
@@ -4148,7 +4929,7 @@ export function StudioVideoEditingPanel({
                         </div>
                         {sidebarBrollImages.length === 0 ? (
                           <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
-                            No matched images for this scene yet.
+                            No images on this scene&apos;s timeline yet.
                           </p>
                         ) : (
                           <div className="grid grid-cols-2 gap-2.5">
@@ -4212,6 +4993,14 @@ export function StudioVideoEditingPanel({
                             No infographic suggested for this scene yet.
                           </p>
                         )}
+                        {timelineApi.selectedClip?.type === 'infographic' && (
+                          <InfographicOverlayFields
+                            clip={timelineApi.selectedClip}
+                            onDisplayText={(value) => applyInfographicDisplayText(timelineApi.selectedClip!, value)}
+                            onPlacement={(placement) => applyInfographicPlacement(timelineApi.selectedClip!, placement)}
+                            onPickColor={() => setColorPickerTarget('info-color')}
+                          />
+                        )}
                       </>
                     )}
 
@@ -4254,7 +5043,10 @@ export function StudioVideoEditingPanel({
                             type="button"
                             role="switch"
                             aria-checked={textStyle.background}
-                            onClick={() => setTextStyle((t) => ({ ...t, background: !t.background }))}
+                            onClick={() => {
+                              setTextStyle((t) => ({ ...t, background: !t.background }));
+                              if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
+                            }}
                             className={`relative h-[19px] w-[34px] rounded-full transition-colors ${
                               textStyle.background ? 'bg-[#1d1d1f]' : 'bg-gray-300'
                             }`}
@@ -4290,7 +5082,7 @@ export function StudioVideoEditingPanel({
                           onChange={(e) => {
                             const next = Math.max(8, Math.min(300, Number(e.target.value) || textStyle.fontSize));
                             setTextStyle((t) => ({ ...t, fontSize: next }));
-                            if (selected) recordPendingStyle(selected.id);
+                            if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
                           }}
                           className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
                         />
@@ -4305,7 +5097,7 @@ export function StudioVideoEditingPanel({
                                 text: value,
                                 name: value.slice(0, 48) || 'Text',
                               });
-                              if (selected) recordPendingStyle(selected.id);
+                              if (selected) recordPendingOverlay(selected.id, timelineApi.selectedClip!.id);
                             }}
                             className="w-full resize-none rounded-xl border border-gray-200 bg-[#f5f5f7] px-3 py-2 text-xs leading-relaxed text-[#1d1d1f] outline-none focus:border-[#1d1d1f]"
                           />
@@ -4314,6 +5106,19 @@ export function StudioVideoEditingPanel({
                             Select a text clip on the timeline to edit its wording, or tap Add text.
                           </p>
                         )}
+                      </>
+                    )}
+
+                    {libraryTab === 'captions' && (
+                      <>
+                        <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
+                          Captions
+                        </p>
+                        <CaptionStyleFields
+                          style={captionStyle}
+                          onPatch={updateCaptionStyle}
+                          onPickColor={(target) => setColorPickerTarget(target)}
+                        />
                       </>
                     )}
                   </div>
@@ -4326,15 +5131,61 @@ export function StudioVideoEditingPanel({
 
       {colorPickerTarget && (
         <ColorPickerPanel
-          title={colorPickerTarget === 'text' ? 'Text colour' : 'Background colour'}
-          value={colorPickerTarget === 'text' ? textStyle.textColor : textStyle.bgColor}
+          title={
+            colorPickerTarget === 'text' || colorPickerTarget === 'caption-text'
+              ? 'Text colour'
+              : colorPickerTarget === 'caption-outline'
+                ? 'Outline colour'
+                : colorPickerTarget === 'info-color'
+                  ? 'Colour hint'
+                  : 'Background colour'
+          }
+          value={
+            colorPickerTarget === 'text'
+              ? textStyle.textColor
+              : colorPickerTarget === 'caption-text'
+                ? captionStyle.textColor
+                : colorPickerTarget === 'caption-outline'
+                  ? captionStyle.outlineColor
+                  : colorPickerTarget === 'caption-bg'
+                    ? captionStyle.backgroundColor || '#000000'
+                    : colorPickerTarget === 'info-color'
+                      ? (typeof timelineApi.selectedClip?.remotion?.props.colorHint === 'string'
+                          ? timelineApi.selectedClip.remotion.props.colorHint
+                          : timelineApi.selectedClip?.textColor || '#ffffff')
+                      : textStyle.bgColor
+          }
           onChange={(hex) => {
             if (colorPickerTarget === 'text') {
               setTextStyle((t) => ({ ...t, textColor: hex }));
-            } else {
-              setTextStyle((t) => ({ ...t, bgColor: hex }));
+              if (timelineApi.selectedClip?.type === 'text') {
+                timelineApi.updateClip(timelineApi.selectedClip.id, { textColor: hex });
+                if (selected) recordPendingOverlay(selected.id, timelineApi.selectedClip.id);
+              } else if (selected) {
+                recordPendingOverlay(selected.id, undefined, ['text']);
+              }
+              return;
             }
-            if (selected) recordPendingStyle(selected.id);
+            if (colorPickerTarget === 'background') {
+              setTextStyle((t) => ({ ...t, bgColor: hex }));
+              if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
+              return;
+            }
+            if (colorPickerTarget === 'caption-text') {
+              updateCaptionStyle({ textColor: hex });
+              return;
+            }
+            if (colorPickerTarget === 'caption-outline') {
+              updateCaptionStyle({ outlineColor: hex });
+              return;
+            }
+            if (colorPickerTarget === 'caption-bg') {
+              updateCaptionStyle({ backgroundColor: hex });
+              return;
+            }
+            if (colorPickerTarget === 'info-color' && timelineApi.selectedClip?.type === 'infographic') {
+              applyInfographicColor(timelineApi.selectedClip, hex);
+            }
           }}
           onClose={() => setColorPickerTarget(null)}
         />
@@ -4576,15 +5427,12 @@ export function StudioVideoEditingPanel({
                 </p>
               </div>
             </div>
-            {queuedRequestCount > 0 ? (
+            {isRendering || queuedRequestCount > 0 ? (
               <p className="mb-4 flex items-center gap-2 text-[11px] text-[#6e6e73]">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Saving pending edits before render can start…
-              </p>
-            ) : isRendering ? (
-              <p className="mb-4 flex items-center gap-2 text-[11px] text-[#6e6e73]">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Rendering all scenes…
+                {queuedRequestCount > 0
+                  ? 'Saving pending edits before render can start…'
+                  : 'Rendering all scenes…'}
               </p>
             ) : (
               <p className="mb-4 text-[11px] text-[#86868b]">Ready to render all scenes.</p>

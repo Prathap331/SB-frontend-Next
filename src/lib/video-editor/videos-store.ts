@@ -30,6 +30,7 @@ import { frameWindowSeconds, toSceneLocalSeconds } from './timings';
 import { DEFAULT_TRACK_IDS, type TimelineClip, type TimelineState } from './types';
 import { normalizeClip, recomputeTimelineDuration, roundTime } from './math';
 import { captionWordsFromTrack, findCaptionTrack, findAudioTrack, parseCaptionStyle } from './captions';
+import { brollDisplayName } from './mediaNames';
 
 export type VideosTableRow = {
   id: string;
@@ -147,6 +148,8 @@ function clipsFromBrollTracks(
   sceneId: string,
   tracks: EditVideoTimelineTrack[],
   origin = 0,
+  /** beat id → name already resolved for this scene, so a restored project reads like a fresh one. */
+  nameByBeatId?: Map<string, string>,
 ): TimelineClip[] {
   return tracks
     .filter((t) => t.type === 'broll' && trackSceneId(t) === sceneId)
@@ -165,7 +168,13 @@ function clipsFromBrollTracks(
         id: `br-${beatId}`,
         trackId: DEFAULT_TRACK_IDS.broll,
         type: 'broll',
-        name: beatId,
+        name: brollDisplayName({
+          name: nameByBeatId?.get(beatId) ?? t.name,
+          title: t.title,
+          keywords: t.keywords,
+          mediaKind: source,
+          index: i,
+        }),
         sourceUrl: fileUrl || undefined,
         mediaKind: source,
         start: roundTime(Math.max(0, start)),
@@ -448,7 +457,12 @@ export function hydrateSceneTimelinesFromVideosRow(
   for (const scene of scenes) {
     const current = maps[scene.id];
     if (!current) continue;
-    const brollClips = clipsFromBrollTracks(scene.id, tracks, scene.start);
+    const beatNames = new Map(
+      (scene.beats ?? [])
+        .filter((b) => Boolean(b.name?.trim()))
+        .map((b) => [b.beatId, b.name!.trim()] as const),
+    );
+    const brollClips = clipsFromBrollTracks(scene.id, tracks, scene.start, beatNames);
     const withBroll: TimelineState = brollClips.length
       ? {
           ...current,

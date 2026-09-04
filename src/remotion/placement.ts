@@ -114,6 +114,46 @@ export function resolveOverlayGeometry(
   };
 }
 
+/**
+ * Maps preview anchors (left % / bottom %) onto a backend placement string.
+ * Mirrors the editor's left / center / right and top / middle / bottom zones.
+ */
+export function placementFromPreviewOffsets(offsetX: number, offsetY: number): string {
+  const v = offsetY >= 65 ? 'top' : offsetY <= 30 ? 'bottom' : 'center';
+  const h = offsetX <= 30 ? 'left' : offsetX >= 70 ? 'right' : 'center';
+  if (v === 'center' && h === 'center') return 'center';
+  if (v === 'center') return h === 'left' ? 'center_left' : 'center_right';
+  if (h === 'center') return v;
+  return `${v}_${h}`;
+}
+
+/**
+ * Converts the preview's left/bottom percentages into `geometry_px` on 1920×1080.
+ * The preview anchors the box with the same left/center/right transform as on-screen text.
+ */
+export function geometryPxFromPreviewOffsets(
+  offsetX: number,
+  offsetY: number,
+  width: number,
+  height: number,
+  canvasW = OVERLAY_DESIGN_W,
+  canvasH = OVERLAY_DESIGN_H,
+): OverlayGeometryPx {
+  const safeW = Math.max(1, width);
+  const safeH = Math.max(1, height);
+  let x: number;
+  if (offsetX <= 30) x = (offsetX / 100) * canvasW;
+  else if (offsetX >= 70) x = (offsetX / 100) * canvasW - safeW;
+  else x = (offsetX / 100) * canvasW - safeW / 2;
+  const y = canvasH - (offsetY / 100) * canvasH - safeH;
+  return {
+    x: Math.round(Math.max(0, Math.min(canvasW - safeW, x))),
+    y: Math.round(Math.max(0, Math.min(canvasH - safeH, y))),
+    width: Math.round(safeW),
+    height: Math.round(safeH),
+  };
+}
+
 export function isRightPlacement(placement: string | undefined): boolean {
   const kind = normalizePlacement(placement);
   return kind === 'top_right' || kind === 'bottom_right' || kind === 'center_right';

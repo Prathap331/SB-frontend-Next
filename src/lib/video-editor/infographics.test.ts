@@ -1,5 +1,8 @@
 import {
   EDITOR_FPS,
+  buildBeatAnimationUpdate,
+  collectSceneGraphicsOverlays,
+  enrichRemotionFromSpecs,
   framesToSeconds,
   isOverlayGraphicTrack,
   parseRemotionInfographic,
@@ -250,6 +253,57 @@ describe('remotion infographic timing', () => {
     expect(spec?.props.icons).toEqual(['arrow-right']);
   });
 
+  it('keeps icon_name from the timeline track when the list item omitted it', () => {
+    const map = collectSceneGraphicsOverlays(
+      [
+        {
+          id: 'anim_s3',
+          scene_id: 's3',
+          beat_id: 's3_beat1',
+          animation_type: 'icon_sequence',
+          display_text: ['dead child', 'living world', 'reckoning'],
+          startFrame: 0,
+          endFrame: 210,
+        },
+      ],
+      [
+        {
+          track_id: 'anim_s3',
+          scene_id: 's3',
+          beat_id: 's3_beat1',
+          animation_type: 'icon_sequence',
+          category: 'overlay_graphic',
+          icon_name: ['heart', 'users', 'sparkles'],
+          display_text: ['dead child', 'living world', 'reckoning'],
+          startFrame: 0,
+          endFrame: 210,
+        },
+      ],
+    );
+    expect(map.s3?.[0]?.props.icon_name).toEqual(['heart', 'users', 'sparkles']);
+    expect(map.s3?.[0]?.props.icons).toEqual(['heart', 'users', 'sparkles']);
+  });
+
+  it('copies library icon_name onto a timeline remotion payload that dropped it', () => {
+    const spec = parseRemotionInfographic({
+      track_id: 'anim_s3',
+      animation_type: 'icon_sequence',
+      icon_name: ['heart', 'users', 'sparkles'],
+      display_text: ['dead child', 'living world', 'reckoning'],
+      startFrame: 0,
+      endFrame: 210,
+    })!;
+    const remotion = remotionPayloadFromSpec({
+      ...spec,
+      props: { ...spec.props, icon_name: undefined, icons: undefined, iconName: undefined },
+    });
+    const enriched = enrichRemotionFromSpecs(remotion, [spec], {
+      overlayId: spec.overlayId,
+      remotion,
+    });
+    expect(enriched.props.icon_name).toEqual(['heart', 'users', 'sparkles']);
+  });
+
   it('parses geometry_px and displayText for overlay compositions', () => {
     const spec = parseRemotionInfographic({
       animation_type: 'lower_third',
@@ -450,5 +504,107 @@ describe('library preview and video preview parity', () => {
     const seeded = seededTextFromOverlayItem(item);
     expect(seeded?.animationStyle).toBe('slide_in_left');
     expect(seeded?.remotion?.props.textAnimationStyle).toBe('slide_in_left');
+  });
+});
+
+describe('beat animation update payload', () => {
+  it('sends placement and geometry_px for a custom text clip', () => {
+    const payload = buildBeatAnimationUpdate({
+      id: 'txt-1',
+      trackId: 'track-text',
+      type: 'text',
+      name: 'Hello',
+      text: 'Hello',
+      start: 0,
+      duration: 3,
+      sourceStart: 0,
+      sourceDuration: 3,
+      offsetX: 84,
+      offsetY: 82,
+      textColor: '#ffcc00',
+      animationStyle: 'fade_in',
+    } as never);
+    expect(payload?.animation_type).toBe('fade_in');
+    expect(payload?.display_text).toBe('Hello');
+    expect(payload?.placement).toBe('top_right');
+    expect(payload?.geometry_px).toEqual(expect.objectContaining({ width: expect.any(Number), height: expect.any(Number) }));
+    expect(payload?.color_hint).toBe('#ffcc00');
+    expect(payload?.background_color_hint).toBeNull();
+  });
+
+  it('sends background_color_hint when the text background is on', () => {
+    const payload = buildBeatAnimationUpdate(
+      {
+        id: 'txt-2',
+        trackId: 'track-text',
+        type: 'text',
+        name: 'Hello',
+        text: 'Hello',
+        start: 0,
+        duration: 3,
+        sourceStart: 0,
+        sourceDuration: 3,
+        bgColor: '#111827',
+        animationStyle: 'fade_in',
+      } as never,
+      { background: true, bgColor: '#111827' },
+    );
+    expect(payload?.background_color_hint).toBe('#111827');
+  });
+
+  it('sends display_text and placement for an infographic clip', () => {
+    const payload = buildBeatAnimationUpdate({
+      id: 'info-1',
+      trackId: 'track-infographic',
+      type: 'infographic',
+      name: 'Network',
+      text: 'Network',
+      start: 0,
+      duration: 4,
+      sourceStart: 0,
+      sourceDuration: 4,
+      placement: 'top_right',
+      remotion: {
+        compositionId: 'IconPop',
+        animationType: 'icon_pop_in',
+        durationFrames: 120,
+        trigger: 'scene_start',
+        placement: 'top_right',
+        props: {
+          displayText: ['Hidden', 'Network'],
+          icon_name: 'globe',
+          geometryPx: { x: 1696, y: 64, width: 160, height: 160 },
+        },
+      },
+    } as never);
+    expect(payload?.animation_type).toBe('icon_pop_in');
+    expect(payload?.display_text).toEqual(['Hidden', 'Network']);
+    expect(payload?.placement).toBe('top_right');
+    expect(payload?.geometry_px).toEqual({ x: 1696, y: 64, width: 160, height: 160 });
+    expect(payload?.icon_name).toBe('globe');
+  });
+
+  it('sends background_color_hint from infographic props', () => {
+    const payload = buildBeatAnimationUpdate({
+      id: 'info-2',
+      trackId: 'track-infographic',
+      type: 'infographic',
+      name: 'Title',
+      text: 'Title',
+      start: 0,
+      duration: 4,
+      sourceStart: 0,
+      sourceDuration: 4,
+      placement: 'center',
+      remotion: {
+        compositionId: 'TitleCard',
+        animationType: 'full_screen_title_card',
+        durationFrames: 90,
+        trigger: 'scene_start',
+        placement: 'center',
+        props: { displayText: 'Title', backgroundColorHint: '#111827' },
+      },
+    } as never);
+    expect(payload?.background_color_hint).toBe('#111827');
   });
 });

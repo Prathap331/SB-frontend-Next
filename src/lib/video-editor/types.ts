@@ -36,6 +36,10 @@ export type TimelineClip = {
   beatId?: string;
   /** Backend overlay id for infographics (from infographics_list/text_list) or customized text (from style `text_id`). */
   overlayId?: string;
+  /** Pexels / library asset id — used when flushing b-roll select/insert. */
+  assetId?: number | null;
+  /** True when this clip came from Find more (POST .../broll/insert). */
+  fromPexels?: boolean;
 
   zIndex?: number;
   volume?: number;
@@ -98,6 +102,7 @@ export type TimelineClip = {
     verticalPosition: 'top' | 'middle' | 'bottom';
     horizontalPosition: 'left' | 'center' | 'right';
     animationType: string;
+    backgroundColor?: string | null;
   };
 };
 

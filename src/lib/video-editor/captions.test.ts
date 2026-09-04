@@ -80,6 +80,15 @@ describe('caption style + on-screen text', () => {
     expect(style.offsetX).toBe(50);
     expect(style.fontSize).toBe(42);
     expect(style.animationType).toBe('kinetic_caption');
+    expect(style.backgroundColor).toBeNull();
+  });
+
+  test('parses caption background_color', () => {
+    const style = parseCaptionStyle({
+      background_color: '#112233',
+      animation_type: 'word_pop',
+    });
+    expect(style.backgroundColor).toBe('#112233');
   });
 
   test('right-aligned captions measure margin from the right edge', () => {

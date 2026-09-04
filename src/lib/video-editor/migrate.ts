@@ -11,10 +11,12 @@ import {
   remotionDurationSeconds,
   remotionInfographicLabel,
   remotionPayloadFromSpec,
+  mergeRicherRemotionProps,
   type RemotionInfographicSpec,
   type SeededTextOverlay,
 } from './infographics';
 import { DEFAULT_CAPTION_STYLE, type CaptionStyle, type CaptionWord } from './captions';
+import { brollDisplayName } from './mediaNames';
 
 export type LegacySceneLike = {
   id: string;
@@ -42,6 +44,8 @@ export type LegacySceneLike = {
   /** Backend-selected b-roll segments for this scene — auto-placed on the timeline by default. */
   beats?: {
     beatId: string;
+    /** Human name for the clip / library card — falls back to a numbered name, never the beat id. */
+    name?: string;
     start: number;
     end: number;
     assetUrl: string;
@@ -149,13 +153,13 @@ function buildInfographicClipsFromOverlays(scene: LegacySceneLike): TimelineClip
 
 /** Builds normalized b-roll clips from a scene's backend-selected beats. */
 function buildBrollClipsFromBeats(scene: LegacySceneLike): TimelineClip[] {
-  return (scene.beats ?? []).map((beat) => {
+  return (scene.beats ?? []).map((beat, index) => {
     const dur = Math.max(0.1, roundTime(beat.end - beat.start));
     return normalizeClip({
       id: `br-${beat.beatId}`,
       trackId: DEFAULT_TRACK_IDS.broll,
       type: 'broll',
-      name: beat.beatId,
+      name: brollDisplayName({ name: beat.name, mediaKind: beat.source, index }),
       sourceUrl: beat.assetUrl,
       mediaKind: beat.source,
       start: roundTime(beat.start),
@@ -379,7 +383,10 @@ export function ensureOverlayClips(state: TimelineState, scene: LegacySceneLike)
         if (!fresh?.remotion) return c;
         return {
           ...c,
-          remotion: fresh.remotion,
+          remotion: {
+            ...fresh.remotion,
+            props: mergeRicherRemotionProps(c.remotion?.props ?? {}, fresh.remotion.props),
+          },
           placement: fresh.placement ?? c.placement,
           textColor: fresh.textColor ?? c.textColor,
           animationStyle: fresh.animationStyle ?? c.animationStyle,
@@ -395,7 +402,10 @@ export function ensureOverlayClips(state: TimelineState, scene: LegacySceneLike)
         if (!fresh?.remotion) return c;
         return {
           ...c,
-          remotion: fresh.remotion,
+          remotion: {
+            ...fresh.remotion,
+            props: mergeRicherRemotionProps(c.remotion?.props ?? {}, fresh.remotion.props),
+          },
           name: fresh.name || c.name,
           text: fresh.text || c.text,
           placement: fresh.placement ?? c.placement,

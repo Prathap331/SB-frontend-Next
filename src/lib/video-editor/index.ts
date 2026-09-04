@@ -7,3 +7,4 @@ export * from './timings';
 export * from './infographics';
 export * from './videos-store';
 export * from './captions';
+export * from './mediaNames';

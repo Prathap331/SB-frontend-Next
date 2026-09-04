@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { TimelineClip, TimelineState } from '@/lib/video-editor/types';
 import { getActiveClipsAtTime } from '@/lib/video-editor/math';
-import { isInfographicActiveAtTime } from '@/lib/video-editor/infographics';
+import { isInfographicActiveAtTime, type RemotionInfographicSpec } from '@/lib/video-editor/infographics';
+import { isImageClip } from '@/lib/video-editor/mediaNames';
 import { TimelineOverlayPreview } from '@/components/studio/video-timeline/TimelineOverlayPreview';
 import { Sparkles, Film, Volume2 } from 'lucide-react';
 import {
@@ -34,10 +35,14 @@ type Props = {
   textStyle: TextStyle;
   /** Fired while the on-screen text is dragged — x/y are percentages of the preview box. */
   onTextPositionChange?: (x: number, y: number) => void;
+  /** Fired while burned-in captions are dragged — same coordinate space as text. */
+  onCaptionPositionChange?: (x: number, y: number) => void;
   /** Fired while a corner handle is dragged to resize the text. */
   onTextResize?: (fontSize: number) => void;
   /** Fired when the inline-edited text is changed — receives the clip id being edited. */
   onTextEdit?: (clipId: string, text: string) => void;
+  /** Library-card specs — used to restore `icon_name` the timeline clip may have dropped. */
+  overlaySpecs?: RemotionInfographicSpec[];
 };
 
 type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br';
@@ -82,21 +87,6 @@ function captionStyleFromClip(clip: TimelineClip | undefined | null): CaptionSty
     ...raw,
     animationType: (raw.animationType as CaptionStyle['animationType']) || DEFAULT_CAPTION_STYLE.animationType,
   };
-}
-
-function isImageClip(clip: TimelineClip | undefined | null): boolean {
-  if (!clip) return false;
-  if (clip.mediaKind === 'image') return true;
-  if (clip.mediaKind === 'video') return false;
-  const url = clip.sourceUrl || clip.thumbnailUrl || '';
-  if (!url) return false;
-  if (/^data:image/i.test(url)) return true;
-  if (/\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(url)) return true;
-  // Common still-image CDNs without file extensions in the path
-  if (/images\.pexels\.com|images\.unsplash\.com|img\.freepik\.com|cdn\.pixabay\.com/i.test(url)) {
-    return true;
-  }
-  return false;
 }
 
 function localMediaTime(clip: TimelineClip, globalTime: number): number {
@@ -148,8 +138,10 @@ export function TimelinePreview({
   onEnded,
   textStyle,
   onTextPositionChange,
+  onCaptionPositionChange,
   onTextResize,
   onTextEdit,
+  overlaySpecs = [],
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [editingText, setEditingText] = useState(false);
@@ -200,6 +192,26 @@ export function TimelinePreview({
       window.removeEventListener('pointerup', up);
       // A tap with no drag — edit the text in place instead of moving it.
       if (!moved && onTextEdit) setEditingText(true);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  const beginDragCaption = (e: React.PointerEvent) => {
+    if (!onCaptionPositionChange) return;
+    e.stopPropagation();
+    const root = rootRef.current;
+    if (!root) return;
+    const rect = root.getBoundingClientRect();
+    const move = (ev: PointerEvent) => {
+      const fromLeft = Math.max(4, Math.min(96, ((ev.clientX - rect.left) / rect.width) * 100));
+      const fromTop = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
+      const fromBottom = Math.max(4, Math.min(96, 100 - fromTop));
+      onCaptionPositionChange(fromLeft, fromBottom);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -722,6 +734,7 @@ export function TimelinePreview({
           currentTime={timeline.currentTime}
           width={frameSize.w}
           height={frameSize.h}
+          overlaySpecs={overlaySpecs}
         />
       ) : null}
 
@@ -731,6 +744,7 @@ export function TimelinePreview({
           currentTime={timeline.currentTime}
           width={frameSize.w}
           height={frameSize.h}
+          overlaySpecs={overlaySpecs}
         />
       ) : null}
 
@@ -750,7 +764,8 @@ export function TimelinePreview({
 
       {activeCaption && overlayScale > 0 && (
         <div
-          className="pointer-events-none absolute z-[1] max-w-[88%]"
+          className={`absolute z-[1] max-w-[88%] rounded-lg ${onCaptionPositionChange ? 'touch-none select-none' : 'pointer-events-none'}`}
+          onPointerDown={beginDragCaption}
           style={{
             left: `${captionStyle.offsetX}%`,
             bottom: `${captionStyle.offsetY}%`,
@@ -767,6 +782,8 @@ export function TimelinePreview({
                 : captionStyle.horizontalPosition === 'right'
                   ? 'right'
                   : 'center',
+            background: captionStyle.backgroundColor ? `${captionStyle.backgroundColor}cc` : 'transparent',
+            cursor: onCaptionPositionChange ? 'grab' : undefined,
           }}
         >
           <style>{CAPTION_ANIMATION_KEYFRAMES}</style>

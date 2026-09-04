@@ -1,6 +1,14 @@
 import { EDITOR_FPS, framesToSeconds, secondsToFrame } from './fps';
 import { frameWindowSeconds, toSceneLocalSeconds } from './timings';
-import { iconNamesFromContentBinding } from '@/remotion/props';
+import { iconNamesFromContentBinding, readIconNames } from '@/remotion/props';
+import {
+  geometryPxFromPreviewOffsets,
+  placementFromPreviewOffsets,
+  placementToDesignPx,
+  type OverlayGeometryPx,
+} from '@/remotion/placement';
+import type { BeatAnimationUpdate } from '@/services/api';
+import type { TimelineClip } from './types';
 
 /** Backend `infographics` / Remotion payload (read-only shape from /edit-video). */
 export type BackendInfographicPayload = {
@@ -361,6 +369,151 @@ export function remotionPayloadFromSpec(spec: RemotionInfographicSpec): {
   };
 }
 
+export function remotionIconCount(props: Record<string, unknown> | undefined): number {
+  return readIconNames(props ?? {}).length;
+}
+
+/** Keep whichever payload has the icon list; never drop `icon_name` when merging. */
+export function mergeRicherRemotionProps(
+  current: Record<string, unknown>,
+  incoming: Record<string, unknown>,
+): Record<string, unknown> {
+  const currentNames = readIconNames(current);
+  const incomingNames = readIconNames(incoming);
+  const names = incomingNames.length > currentNames.length ? incomingNames : currentNames;
+  const iconSource = incomingNames.length > currentNames.length ? incoming : current;
+  return {
+    ...current,
+    ...incoming,
+    ...(names.length
+      ? {
+          icon_name: names.length === 1 ? names[0] : names,
+          icons: names,
+          iconName: iconSource.iconName ?? (names.length === 1 ? names[0] : names),
+        }
+      : {}),
+  };
+}
+
+function sameOverlayIdentity(a: RemotionInfographicSpec, b: RemotionInfographicSpec): boolean {
+  if (a.overlayId && b.overlayId && a.overlayId === b.overlayId) return true;
+  if (a.beatId && b.beatId && a.beatId === b.beatId && a.animationType === b.animationType) {
+    return true;
+  }
+  return false;
+}
+
+export function preferRicherInfographicSpec(
+  current: RemotionInfographicSpec,
+  incoming: RemotionInfographicSpec,
+): RemotionInfographicSpec {
+  const richer = remotionIconCount(incoming.props) > remotionIconCount(current.props) ? incoming : current;
+  const other = richer === incoming ? current : incoming;
+  return {
+    ...richer,
+    props: mergeRicherRemotionProps(other.props, richer.props),
+    placement: richer.placement || other.placement,
+  };
+}
+
+/** Same grouping the library cards use — timeline clips must consume this, not a weaker first-wins parse. */
+export function collectSceneGraphicsOverlays(
+  infographicsList: unknown[] | undefined,
+  tracks: unknown[] | undefined,
+): Record<string, RemotionInfographicSpec[]> {
+  const map: Record<string, RemotionInfographicSpec[]> = {};
+  const push = (sceneId: string, spec: RemotionInfographicSpec | null) => {
+    if (!spec || !sceneId) return;
+    const existing = map[sceneId] ?? [];
+    const idx = existing.findIndex((s) => sameOverlayIdentity(s, spec));
+    if (idx >= 0) {
+      const copy = existing.slice();
+      copy[idx] = preferRicherInfographicSpec(existing[idx]!, spec);
+      map[sceneId] = copy;
+      return;
+    }
+    (map[sceneId] ??= []).push(spec);
+  };
+  for (const item of infographicsList ?? []) {
+    const rec = asRecord(item);
+    const sceneId = asString(rec?.scene_id);
+    if (!sceneId) continue;
+    push(sceneId, parseRemotionInfographic(mergeOverlayTrackOntoItem(item, tracks ?? [], sceneId)));
+  }
+  for (const track of tracks ?? []) {
+    if (!isOverlayGraphicTrack(track)) continue;
+    const rec = asRecord(track);
+    const sceneId = asString(rec?.scene_id);
+    if (!sceneId) continue;
+    push(sceneId, parseRemotionInfographic(track));
+  }
+  return map;
+}
+
+export function overlaySpecMatchesClip(
+  spec: RemotionInfographicSpec,
+  clip: {
+    overlayId?: string;
+    beatId?: string;
+    start?: number;
+    name?: string;
+    text?: string;
+    remotion?: { animationType?: string; compositionId?: string } | null;
+  },
+): boolean {
+  if (spec.overlayId && clip.overlayId && spec.overlayId === clip.overlayId) return true;
+  if (
+    spec.beatId &&
+    clip.beatId &&
+    spec.beatId === clip.beatId &&
+    spec.animationType === clip.remotion?.animationType
+  ) {
+    return true;
+  }
+  if (
+    clip.remotion &&
+    spec.animationType === clip.remotion.animationType &&
+    spec.compositionId === clip.remotion.compositionId &&
+    spec.startSeconds != null &&
+    clip.start != null &&
+    Math.abs(spec.startSeconds - clip.start) < 0.12
+  ) {
+    return true;
+  }
+  const label = remotionInfographicLabel(spec).trim().toLowerCase();
+  const clipLabel = (clip.name || clip.text || '').trim().toLowerCase();
+  if (
+    label &&
+    clipLabel &&
+    label === clipLabel &&
+    spec.animationType === clip.remotion?.animationType
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** Copy library-card `icon_name` onto a timeline clip so the video preview matches the popup. */
+export function enrichRemotionFromSpecs<T extends { props: Record<string, unknown>; placement?: string }>(
+  remotion: T,
+  specs: RemotionInfographicSpec[],
+  clip: {
+    overlayId?: string;
+    beatId?: string;
+    start?: number;
+    remotion?: { animationType?: string; compositionId?: string } | null;
+  },
+): T {
+  const match = specs.find((s) => overlaySpecMatchesClip(s, clip));
+  if (!match) return remotion;
+  const props = mergeRicherRemotionProps(remotion.props, match.props);
+  return {
+    ...remotion,
+    props,
+    placement: remotion.placement || match.placement,
+  };
+}
+
 function displayTextPlain(value: unknown): string {
   const parsed = parseDisplayText(value);
   if (parsed.title) return parsed.title;
@@ -483,6 +636,9 @@ export function parseRemotionInfographic(raw: unknown): RemotionInfographicSpec 
     props.color = colorHint;
   }
   if (colorHint) props.colorHint = colorHint;
+  const backgroundHint =
+    asString(obj.background_color_hint)?.trim() || asString(props.background_color_hint)?.trim();
+  if (backgroundHint) props.backgroundColorHint = backgroundHint;
   const geometry = parseGeometryPx(obj.geometry_px ?? obj.geometryPx ?? props.geometryPx);
   if (geometry) props.geometryPx = geometry;
   const highlight =
@@ -728,6 +884,169 @@ export function isInfographicActiveAtTime(
   durationSeconds: number,
 ): boolean {
   return currentTime >= start && currentTime < start + durationSeconds;
+}
+
+/** Textarea value for an overlay's `display_text` (string or list). */
+export function overlayDisplayTextForEditor(
+  props: Record<string, unknown> | undefined,
+  fallback = '',
+): string {
+  const raw = props?.displayText ?? props?.display_text;
+  const list = parseNameList(raw);
+  if (list.length) return list.join('\n');
+  const title = typeof props?.title === 'string' ? props.title.trim() : '';
+  return title || fallback;
+}
+
+export function displayTextPayloadFromEditor(value: string, previous: unknown): string | string[] {
+  const lines = value.split('\n').map((s) => s.trim()).filter(Boolean);
+  if (Array.isArray(previous) || lines.length > 1) return lines;
+  return value.trim();
+}
+
+export function motionToBeatUpdate(raw: unknown): NonNullable<BeatAnimationUpdate['motion']> | null {
+  const fromBackendKeys = parseOverlayMotion(raw);
+  if (fromBackendKeys) {
+    return {
+      start_xy_px: [fromBackendKeys.startX, fromBackendKeys.startY],
+      end_xy_px: [fromBackendKeys.endX, fromBackendKeys.endY],
+      ...(fromBackendKeys.style ? { motion_style: fromBackendKeys.style } : {}),
+    };
+  }
+  const rec = asRecord(raw);
+  if (!rec) return null;
+  if (typeof rec.startX !== 'number' || typeof rec.startY !== 'number') return null;
+  return {
+    start_xy_px: [rec.startX, rec.startY],
+    end_xy_px: [
+      typeof rec.endX === 'number' ? rec.endX : rec.startX,
+      typeof rec.endY === 'number' ? rec.endY : rec.startY,
+    ],
+    ...(typeof rec.style === 'string' && rec.style.trim() ? { motion_style: rec.style.trim() } : {}),
+  };
+}
+
+function geometryFromClipProps(props: Record<string, unknown> | undefined): OverlayGeometryPx | null {
+  return parseGeometryPx(props?.geometryPx ?? props?.geometry_px);
+}
+
+function estimatedTextBoxSize(text: string | undefined, fontSize: number): { width: number; height: number } {
+  const lines = Math.max(1, (text || 'New text').split('\n').length);
+  const longest = Math.max(8, ...(text || 'New text').split('\n').map((l) => l.length));
+  return {
+    width: Math.max(280, Math.min(1200, Math.round(longest * fontSize * 0.55))),
+    height: Math.max(80, Math.round(fontSize * 1.6 * lines)),
+  };
+}
+
+/**
+ * PATCH .../beat/{beat_id}/animation body for a text or infographic clip.
+ * Sends placement + geometry_px for position, and display_text for copy.
+ */
+export function buildBeatAnimationUpdate(
+  clip: TimelineClip,
+  fallbacks?: {
+    textColor?: string;
+    animationStyle?: string;
+    fontSize?: number;
+    bgColor?: string | null;
+    background?: boolean;
+  },
+): BeatAnimationUpdate | null {
+  const remotion = clip.remotion;
+  const props = remotion?.props ?? {};
+  const animationType =
+    remotion?.animationType ||
+    clip.animationStyle ||
+    fallbacks?.animationStyle ||
+    (clip.type === 'text' ? 'fade_in' : '');
+  if (!animationType && !clip.overlayId) return null;
+
+  const payload: BeatAnimationUpdate = {};
+  if (animationType) payload.animation_type = animationType;
+
+  if (clip.type === 'text') {
+    const ox = clip.offsetX ?? 50;
+    const oy = clip.offsetY ?? 15;
+    const box = estimatedTextBoxSize(clip.text, fallbacks?.fontSize ?? 72);
+    payload.placement = placementFromPreviewOffsets(ox, oy);
+    payload.geometry_px = geometryPxFromPreviewOffsets(ox, oy, box.width, box.height);
+    payload.display_text = clip.text ?? '';
+    const color = (clip.textColor || fallbacks?.textColor)?.trim();
+    if (color) payload.color_hint = color;
+    if (fallbacks?.background === false) {
+      payload.background_color_hint = null;
+    } else {
+      const bg = (clip.bgColor || fallbacks?.bgColor)?.trim();
+      payload.background_color_hint = bg || null;
+    }
+    payload.duration_frames = Math.max(1, Math.round(clip.duration * EDITOR_FPS));
+    if (remotion?.trigger) payload.trigger = remotion.trigger;
+    if (remotion?.renderEngineHint) payload.render_engine_hint = remotion.renderEngineHint;
+    return payload;
+  }
+
+  if (clip.type !== 'infographic') return null;
+
+  const placement = clip.placement || remotion?.placement || null;
+  if (placement) payload.placement = placement;
+  const existingGeo = geometryFromClipProps(props);
+  if (existingGeo) {
+    payload.geometry_px = existingGeo;
+  } else if (placement) {
+    const w = 520;
+    const h = 160;
+    const pos = placementToDesignPx(placement, w, h);
+    payload.geometry_px = { ...pos, width: w, height: h };
+  }
+  const previousDisplay = props.displayText ?? props.display_text;
+  const display =
+    previousDisplay != null
+      ? previousDisplay
+      : clip.text
+        ? clip.text
+        : overlayDisplayTextForEditor(props, '');
+  if (display != null && display !== '') {
+    payload.display_text = Array.isArray(display)
+      ? display.map((v) => String(v))
+      : String(display);
+  }
+  const icons = parseIconList(props.icon_name ?? props.icons ?? props.iconName);
+  if (icons.length) payload.icon_name = icons.length === 1 ? icons[0] : icons;
+  const iconLayout =
+    (typeof props.iconLayout === 'string' && props.iconLayout) ||
+    (typeof props.icon_layout === 'string' && props.icon_layout) ||
+    null;
+  if (iconLayout) payload.icon_layout = iconLayout;
+  const color =
+    (typeof props.colorHint === 'string' && props.colorHint) ||
+    (typeof props.color === 'string' && props.color) ||
+    clip.textColor ||
+    null;
+  if (color) payload.color_hint = color;
+  const backgroundHint =
+    (typeof props.backgroundColorHint === 'string' && props.backgroundColorHint.trim()) ||
+    (typeof props.background_color_hint === 'string' && props.background_color_hint.trim()) ||
+    clip.bgColor?.trim() ||
+    '';
+  if (backgroundHint) payload.background_color_hint = backgroundHint;
+  if (remotion?.durationFrames) payload.duration_frames = remotion.durationFrames;
+  else payload.duration_frames = Math.max(1, Math.round(clip.duration * EDITOR_FPS));
+  if (remotion?.trigger) payload.trigger = remotion.trigger;
+  const binding =
+    (typeof props.contentBinding === 'string' && props.contentBinding) ||
+    (typeof props.content_binding === 'string' && props.content_binding) ||
+    null;
+  if (binding) payload.content_binding = binding;
+  const highlight =
+    (typeof props.highlightTargetText === 'string' && props.highlightTargetText) ||
+    (typeof props.highlight_target_text === 'string' && props.highlight_target_text) ||
+    null;
+  if (highlight) payload.highlight_target_text = highlight;
+  if (remotion?.renderEngineHint) payload.render_engine_hint = remotion.renderEngineHint;
+  const motion = motionToBeatUpdate(props.motion);
+  if (motion) payload.motion = motion;
+  return payload;
 }
 
 export { EDITOR_FPS, framesToSeconds, secondsToFrame };

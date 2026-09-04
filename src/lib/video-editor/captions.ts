@@ -14,6 +14,8 @@ export type CaptionStyle = {
   verticalPosition: EditVideoTextVerticalPosition;
   horizontalPosition: EditVideoTextHorizontalPosition;
   animationType: EditVideoCaptionAnimationType;
+  /** Caption pill fill; null/empty means no background. */
+  backgroundColor?: string | null;
 };
 
 export type CaptionLine = { text: string; start: number; end: number; words: CaptionWord[] };
@@ -27,6 +29,7 @@ export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
   verticalPosition: 'bottom',
   horizontalPosition: 'center',
   animationType: 'static_line',
+  backgroundColor: null,
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -111,6 +114,7 @@ export function parseCaptionStyle(raw: unknown): CaptionStyle {
   const fontSize = num(obj.font_size);
   const textColor = str(obj.text_color);
   const outlineColor = str(obj.outline_color);
+  const backgroundColor = str(obj.background_color);
 
   let offsetY: number;
   if (marginBottom != null) offsetY = marginBottom;
@@ -136,6 +140,7 @@ export function parseCaptionStyle(raw: unknown): CaptionStyle {
     verticalPosition,
     horizontalPosition,
     animationType,
+    backgroundColor: backgroundColor || null,
   };
 }
 

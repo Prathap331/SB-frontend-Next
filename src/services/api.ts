@@ -324,25 +324,19 @@ export type EditVideoTextAnimationStyle =
   | 'wipe';
 
 export interface SceneStyleUpdate {
-  font_size?: number;
-  text_color?: string;
-  outline_color?: string;
-  animation_type?: EditVideoCaptionAnimationType;
-  background_color?: string;
-  /** Zone the text is anchored to on screen. */
-  vertical_position?: EditVideoTextVerticalPosition;
-  /** Distance of the text box from the bottom edge, as a % of frame height. */
-  margin_bottom_percent?: number;
+  font_size?: number | null;
+  text_color?: string | null;
+  outline_color?: string | null;
+  animation_type?: EditVideoCaptionAnimationType | null;
+  background_color?: string | null;
+  /** Zone the caption is anchored to on screen. */
+  vertical_position?: EditVideoTextVerticalPosition | null;
+  /** Distance of the caption from the bottom edge, as a % of frame height. */
+  margin_bottom_percent?: number | null;
   /** left | center (default) | right */
-  horizontal_position?: EditVideoTextHorizontalPosition;
+  horizontal_position?: EditVideoTextHorizontalPosition | null;
   /** Distance from the left/right edge, as a % of frame width. */
-  margin_horizontal_percent?: number;
-  /** Seconds (scene-local) the text clip starts/ends showing. */
-  text_start?: number;
-  text_end?: number;
-  text_animation_style?: EditVideoTextAnimationStyle;
-  /** Custom on-screen text the user wrote. */
-  text?: string;
+  margin_horizontal_percent?: number | null;
 }
 
 export interface SceneStyleUpdateResponse {
@@ -397,6 +391,53 @@ export interface SceneInfographicUpdateResponse {
   timeline_version: number;
   timeline: EditVideoTimeline;
   needs_render: boolean;
+}
+
+export type BeatAnimationGeometryPx = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scale?: number;
+};
+
+export type BeatAnimationMotion = {
+  start_xy_px?: [number, number];
+  end_xy_px?: [number, number];
+  motion_style?: string;
+};
+
+/** PATCH /timeline/{video_id}/scene/{scene_id}/beat/{beat_id}/animation — text & infographic overlays. */
+export interface BeatAnimationUpdate {
+  animation_type?: string | null;
+  placement?: string | null;
+  geometry_px?: BeatAnimationGeometryPx | null;
+  motion?: BeatAnimationMotion | null;
+  duration_frames?: number | null;
+  z_index_layer?: string | null;
+  trigger?: string | null;
+  content_binding?: string | null;
+  icon_name?: string | string[] | null;
+  icon_layout?: string | null;
+  display_text?: string | string[] | null;
+  color_hint?: string | null;
+  background_color_hint?: string | null;
+  highlight_target_text?: string | null;
+  render_prompt?: string | null;
+  render_engine_hint?: string | null;
+}
+
+export interface BeatAnimationUpdateResponse {
+  video_id: string;
+  scene_id: string;
+  beat_id: string;
+  timeline_version: number;
+  timeline?: EditVideoTimeline;
+  needs_render: boolean;
+  overlay_id?: string | number;
+  text_id?: string | number;
+  animation?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface SceneBrollSelectUpdate {
@@ -457,11 +498,10 @@ export type TimelineContentType = 'video' | 'image';
 export interface TimelineBrollInsert {
   asset_id: number;
   source: 'video' | 'image';
+  scene_id: string;
   /** Seconds (scene-local) the clip starts/ends on the timeline. */
   start: number;
   end: number;
-  duration: number;
-  motion_type?: string;
 }
 
 export interface TimelineBrollInsertResponse {
@@ -2001,6 +2041,24 @@ export class ApiService {
       body: JSON.stringify(payload),
     });
     return this.parseJsonOrThrow<SceneInfographicUpdateResponse>(response, 'Update scene infographic');
+  }
+
+  /**
+   * Create or edit a text / infographic overlay via PATCH .../beat/{beat_id}/animation.
+   * At least one field is required; `animation_type` is required when creating a new overlay.
+   */
+  static async updateBeatAnimation(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    payload: BeatAnimationUpdate,
+  ): Promise<BeatAnimationUpdateResponse> {
+    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/beat/${encodeURIComponent(beatId)}/animation`;
+    const response = await this.authorizedFetch(url, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow<BeatAnimationUpdateResponse>(response, 'Update beat animation');
   }
 
   /**
