@@ -2389,7 +2389,8 @@ export class ApiService {
       }
     }
 
-    const url = `${this.BASE_URL}/trending-data`;
+    // const url = `${this.BASE_URL}/trending-data`;
+    const url = 'https://www.google.com';
     const response = await this.authorizedFetch(url, { method: 'GET' });
     if (!response.ok) throw new Error('Failed to fetch trending topics');
 

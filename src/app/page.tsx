@@ -210,10 +210,10 @@ export default function Home() {
         </div>
 
         {/* ── Trending Topics with Tabs ── */}
-        <section className="py-6 sm:py-10 px-5 sm:px-8 border-b border-gray-100">
+        {/* <section className="py-6 sm:py-10 px-5 sm:px-8 border-b border-gray-100">
           <div className="max-w-5xl mx-auto">
 
-            {/* Tab row */}
+           
             <div className="flex flex-wrap justify-center items-center gap-2 mb-5">
               <div className="flex items-center  gap-1.5 bg-white border border-gray-200 rounded-full px-1 py-1 shadow-sm">
                 {TABS.map(tab => (
@@ -234,7 +234,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Topic chips */}
+            
             <div className="flex flex-wrap items-center justify-center gap-2">
               {isLoading && activeTopics.length === 0 ? (
                 Array.from({ length: 12 }).map((_, i) => (
@@ -269,7 +269,7 @@ export default function Home() {
             </div>
 
           </div>
-        </section>
+        </section> */}
       </section>
 
 
