@@ -56,7 +56,7 @@ import {
   studioPathSegmentFromPathname,
   studioTabFromPathname,
 } from '@/lib/keyword-routes';
-import { maxScriptMinutesForPlan } from '@/lib/credits';
+import { maxScriptMinutesForPlan, minScriptMinutesForPlan } from '@/lib/credits';
 import { toast } from 'sonner';
 
 const SCRIPT_GENERATION_STEPS = [
@@ -639,6 +639,7 @@ function SearchTopicPageInner() {
   const [scriptGenError, setScriptGenError] = useState<string | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [userTier, setUserTier] = useState<string>('Free');
+  const minScriptMinutes = minScriptMinutesForPlan(userTier);
   const maxScriptMinutes = maxScriptMinutesForPlan(userTier);
 
   // Load plan tier for script length limits
@@ -1535,8 +1536,15 @@ useEffect(() => {
     }
 
     const requested = Number(videoLengths[idea.id] || 0);
-    if (!Number.isFinite(requested) || requested < 1) {
+    if (!Number.isFinite(requested) || requested <= 0) {
       toast.error('Enter a valid script length in minutes');
+      return;
+    }
+    if (requested < minScriptMinutes) {
+      toast.error(
+        `Your ${userTier} plan requires scripts of at least ${minScriptMinutes} min (${minScriptMinutes}–${maxScriptMinutes} min).`,
+      );
+      setVideoLengths((prev) => ({ ...prev, [idea.id]: String(minScriptMinutes) }));
       return;
     }
     if (requested > maxScriptMinutes) {
@@ -1563,7 +1571,7 @@ useEffect(() => {
       title: idea.title,
       description: idea.description,
       topic,
-      time: Math.min(requested, maxScriptMinutes),
+      time: Math.min(Math.max(requested, minScriptMinutes), maxScriptMinutes),
     };
 
     // Keep the full idea list in saved_ideas intact — never overwrite with a
@@ -1639,7 +1647,9 @@ useEffect(() => {
   };
 
   const handleVideoLengthChange = (id: number, value: string) => {
-    // Allow empty while typing; clamp numeric values to plan max
+    // Allow empty while typing; cap at the plan max right away. The plan min is applied
+    // on blur instead — clamping it per keystroke would turn the "1" of "10" into the
+    // min before the second digit could be typed.
     if (value.trim() === '') {
       setVideoLengths((prev) => ({ ...prev, [id]: '' }));
       return;
@@ -1649,8 +1659,20 @@ useEffect(() => {
       setVideoLengths((prev) => ({ ...prev, [id]: value }));
       return;
     }
-    const clamped = Math.min(Math.max(1, n), maxScriptMinutes);
-    setVideoLengths((prev) => ({ ...prev, [id]: String(clamped) }));
+    const capped = Math.min(Math.max(0, n), maxScriptMinutes);
+    setVideoLengths((prev) => ({ ...prev, [id]: String(capped) }));
+  };
+
+  /** On blur, raise a too-short length to the plan minimum. */
+  const handleVideoLengthBlur = (id: number) => {
+    const raw = videoLengths[id];
+    if (!raw?.trim()) return;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.min(Math.max(minScriptMinutes, Math.round(n)), maxScriptMinutes);
+    if (String(clamped) !== raw) {
+      setVideoLengths((prev) => ({ ...prev, [id]: String(clamped) }));
+    }
   };
 
   const stageCompleted = {
@@ -2038,13 +2060,14 @@ useEffect(() => {
                                 </label>
                                 <Input
                                   type="number"
-                                  placeholder={userTier.toLowerCase().includes('free') ? `1-${maxScriptMinutes}` : `1-${maxScriptMinutes}`}
+                                  placeholder={`${minScriptMinutes}-${maxScriptMinutes}`}
                                   value={videoLengths[statement.id] || ''}
                                   onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
+                                  onBlur={() => handleVideoLengthBlur(statement.id)}
                                   className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
-                                  min={1}
+                                  min={minScriptMinutes}
                                   max={maxScriptMinutes}
-                                  title={`${userTier} plan: max ${maxScriptMinutes} min`}
+                                  title={`${userTier} plan: ${minScriptMinutes}–${maxScriptMinutes} min`}
                                 />
                                
                               </div>
@@ -2138,16 +2161,17 @@ useEffect(() => {
                                         </label>
                                         <Input
                                           type="number"
-                                          placeholder={`1-${maxScriptMinutes}`}
+                                          placeholder={`${minScriptMinutes}-${maxScriptMinutes}`}
                                           value={videoLengths[ideaId] || ''}
                                           onChange={(e) => handleVideoLengthChange(ideaId, e.target.value)}
+                                          onBlur={() => handleVideoLengthBlur(ideaId)}
                                           className="w-20 h-9 text-sm rounded-lg border-gray-200 bg-white text-center"
-                                          min={1}
+                                          min={minScriptMinutes}
                                           max={maxScriptMinutes}
-                                          title={`${userTier} plan: max ${maxScriptMinutes} min`}
+                                          title={`${userTier} plan: ${minScriptMinutes}–${maxScriptMinutes} min`}
                                         />
                                         <p className="text-[9px] text-gray-400 mt-0.5 text-center">
-                                          max {maxScriptMinutes}m
+                                          {minScriptMinutes}–{maxScriptMinutes}m
                                         </p>
                                       </div>
                                       <button

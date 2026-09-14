@@ -56,7 +56,7 @@ export default function CreditsHowItWorks() {
             </span>
           </div>
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5">
-            <span className="text-sm font-medium text-white/90">Voice generation</span>
+            <span className="text-sm font-medium text-white/90">Voice generation + AI video generation</span>
             <span className="text-sm font-semibold text-white whitespace-nowrap">
               {CREDITS_PER_VOICE_MINUTE} credits / min
             </span>
@@ -68,7 +68,7 @@ export default function CreditsHowItWorks() {
             const total = exampleTotal(minutes, withThumbnail, withVoice);
             const parts = [`${minutes} min script`];
             if (withThumbnail) parts.push('thumbnail');
-            if (withVoice) parts.push('voice');
+            if (withVoice) parts.push('voice + AI video generation');
             const label = parts.join(' + ');
             return (
               <div

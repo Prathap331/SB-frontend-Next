@@ -3,7 +3,7 @@
 export const CREDITS_PER_SCRIPT_MINUTE = 1;
 export const CREDITS_PER_THUMBNAIL = 10;
 /** Voice / TTS: 5 credits per minute of generated speech */
-export const CREDITS_PER_VOICE_MINUTE = 5;
+export const CREDITS_PER_VOICE_MINUTE = 11;
 /**
  * Faceless AI video generation via POST /edit-video.
  * Placeholder amount — change after pricing research.
@@ -12,12 +12,19 @@ export const CREDITS_PER_EDIT_VIDEO = 50;
 
 /** Monthly credit pool by plan (fallback when subscriptions_plan.mins missing) */
 export const PLAN_CREDITS: Record<'free' | 'plus' | 'pro', number> = {
-  free: 100,
-  plus: 600,
-  pro: 1200,
+  free: 150,
+  plus: 1300,
+  pro: 2500,
 };
 
-/** Max script generation length (minutes) by plan */
+/** Min script generation length (minutes) by plan — free 3, paid 5 */
+export const MIN_SCRIPT_MINUTES: Record<'free' | 'plus' | 'pro', number> = {
+  free: 3,
+  plus: 5,
+  pro: 5,
+};
+
+/** Max script generation length (minutes) by plan — free 5, paid 15 */
 export const MAX_SCRIPT_MINUTES: Record<'free' | 'plus' | 'pro', number> = {
   free: 5,
   plus: 15,
@@ -33,8 +40,20 @@ export function normalizePlanKey(tier: string | null | undefined): PlanKey {
   return 'free';
 }
 
+export function minScriptMinutesForPlan(tier: string | null | undefined): number {
+  return MIN_SCRIPT_MINUTES[normalizePlanKey(tier)];
+}
+
 export function maxScriptMinutesForPlan(tier: string | null | undefined): number {
   return MAX_SCRIPT_MINUTES[normalizePlanKey(tier)];
+}
+
+/** Clamp a requested script length (minutes) into the plan's [min, max] range. */
+export function clampScriptMinutes(minutes: number, tier: string | null | undefined): number {
+  const min = minScriptMinutesForPlan(tier);
+  const max = maxScriptMinutesForPlan(tier);
+  if (!Number.isFinite(minutes)) return min;
+  return Math.min(max, Math.max(min, Math.round(minutes)));
 }
 
 export function planCreditsFallback(tier: string | null | undefined): number {

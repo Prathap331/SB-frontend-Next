@@ -3825,6 +3825,9 @@ export function StudioVideoEditingPanel({
         {!hasScenes ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-5 text-center">
             <p className="text-xs leading-relaxed text-[#86868b]">
+            Please Note: Storio uses licensed, royalty-free B-roll footage to create your videos. The Video clips are not AI-generated
+            </p>
+            <p className="text-xs leading-relaxed text-[#86868b]">
               No scenes yet. Generate a voiceover and scene breakdown to start editing.
             </p>
             <button

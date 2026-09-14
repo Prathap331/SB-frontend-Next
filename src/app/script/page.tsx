@@ -17,6 +17,7 @@ import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
 import { ApiFailCard } from '@/components/ApiFailCard';
 import { ApiService, GenerationParams, GeneratedScriptData } from '@/services/api';
 import { supabase } from '@/lib/supabaseClient';
+import { clampScriptMinutes } from '@/lib/credits';
 import { unwrapScriptJson, normalizeScriptData } from '@/lib/script-data';
 import { STORYBIT_PRODUCTION_GUIDE } from '@/lib/production-guide';
 import {
@@ -308,12 +309,21 @@ export default function ScriptPage() {
       if (urlParams.has('topic') || urlParams.has('duration') || urlParams.has('time')) {
         const topic = urlParams.get('topic') || undefined;
         const duration = urlParams.get('time') || urlParams.get('duration') || undefined;
+        // URL params are user-editable — clamp to the plan's script length range
+        // (free 3–5 min, paid 5–15 min) so this flow can't bypass the limits.
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('user_tier')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        const tier = profile?.user_tier || 'Free';
+        const requestedMinutes = duration ? parseInt(duration, 10) : 10;
         const payload: GenerationParams = {
           userId: session.user.id,
           title: topic || 'Untitled',
           description: topic || '',
           topic: topic || '',
-          time: duration ? parseInt(duration, 10) : 10,
+          time: clampScriptMinutes(requestedMinutes, tier),
         };
         try {
           let raw: GeneratedScriptData;
