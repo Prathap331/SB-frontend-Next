@@ -1,5 +1,6 @@
 // API service for StoryBit AI backend integration
 import { supabase } from '@/lib/supabaseClient';
+import { normalizeRenderStatus, type RenderQueueStatus } from '@/lib/renderStatus';
 
 export interface ProcessTopicRequest {
   topic: string;
@@ -9,6 +10,11 @@ export interface ProcessTopicRequest {
 // ── B-Roll (Pexels proxy) ─────────────────────────────────────────────────────
 
 export type BrollOrientation = 'landscape' | 'portrait' | 'square';
+
+/** Orientation sent to POST /render/queue. */
+export type RenderOrientation = 'landscape' | 'portrait';
+
+export type { RenderQueueStatus } from '@/lib/renderStatus';
 /** Pexels size: large = 4K, medium = Full HD (1080p), small = HD */
 export type BrollSize = 'large' | 'medium' | 'small';
 export type BrollMediaKind = 'video' | 'photo';
@@ -2148,16 +2154,12 @@ export class ApiService {
   }
 
   /**
-   * Render the whole video via POST /render/{video_id}.
-   * Response shape isn't fully pinned down yet, so this scans for a video URL
-   * under common field names (video_url, url, render_url, output_url, ...)
-   * the same way generateSpeech does for its audio URL.
+   * Scan an arbitrary render payload for the finished video URL.
+   * The response shape isn't fully pinned down, so this checks the common field
+   * names (video_url, url, render_url, output_url, ...) at the top level and one
+   * level down, the same way generateSpeech does for its audio URL.
    */
-  static async renderVideo(videoId: string): Promise<{ videoUrl: string | null; raw: unknown }> {
-    const url = `${this.BASE_URL}/render/${encodeURIComponent(videoId)}`;
-    const response = await this.authorizedFetch(url, { method: 'POST' });
-    const data = await this.parseJsonOrThrow<unknown>(response, 'Render video');
-
+  private static pickRenderVideoUrl(data: unknown): string | null {
     const asStr = (v: unknown) => {
       if (v == null) return '';
       if (typeof v === 'string') return v.trim();
@@ -2193,14 +2195,13 @@ export class ApiService {
       return null;
     };
 
-    if (typeof data === 'string') {
-      return { videoUrl: pickUrl(data), raw: data };
-    }
+    if (typeof data === 'string') return pickUrl(data);
     if (Array.isArray(data)) {
       for (const item of data) {
         const found = pickUrl(item);
-        if (found) return { videoUrl: found, raw: data };
+        if (found) return found;
       }
+      return null;
     }
 
     const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
@@ -2211,10 +2212,74 @@ export class ApiService {
       (obj.video && typeof obj.video === 'object' ? obj.video : null) ??
       {};
 
-    const videoUrl =
-      pickUrl(obj) || pickUrl(nested) || pickUrl(obj.video) || pickUrl(obj.render) || null;
+    return pickUrl(obj) || pickUrl(nested) || pickUrl(obj.video) || pickUrl(obj.render) || null;
+  }
 
-    return { videoUrl, raw: data };
+  /**
+   * Queue a full-video render via POST /render/queue.
+   * Payload: { video_id, orientation }
+   * Returns the queue id to poll with getRenderQueueStatus — the backend may name it
+   * `queue_id`, `video_id` or plain `id`, so all are accepted.
+   */
+  static async queueRenderVideo(params: {
+    videoId: string;
+    orientation?: RenderOrientation;
+  }): Promise<{ queueId: string | null; raw: unknown }> {
+    const url = `${this.BASE_URL}/render/queue`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        video_id: params.videoId,
+        orientation: params.orientation ?? 'landscape',
+      }),
+    });
+    const data = await this.parseJsonOrThrow<unknown>(response, 'Queue render');
+
+    const asId = (v: unknown): string | null => {
+      if (typeof v === 'string' && v.trim()) return v.trim();
+      if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+      return null;
+    };
+
+    const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+    const nested = (obj.data && typeof obj.data === 'object' ? obj.data : {}) as Record<string, unknown>;
+    const queueId =
+      asId(obj.queue_id) ??
+      asId(obj.queueId) ??
+      asId(obj.video_id) ??
+      asId(obj.videoId) ??
+      asId(obj.id) ??
+      asId(nested.queue_id) ??
+      asId(nested.queueId) ??
+      asId(nested.video_id) ??
+      asId(nested.videoId) ??
+      asId(nested.id) ??
+      asId(data);
+
+    return { queueId, raw: data };
+  }
+
+  /**
+   * Poll one queued render via GET /render/queue/{queue_id}.
+   * `status` is normalized to pending / completed / failed so callers don't have to
+   * know every spelling the backend uses (queued, processing, done, success, error...).
+   */
+  static async getRenderQueueStatus(
+    queueId: string,
+  ): Promise<{ status: RenderQueueStatus; videoUrl: string | null; raw: unknown }> {
+    const url = `${this.BASE_URL}/render/queue/${encodeURIComponent(queueId)}`;
+    const response = await this.authorizedFetch(url, { method: 'GET' });
+    const data = await this.parseJsonOrThrow<unknown>(response, 'Render status');
+
+    const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+    const nested = (obj.data && typeof obj.data === 'object' ? obj.data : {}) as Record<string, unknown>;
+    const videoUrl = this.pickRenderVideoUrl(data);
+    // No status field but a URL is present — the render is done.
+    const status: RenderQueueStatus =
+      normalizeRenderStatus(obj.status ?? obj.state ?? nested.status ?? nested.state) ??
+      (videoUrl ? 'completed' : 'pending');
+
+    return { status, videoUrl, raw: data };
   }
 
   /**

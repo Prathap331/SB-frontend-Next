@@ -25,10 +25,10 @@ import {
   StudioMetadataPanel,
   StudioThumbnailsPanel,
   StudioBRollPanel,
-  StudioAudioPanel,
   type StudioTab,
 } from '@/components/studio/StudioPanels';
 import { StudioVideoEditingPanel } from '@/components/studio/StudioVideoEditingPanel';
+import { StudioCloningPanel } from '@/components/studio/StudioCloningPanel';
 import { StudioChromeProvider, useStudioChrome } from '@/components/studio/StudioChromeContext';
 import { getScriptTextFromMap } from '@/lib/script-data';
 import { DEFAULT_SCRIPT_LANGUAGE } from '@/lib/script-languages';
@@ -1835,7 +1835,7 @@ useEffect(() => {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
-                        {studioTab === 'audio' ? 'Audio' : ''}
+                        {studioTab === 'audio' ? 'Cloning' : ''}
                       </p>
                       <h1
                         className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
@@ -1844,7 +1844,7 @@ useEffect(() => {
                         {studioTab === 'broll'
                           ? 'B-ROLL VIDEOS'
                           : studioTab === 'audio'
-                            ? 'TURN TEXT INTO SPEECH'
+                            ? 'CLONE YOUR VOICE'
                             : 'START A NEW TOPIC'}
                       </h1>
                     </div>
@@ -1873,20 +1873,7 @@ useEffect(() => {
                 ) : studioTab === 'broll' ? (
                   <StudioBRollPanel onReturnToVideoEditing={() => setStudioTab('video-editing')} />
                 ) : studioTab === 'audio' ? (
-                  <StudioAudioPanel
-                    scriptText=""
-                    isUnlocked={false}
-                    freeform
-                    scriptAudio={[]}
-                    scriptRowId={null}
-                    onSelectScript={() => {
-                      router.push('/app/my-scripts?returnTab=audio');
-                    }}
-                    onGoToScript={() => {
-                      setStudioTab('ideas');
-                      searchInputRef.current?.focus();
-                    }}
-                  />
+                  <StudioCloningPanel />
                 ) : (
                   <div className="bg-white border border-gray-200 rounded-2xl text-center py-14 px-6">
                     <p className="text-sm text-gray-500">
@@ -2256,46 +2243,7 @@ useEffect(() => {
               <StudioBRollPanel onReturnToVideoEditing={() => setStudioTab('video-editing')} />
             )}
 
-            {studioTab === 'audio' && (
-              <StudioAudioPanel
-                scriptText={
-                  activeScriptFromAssigned
-                    ? getScriptTextFromMap(
-                        activeScriptData?.scriptsByLanguage ?? {},
-                        activeScriptLanguage,
-                      ) || activeScriptData?.script || ''
-                    : ''
-                }
-                scriptsByLanguage={
-                  activeScriptFromAssigned
-                    ? activeScriptData?.scriptsByLanguage ?? null
-                    : null
-                }
-                initialLanguage={activeScriptLanguage}
-                isUnlocked={activeScriptFromAssigned}
-                ideaTitle={activeScriptIdeaTitle}
-                scriptAudio={activeScriptData?.script_audio ?? []}
-                scriptRowId={activeScriptFromAssigned ? activeScriptRowId : null}
-                scriptDurationMinutes={activeScriptDuration}
-                onGoToScript={() => setStudioTab('script')}
-                onSelectScript={() => {
-                  router.push('/app/my-scripts?returnTab=audio');
-                }}
-                onScriptAudioChange={(urls) => {
-                  setActiveScriptData((prev) =>
-                    prev ? { ...prev, script_audio: urls } : prev,
-                  );
-                }}
-                onLanguageChange={(lang, script) => {
-                  setActiveScriptLanguage(lang);
-                  setActiveScriptData((prev) =>
-                    prev
-                      ? { ...prev, script, locked: false }
-                      : prev,
-                  );
-                }}
-              />
-            )}
+            {studioTab === 'audio' && <StudioCloningPanel />}
           </div>
           )}
         </div>

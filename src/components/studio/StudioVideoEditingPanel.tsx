@@ -47,7 +47,13 @@ import {
 } from '@/components/studio/StudioAudioPanel';
 import { VoiceCloneModal } from '@/components/studio/VoiceCloneModal';
 import { canUseVoiceCloning, saveClonedVoiceProfile } from '@/lib/voice-clone';
-import { CREDITS_PER_EDIT_VIDEO, estimateSpeechDurationSeconds } from '@/lib/credits';
+import { CREDITS_PER_EDIT_VIDEO_MINUTE, editVideoCredits, estimateSpeechDurationSeconds } from '@/lib/credits';
+import { notifyUser, requestNotificationPermission } from '@/lib/notifications';
+import {
+  normalizeRenderStatus,
+  renderStatusLabel,
+  type RenderQueueStatus,
+} from '@/lib/renderStatus';
 import { supabase } from '@/lib/supabaseClient';
 import { getScriptVideoUrl, saveScriptVideoUrl } from '@/lib/script-persistence';
 import {
@@ -80,6 +86,7 @@ import {
   resolveBeatAsset,
   brollDisplayName,
   clipMediaKind,
+  fetchVideoRenderState,
 } from '@/lib/video-editor';
 import {
   listPickedBroll,
@@ -1306,6 +1313,34 @@ function ColorPickerPanel({
   );
 }
 
+/** How often a queued render is polled for completion. */
+const RENDER_POLL_MS = 6000;
+
+/** Shows `videos.render_status` — where the last render of this video got to. */
+function RenderStatusChip({ status }: { status: RenderQueueStatus }) {
+  const tone =
+    status === 'completed'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+      : status === 'failed'
+        ? 'border-red-200 bg-red-50 text-red-700'
+        : 'border-amber-200 bg-amber-50 text-amber-800';
+  return (
+    <span
+      className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone}`}
+      title={`Render status: ${renderStatusLabel(status)}`}
+    >
+      {status === 'pending' ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : status === 'completed' ? (
+        <Check className="h-3 w-3" />
+      ) : (
+        <AlertTriangle className="h-3 w-3" />
+      )}
+      {renderStatusLabel(status)}
+    </span>
+  );
+}
+
 /* ── Component ─────────────────────────────────────────────────────────────── */
 
 export function StudioVideoEditingPanel({
@@ -1490,6 +1525,10 @@ export function StudioVideoEditingPanel({
   const [renderConfirmOpen, setRenderConfirmOpen] = useState(false);
   const [isDownloadingRendered, setIsDownloadingRendered] = useState(false);
   const [renderedVideoUrl, setRenderedVideoUrl] = useState<string | null>(null);
+  /** Queue id returned by POST /render/queue — non-null while a render is in the queue. */
+  const [renderQueueId, setRenderQueueId] = useState<string | null>(null);
+  /** `videos.render_status`, read when the editor opens and kept live while rendering. */
+  const [renderStatus, setRenderStatus] = useState<RenderQueueStatus | null>(null);
   const [videoPreviewOpen, setVideoPreviewOpen] = useState(false);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [previewTime, setPreviewTime] = useState(0);
@@ -1888,8 +1927,10 @@ export function StudioVideoEditingPanel({
     };
   }, [scriptRowId]);
 
-  const renderDisabled = !videoId || isRendering;
-  const renderBusy = queuedRequestCount > 0 || isRendering;
+  const renderDisabled = !videoId || isRendering || Boolean(renderQueueId);
+  const renderBusy = queuedRequestCount > 0 || isRendering || Boolean(renderQueueId);
+  /** Name used in the "finished rendering" notification. */
+  const renderVideoName = (ideaTitle || 'Your video').trim() || 'Your video';
 
   const openRenderConfirm = useCallback(() => {
     if (!videoId) return;
@@ -1908,30 +1949,132 @@ export function StudioVideoEditingPanel({
       flushPendingDeletesRef.current?.();
       await requestQueueRef.current.catch(() => {});
 
-      const { videoUrl } = await ApiService.renderVideo(videoId);
-      if (!videoUrl) {
-        showToast('Render finished, but no video URL was returned');
+      // Asked from the click that started the render, so the prompt has a user gesture.
+      void requestNotificationPermission();
+
+      const { queueId } = await ApiService.queueRenderVideo({
+        videoId,
+        orientation: 'landscape',
+      });
+      if (!queueId) {
+        showToast('Render queued, but no queue id was returned');
         return;
       }
-      setRenderedVideoUrl(videoUrl);
+      setRenderQueueId(queueId);
+      setRenderStatus('pending');
       setRenderConfirmOpen(false);
-      setVideoPreviewOpen(true);
-      setPreviewPlaying(false);
-      setPreviewTime(0);
-      showToast('Video rendered');
-
-      if (scriptRowId) {
-        const save = await saveScriptVideoUrl({ scriptRowId, userId, videoUrl });
-        if (!save.ok) {
-          showToast(save.error || 'Video rendered, but failed to save');
-        }
-      }
+      showToast('Added to the render queue — we’ll notify you when it’s done');
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to render video');
+      showToast(err instanceof Error ? err.message : 'Failed to queue render');
     } finally {
       setIsRendering(false);
     }
-  }, [videoId, isRendering, scriptRowId, userId, showToast]);
+  }, [videoId, isRendering, showToast]);
+
+  /**
+   * Poll the queued render until it finishes, then notify.
+   * The queue id lives in state only, so this stops if the panel unmounts.
+   */
+  /** Shared completion path for both watchers (live queue poll and the videos row). */
+  const finishRender = useCallback(
+    async (videoUrl: string | null, tag: string) => {
+      setRenderQueueId(null);
+      setRenderStatus('completed');
+      if (!videoUrl) {
+        showToast('Render completed, but no video URL was returned');
+        return;
+      }
+      setRenderedVideoUrl(videoUrl);
+      const notified = notifyUser(
+        'Render complete',
+        `“${renderVideoName}” has completed rendering.`,
+        { tag: `render-${tag}` },
+      );
+      showToast(
+        notified
+          ? `“${renderVideoName}” has completed rendering`
+          : `“${renderVideoName}” has completed rendering — open it from the preview button`,
+      );
+      if (scriptRowId) {
+        const save = await saveScriptVideoUrl({ scriptRowId, userId, videoUrl });
+        if (!save.ok) showToast(save.error || 'Video rendered, but failed to save');
+      }
+    },
+    [renderVideoName, scriptRowId, userId, showToast],
+  );
+
+  /** Watch the render we queued in this session via GET /render/queue/{queue_id}. */
+  useEffect(() => {
+    if (!renderQueueId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const poll = async () => {
+      try {
+        const { status, videoUrl } = await ApiService.getRenderQueueStatus(renderQueueId);
+        if (cancelled) return;
+        if (status === 'completed') {
+          await finishRender(videoUrl, renderQueueId);
+          return;
+        }
+        if (status === 'failed') {
+          setRenderQueueId(null);
+          setRenderStatus('failed');
+          showToast('Rendering failed. Please try again.');
+          return;
+        }
+      } catch (err) {
+        // A single failed poll (network blip) shouldn't end the watch — keep trying.
+        console.warn('[render-queue]', err);
+        if (cancelled) return;
+      }
+      timer = setTimeout(() => void poll(), RENDER_POLL_MS);
+    };
+
+    timer = setTimeout(() => void poll(), RENDER_POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [renderQueueId, finishRender, showToast]);
+
+  /**
+   * Pick a render back up from `videos.render_status` — the queue id only lives in
+   * memory, so this is what keeps a render started before a reload (or in another tab)
+   * tracked to completion.
+   */
+  useEffect(() => {
+    if (renderQueueId || renderStatus !== 'pending' || !videoId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const poll = async () => {
+      try {
+        const state = await fetchVideoRenderState(videoId);
+        if (cancelled) return;
+        const status = normalizeRenderStatus(state?.status);
+        if (status === 'completed' || (!status && state?.finalVideoUrl)) {
+          await finishRender(state?.finalVideoUrl ?? null, videoId);
+          return;
+        }
+        if (status === 'failed') {
+          setRenderStatus('failed');
+          showToast('Rendering failed. Please try again.');
+          return;
+        }
+      } catch (err) {
+        console.warn('[render-status]', err);
+        if (cancelled) return;
+      }
+      timer = setTimeout(() => void poll(), RENDER_POLL_MS);
+    };
+
+    timer = setTimeout(() => void poll(), RENDER_POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [renderQueueId, renderStatus, videoId, finishRender, showToast]);
 
   const closeVideoPreview = useCallback(() => {
     previewVideoRef.current?.pause();
@@ -2303,6 +2446,7 @@ export function StudioVideoEditingPanel({
         script?: string | null;
         voice?: string | null;
         finalVideoUrl?: string | null;
+        renderStatus?: string | null;
         selectedId?: string;
         textStyle?: TextStyle | null;
         videoKind?: VideoKind | null;
@@ -2336,6 +2480,11 @@ export function StudioVideoEditingPanel({
       restoredCacheRef.current = true;
       setVideoId(res.video_id);
       if (extras?.finalVideoUrl) setRenderedVideoUrl(extras.finalVideoUrl);
+      // Surface where the last render got to — and keep watching if it is still running.
+      setRenderStatus(
+        normalizeRenderStatus(extras?.renderStatus) ??
+          (extras?.finalVideoUrl ? 'completed' : null),
+      );
 
       for (const scene of res.scenes ?? []) {
         if (scene.trim && scene.scene_id) {
@@ -2399,6 +2548,7 @@ export function StudioVideoEditingPanel({
           script: row.script,
           voice: row.voice,
           finalVideoUrl: row.final_video_url,
+          renderStatus: row.render_status,
           sceneTimelines: maps,
           brollVideoSuggestions: mapped.brollVideoSuggestions,
           brollImageSuggestions: mapped.brollImageSuggestions,
@@ -2503,6 +2653,13 @@ export function StudioVideoEditingPanel({
   const setupVoiceReady = videoKind === 'with-face' ? true : Boolean(selectedVoice);
   const canSubmitSetup = Boolean(videoKind) && setupScriptReady && setupVoiceReady && !isSubmittingSetup;
 
+  /** `durationMinutes` the /edit-video payload will carry — also what the price is quoted from. */
+  const facelessDurationMinutes = useMemo(
+    () => Math.max(1, Math.round(estimateSpeechDurationSeconds(setupScript) / 60)),
+    [setupScript],
+  );
+  const facelessCredits = editVideoCredits(facelessDurationMinutes);
+
   const runFacelessGenerate = useCallback(async () => {
     if (!canSubmitSetup || videoKind !== 'faceless') return;
     if (!userId) {
@@ -2515,8 +2672,7 @@ export function StudioVideoEditingPanel({
       showToast('Pick a voice to continue');
       return;
     }
-    const durationSeconds = estimateSpeechDurationSeconds(setupScript);
-    const durationMinutes = Math.max(1, Math.round(durationSeconds / 60));
+    const durationMinutes = facelessDurationMinutes;
 
     setIsSubmittingSetup(true);
     try {
@@ -2536,7 +2692,7 @@ export function StudioVideoEditingPanel({
         const n = Number(profile?.credits_remaining);
         remaining = Number.isFinite(n) ? n : null;
       }
-      if (remaining != null && remaining < CREDITS_PER_EDIT_VIDEO) {
+      if (remaining != null && remaining < facelessCredits) {
         setShowInsufficientCredits(true);
         return;
       }
@@ -2599,6 +2755,8 @@ export function StudioVideoEditingPanel({
     selectedVoice,
     selectedVoicePreset,
     setupScript,
+    facelessDurationMinutes,
+    facelessCredits,
     showToast,
     replaceTimelineState,
     genVolume,
@@ -3648,8 +3806,9 @@ export function StudioVideoEditingPanel({
                   <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
                     <p className="text-xs font-medium leading-relaxed text-amber-950">
                       Generating this video will deduct{' '}
-                      <span className="font-semibold">{CREDITS_PER_EDIT_VIDEO} credits</span>{' '}
-                      from your balance.
+                      <span className="font-semibold">{facelessCredits} credits</span>{' '}
+                      from your balance ({facelessDurationMinutes} min ×{' '}
+                      {CREDITS_PER_EDIT_VIDEO_MINUTE} credits / min).
                     </p>
                   </div>
                 )}
@@ -3670,7 +3829,7 @@ export function StudioVideoEditingPanel({
                   {!videoKind
                     ? 'Choose a video type'
                     : videoKind === 'faceless'
-                      ? `Generate video · ${CREDITS_PER_EDIT_VIDEO} credits`
+                      ? `Generate video · ${facelessCredits} credits`
                       : 'Get scene-wise script'}
                 </button>
               </div>
@@ -3765,7 +3924,8 @@ export function StudioVideoEditingPanel({
             </div>
             <h2 className="text-lg font-semibold text-[#1d1d1f] mb-2">Not enough credits</h2>
             <p className="text-sm text-[#6e6e73] font-light leading-relaxed mb-6">
-              Video generation costs {CREDITS_PER_EDIT_VIDEO} credits. You don&apos;t have enough
+              Video generation costs {facelessCredits} credits ({facelessDurationMinutes} min ×{' '}
+              {CREDITS_PER_EDIT_VIDEO_MINUTE} credits / min). You don&apos;t have enough
               credits remaining. Upgrade your plan to keep generating videos.
             </p>
             <div className="flex flex-col gap-2">
@@ -4126,17 +4286,20 @@ export function StudioVideoEditingPanel({
               title={
                 !videoId
                   ? 'Generate the video first'
-                  : 'Render all scenes into one video'
+                  : renderQueueId
+                    ? 'Rendering in the queue — you will be notified when it is done'
+                    : 'Render all scenes into one video'
               }
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#1d1d1f] px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-30"
             >
-              {isRendering ? (
+              {renderBusy ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Film className="h-3.5 w-3.5" />
               )}
-              Render
+              {renderQueueId ? 'In queue' : 'Render'}
             </button>
+            {renderStatus ? <RenderStatusChip status={renderStatus} /> : null}
             <button
               type="button"
               onClick={() => setVideoPreviewOpen(true)}
@@ -4635,10 +4798,12 @@ export function StudioVideoEditingPanel({
               title={
                 !videoId
                   ? 'Generate the video first'
-                  : 'Render all scenes into one video'
+                  : renderQueueId
+                    ? 'Rendering in the queue — you will be notified when it is done'
+                    : 'Render all scenes into one video'
               }
             >
-              {isRendering ? (
+              {renderBusy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Film className="h-4 w-4" />
@@ -4653,6 +4818,11 @@ export function StudioVideoEditingPanel({
             </button>
           </div>
         </div>
+        {renderStatus ? (
+          <div className="flex flex-shrink-0 items-center justify-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5">
+            <RenderStatusChip status={renderStatus} />
+          </div>
+        ) : null}
 
         {/* Preview — large, fills all remaining space above the controls */}
         <div className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden p-2 [container-type:size]">
@@ -5548,17 +5718,29 @@ export function StudioVideoEditingPanel({
                   Render the full video?
                 </h2>
                 <p className="mt-1.5 text-xs leading-relaxed text-[#6e6e73]">
-                  This renders every scene together. Make sure edits on all scenes are done before
-                  continuing — later scene changes won&apos;t be in this file until you render again.
+                  This renders every scene together and is added to the render queue — you can keep
+                  working and we&apos;ll notify you when it&apos;s done. Make sure edits on all scenes
+                  are done before continuing — later scene changes won&apos;t be in this file until
+                  you render again.
                 </p>
               </div>
             </div>
+            {renderStatus ? (
+              <div className="mb-3 flex items-center gap-2">
+                <RenderStatusChip status={renderStatus} />
+                {renderStatus === 'pending' ? (
+                  <span className="text-[11px] text-[#86868b]">
+                    A render is already in the queue for this video.
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             {isRendering || queuedRequestCount > 0 ? (
               <p className="mb-4 flex items-center gap-2 text-[11px] text-[#6e6e73]">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 {queuedRequestCount > 0
                   ? 'Saving pending edits before render can start…'
-                  : 'Rendering all scenes…'}
+                  : 'Adding to the render queue…'}
               </p>
             ) : (
               <p className="mb-4 text-[11px] text-[#86868b]">Ready to render all scenes.</p>
@@ -5583,7 +5765,7 @@ export function StudioVideoEditingPanel({
                 ) : (
                   <Film className="h-3.5 w-3.5" />
                 )}
-                Render
+                {renderQueueId ? 'In queue' : 'Render'}
               </button>
             </div>
           </div>

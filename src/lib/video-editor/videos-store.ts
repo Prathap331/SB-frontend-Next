@@ -503,6 +503,32 @@ function coerceRow(raw: Record<string, unknown>): VideosTableRow | null {
  * A row is returned only when `videos.script` matches `scripts_assigned.script`
  * (or the in-memory script text if no assigned row id is available).
  */
+/**
+ * Current render state of one video row.
+ * Read when the editor opens, and polled while a render is still running so a
+ * queued render keeps being tracked across reloads (the queue id lives only in memory).
+ */
+export async function fetchVideoRenderState(
+  videoId: string,
+): Promise<{ status: string | null; finalVideoUrl: string | null } | null> {
+  if (!videoId.trim()) return null;
+  const { data, error } = await supabase
+    .from('videos')
+    .select('render_status, final_video_url')
+    .eq('id', videoId)
+    .maybeSingle();
+  if (error) {
+    console.error('[videos render_status]', error.message);
+    return null;
+  }
+  if (!data) return null;
+  const row = data as Record<string, unknown>;
+  return {
+    status: typeof row.render_status === 'string' ? row.render_status : null,
+    finalVideoUrl: typeof row.final_video_url === 'string' ? row.final_video_url : null,
+  };
+}
+
 export async function fetchVideosProject(
   userId: string,
   opts?: {

@@ -5,10 +5,10 @@ export const CREDITS_PER_THUMBNAIL = 10;
 /** Voice / TTS: 5 credits per minute of generated speech */
 export const CREDITS_PER_VOICE_MINUTE = 11;
 /**
- * Faceless AI video generation via POST /edit-video.
- * Placeholder amount — change after pricing research.
+ * Faceless AI video generation via POST /edit-video — charged per minute of the
+ * `durationMinutes` sent in the payload (5 min → 55 credits).
  */
-export const CREDITS_PER_EDIT_VIDEO = 50;
+export const CREDITS_PER_EDIT_VIDEO_MINUTE = 11;
 
 /** Monthly credit pool by plan (fallback when subscriptions_plan.mins missing) */
 export const PLAN_CREDITS: Record<'free' | 'plus' | 'pro', number> = {
@@ -69,6 +69,15 @@ export function voiceBillableMinutes(durationSeconds: number): number {
 
 export function voiceCreditsForSeconds(durationSeconds: number): number {
   return voiceBillableMinutes(durationSeconds) * CREDITS_PER_VOICE_MINUTE;
+}
+
+/**
+ * Credits an /edit-video run costs, from the same `durationMinutes` the payload sends.
+ * Whole minutes, at least one, so the quoted price matches what is charged.
+ */
+export function editVideoCredits(durationMinutes: number): number {
+  const mins = Math.max(1, Math.round(Number(durationMinutes) || 0));
+  return mins * CREDITS_PER_EDIT_VIDEO_MINUTE;
 }
 
 /**
