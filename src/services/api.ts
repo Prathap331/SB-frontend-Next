@@ -337,11 +337,11 @@ export interface SceneStyleUpdate {
   background_color?: string | null;
   /** Zone the caption is anchored to on screen. */
   vertical_position?: EditVideoTextVerticalPosition | null;
-  /** Distance of the caption from the bottom edge, as a % of frame height. */
+  /** Inset from the chosen vertical edge, as a % of frame height. UI default: 3. */
   margin_bottom_percent?: number | null;
   /** left | center (default) | right */
   horizontal_position?: EditVideoTextHorizontalPosition | null;
-  /** Distance from the left/right edge, as a % of frame width. */
+  /** Inset from the chosen horizontal edge, as a % of frame width. UI default: 3. */
   margin_horizontal_percent?: number | null;
 }
 

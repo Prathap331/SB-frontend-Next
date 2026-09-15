@@ -938,44 +938,59 @@ export async function saveScriptVideoUrl(opts: {
   return { ok: true };
 }
 
-/** One generated video for the "My Video" library — fetched from scripts_assigned.video. */
+const LIBRARY_SCRIPT_WORD_COUNT = 10;
+
+/** First N words of a script column (plain text or language map). */
+function scriptDescriptionFromRaw(raw: unknown, wordCount = LIBRARY_SCRIPT_WORD_COUNT): string {
+  const text = getScriptTextFromMap(parseScriptLanguageMap(raw)).replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text.split(' ').filter(Boolean).slice(0, wordCount).join(' ');
+}
+
+/** One generated video for the "My Video" library — fetched from videos.final_video_url. */
 export type LibraryVideo = {
   id: string;
-  topic: string;
-  title: string;
   videoUrl: string;
+  /** First 10 words of `videos.script`. */
+  description: string;
 };
 
-/** List every scripts_assigned row for this user that has a rendered video, newest first. */
+/** List this user's rendered videos only — `videos.user_id` must match the signed-in user. */
 export async function listUserVideos(userId: string): Promise<{
   ok: boolean;
   error?: string;
   videos: LibraryVideo[];
 }> {
+  const uid = asTrimmedString(userId);
+  if (!uid) {
+    return { ok: false, error: 'Missing user id.', videos: [] };
+  }
+
   const { data, error } = await supabase
-    .from('scripts_assigned')
-    .select('id, topic, title, video, created_at')
-    .eq('userId', userId)
-    .not('video', 'is', null)
+    .from('videos')
+    .select('id, user_id, script, final_video_url, created_at')
+    .eq('user_id', uid)
+    .not('final_video_url', 'is', null)
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('[scripts_assigned list videos]', error.message);
+    console.error('[videos list final_video_url]', error.message);
     return { ok: false, error: error.message, videos: [] };
   }
 
   const videos: LibraryVideo[] = (data ?? [])
     .map((row) => {
-      const videoUrl = asTrimmedString((row as { video?: unknown }).video);
+      const rowUserId = asTrimmedString((row as { user_id?: unknown }).user_id);
+      if (rowUserId !== uid) return null;
+      const videoUrl = asTrimmedString((row as { final_video_url?: unknown }).final_video_url);
       if (!/^https?:\/\//i.test(videoUrl)) return null;
       return {
         id: asTrimmedString((row as { id?: unknown }).id),
-        topic: asTrimmedString((row as { topic?: unknown }).topic),
-        title: asTrimmedString((row as { title?: unknown }).title),
         videoUrl,
+        description: scriptDescriptionFromRaw((row as { script?: unknown }).script),
       };
     })
-    .filter((v): v is LibraryVideo => Boolean(v));
+    .filter((v): v is LibraryVideo => Boolean(v && v.id));
 
   return { ok: true, videos };
 }

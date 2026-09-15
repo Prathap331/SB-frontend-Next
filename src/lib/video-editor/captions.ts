@@ -20,9 +20,12 @@ export type CaptionStyle = {
 
 export type CaptionLine = { text: string; start: number; end: number; words: CaptionWord[] };
 
+/** Default inset sent to PATCH .../style when the UI has no margin inputs. */
+export const DEFAULT_CAPTION_MARGIN_PERCENT = 3;
+
 export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
   offsetX: 50,
-  offsetY: 12,
+  offsetY: DEFAULT_CAPTION_MARGIN_PERCENT,
   fontSize: 32,
   textColor: '#ffffff',
   outlineColor: '#000000',
@@ -109,27 +112,22 @@ export function parseCaptionStyle(raw: unknown): CaptionStyle {
   const verticalPosition = asVerticalPosition(obj.vertical_position) ?? DEFAULT_CAPTION_STYLE.verticalPosition;
   const horizontalPosition = asHorizontalPosition(obj.horizontal_position) ?? DEFAULT_CAPTION_STYLE.horizontalPosition;
   const animationType = asAnimationType(obj.animation_type) ?? DEFAULT_CAPTION_STYLE.animationType;
-  const marginBottom = num(obj.margin_bottom_percent);
-  const marginH = num(obj.margin_horizontal_percent);
+  const marginBottom = num(obj.margin_bottom_percent) ?? DEFAULT_CAPTION_MARGIN_PERCENT;
+  const marginH = num(obj.margin_horizontal_percent) ?? DEFAULT_CAPTION_MARGIN_PERCENT;
   const fontSize = num(obj.font_size);
   const textColor = str(obj.text_color);
   const outlineColor = str(obj.outline_color);
   const backgroundColor = str(obj.background_color);
 
   let offsetY: number;
-  if (marginBottom != null) offsetY = marginBottom;
-  else if (verticalPosition === 'top') offsetY = 82;
-  else if (verticalPosition === 'middle') offsetY = 48;
-  else offsetY = DEFAULT_CAPTION_STYLE.offsetY;
+  if (verticalPosition === 'top') offsetY = Math.max(0, 100 - marginBottom);
+  else if (verticalPosition === 'middle') offsetY = 50;
+  else offsetY = marginBottom;
 
   let offsetX: number;
-  if (horizontalPosition === 'center') {
-    offsetX = marginH != null ? marginH : 50;
-  } else if (horizontalPosition === 'left') {
-    offsetX = marginH ?? 8;
-  } else {
-    offsetX = marginH != null ? 100 - marginH : 92;
-  }
+  if (horizontalPosition === 'left') offsetX = marginH;
+  else if (horizontalPosition === 'right') offsetX = Math.max(0, 100 - marginH);
+  else offsetX = 50;
 
   return {
     offsetX,

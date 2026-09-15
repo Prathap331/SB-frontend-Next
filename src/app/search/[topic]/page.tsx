@@ -1945,6 +1945,11 @@ useEffect(() => {
                 isUnlocked={activeScriptFromAssigned}
                 ideaTitle={activeScriptIdeaTitle}
                 scriptRowId={activeScriptFromAssigned ? activeScriptRowId : null}
+                durationMinutes={
+                  Number(activeScriptData?.metrics?.videoLength) > 0
+                    ? Number(activeScriptData?.metrics?.videoLength)
+                    : activeScriptDuration
+                }
                 onFindMoreBroll={() => setStudioTab('broll')}
               />
             </div>

@@ -108,6 +108,7 @@ import {
   captionStyleForScene,
   captionWordsForScene,
   findAudioTrack,
+  DEFAULT_CAPTION_MARGIN_PERCENT,
   DEFAULT_CAPTION_STYLE,
   type CaptionStyle,
 } from '@/lib/video-editor/captions';
@@ -269,7 +270,7 @@ const LIBRARY_TABS: { id: LibraryTab; label: string; icon: React.ComponentType<{
 type TextStyle = {
   /** Distance from the left edge of the frame, as a % of frame width. */
   offsetX: number;
-  /** Distance from the bottom edge of the frame, as a % of frame height — matches `margin_bottom_percent` 1:1. */
+  /** Distance from the bottom edge of the frame, as a % of frame height. */
   offsetY: number;
   background: boolean;
   bgColor: string;
@@ -343,11 +344,6 @@ function horizontalPositionFromOffsetX(offsetX: number): EditVideoTextHorizontal
   return 'center';
 }
 
-function marginHorizontalPercent(offsetX: number, horizontal: EditVideoTextHorizontalPosition): number {
-  if (horizontal === 'right') return Math.round(Math.max(0, Math.min(100, 100 - offsetX)));
-  return Math.round(Math.max(0, Math.min(100, offsetX)));
-}
-
 function findTimelineClip(timeline: TimelineState, clipId: string): TimelineClip | undefined {
   for (const track of timeline.tracks) {
     const clip = track.clips.find((c) => c.id === clipId);
@@ -381,14 +377,14 @@ function collectSyncedIds(timelines: TimelineState[]): { beats: Set<string>; ove
 }
 
 function offsetYForVertical(position: EditVideoTextVerticalPosition): number {
-  if (position === 'top') return 82;
-  if (position === 'middle') return 48;
-  return 12;
+  if (position === 'top') return 100 - DEFAULT_CAPTION_MARGIN_PERCENT;
+  if (position === 'middle') return 50;
+  return DEFAULT_CAPTION_MARGIN_PERCENT;
 }
 
 function offsetXForHorizontal(position: EditVideoTextHorizontalPosition): number {
-  if (position === 'left') return 8;
-  if (position === 'right') return 92;
+  if (position === 'left') return DEFAULT_CAPTION_MARGIN_PERCENT;
+  if (position === 'right') return 100 - DEFAULT_CAPTION_MARGIN_PERCENT;
   return 50;
 }
 
@@ -1348,6 +1344,7 @@ export function StudioVideoEditingPanel({
   isUnlocked = false,
   ideaTitle,
   scriptRowId = null,
+  durationMinutes: scriptDurationMinutes = null,
   onFindMoreBroll,
 }: {
   scriptText?: string;
@@ -1355,6 +1352,8 @@ export function StudioVideoEditingPanel({
   ideaTitle?: string | null;
   /** scripts_assigned row id — rendered video URLs are saved onto its `video` column. */
   scriptRowId?: string | number | null;
+  /** Script length in minutes (selected / metrics.videoLength) — billed at 11 credits each. */
+  durationMinutes?: number | null;
   /** Navigate to the B-roll library tab to pick more media. */
   onFindMoreBroll?: (kind: 'video' | 'image') => void;
 }) {
@@ -1797,9 +1796,9 @@ export function StudioVideoEditingPanel({
           animation_type: cs.animationType,
           background_color: cs.backgroundColor ?? null,
           vertical_position: cs.verticalPosition,
-          margin_bottom_percent: Math.round(cs.offsetY),
+          margin_bottom_percent: DEFAULT_CAPTION_MARGIN_PERCENT,
           horizontal_position: cs.horizontalPosition,
-          margin_horizontal_percent: marginHorizontalPercent(cs.offsetX, cs.horizontalPosition),
+          margin_horizontal_percent: DEFAULT_CAPTION_MARGIN_PERCENT,
         };
         enqueueRequest(() =>
           ApiService.updateSceneStyle(videoId, sceneId, style).then(
@@ -2653,11 +2652,14 @@ export function StudioVideoEditingPanel({
   const setupVoiceReady = videoKind === 'with-face' ? true : Boolean(selectedVoice);
   const canSubmitSetup = Boolean(videoKind) && setupScriptReady && setupVoiceReady && !isSubmittingSetup;
 
-  /** `durationMinutes` the /edit-video payload will carry — also what the price is quoted from. */
-  const facelessDurationMinutes = useMemo(
-    () => Math.max(1, Math.round(estimateSpeechDurationSeconds(setupScript) / 60)),
-    [setupScript],
-  );
+  /** `durationMinutes` the /edit-video payload will carry — billed as that many minutes × 11. */
+  const facelessDurationMinutes = useMemo(() => {
+    const fromScript = Number(scriptDurationMinutes);
+    if (Number.isFinite(fromScript) && fromScript > 0) {
+      return Math.max(1, Math.round(fromScript));
+    }
+    return Math.max(1, Math.round(estimateSpeechDurationSeconds(setupScript) / 60));
+  }, [scriptDurationMinutes, setupScript]);
   const facelessCredits = editVideoCredits(facelessDurationMinutes);
 
   const runFacelessGenerate = useCallback(async () => {

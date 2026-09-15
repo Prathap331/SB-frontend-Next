@@ -44,7 +44,7 @@ function VideoPreviewModal({
       >
         <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5 py-3">
           <p className="truncate text-sm font-semibold text-white">
-            {video.title || video.topic || 'Generated video'}
+            Generated video
           </p>
           <button
             type="button"
@@ -92,8 +92,8 @@ function VideoPreviewModal({
               <Play className="ml-0.5 h-4 w-4 fill-current" />
             )}
           </button>
-          {video.topic && (
-            <span className="truncate text-[11px] font-medium text-white/70">{video.topic}</span>
+          {video.description && (
+            <span className="line-clamp-2 text-[11px] font-medium text-white/70">{video.description}</span>
           )}
         </div>
       </div>
@@ -121,13 +121,8 @@ function VideoCard({ video, onOpen }: { video: LibraryVideo; onOpen: () => void 
         </span>
       </button>
       <div className="p-4">
-        {video.topic && (
-          <span className="mb-2 inline-flex max-w-full items-center rounded-lg border border-amber-200/80 bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800 line-clamp-1">
-            {video.topic}
-          </span>
-        )}
-        <p className="truncate text-sm font-medium text-[#1d1d1f]">
-          {video.title || video.topic || 'Untitled video'}
+        <p className="text-sm font-medium leading-5 text-[#1d1d1f]">
+          {video.description || 'Untitled video'}
         </p>
       </div>
     </div>
@@ -144,12 +139,12 @@ export function MyVideosPanel({ embedded = false }: { embedded?: boolean } = {})
     const fetchVideos = async () => {
       setIsLoading(true);
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user?.id) {
           router.push('/auth');
           return;
         }
-        const result = await listUserVideos(session.user.id);
+        const result = await listUserVideos(user.id);
         setVideos(result.videos);
       } finally {
         setIsLoading(false);
