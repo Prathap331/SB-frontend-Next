@@ -1830,15 +1830,12 @@ useEffect(() => {
               <div className={`max-w-8xl mx-auto px-4 sm:px-6 ${studioTab === 'video-editing' ? 'py-3' : 'pt-5 pb-4'}`}>
                 {studioTab !== 'video-editing' && (
                   <div className="flex items-start gap-3 mb-4">
-                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#1d1d1f] flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Sparkles className="w-5 h-5 text-amber-400" />
+                    <div className="w-8 h-8 sm:w-8 sm:h-8 rounded-xl bg-[#1d1d1f] flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold tracking-[0.14em] text-amber-600 uppercase mb-1">
-                        {studioTab === 'audio' ? 'Cloning' : ''}
-                      </p>
                       <h1
-                        className="text-md sm:text-md md:text-md font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
+                        className="text-xl sm:text-xl md:text-xl font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
                         style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
                       >
                         {studioTab === 'broll'
