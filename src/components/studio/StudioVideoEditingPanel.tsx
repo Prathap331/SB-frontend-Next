@@ -1528,6 +1528,8 @@ export function StudioVideoEditingPanel({
   const [renderQueueId, setRenderQueueId] = useState<string | null>(null);
   /** `videos.render_status`, read when the editor opens and kept live while rendering. */
   const [renderStatus, setRenderStatus] = useState<RenderQueueStatus | null>(null);
+  /** Shown right after a render is queued — sets the expectation that this takes a while. */
+  const [renderQueuedNoticeOpen, setRenderQueuedNoticeOpen] = useState(false);
   const [videoPreviewOpen, setVideoPreviewOpen] = useState(false);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [previewTime, setPreviewTime] = useState(0);
@@ -1962,7 +1964,7 @@ export function StudioVideoEditingPanel({
       setRenderQueueId(queueId);
       setRenderStatus('pending');
       setRenderConfirmOpen(false);
-      showToast('Added to the render queue — we’ll notify you when it’s done');
+      setRenderQueuedNoticeOpen(true);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to queue render');
     } finally {
@@ -5691,6 +5693,40 @@ export function StudioVideoEditingPanel({
                 {tc(previewTime)} / {tc(previewDuration)}
               </span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {renderQueuedNoticeOpen && (
+        <div
+          role="button"
+          tabIndex={-1}
+          className="fixed inset-0 z-[97] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setRenderQueuedNoticeOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="render-queued-title"
+            className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50">
+              <Film className="h-5 w-5 text-amber-500" />
+            </span>
+            <h2 id="render-queued-title" className="mb-2 text-base font-semibold text-[#1d1d1f]">
+              Your video is rendering
+            </h2>
+            <p className="mb-6 text-sm font-light leading-relaxed text-[#6e6e73]">
+              Rendering takes time, please come back after sometime to download your video.
+            </p>
+            <button
+              type="button"
+              onClick={() => setRenderQueuedNoticeOpen(false)}
+              className="w-full rounded-xl bg-[#1d1d1f] py-2.5 text-sm font-semibold text-white hover:bg-black"
+            >
+              Got it
+            </button>
           </div>
         </div>
       )}
