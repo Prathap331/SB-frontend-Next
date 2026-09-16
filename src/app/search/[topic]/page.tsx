@@ -1838,7 +1838,7 @@ useEffect(() => {
                         {studioTab === 'audio' ? 'Cloning' : ''}
                       </p>
                       <h1
-                        className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
+                        className="text-md sm:text-md md:text-md font-bold text-[#1d1d1f] leading-tight break-words tracking-tight"
                         style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
                       >
                         {studioTab === 'broll'

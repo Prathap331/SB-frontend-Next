@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ChevronRight, Lock, Mic } from 'lucide-react';
+import { ChevronRight, Loader2, Lock, Mic } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { canUseVoiceCloning, saveClonedVoiceProfile } from '@/lib/voice-clone';
 import { VoiceCloneModal } from '@/components/studio/VoiceCloneModal';
@@ -11,6 +11,7 @@ import {
   CLONED_VOICE_WASH,
   VoiceCard,
   fetchClonedVoiceFromProfile,
+  fetchPreMadeVoices,
   type VoicePreset,
 } from '@/components/studio/StudioAudioPanel';
 
@@ -26,8 +27,11 @@ export function StudioCloningPanel() {
   const [clonedAudioUrl, setClonedAudioUrl] = useState<string | null>(null);
   const [clonedVoiceName, setClonedVoiceName] = useState<string | null>(null);
   const [cloneOpen, setCloneOpen] = useState(false);
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const clonedAudioRef = useRef<InstanceType<typeof window.Audio> | null>(null);
+  /** Id of the voice currently playing — 'cloned' or a preset id; null when nothing plays. */
+  const [previewVoiceId, setPreviewVoiceId] = useState<string | null>(null);
+  const [voicePresets, setVoicePresets] = useState<VoicePreset[]>([]);
+  const [voicesLoading, setVoicesLoading] = useState(true);
+  const previewAudioRef = useRef<InstanceType<typeof window.Audio> | null>(null);
 
   const cloningAllowed = canUseVoiceCloning(userTier);
   const voiceReady = Boolean(clonedAudioUrl);
@@ -77,10 +81,23 @@ export function StudioCloningPanel() {
     })();
     return () => {
       cancelled = true;
-      clonedAudioRef.current?.pause();
-      clonedAudioRef.current = null;
+      previewAudioRef.current?.pause();
+      previewAudioRef.current = null;
     };
   }, [loadClonedVoice]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const presets = await fetchPreMadeVoices();
+      if (cancelled) return;
+      setVoicePresets(presets);
+      setVoicesLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const openCloneModal = useCallback(() => {
     if (!cloningAllowed) {
@@ -107,27 +124,38 @@ export function StudioCloningPanel() {
     if (url) toast.success('Your voice is ready');
   }, [userId, loadClonedVoice]);
 
+  /** Plays a cloned or premade sample; clicking the one already playing stops it. */
   const handlePreview = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
-      if (!clonedAudioUrl) return;
-      const audio = clonedAudioRef.current ?? new window.Audio();
-      clonedAudioRef.current = audio;
-      if (isPreviewing) {
-        audio.pause();
-        audio.currentTime = 0;
-        setIsPreviewing(false);
+      const audio = previewAudioRef.current ?? new window.Audio();
+      previewAudioRef.current = audio;
+
+      audio.pause();
+      audio.currentTime = 0;
+      if (previewVoiceId === id) {
+        setPreviewVoiceId(null);
         return;
       }
-      audio.src = clonedAudioUrl;
-      audio.onended = () => setIsPreviewing(false);
+
+      const url =
+        id === 'cloned'
+          ? clonedAudioUrl
+          : voicePresets.find((v) => v.id === id)?.audioUrl?.trim() || null;
+      if (!url) {
+        toast.error('No preview available for this voice');
+        return;
+      }
+
+      audio.src = url;
+      audio.onended = () => setPreviewVoiceId(null);
       void audio.play().catch(() => {
-        toast.error('Could not play cloned voice sample');
-        setIsPreviewing(false);
+        toast.error('Could not play voice sample');
+        setPreviewVoiceId(null);
       });
-      setIsPreviewing(true);
+      setPreviewVoiceId(id);
     },
-    [clonedAudioUrl, isPreviewing],
+    [clonedAudioUrl, previewVoiceId, voicePresets],
   );
 
   return (
@@ -153,8 +181,8 @@ export function StudioCloningPanel() {
                     voice={clonedVoice}
                     active
                     onSelect={() => {}}
-                    onPreview={handlePreview}
-                    isPreviewing={isPreviewing}
+                    onPreview={(e) => handlePreview(e, 'cloned')}
+                    isPreviewing={previewVoiceId === 'cloned'}
                   />
                 </div>
               )}
@@ -194,6 +222,42 @@ export function StudioCloningPanel() {
               View plans
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
+          </div>
+        )}
+      </section>
+
+      {/* Default voices — the premade library, for previewing */}
+      <section className="bg-white border border-gray-200 rounded-3xl p-5 sm:p-6 shadow-sm">
+        <div className="flex items-baseline gap-2 mb-1.5">
+          <h3 className="text-sm font-semibold text-[#1d1d1f] tracking-tight">Default voices</h3>
+          <span className="text-xs text-[#6e6e73] font-medium">
+            {voicesLoading ? 'Loading…' : `${voicePresets.length} voices`}
+          </span>
+        </div>
+        <p className="text-xs text-[#6e6e73] font-light mb-4">
+          Preview the ready-made voices. Pick one when you generate a video.
+        </p>
+
+        {voicesLoading ? (
+          <div className="flex items-center justify-center py-10 text-[#6e6e73]">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+        ) : voicePresets.length === 0 ? (
+          <p className="text-sm text-[#6e6e73] py-6 text-center">
+            No default voices available yet.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+            {voicePresets.map((v) => (
+              <VoiceCard
+                key={v.id}
+                voice={v}
+                active={false}
+                onSelect={() => {}}
+                onPreview={(e) => handlePreview(e, v.id)}
+                isPreviewing={previewVoiceId === v.id}
+              />
+            ))}
           </div>
         )}
       </section>
