@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Sparkles,
   Film,
+  FileText,
   BarChart3,
   Link2,
   ChevronUp,
@@ -49,13 +50,12 @@ import { VoiceCloneModal } from '@/components/studio/VoiceCloneModal';
 import { canUseVoiceCloning, saveClonedVoiceProfile } from '@/lib/voice-clone';
 import { CREDITS_PER_EDIT_VIDEO_MINUTE, editVideoCredits, estimateSpeechDurationSeconds } from '@/lib/credits';
 import { notifyUser, requestNotificationPermission } from '@/lib/notifications';
-import {
-  normalizeRenderStatus,
-  renderStatusLabel,
-  type RenderQueueStatus,
-} from '@/lib/renderStatus';
+import { getScriptTextFromMap, type ScriptLanguageMap } from '@/lib/script-data';
+import { DEFAULT_SCRIPT_LANGUAGE, scriptLanguageLabel } from '@/lib/script-languages';
+import { normalizeRenderStatus, type RenderQueueStatus } from '@/lib/renderStatus';
 import { supabase } from '@/lib/supabaseClient';
 import { getScriptVideoUrl, saveScriptVideoUrl } from '@/lib/script-persistence';
+import { downloadVideoFile } from '@/lib/download-video';
 import {
   ApiService,
   type EditVideoResponse,
@@ -87,6 +87,12 @@ import {
   brollDisplayName,
   clipMediaKind,
   fetchVideoRenderState,
+  readPendingGeneration,
+  writePendingGeneration,
+  clearPendingGeneration,
+  pendingGenerationMatches,
+  pendingGenerationMinutes,
+  type PendingGeneration,
 } from '@/lib/video-editor';
 import {
   listPickedBroll,
@@ -1312,42 +1318,29 @@ function ColorPickerPanel({
 /** How often a queued render is polled for completion. */
 const RENDER_POLL_MS = 6000;
 
-/** Shows `videos.render_status` — where the last render of this video got to. */
-function RenderStatusChip({ status }: { status: RenderQueueStatus }) {
-  const tone =
-    status === 'completed'
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-      : status === 'failed'
-        ? 'border-red-200 bg-red-50 text-red-700'
-        : 'border-amber-200 bg-amber-50 text-amber-800';
-  return (
-    <span
-      className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone}`}
-      title={`Render status: ${renderStatusLabel(status)}`}
-    >
-      {status === 'pending' ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : status === 'completed' ? (
-        <Check className="h-3 w-3" />
-      ) : (
-        <AlertTriangle className="h-3 w-3" />
-      )}
-      {renderStatusLabel(status)}
-    </span>
-  );
-}
+/** How often the videos table is checked while a /edit-video run is still going. */
+const GENERATION_POLL_MS = 10000;
+
 
 /* ── Component ─────────────────────────────────────────────────────────────── */
 
 export function StudioVideoEditingPanel({
   scriptText = '',
+  scriptsByLanguage = null,
+  scriptLanguage = DEFAULT_SCRIPT_LANGUAGE,
   isUnlocked = false,
   ideaTitle,
   scriptRowId = null,
   durationMinutes: scriptDurationMinutes = null,
   onFindMoreBroll,
+  onLanguageChange,
+  onSelectAnotherScript,
 }: {
   scriptText?: string;
+  /** Translations from scripts_assigned.script — drives the language dropdown. */
+  scriptsByLanguage?: ScriptLanguageMap | null;
+  /** Language currently shown (defaults to english when the script was never translated). */
+  scriptLanguage?: string;
   isUnlocked?: boolean;
   ideaTitle?: string | null;
   /** scripts_assigned row id — rendered video URLs are saved onto its `video` column. */
@@ -1356,6 +1349,10 @@ export function StudioVideoEditingPanel({
   durationMinutes?: number | null;
   /** Navigate to the B-roll library tab to pick more media. */
   onFindMoreBroll?: (kind: 'video' | 'image') => void;
+  /** Fired when another language is picked in the setup dialog. */
+  onLanguageChange?: (language: string, script: string) => void;
+  /** Opens My Scripts so a different script can be loaded into this tab. */
+  onSelectAnotherScript?: () => void;
 }) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>('editor');
@@ -1429,7 +1426,6 @@ export function StudioVideoEditingPanel({
   const hasScenes = scenes.length > 0;
   const showDummyLibrary = !hasScenes;
   const totalDuration = timelineApi.timeline.duration;
-  const timeOrigin = selected?.start ?? 0;
   const selectedVoiceoverClip = useMemo(() => {
     if (!selected) return null;
     return (
@@ -1492,6 +1488,8 @@ export function StudioVideoEditingPanel({
   const [userTier, setUserTier] = useState<string | null>(null);
   const [videoKind, setVideoKind] = useState<VideoKind | null>(null);
   const [setupScript, setSetupScript] = useState(scriptText || '');
+  const [setupLanguage, setSetupLanguage] = useState(scriptLanguage || DEFAULT_SCRIPT_LANGUAGE);
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [voicePresets, setVoicePresets] = useState<VoicePreset[]>([]);
   const [voicesLoading, setVoicesLoading] = useState(true);
   const [selectedVoice, setSelectedVoice] = useState<string>('');
@@ -1503,6 +1501,10 @@ export function StudioVideoEditingPanel({
   const [cloneOpen, setCloneOpen] = useState(false);
   const [previewVoiceId, setPreviewVoiceId] = useState<string | null>(null);
   const [isSubmittingSetup, setIsSubmittingSetup] = useState(false);
+  /** A /edit-video run still running — survives navigating away (see pendingGeneration). */
+  const [pendingGeneration, setPendingGeneration] = useState<PendingGeneration | null>(null);
+  /** Bumped to re-run the restore lookup while a generation is still in flight. */
+  const [generationPollTick, setGenerationPollTick] = useState(0);
   const [showInsufficientCredits, setShowInsufficientCredits] = useState(false);
   const [faceScenes, setFaceScenes] = useState<FaceSceneDraft[]>([]);
   const [sceneBrollVideoSuggestions, setSceneBrollVideoSuggestions] = useState<Record<string, Suggestion[]>>({});
@@ -1932,6 +1934,15 @@ export function StudioVideoEditingPanel({
   const renderBusy = queuedRequestCount > 0 || isRendering || Boolean(renderQueueId);
   /** Name used in the "finished rendering" notification. */
   const renderVideoName = (ideaTitle || 'Your video').trim() || 'Your video';
+  /** The render button carries the status itself — no separate chip repeating it. */
+  const renderButtonLabel =
+    renderQueueId || renderStatus === 'pending'
+      ? 'Rendering…'
+      : renderStatus === 'completed'
+        ? 'Rendered'
+        : renderStatus === 'failed'
+          ? 'Render failed'
+          : 'Render';
 
   const openRenderConfirm = useCallback(() => {
     if (!videoId) return;
@@ -1981,11 +1992,23 @@ export function StudioVideoEditingPanel({
     async (videoUrl: string | null, tag: string) => {
       setRenderQueueId(null);
       setRenderStatus('completed');
-      if (!videoUrl) {
+
+      // Prefer the URL the backend just handed us. When the completion signal carries
+      // none, fall back to the videos row and then the saved script row — otherwise the
+      // download button stayed disabled until the page was reloaded.
+      let resolvedUrl = videoUrl;
+      if (!resolvedUrl && videoId) {
+        resolvedUrl = (await fetchVideoRenderState(videoId))?.finalVideoUrl ?? null;
+      }
+      if (!resolvedUrl && scriptRowId) {
+        resolvedUrl = await getScriptVideoUrl(scriptRowId);
+      }
+      if (!resolvedUrl) {
         showToast('Render completed, but no video URL was returned');
         return;
       }
-      setRenderedVideoUrl(videoUrl);
+
+      setRenderedVideoUrl(resolvedUrl);
       const notified = notifyUser(
         'Render complete',
         `“${renderVideoName}” has completed rendering.`,
@@ -1997,11 +2020,11 @@ export function StudioVideoEditingPanel({
           : `“${renderVideoName}” has completed rendering — open it from the preview button`,
       );
       if (scriptRowId) {
-        const save = await saveScriptVideoUrl({ scriptRowId, userId, videoUrl });
+        const save = await saveScriptVideoUrl({ scriptRowId, userId, videoUrl: resolvedUrl });
         if (!save.ok) showToast(save.error || 'Video rendered, but failed to save');
       }
     },
-    [renderVideoName, scriptRowId, userId, showToast],
+    [renderVideoName, scriptRowId, userId, videoId, showToast],
   );
 
   /** Watch the render we queued in this session via GET /render/queue/{queue_id}. */
@@ -2085,39 +2108,9 @@ export function StudioVideoEditingPanel({
 
   const handleDownloadRenderedVideo = useCallback(async () => {
     if (!renderedVideoUrl || isDownloadingRendered) return;
-    const safeName = (ideaTitle || 'storio-video')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-    const filename = `${safeName || 'storio-video'}.mp4`;
     setIsDownloadingRendered(true);
     try {
-      let href = renderedVideoUrl;
-      let revokeAfter: string | null = null;
-      if (!renderedVideoUrl.startsWith('blob:')) {
-        const res = await fetch(renderedVideoUrl);
-        if (!res.ok) throw new Error('Failed to fetch video file');
-        const blob = await res.blob();
-        href = URL.createObjectURL(blob);
-        revokeAfter = href;
-      }
-      const a = document.createElement('a');
-      a.href = href;
-      a.download = filename;
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      if (revokeAfter) URL.revokeObjectURL(revokeAfter);
-    } catch {
-      const a = document.createElement('a');
-      a.href = renderedVideoUrl;
-      a.download = filename;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      await downloadVideoFile(renderedVideoUrl, ideaTitle);
     } finally {
       setIsDownloadingRendered(false);
     }
@@ -2419,6 +2412,43 @@ export function StudioVideoEditingPanel({
     setSetupScript(scriptText || '');
   }, [scriptText]);
 
+  useEffect(() => {
+    setSetupLanguage(scriptLanguage || DEFAULT_SCRIPT_LANGUAGE);
+  }, [scriptLanguage]);
+
+  // Pick a run back up after a reload / tab switch: the fetch died with the old page,
+  // but the backend is still working on it.
+  useEffect(() => {
+    const stored = readPendingGeneration();
+    setPendingGeneration(
+      pendingGenerationMatches(stored, userId, scriptRowId) ? stored : null,
+    );
+  }, [userId, scriptRowId]);
+
+  /**
+   * Languages this script exists in. A script that was never translated has only the
+   * english entry (or none at all, in which case english is still offered).
+   */
+  const scriptLanguageOptions = useMemo(() => {
+    const keys = Object.entries(scriptsByLanguage ?? {})
+      .filter(([, text]) => typeof text === 'string' && text.trim())
+      .map(([key]) => key.toLowerCase());
+    if (!keys.includes(DEFAULT_SCRIPT_LANGUAGE)) keys.unshift(DEFAULT_SCRIPT_LANGUAGE);
+    return Array.from(new Set(keys));
+  }, [scriptsByLanguage]);
+
+  /** Swap the setup script to another translation of the same script. */
+  const handlePickLanguage = useCallback(
+    (language: string) => {
+      setLanguageMenuOpen(false);
+      setSetupLanguage(language);
+      const next = getScriptTextFromMap(scriptsByLanguage ?? {}, language);
+      if (next.trim()) setSetupScript(next);
+      onLanguageChange?.(language, next);
+    },
+    [scriptsByLanguage, onLanguageChange],
+  );
+
   /** Restore from the `videos` table only when that row's script matches this scripts_assigned script. */
   useEffect(() => {
     if (!userId) return;
@@ -2440,6 +2470,7 @@ export function StudioVideoEditingPanel({
     if (restoredCacheRef.current) return;
 
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const applyMapped = (
       res: EditVideoResponse,
@@ -2541,7 +2572,16 @@ export function StudioVideoEditingPanel({
       });
       if (cancelled) return;
 
+      if (!row && pendingGeneration) {
+        // Still generating on the backend — check again shortly so the finished
+        // project loads itself without the user having to reload.
+        timer = setTimeout(() => setGenerationPollTick((n) => n + 1), GENERATION_POLL_MS);
+        return;
+      }
+
       if (row) {
+        clearPendingGeneration();
+        setPendingGeneration(null);
         const res = videosRowToEditVideoResponse(row);
         const mapped = mapEditVideoResponse(res);
         const maps = hydrateSceneTimelinesFromVideosRow(mapped.scenes, row);
@@ -2563,8 +2603,17 @@ export function StudioVideoEditingPanel({
 
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
-  }, [userId, scriptText, scriptRowId, replaceTimelineState, ingestPickedBroll]);
+  }, [
+    userId,
+    scriptText,
+    scriptRowId,
+    replaceTimelineState,
+    ingestPickedBroll,
+    pendingGeneration,
+    generationPollTick,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -2701,6 +2750,15 @@ export function StudioVideoEditingPanel({
         return;
       }
 
+      // Recorded before the request so a reload mid-flight still knows it is running.
+      setPendingGeneration(
+        writePendingGeneration({
+          userId,
+          scriptRowId: scriptRowId == null ? null : String(scriptRowId),
+          scriptHint: setupScript.trim().slice(0, 80),
+        }),
+      );
+
       const res: EditVideoResponse = await ApiService.editVideo({
         userId,
         script: setupScript.trim(),
@@ -2751,11 +2809,14 @@ export function StudioVideoEditingPanel({
       }
     } finally {
       setIsSubmittingSetup(false);
+      clearPendingGeneration();
+      setPendingGeneration(null);
     }
   }, [
     canSubmitSetup,
     videoKind,
     userId,
+    scriptRowId,
     selectedVoice,
     selectedVoicePreset,
     setupScript,
@@ -3792,7 +3853,67 @@ export function StudioVideoEditingPanel({
 
                 {/* Script */}
                 <div>
-                  <p className="mb-2 text-[11px] font-semibold text-[#6e6e73]">Script</p>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[11px] font-semibold text-[#6e6e73]">Script</p>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setLanguageMenuOpen((o) => !o)}
+                          aria-haspopup="listbox"
+                          aria-expanded={languageMenuOpen}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-[#1d1d1f] hover:border-gray-300"
+                        >
+                          {scriptLanguageLabel(setupLanguage)}
+                          <ChevronDown className="h-3 w-3 text-[#6e6e73]" />
+                        </button>
+                        {languageMenuOpen && (
+                          <>
+                            <div
+                              role="button"
+                              tabIndex={-1}
+                              aria-label="Close language menu"
+                              className="fixed inset-0 z-[98]"
+                              onClick={() => setLanguageMenuOpen(false)}
+                            />
+                            <ul
+                              role="listbox"
+                              className="absolute left-0 top-full z-[99] mt-1 max-h-48 w-40 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+                            >
+                              {scriptLanguageOptions.map((lang) => (
+                                <li key={lang}>
+                                  <button
+                                    type="button"
+                                    role="option"
+                                    aria-selected={lang === setupLanguage}
+                                    onClick={() => handlePickLanguage(lang)}
+                                    className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-[#f5f5f7] ${
+                                      lang === setupLanguage
+                                        ? 'font-semibold text-[#1d1d1f]'
+                                        : 'text-[#6e6e73]'
+                                    }`}
+                                  >
+                                    {scriptLanguageLabel(lang)}
+                                    {lang === setupLanguage && <Check className="h-3 w-3" />}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {onSelectAnotherScript && (
+                      <button
+                        type="button"
+                        onClick={onSelectAnotherScript}
+                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-[#1d1d1f] hover:border-gray-300"
+                      >
+                        <FileText className="h-3 w-3 text-[#6e6e73]" />
+                        Select another script
+                      </button>
+                    )}
+                  </div>
                   <textarea
                     value={setupScript}
                     onChange={(e) => setSetupScript(e.target.value)}
@@ -3919,6 +4040,24 @@ export function StudioVideoEditingPanel({
       aria-label="AI video editing"
     >
       {setupDialog}
+
+      {/* A /edit-video run that outlived its page — the only signal the user has that
+          the backend is still working on it. */}
+      {pendingGeneration && !isSubmittingSetup && (
+        <div className="absolute inset-x-0 top-0 z-[55] flex items-center justify-center px-3 py-2">
+          <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3.5 py-1.5 shadow-sm">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600" />
+            <p className="text-[11px] font-semibold text-amber-950">
+              Still generating your video
+              {pendingGenerationMinutes(pendingGeneration) > 0
+                ? ` · ${pendingGenerationMinutes(pendingGeneration)} min so far`
+                : ''}
+              {' — '}
+              <span className="font-medium">this keeps running if you leave the page</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {showInsufficientCredits && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -4275,10 +4414,10 @@ export function StudioVideoEditingPanel({
               )}
             </button>
             <span className="rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-1 text-xs tabular-nums text-[#6e6e73]">
-              {tc(timelineApi.timeline.currentTime + timeOrigin)}
+              {tc(timelineApi.timeline.currentTime)}
             </span>
             <span className="text-[11px] tabular-nums text-[#86868b]">
-              / {tcShort(timeOrigin + totalDuration)}
+              / {tcShort(totalDuration)}
             </span>
           </div>
 
@@ -4298,12 +4437,15 @@ export function StudioVideoEditingPanel({
             >
               {renderBusy ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : renderStatus === 'completed' ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : renderStatus === 'failed' ? (
+                <AlertTriangle className="h-3.5 w-3.5" />
               ) : (
                 <Film className="h-3.5 w-3.5" />
               )}
-              {renderQueueId ? 'In queue' : 'Render'}
+              {renderButtonLabel}
             </button>
-            {renderStatus ? <RenderStatusChip status={renderStatus} /> : null}
             <button
               type="button"
               onClick={() => setVideoPreviewOpen(true)}
@@ -4333,10 +4475,10 @@ export function StudioVideoEditingPanel({
           height={timelinePanelHeight}
           sceneLabel={selected ? `${selected.num} · ${selected.title}` : 'No scenes yet'}
           onTogglePlay={() => setIsPlaying((p) => !p)}
+          isPlaying={isPlaying}
           hiddenTrackIds={[DEFAULT_TRACK_IDS.video, DEFAULT_TRACK_IDS.caption]}
           onClipSplit={handleClipSplit}
           onDelete={handleDeleteSelected}
-          timeOrigin={selected?.start ?? 0}
         />
       </section>
 
@@ -4809,6 +4951,8 @@ export function StudioVideoEditingPanel({
             >
               {renderBusy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : renderStatus === 'completed' ? (
+                <Check className="h-4 w-4 text-emerald-600" />
               ) : (
                 <Film className="h-4 w-4" />
               )}
@@ -4822,12 +4966,6 @@ export function StudioVideoEditingPanel({
             </button>
           </div>
         </div>
-        {renderStatus ? (
-          <div className="flex flex-shrink-0 items-center justify-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5">
-            <RenderStatusChip status={renderStatus} />
-          </div>
-        ) : null}
-
         {/* Preview — large, fills all remaining space above the controls */}
         <div className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden p-2 [container-type:size]">
           <TimelinePreview
@@ -4876,7 +5014,7 @@ export function StudioVideoEditingPanel({
         {/* Playback controls */}
         <div className="flex flex-shrink-0 items-center justify-center gap-3 border-t border-gray-200 bg-white py-2">
           <span className="text-xs font-semibold tabular-nums text-[#1d1d1f]">
-            {tc(timelineApi.timeline.currentTime + timeOrigin)}
+            {tc(timelineApi.timeline.currentTime)}
           </span>
           <button
             type="button"
@@ -4889,7 +5027,7 @@ export function StudioVideoEditingPanel({
               <Play className="ml-0.5 h-4 w-4 fill-current" />
             )}
           </button>
-          <span className="text-xs tabular-nums text-[#86868b]">{tcShort(timeOrigin + totalDuration)}</span>
+          <span className="text-xs tabular-nums text-[#86868b]">{tcShort(totalDuration)}</span>
         </div>
 
         {/* Tracks — compact rows only (no ruler/toolbar); tap a clip to select it and
@@ -5763,15 +5901,10 @@ export function StudioVideoEditingPanel({
                 </p>
               </div>
             </div>
-            {renderStatus ? (
-              <div className="mb-3 flex items-center gap-2">
-                <RenderStatusChip status={renderStatus} />
-                {renderStatus === 'pending' ? (
-                  <span className="text-[11px] text-[#86868b]">
-                    A render is already in the queue for this video.
-                  </span>
-                ) : null}
-              </div>
+            {renderStatus === 'pending' ? (
+              <p className="mb-3 text-[11px] text-[#86868b]">
+                A render is already in the queue for this video.
+              </p>
             ) : null}
             {isRendering || queuedRequestCount > 0 ? (
               <p className="mb-4 flex items-center gap-2 text-[11px] text-[#6e6e73]">

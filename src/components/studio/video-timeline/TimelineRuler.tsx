@@ -8,7 +8,6 @@ type Props = {
   duration: number;
   pixelsPerSecond: number;
   width: number;
-  timeOrigin?: number;
   onSeek: (time: number) => void;
 };
 
@@ -16,7 +15,6 @@ export const TimelineRuler = memo(function TimelineRuler({
   duration,
   pixelsPerSecond,
   width,
-  timeOrigin = 0,
   onSeek,
 }: Props) {
   const major = rulerMajorInterval(pixelsPerSecond);
@@ -39,7 +37,7 @@ export const TimelineRuler = memo(function TimelineRuler({
           className="absolute top-0 h-full border-l border-gray-200 pl-1 text-[10px] tabular-nums text-[#a1a1a6]"
           style={{ left: t * pixelsPerSecond }}
         >
-          {formatRulerLabel(t + timeOrigin, major)}
+          {formatRulerLabel(t, major)}
         </span>
       ))}
     </div>

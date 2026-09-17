@@ -388,6 +388,51 @@ export function StudioThumbnailsPanel({
           </div>
         )}
 
+        {generatedList.length > 0 && (
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-bold text-[#1d1d1f]">Generated thumbnails</h3>
+              <p className="text-xs text-[#6e6e73] font-light mt-0.5">
+                Saved to your script · {generatedList.length} image
+                {generatedList.length === 1 ? '' : 's'}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {generatedList.map((item, i) => (
+                <div
+                  key={`${item.public_url}-${i}`}
+                  className="bg-white border border-gray-200 rounded-2xl overflow-hidden"
+                >
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400">
+                      Generated {i + 1}
+                    </span>
+                    {item.public_url && (
+                      <a
+                        href={item.public_url}
+                        download
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#1d1d1f] bg-[#f5f5f7] border border-gray-200 px-2 py-1 rounded-md hover:bg-gray-200"
+                      >
+                        <Download className="w-3 h-3" />
+                        Download
+                      </a>
+                    )}
+                  </div>
+                  <div className="p-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.public_url || ''}
+                      alt={`Generated thumbnail ${i + 1}`}
+                      className="w-full rounded-xl border border-gray-100 aspect-video object-cover"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div>
           <div className="flex items-end justify-between gap-3 mb-3">
             <div>
@@ -451,56 +496,6 @@ export function StudioThumbnailsPanel({
           </div>
         </div>
 
-        {generatedList.length > 0 && (
-          <div className="space-y-3">
-            <div>
-              <h3 className="text-sm font-bold text-[#1d1d1f]">Generated thumbnails</h3>
-              <p className="text-xs text-[#6e6e73] font-light mt-0.5">
-                Saved to your script · {generatedList.length} image
-                {generatedList.length === 1 ? '' : 's'}
-              </p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {generatedList.map((item, i) => (
-                <div
-                  key={`${item.public_url}-${i}`}
-                  className="bg-white border border-gray-200 rounded-2xl overflow-hidden"
-                >
-                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
-                    <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400">
-                      Generated {i + 1}
-                    </span>
-                    {item.public_url && (
-                      <a
-                        href={item.public_url}
-                        download
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#1d1d1f] bg-[#f5f5f7] border border-gray-200 px-2 py-1 rounded-md hover:bg-gray-200"
-                      >
-                        <Download className="w-3 h-3" />
-                        Download
-                      </a>
-                    )}
-                  </div>
-                  <div className="p-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.public_url || ''}
-                      alt={`Generated thumbnail ${i + 1}`}
-                      className="w-full rounded-xl border border-gray-100 aspect-video object-cover"
-                    />
-                    {item.prompt && (
-                      <p className="mt-3 text-xs text-[#6e6e73] leading-relaxed">
-                        {item.prompt}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Face choice */}

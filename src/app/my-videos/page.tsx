@@ -2,10 +2,49 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clapperboard, Loader2, Pause, Play, X } from 'lucide-react';
+import { Clapperboard, Download, Loader2, Pause, Play, X } from 'lucide-react';
 import StudioShell from '@/components/studio/StudioShell';
 import { supabase } from '@/lib/supabaseClient';
 import { listUserVideos, type LibraryVideo } from '@/lib/script-persistence';
+import { downloadVideoFile } from '@/lib/download-video';
+import { formatTimecode } from '@/lib/video-editor/timecode';
+
+/** Saves the video to disk — same behaviour as the AI video editing tab's Download. */
+function DownloadVideoButton({
+  video,
+  variant = 'light',
+}: {
+  video: LibraryVideo;
+  variant?: 'light' | 'dark';
+}) {
+  const [busy, setBusy] = useState(false);
+  const label = video.description || 'storio-video';
+  return (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.stopPropagation();
+        if (busy) return;
+        setBusy(true);
+        try {
+          await downloadVideoFile(video.videoUrl, label);
+        } finally {
+          setBusy(false);
+        }
+      }}
+      disabled={busy}
+      title="Download this video"
+      className={
+        variant === 'dark'
+          ? 'inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-[11px] font-semibold text-[#1d1d1f] hover:bg-white/90 disabled:opacity-50'
+          : 'inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7] disabled:opacity-50'
+      }
+    >
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+      Download
+    </button>
+  );
+}
 
 function VideoPreviewModal({
   video,
@@ -16,6 +55,8 @@ function VideoPreviewModal({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const togglePlayback = () => {
     const v = videoRef.current;
@@ -46,13 +87,16 @@ function VideoPreviewModal({
           <p className="truncate text-sm font-semibold text-white">
             Generated video
           </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20"
-          >
-            <X className="h-4 w-4 text-white" />
-          </button>
+          <div className="flex items-center gap-2">
+            <DownloadVideoButton video={video} variant="dark" />
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20"
+            >
+              <X className="h-4 w-4 text-white" />
+            </button>
+          </div>
         </div>
 
         <div className="relative bg-black" style={{ aspectRatio: '16 / 9' }}>
@@ -60,6 +104,8 @@ function VideoPreviewModal({
             ref={videoRef}
             src={video.videoUrl}
             className="h-full w-full"
+            onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             onEnded={() => setPlaying(false)}
@@ -92,9 +138,23 @@ function VideoPreviewModal({
               <Play className="ml-0.5 h-4 w-4 fill-current" />
             )}
           </button>
-          {video.description && (
-            <span className="line-clamp-2 text-[11px] font-medium text-white/70">{video.description}</span>
-          )}
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={currentTime}
+            onChange={(e) => {
+              const t = Number(e.target.value);
+              if (videoRef.current) videoRef.current.currentTime = t;
+              setCurrentTime(t);
+            }}
+            aria-label="Seek"
+            className="flex-1 accent-white"
+          />
+          <span className="flex-shrink-0 text-[11px] tabular-nums text-white/70">
+            {formatTimecode(currentTime)} / {formatTimecode(duration)}
+          </span>
         </div>
       </div>
     </div>
@@ -120,10 +180,11 @@ function VideoCard({ video, onOpen }: { video: LibraryVideo; onOpen: () => void 
           <Play className="ml-0.5 h-4 w-4 fill-current text-[#1d1d1f]" />
         </span>
       </button>
-      <div className="p-4">
-        <p className="text-sm font-medium leading-5 text-[#1d1d1f]">
+      <div className="flex items-center justify-between gap-3 p-4">
+        <p className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-[#1d1d1f]">
           {video.description || 'Untitled video'}
         </p>
+        <DownloadVideoButton video={video} />
       </div>
     </div>
   );

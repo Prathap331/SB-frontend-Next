@@ -1776,7 +1776,7 @@ useEffect(() => {
         studioTab === 'video-editing' ? (
           <div className="flex-1" />
         ) : (
-          <div className="flex flex-col gap-1 flex-1 min-w-0 relative">
+          <div className="flex flex-col gap-1 flex-1 min-w-0 relative mx-3 my-1">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1939,6 +1939,10 @@ useEffect(() => {
                       ) || activeScriptData?.script || ''
                     : ''
                 }
+                scriptsByLanguage={
+                  activeScriptFromAssigned ? activeScriptData?.scriptsByLanguage ?? null : null
+                }
+                scriptLanguage={activeScriptLanguage}
                 isUnlocked={activeScriptFromAssigned}
                 ideaTitle={activeScriptIdeaTitle}
                 scriptRowId={activeScriptFromAssigned ? activeScriptRowId : null}
@@ -1948,6 +1952,13 @@ useEffect(() => {
                     : activeScriptDuration
                 }
                 onFindMoreBroll={() => setStudioTab('broll')}
+                onLanguageChange={(lang, script) => {
+                  setActiveScriptLanguage(lang);
+                  setActiveScriptData((prev) => (prev ? { ...prev, script, locked: false } : prev));
+                }}
+                onSelectAnotherScript={() => {
+                  router.push('/app/my-scripts?returnTab=video-editing');
+                }}
               />
             </div>
           ) : (

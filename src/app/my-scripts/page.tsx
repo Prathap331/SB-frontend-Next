@@ -84,7 +84,9 @@ export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}
         <p className={`${embedded ? 'text-base sm:text-lg' : 'text-sm'} text-[#6e6e73] font-light`}>
           {returnTab === 'audio'
             ? 'Choose a script to generate speech'
-            : "Scripts you've unlocked — ready to produce"}
+            : returnTab === 'video-editing'
+              ? 'Choose a script to generate your video from'
+              : "Scripts you've unlocked — ready to produce"}
         </p>
       </div>
 
@@ -95,7 +97,9 @@ export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}
             <p className="text-[11px] text-[#6e6e73] font-light mt-0.5">
               {returnTab === 'audio'
                 ? 'Select a script to load it in the Audio tab'
-                : 'View and open scripts saved to your account'}
+                : returnTab === 'video-editing'
+                  ? 'Select a script to load it in the AI video editing tab'
+                  : 'View and open scripts saved to your account'}
             </p>
           </div>
           {!isLoadingScripts && myScripts.length > 0 && (
@@ -166,7 +170,11 @@ export function MyScriptsPanel({ embedded = false }: { embedded?: boolean } = {}
                     className="flex items-center gap-1.5 text-xs font-medium text-[#1d1d1f] bg-white hover:bg-gray-100 border border-gray-200 px-4 py-2 rounded-xl transition-colors flex-shrink-0"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    {returnTab === 'audio' ? 'Use for audio' : 'View Script'}
+                    {returnTab === 'audio'
+                      ? 'Use for audio'
+                      : returnTab === 'video-editing'
+                        ? 'Use for video'
+                        : 'View Script'}
                   </button>
                 </div>
               );

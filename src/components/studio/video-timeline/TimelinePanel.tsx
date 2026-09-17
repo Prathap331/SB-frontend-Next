@@ -14,6 +14,8 @@ type Props = {
   api: UseVideoTimelineReturn;
   height: number;
   onTogglePlay?: () => void;
+  /** Drives the follow-the-playhead scroll during playback. */
+  isPlaying?: boolean;
   sceneLabel?: string;
   /** Track ids to hide from the row list (e.g. the unused raw "video" track). */
   hiddenTrackIds?: string[];
@@ -22,12 +24,11 @@ type Props = {
   /** Replaces the default delete (e.g. to also sync deletions to the backend). */
   onDelete?: () => void;
   /** Project time (seconds) at the left edge of this scene's timeline. */
-  timeOrigin?: number;
 };
 
 const LABEL_WIDTH = 148;
 
-export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTrackIds, onClipSplit, onDelete, timeOrigin = 0 }: Props) {
+export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sceneLabel, hiddenTrackIds, onClipSplit, onDelete }: Props) {
   const {
     timeline,
     snapGuide,
@@ -103,6 +104,26 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
     [setCurrentTime, timeline.pixelsPerSecond],
   );
 
+  /**
+   * Once the playhead passes the middle of the visible strip, hold it there and scroll
+   * the tracks underneath it instead of letting it run off the right edge.
+   * Only while playing, so scrubbing and manual scrolling are left alone.
+   */
+  useEffect(() => {
+    if (!isPlaying) return;
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const strip = scroller.clientWidth - LABEL_WIDTH;
+    if (strip <= 0) return;
+
+    const playheadX = timeline.currentTime * timeline.pixelsPerSecond;
+    const middle = strip / 2;
+    if (playheadX - scroller.scrollLeft <= middle) return;
+
+    const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+    scroller.scrollLeft = Math.min(maxScroll, Math.max(0, playheadX - middle));
+  }, [isPlaying, timeline.currentTime, timeline.pixelsPerSecond]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -154,7 +175,6 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
       <TimelineToolbar
         currentTime={timeline.currentTime}
         duration={timeline.duration}
-        timeOrigin={timeOrigin}
         pixelsPerSecond={timeline.pixelsPerSecond}
         canUndo={historyLength > 0}
         canRedo={futureLength > 0}
@@ -189,7 +209,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
           style={{ height: RULER_HEIGHT, width: LABEL_WIDTH + contentWidth }}
         >
           <div
-            className="sticky left-0 z-30 flex flex-shrink-0 items-center border-r border-gray-200 bg-[#fafafa] px-2.5 text-[10px] font-semibold uppercase tracking-wide text-[#a1a1a6]"
+            className="sticky left-0 z-50 flex flex-shrink-0 items-center border-r border-gray-200 bg-[#fafafa] px-2.5 text-[10px] font-semibold uppercase tracking-wide text-[#a1a1a6]"
             style={{ width: LABEL_WIDTH, height: RULER_HEIGHT }}
           >
             Tracks
@@ -199,8 +219,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
               duration={timeline.duration}
               pixelsPerSecond={timeline.pixelsPerSecond}
               width={contentWidth}
-              timeOrigin={timeOrigin}
-              onSeek={setCurrentTime}
+                    onSeek={setCurrentTime}
             />
           </div>
         </div>
@@ -208,7 +227,7 @@ export function TimelinePanel({ api, height, onTogglePlay, sceneLabel, hiddenTra
         {/* Body: labels + clip rows share the same vertical scroll */}
         <div className="relative flex" style={{ width: LABEL_WIDTH + contentWidth, height: tracksHeight }}>
           <div
-            className="sticky left-0 z-10 flex-shrink-0 border-r border-gray-200 bg-white"
+            className="sticky left-0 z-40 flex-shrink-0 border-r border-gray-200 bg-white"
             style={{ width: LABEL_WIDTH }}
           >
             {visibleTracks.map((track) => (
