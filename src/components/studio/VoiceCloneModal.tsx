@@ -24,6 +24,11 @@ import {
   isVoiceCloneRtl,
 } from '@/lib/voice-clone-languages';
 import { convertBlobToWav } from '@/lib/audio-wav';
+import {
+  createNoiseSuppressedStream,
+  NOISE_SUPPRESSED_AUDIO_CONSTRAINTS,
+  type NoiseSuppressedStream,
+} from '@/lib/noise-suppression';
 import { ApiService } from '@/services/api';
 import { toast } from 'sonner';
 
@@ -71,6 +76,8 @@ export function VoiceCloneModal({
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  /** Active RNNoise graph — tearing this down also stops the mic tracks. */
+  const suppressionRef = useRef<NoiseSuppressedStream | null>(null);
   const stopRecordingRef = useRef<() => void>(() => {});
   const langPickerRef = useRef<HTMLDivElement | null>(null);
   const langSearchRef = useRef<HTMLInputElement | null>(null);
@@ -116,7 +123,11 @@ export function VoiceCloneModal({
   }, []);
 
   const cleanupStream = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    // Closing the suppression graph stops the mic tracks as well.
+    const suppression = suppressionRef.current;
+    suppressionRef.current = null;
+    if (suppression) void suppression.stop();
+    else streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -181,7 +192,25 @@ export function VoiceCloneModal({
       return null;
     });
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mic = await navigator.mediaDevices.getUserMedia({
+        audio: NOISE_SUPPRESSED_AUDIO_CONSTRAINTS,
+      });
+      // Record the denoised output, not the raw microphone. Falls back to the mic
+      // stream unchanged when the worklet is unavailable.
+      const suppression = await createNoiseSuppressedStream(mic);
+
+      console.log(
+        '[Storio Voice Clone] RNNoise enabled:',
+        suppression.enabled
+      );
+      
+      console.log(
+        '[Storio Voice Clone] Recording stream:',
+        suppression.stream
+      );
+
+      suppressionRef.current = suppression;
+      const stream = suppression.stream;
       streamRef.current = stream;
       const mimeType = MediaRecorder.isTypeSupported('audio/webm')
         ? 'audio/webm'
@@ -196,7 +225,10 @@ export function VoiceCloneModal({
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
+        const active = suppressionRef.current;
+        suppressionRef.current = null;
+        if (active) void active.stop();
+        else stream.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
         const blob = new Blob(chunksRef.current, {
           type: recorder.mimeType || 'audio/webm',

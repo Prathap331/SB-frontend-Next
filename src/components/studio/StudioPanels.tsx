@@ -574,7 +574,7 @@ export function StudioScriptPanel({
 
       setIsUnlocked(true);
       setScriptSaved(true);
-      setShowProductionGuidePopup(true);
+      // setShowProductionGuidePopup(true);
       window.dispatchEvent(new Event('creditsUpdated'));
 
       const assignedIdResult = json.assignedId ? String(json.assignedId) : null;
@@ -1097,7 +1097,7 @@ export function StudioScriptPanel({
         </ScrollArea>
       </div>
 
-      {showProductionGuidePopup && (
+      {false && showProductionGuidePopup && (
         <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl shadow-black/20 border border-gray-200/80 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-orange-50/80 via-white to-indigo-50/80 flex-shrink-0">

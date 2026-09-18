@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
-  Search,
+  History,
   Plus,
   Crown,
   LogOut,
@@ -365,7 +365,7 @@ export default function StudioSidebar({
                         : 'hover:bg-white text-[#1d1d1f]'
                     }`}
                   >
-                    <Search className={`w-3.5 h-3.5 flex-shrink-0 ${collapsed ? '' : 'mt-0.5'} ${active ? 'text-[#1a73e8]' : 'text-gray-400'}`} />
+                    <History className={`w-3.5 h-3.5 flex-shrink-0 ${collapsed ? '' : 'mt-0.5'} ${active ? 'text-[#1a73e8]' : 'text-gray-400'}`} />
                     {!collapsed && (
                       <div className="min-w-0 flex-1">
                         <p className={`text-sm font-medium truncate ${active ? 'text-[#1a73e8]' : 'text-[#1d1d1f]'}`}>

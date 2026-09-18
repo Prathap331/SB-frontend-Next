@@ -1493,6 +1493,7 @@ export function StudioVideoEditingPanel({
   const [userId, setUserId] = useState<string | null>(null);
   const [userTier, setUserTier] = useState<string | null>(null);
   const [videoKind, setVideoKind] = useState<VideoKind | null>(null);
+  const [withFaceUnavailableNotice, setWithFaceUnavailableNotice] = useState(false);
   const [setupScript, setSetupScript] = useState(scriptText || '');
   const [setupLanguage, setSetupLanguage] = useState(scriptLanguage || DEFAULT_SCRIPT_LANGUAGE);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
@@ -2540,8 +2541,7 @@ export function StudioVideoEditingPanel({
       const firstId = extras?.selectedId || mappedScenes[0]?.id;
       setSelectedId(firstId);
       if (extras?.textStyle) setTextStyle(extras.textStyle);
-      if (extras?.videoKind) setVideoKind(extras.videoKind);
-      else setVideoKind('faceless');
+      setVideoKind('faceless');
       if (extras?.selectedVoice) setSelectedVoice(extras.selectedVoice);
       if (extras?.script) setSetupScript(extras.script);
 
@@ -2702,7 +2702,8 @@ export function StudioVideoEditingPanel({
 
   const setupScriptReady = Boolean(setupScript.trim());
   const setupVoiceReady = videoKind === 'with-face' ? true : Boolean(selectedVoice);
-  const canSubmitSetup = Boolean(videoKind) && setupScriptReady && setupVoiceReady && !isSubmittingSetup;
+  const canSubmitSetup =
+    videoKind === 'faceless' && setupScriptReady && setupVoiceReady && !isSubmittingSetup;
 
   /** `durationMinutes` the /edit-video payload will carry — billed as that many minutes × 11. */
   const facelessDurationMinutes = useMemo(() => {
@@ -3641,6 +3642,7 @@ export function StudioVideoEditingPanel({
   const openSetupModal = useCallback(() => {
     setStage('setup');
     setSetupOpen(true);
+    setWithFaceUnavailableNotice(false);
   }, []);
 
   const closeSetupModal = useCallback(() => {
@@ -3690,7 +3692,10 @@ export function StudioVideoEditingPanel({
                   <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setVideoKind('faceless')}
+                      onClick={() => {
+                        setVideoKind('faceless');
+                        setWithFaceUnavailableNotice(false);
+                      }}
                       className={`flex flex-col items-center gap-1.5 rounded-2xl border px-3 py-3.5 text-center transition-all ${
                         videoKind === 'faceless'
                           ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-sm'
@@ -3703,22 +3708,42 @@ export function StudioVideoEditingPanel({
                         AI voice over footage
                       </span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setVideoKind('with-face')}
-                      className={`flex flex-col items-center gap-1.5 rounded-2xl border px-3 py-3.5 text-center transition-all ${
-                        videoKind === 'with-face'
-                          ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-sm'
-                          : 'border-gray-200 bg-[#fafafa] text-[#1d1d1f] hover:border-gray-300'
-                      }`}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setWithFaceUnavailableNotice(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setWithFaceUnavailableNotice(true);
+                        }
+                      }}
+                      className="cursor-not-allowed"
                     >
-                      <UserRound className="h-4.5 w-4.5" />
-                      <span className="text-xs font-semibold">With face video</span>
-                      <span className={`text-[10px] ${videoKind === 'with-face' ? 'text-white/65' : 'text-[#86868b]'}`}>
-                        You record each scene
-                      </span>
-                    </button>
+                      <button
+                        type="button"
+                        disabled
+                        aria-disabled="true"
+                        className={`pointer-events-none flex w-full flex-col items-center gap-1.5 rounded-2xl border px-3 py-3.5 text-center opacity-50 ${
+                          videoKind === 'with-face'
+                            ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-sm'
+                            : 'border-gray-200 bg-[#fafafa] text-[#1d1d1f]'
+                        }`}
+                      >
+                        <UserRound className="h-4.5 w-4.5" />
+                        <span className="text-xs font-semibold">With face video</span>
+                        <span className={`text-[10px] ${videoKind === 'with-face' ? 'text-white/65' : 'text-[#86868b]'}`}>
+                          Coming soon
+                        </span>
+                      </button>
+                    </div>
                   </div>
+                  {withFaceUnavailableNotice && (
+                    <p className="mt-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-950">
+                      With-face videos aren&apos;t available yet. You&apos;ll be able to record on-camera
+                      scenes here in a future update.
+                    </p>
+                  )}
                 </div>
 
                 {/* Voice selection */}

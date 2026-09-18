@@ -624,7 +624,7 @@ if (params.get('from') === 'suggested') {
       setIsUnlocked(true);
       isUnlockedRef.current = true;
       setScriptSaved(true);
-      setShowProductionGuidePopup(true);
+      // setShowProductionGuidePopup(true);
       universalScriptIdRef.current = null;
 
       // Script was unlocked → clear any legacy unused-idea markers / unlock flags
@@ -671,6 +671,7 @@ if (params.get('from') === 'suggested') {
     }
   }, [showSourcesDialog]);
 
+  /* Production guide popup body-lock — disabled for now
   useEffect(() => {
     if (!showProductionGuidePopup) return;
 
@@ -688,6 +689,7 @@ if (params.get('from') === 'suggested') {
       window.scrollTo(0, scrollY);
     };
   }, [showProductionGuidePopup]);
+  */
 
 
   /* ---------------- DOWNLOAD PDF ---------------- */
@@ -1479,8 +1481,7 @@ if (params.get('from') === 'suggested') {
         </ScrollArea>
       </div>
 
-      {/* ── Production Guide Popup (on unlock) ── */}
-      {showProductionGuidePopup && (
+      {false && showProductionGuidePopup && (
         <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl shadow-black/20 border border-gray-200/80 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-orange-50/80 via-white to-indigo-50/80 flex-shrink-0">

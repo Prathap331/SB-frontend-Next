@@ -19,7 +19,7 @@ export default function PricingGrid() {
   const [rawPlans, setRawPlans] = useState<DBSubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currency, setCurrency] = useState<PricingCurrency>('USD');
+  const [currency, setCurrency] = useState<PricingCurrency>('INR');
   const [billing, setBilling] = useState<BillingCycle>('monthly');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -97,17 +97,6 @@ export default function PricingGrid() {
         <div className="inline-flex items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm">
           <button
             type="button"
-            onClick={() => setCurrency('USD')}
-            className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
-              currency === 'USD'
-                ? 'bg-[#1d1d1f] text-white'
-                : 'text-[#6e6e73] hover:text-[#1d1d1f]'
-            }`}
-          >
-            USD
-          </button>
-          <button
-            type="button"
             onClick={() => setCurrency('INR')}
             className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
               currency === 'INR'
@@ -116,6 +105,17 @@ export default function PricingGrid() {
             }`}
           >
             INR
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrency('USD')}
+            className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+              currency === 'USD'
+                ? 'bg-[#1d1d1f] text-white'
+                : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+            }`}
+          >
+            USD
           </button>
         </div>
 

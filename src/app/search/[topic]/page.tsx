@@ -56,7 +56,7 @@ import {
   studioPathSegmentFromPathname,
   studioTabFromPathname,
 } from '@/lib/keyword-routes';
-import { maxScriptMinutesForPlan, minScriptMinutesForPlan } from '@/lib/credits';
+import { maxScriptMinutesForPlan, minScriptMinutesForPlan, normalizePlanKey } from '@/lib/credits';
 import { toast } from 'sonner';
 
 const SCRIPT_GENERATION_STEPS = [
@@ -66,6 +66,8 @@ const SCRIPT_GENERATION_STEPS = [
   'Generating your script for YouTube',
   'Finishing',
 ];
+
+const RECOMMENDED_SCRIPT_MINUTES = 10;
 
 interface VideoItem {
   url: string;
@@ -641,6 +643,8 @@ function SearchTopicPageInner() {
   const [userTier, setUserTier] = useState<string>('Free');
   const minScriptMinutes = minScriptMinutesForPlan(userTier);
   const maxScriptMinutes = maxScriptMinutesForPlan(userTier);
+  const [lengthWarnIdea, setLengthWarnIdea] = useState<ScriptIdea | null>(null);
+  const [lengthWarnMinutes, setLengthWarnMinutes] = useState('');
 
   // Load plan tier for script length limits
   useEffect(() => {
@@ -1529,17 +1533,18 @@ useEffect(() => {
 
 
   // ── Script generation ─────────────────────────────────────────────────────
-  const startScriptGeneration = async (idea: ScriptIdea) => {
-    if (!videoLengths[idea.id]) {
-      console.warn('No length specified for this script');
-      return;
-    }
-
-    const requested = Number(videoLengths[idea.id] || 0);
+  const startScriptGeneration = async (
+    idea: ScriptIdea,
+    opts?: { confirmedShort?: boolean; lengthOverride?: number },
+  ) => {
+    const requested = Number(
+      opts?.lengthOverride ?? videoLengths[idea.id] ?? 0,
+    );
     if (!Number.isFinite(requested) || requested <= 0) {
       toast.error('Enter a valid script length in minutes');
       return;
     }
+
     if (requested < minScriptMinutes) {
       toast.error(
         `Your ${userTier} plan requires scripts of at least ${minScriptMinutes} min (${minScriptMinutes}–${maxScriptMinutes} min).`,
@@ -1558,6 +1563,21 @@ useEffect(() => {
         },
       );
       return;
+    }
+
+    const isFree = normalizePlanKey(userTier) === 'free';
+    if (
+      !isFree &&
+      !opts?.confirmedShort &&
+      requested < RECOMMENDED_SCRIPT_MINUTES
+    ) {
+      setLengthWarnIdea(idea);
+      setLengthWarnMinutes(String(requested));
+      return;
+    }
+
+    if (opts?.lengthOverride != null) {
+      setVideoLengths((prev) => ({ ...prev, [idea.id]: String(requested) }));
     }
 
     const { data: { session } } = await sbClient.auth.getSession();
@@ -1644,6 +1664,17 @@ useEffect(() => {
         return next;
       });
     }
+  };
+
+  const confirmLengthWarnGenerate = () => {
+    if (!lengthWarnIdea) return;
+    const idea = lengthWarnIdea;
+    const n = Number(lengthWarnMinutes);
+    setLengthWarnIdea(null);
+    void startScriptGeneration(idea, {
+      confirmedShort: true,
+      lengthOverride: n,
+    });
   };
 
   const handleVideoLengthChange = (id: number, value: string) => {
@@ -2393,6 +2424,100 @@ useEffect(() => {
         onFinished={handleProgressFinished}
         subtext={`Usually under 5 minutes. We're analysing "${topic}" in the background.`}
       />
+
+      {lengthWarnIdea && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
+          onClick={() => setLengthWarnIdea(null)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="length-warn-title"
+            className="w-full max-w-md bg-white rounded-3xl border border-gray-200 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between px-5 sm:px-6 pt-5 pb-3 border-b border-gray-100">
+              <h2 id="length-warn-title" className="text-base font-semibold text-[#1d1d1f] pr-3 leading-snug">
+                🎬 We Recommend Creating 10–15 Min Videos
+              </h2>
+              <button
+                type="button"
+                onClick={() => setLengthWarnIdea(null)}
+                className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-[#6e6e73] hover:text-[#1d1d1f] hover:border-gray-300 flex-shrink-0"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 sm:px-6 py-5 space-y-4">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#1d1d1f]">💰 More Monetization Potential</p>
+                  <p className="text-sm text-[#6e6e73] leading-relaxed mt-0.5">
+                    10+ min videos can use mid-roll ads, creating more monetization opportunities.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#1d1d1f]">📖 Better Storytelling</p>
+                  <p className="text-sm text-[#6e6e73] leading-relaxed mt-0.5">
+                    More time means deeper stories, smoother pacing, and stronger engagement.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#1d1d1f]">🎯 More Complete Content</p>
+                  <p className="text-sm text-[#6e6e73] leading-relaxed mt-0.5">
+                    10–15 minutes gives you enough room to cover the topic thoroughly without rushing key points.
+                  </p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1.5">
+                  Length (min)
+                </label>
+                <Input
+                  type="number"
+                  value={lengthWarnMinutes}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value.trim() === '') {
+                      setLengthWarnMinutes('');
+                      return;
+                    }
+                    const n = Number(value);
+                    if (!Number.isFinite(n)) return;
+                    setLengthWarnMinutes(String(Math.min(Math.max(0, n), maxScriptMinutes)));
+                  }}
+                  onBlur={() => {
+                    if (!lengthWarnMinutes.trim()) return;
+                    const n = Number(lengthWarnMinutes);
+                    if (!Number.isFinite(n)) return;
+                    setLengthWarnMinutes(
+                      String(Math.min(Math.max(minScriptMinutes, Math.round(n)), maxScriptMinutes)),
+                    );
+                  }}
+                  className="w-full h-10 text-sm rounded-xl border-gray-200 bg-white"
+                  min={minScriptMinutes}
+                  max={maxScriptMinutes}
+                />
+                <p className="text-[11px] text-[#86868b] mt-1.5">
+                  {minScriptMinutes}–{maxScriptMinutes} min on your plan. Current: {videoLengths[lengthWarnIdea.id] || lengthWarnMinutes} min.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={confirmLengthWarnGenerate}
+                disabled={!lengthWarnMinutes.trim()}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Generate script
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <GenerationProgressOverlay
         isOpen={isGeneratingScript}
