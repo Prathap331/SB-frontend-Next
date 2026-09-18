@@ -66,7 +66,10 @@ function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
 /**
  * Decode a recorded blob (webm/opus, mp4, etc.) and re-encode as audio/wav.
  */
-export async function convertBlobToWav(audioBlob: Blob): Promise<File> {
+export async function convertBlobToWav(
+  audioBlob: Blob,
+  fileName = 'voice-clone.wav',
+): Promise<File> {
   const AudioCtx =
     window.AudioContext ||
     (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -79,7 +82,7 @@ export async function convertBlobToWav(audioBlob: Blob): Promise<File> {
     const arrayBuffer = await audioBlob.arrayBuffer();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
     const wavBlob = audioBufferToWavBlob(audioBuffer);
-    return new File([wavBlob], 'voice-clone.wav', { type: 'audio/wav' });
+    return new File([wavBlob], fileName, { type: 'audio/wav' });
   } finally {
     await audioContext.close().catch(() => {});
   }

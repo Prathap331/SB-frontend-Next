@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ChevronRight, Loader2, Lock, Mic } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { canUseVoiceCloning, saveClonedVoiceProfile } from '@/lib/voice-clone';
+import { canUseVoiceCloning, saveClonedVoiceProfile, type ClonedVoiceTrack } from '@/lib/voice-clone';
 import { VoiceCloneModal } from '@/components/studio/VoiceCloneModal';
 import {
-  CLONED_VOICE_WASH,
   VoiceCard,
+  clonedVoicePresets,
   fetchClonedVoiceFromProfile,
   fetchPreMadeVoices,
   type VoicePreset,
@@ -24,7 +24,7 @@ export function StudioCloningPanel() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [userTier, setUserTier] = useState<string | null>(null);
-  const [clonedAudioUrl, setClonedAudioUrl] = useState<string | null>(null);
+  const [clonedTracks, setClonedTracks] = useState<ClonedVoiceTrack[]>([]);
   const [clonedVoiceName, setClonedVoiceName] = useState<string | null>(null);
   const [cloneOpen, setCloneOpen] = useState(false);
   /** Id of the voice currently playing — 'cloned' or a preset id; null when nothing plays. */
@@ -34,25 +34,19 @@ export function StudioCloningPanel() {
   const previewAudioRef = useRef<InstanceType<typeof window.Audio> | null>(null);
 
   const cloningAllowed = canUseVoiceCloning(userTier);
-  const voiceReady = Boolean(clonedAudioUrl);
-
-  const clonedVoice: VoicePreset = useMemo(
-    () => ({
-      id: 'cloned',
-      name: clonedVoiceName || 'Your voice',
-      tags: 'Cloned · Personal · Ready',
-      wash: CLONED_VOICE_WASH,
-    }),
-    [clonedVoiceName],
+  const clonedVoices = useMemo(
+    () => clonedVoicePresets(clonedTracks, clonedVoiceName),
+    [clonedTracks, clonedVoiceName],
   );
+  const voiceReady = clonedVoices.length > 0;
 
   const loadClonedVoice = useCallback(
     async (id: string, opts?: { fallbackName?: string | null }) => {
-      const { audioUrl, name } = await fetchClonedVoiceFromProfile(id);
-      setClonedAudioUrl(audioUrl);
+      const { tracks, name } = await fetchClonedVoiceFromProfile(id);
+      setClonedTracks(tracks);
       setClonedVoiceName(name || opts?.fallbackName || null);
-      if (audioUrl) saveClonedVoiceProfile(id);
-      return audioUrl;
+      if (tracks.length) saveClonedVoiceProfile(id);
+      return tracks[0]?.url ?? null;
     },
     [],
   );
@@ -138,10 +132,11 @@ export function StudioCloningPanel() {
         return;
       }
 
+      const cloned = clonedVoices.find((v) => v.id === id);
       const url =
-        id === 'cloned'
-          ? clonedAudioUrl
-          : voicePresets.find((v) => v.id === id)?.audioUrl?.trim() || null;
+        cloned?.audioUrl?.trim() ||
+        voicePresets.find((v) => v.id === id)?.audioUrl?.trim() ||
+        null;
       if (!url) {
         toast.error('No preview available for this voice');
         return;
@@ -155,7 +150,7 @@ export function StudioCloningPanel() {
       });
       setPreviewVoiceId(id);
     },
-    [clonedAudioUrl, previewVoiceId, voicePresets],
+    [clonedVoices, previewVoiceId, voicePresets],
   );
 
   return (
@@ -175,17 +170,17 @@ export function StudioCloningPanel() {
         {cloningAllowed ? (
           <>
             <div className="flex flex-wrap items-stretch gap-3">
-              {voiceReady && (
-                <div className="w-[150px] sm:w-[168px]">
+              {clonedVoices.map((voice) => (
+                <div key={voice.id} className="w-[150px] sm:w-[168px]">
                   <VoiceCard
-                    voice={clonedVoice}
+                    voice={voice}
                     active
                     onSelect={() => {}}
-                    onPreview={(e) => handlePreview(e, 'cloned')}
-                    isPreviewing={previewVoiceId === 'cloned'}
+                    onPreview={(e) => handlePreview(e, voice.id)}
+                    isPreviewing={previewVoiceId === voice.id}
                   />
                 </div>
-              )}
+              ))}
               <button
                 type="button"
                 onClick={openCloneModal}

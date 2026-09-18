@@ -35,8 +35,17 @@ import {
   voiceBillableMinutes,
   voiceCreditsForSeconds,
 } from '@/lib/credits';
-import { canUseVoiceCloning, saveClonedVoiceProfile } from '@/lib/voice-clone';
+import {
+  canUseVoiceCloning,
+  clonedVoiceId,
+  firstNameFromFullName,
+  isClonedVoiceId,
+  parseClonedVoiceTracks,
+  saveClonedVoiceProfile,
+  type ClonedVoiceTrack,
+} from '@/lib/voice-clone';
 import { appendScriptAudioUrl } from '@/lib/script-persistence';
+import { getVoiceCloneLanguage } from '@/lib/voice-clone-languages';
 import { SPEECH_SUPPORTED_LANGUAGES } from '@/lib/speech-languages';
 import { VoiceCloneModal } from '@/components/studio/VoiceCloneModal';
 import { supabase } from '@/lib/supabaseClient';
@@ -44,7 +53,7 @@ import { ApiService } from '@/services/api';
 import { toast } from 'sonner';
 
 export type VoicePreset = {
-  /** Row id from pre-made-voices (string) or "cloned" */
+  /** Row id from pre-made-voices (string) or "cloned:<lang>" */
   id: string;
   name: string;
   tags: string;
@@ -54,6 +63,8 @@ export type VoicePreset = {
   audioUrl?: string | null;
   /** Model id from pre-made-voices."reference-Id" → /generate-speech reference_id */
   referenceId?: string | null;
+  /** Shown beside the name on cloned-voice cards */
+  languageLabel?: string;
 };
 
 const VOICE_WASHES = [
@@ -111,10 +122,11 @@ export async function fetchPreMadeVoices(): Promise<VoicePreset[]> {
   return [];
 }
 
-/** Load cloned voice URL + display name from user_profiles. */
+/** Load cloned voice tracks + display name from user_profiles. */
 export async function fetchClonedVoiceFromProfile(userId: string): Promise<{
   audioUrl: string | null;
   name: string | null;
+  tracks: ClonedVoiceTrack[];
 }> {
   // Column may be stored as audio-url or audio_url depending on schema.
   const attempts = ['full_name, "audio-url"', 'full_name, audio_url'] as const;
@@ -132,12 +144,28 @@ export async function fetchClonedVoiceFromProfile(userId: string): Promise<{
     }
   }
 
-  const audioUrl = String(row?.audio_url ?? row?.['audio-url'] ?? '').trim();
+  const tracks = parseClonedVoiceTracks(row?.audio_url ?? row?.['audio-url']);
   const name = String(row?.full_name ?? '').trim();
   return {
-    audioUrl: audioUrl || null,
+    tracks,
+    audioUrl: tracks[0]?.url ?? null,
     name: name || null,
   };
+}
+
+export function clonedVoicePresets(
+  tracks: ClonedVoiceTrack[],
+  fullName: string | null | undefined,
+): VoicePreset[] {
+  const firstName = firstNameFromFullName(fullName);
+  return tracks.map((track, index) => ({
+    id: clonedVoiceId(track.code),
+    name: firstName,
+    languageLabel: getVoiceCloneLanguage(track.code)?.name ?? track.code.toUpperCase(),
+    tags: 'Cloned · Personal · Ready',
+    wash: index === 0 ? CLONED_VOICE_WASH : 'from-[#e4e0d8] via-[#d0cbc4] to-[#b4aea6]',
+    audioUrl: track.url,
+  }));
 }
 
 function VoiceWaveform({ className = '' }: { className?: string }) {
@@ -195,8 +223,15 @@ export function VoiceCard({
       />
 
       <div className="relative z-10 flex h-full flex-col px-3 pt-2.5 pb-2">
-        <p className="text-[12px] font-semibold text-[#1d1d1f]/90 tracking-tight truncate">
-          {voice.name}
+        <p className="flex items-baseline gap-1.5 min-w-0">
+          <span className="text-[12px] font-semibold text-[#1d1d1f]/90 tracking-tight truncate">
+            {voice.name}
+          </span>
+          {voice.languageLabel ? (
+            <span className="text-[10px] font-medium text-[#1d1d1f]/55 truncate flex-shrink-0">
+              {voice.languageLabel}
+            </span>
+          ) : null}
         </p>
 
         <div className="flex-1 flex flex-col items-center justify-center gap-1.5 min-h-0">
@@ -278,7 +313,7 @@ export function StudioAudioPanel({
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [userTier, setUserTier] = useState<string | null>(null);
-  const [clonedAudioUrl, setClonedAudioUrl] = useState<string | null>(null);
+  const [clonedTracks, setClonedTracks] = useState<ClonedVoiceTrack[]>([]);
   const [clonedVoiceName, setClonedVoiceName] = useState<string | null>(null);
   const [cloneOpen, setCloneOpen] = useState(false);
   const [voicePresets, setVoicePresets] = useState<VoicePreset[]>([]);
@@ -309,17 +344,12 @@ export function StudioAudioPanel({
   const scriptLangMenuRef = useRef<HTMLDivElement | null>(null);
   const appliedLangKeyRef = useRef<string>('');
 
-  const voiceReady = Boolean(clonedAudioUrl);
-  const cloningAllowed = canUseVoiceCloning(userTier);
-  const clonedVoice: VoicePreset = useMemo(
-    () => ({
-      id: 'cloned',
-      name: clonedVoiceName || 'Your voice',
-      tags: 'Cloned · Personal · Ready',
-      wash: CLONED_VOICE_WASH,
-    }),
-    [clonedVoiceName],
+  const clonedVoices = useMemo(
+    () => clonedVoicePresets(clonedTracks, clonedVoiceName),
+    [clonedTracks, clonedVoiceName],
   );
+  const voiceReady = clonedVoices.length > 0;
+  const cloningAllowed = canUseVoiceCloning(userTier);
 
   const availableScriptLangs = useMemo(() => {
     const keys = Object.keys(languageMap).filter((k) => languageMap[k]?.trim());
@@ -340,16 +370,16 @@ export function StudioAudioPanel({
     id: string,
     opts?: { fallbackName?: string | null; selectIfReady?: boolean },
   ) => {
-    const { audioUrl, name } = await fetchClonedVoiceFromProfile(id);
-    setClonedAudioUrl(audioUrl);
+    const { tracks, name } = await fetchClonedVoiceFromProfile(id);
+    setClonedTracks(tracks);
     setClonedVoiceName(name || opts?.fallbackName || null);
-    if (audioUrl) {
+    if (tracks.length) {
       saveClonedVoiceProfile(id);
       if (opts?.selectIfReady !== false) {
-        setSelectedVoice('cloned');
+        setSelectedVoice(clonedVoiceId(tracks[0].code));
       }
     }
-    return audioUrl;
+    return tracks[0]?.url ?? null;
   }, []);
 
   useEffect(() => {
@@ -361,7 +391,7 @@ export function StudioAudioPanel({
         if (cancelled) return;
         setVoicePresets(voices);
         setSelectedVoice((prev) => {
-          if (prev === 'cloned') return prev;
+          if (isClonedVoiceId(prev)) return prev;
           if (prev && voices.some((v) => v.id === prev)) return prev;
           return voices[0]?.id ?? '';
         });
@@ -575,7 +605,6 @@ export function StudioAudioPanel({
       await new Promise((r) => setTimeout(r, 1000));
       url = await loadClonedVoice(userId, { selectIfReady: true });
     }
-    if (url) setSelectedVoice('cloned');
   }, [userId, loadClonedVoice]);
 
   const handleSelectVoice = useCallback((id: string) => {
@@ -610,16 +639,22 @@ export function StudioAudioPanel({
 
     stopAllPreviews();
 
-    if (id === 'cloned' && clonedAudioUrl) {
+    if (isClonedVoiceId(id)) {
+      const cloned = clonedVoices.find((v) => v.id === id);
+      const sampleUrl = cloned?.audioUrl?.trim();
+      if (!sampleUrl) {
+        toast.error('Could not play cloned voice sample');
+        return;
+      }
       const audio = clonedAudioRef.current ?? new Audio();
-      audio.src = clonedAudioUrl;
+      audio.src = sampleUrl;
       audio.onended = () => setPreviewVoiceId(null);
       clonedAudioRef.current = audio;
       void audio.play().catch(() => {
         toast.error('Could not play cloned voice sample');
         setPreviewVoiceId(null);
       });
-      setPreviewVoiceId('cloned');
+      setPreviewVoiceId(id);
       return;
     }
 
@@ -639,12 +674,11 @@ export function StudioAudioPanel({
       setPreviewVoiceId(null);
     });
     setPreviewVoiceId(id);
-  }, [clonedAudioUrl, previewVoiceId, stopAllPreviews, voicePresets]);
+  }, [clonedVoices, previewVoiceId, stopAllPreviews, voicePresets]);
 
-  const activeVoiceName =
-    selectedVoice === 'cloned'
-      ? clonedVoice.name
-      : selectedPreset?.name ?? 'Voice';
+  const activeVoiceName = isClonedVoiceId(selectedVoice)
+    ? clonedVoices.find((v) => v.id === selectedVoice)?.name ?? 'Your voice'
+    : selectedPreset?.name ?? 'Voice';
 
   const voiceSelected = Boolean(selectedVoice);
   const scriptReady = Boolean(text.trim());
@@ -659,12 +693,12 @@ export function StudioAudioPanel({
   const speechCreditsCost = voiceCreditsForSeconds(speechDurationSeconds);
 
   const speechVoiceValue = useCallback(() => {
-    if (selectedVoice === 'cloned') return 'user';
+    if (isClonedVoiceId(selectedVoice)) return 'user';
     return (selectedPreset?.name || 'voice').trim().toLowerCase() || 'voice';
   }, [selectedVoice, selectedPreset]);
 
   const speechReferenceId = useCallback(() => {
-    if (selectedVoice === 'cloned') return null;
+    if (isClonedVoiceId(selectedVoice)) return null;
     return selectedPreset?.referenceId?.trim() || null;
   }, [selectedVoice, selectedPreset]);
 
@@ -971,17 +1005,17 @@ export function StudioAudioPanel({
         {cloningAllowed ? (
           <>
             <div className="flex flex-wrap items-stretch gap-3">
-              {voiceReady && (
-                <div className="w-[150px] sm:w-[168px]">
+              {clonedVoices.map((voice) => (
+                <div key={voice.id} className="w-[150px] sm:w-[168px]">
                   <VoiceCard
-                    voice={clonedVoice}
-                    active={selectedVoice === 'cloned'}
-                    onSelect={() => handleSelectVoice('cloned')}
-                    onPreview={(e) => handlePreviewVoice(e, 'cloned')}
-                    isPreviewing={previewVoiceId === 'cloned'}
+                    voice={voice}
+                    active={selectedVoice === voice.id}
+                    onSelect={() => handleSelectVoice(voice.id)}
+                    onPreview={(e) => handlePreviewVoice(e, voice.id)}
+                    isPreviewing={previewVoiceId === voice.id}
                   />
                 </div>
-              )}
+              ))}
               <button
                 type="button"
                 onClick={openCloneModal}

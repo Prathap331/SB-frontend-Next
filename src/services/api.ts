@@ -2283,25 +2283,44 @@ export class ApiService {
   }
 
   /**
-   * Save a voice-clone sample via POST /save-audio (multipart/form-data).
-   * Fields: userId (string), audio (file)
+   * Save voice-clone samples via POST /save-audio (multipart/form-data).
+   * Fields: userId, languages (repeated), audio + audios (same files, same order).
+   * FastAPI has required both `audio` and `audios` depending on the schema.
+   * Do not set Content-Type — authorizedFetch leaves the multipart boundary to the browser.
    */
   static async saveAudio(params: {
     userId: string;
-    audio: Blob | File;
+    samples: Array<{ language: string; audio: Blob | File }>;
   }): Promise<unknown> {
+    if (!params.samples.length) {
+      throw new Error('No recordings to save');
+    }
+
     const url = `${this.BASE_URL}/save-audio`;
     const form = new FormData();
     form.append('userId', params.userId);
-    // Backend rejects webm/opus — callers should pass WAV; normalize type/name here too.
-    const isWav =
-      (params.audio.type || '').includes('wav') ||
-      (params.audio instanceof File && params.audio.name.toLowerCase().endsWith('.wav'));
-    const file =
-      params.audio instanceof File && isWav
-        ? params.audio
-        : new File([params.audio], 'voice-clone.wav', { type: 'audio/wav' });
-    form.append('audio', file);
+
+    const files: File[] = [];
+    for (const sample of params.samples) {
+      form.append('languages', sample.language);
+      const isWav =
+        (sample.audio.type || '').includes('wav') ||
+        (sample.audio instanceof File && sample.audio.name.toLowerCase().endsWith('.wav'));
+      const fileName = `voice-clone-${sample.language}.wav`;
+      const file =
+        sample.audio instanceof File && isWav
+          ? sample.audio
+          : new File([sample.audio], fileName, { type: 'audio/wav' });
+      files.push(file);
+    }
+
+    // Repeat files under both names — the API has required each at different times.
+    for (const file of files) {
+      form.append('audio', file);
+    }
+    for (const file of files) {
+      form.append('audios', file);
+    }
 
     const response = await this.authorizedFetch(url, {
       method: 'POST',
@@ -2313,7 +2332,14 @@ export class ApiService {
       let message = `Save audio failed: ${response.status} ${response.statusText}`;
       try {
         const parsed = JSON.parse(errorText);
-        message = parsed?.message || parsed?.error || message;
+        if (Array.isArray(parsed?.detail)) {
+          message = parsed.detail
+            .map((item: { msg?: string }) => item?.msg)
+            .filter(Boolean)
+            .join('; ') || message;
+        } else {
+          message = parsed?.message || parsed?.error || parsed?.detail || message;
+        }
       } catch {
         if (errorText) message = errorText;
       }

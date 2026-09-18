@@ -41,13 +41,19 @@ import {
 import type { MouseEvent } from 'react';
 import {
   VoiceCard,
-  CLONED_VOICE_WASH,
+  clonedVoicePresets,
   fetchPreMadeVoices,
   fetchClonedVoiceFromProfile,
   type VoicePreset,
 } from '@/components/studio/StudioAudioPanel';
 import { VoiceCloneModal } from '@/components/studio/VoiceCloneModal';
-import { canUseVoiceCloning, saveClonedVoiceProfile } from '@/lib/voice-clone';
+import {
+  canUseVoiceCloning,
+  clonedVoiceId,
+  isClonedVoiceId,
+  saveClonedVoiceProfile,
+  type ClonedVoiceTrack,
+} from '@/lib/voice-clone';
 import { CREDITS_PER_EDIT_VIDEO_MINUTE, editVideoCredits, estimateSpeechDurationSeconds } from '@/lib/credits';
 import { notifyUser, requestNotificationPermission } from '@/lib/notifications';
 import { getScriptTextFromMap, type ScriptLanguageMap } from '@/lib/script-data';
@@ -1496,7 +1502,7 @@ export function StudioVideoEditingPanel({
   const [genVolume, setGenVolume] = useState(5);
   const [genLoudnessNorm, setGenLoudnessNorm] = useState(true);
   const [genTextNorm, setGenTextNorm] = useState(true);
-  const [clonedAudioUrl, setClonedAudioUrl] = useState<string | null>(null);
+  const [clonedTracks, setClonedTracks] = useState<ClonedVoiceTrack[]>([]);
   const [clonedVoiceName, setClonedVoiceName] = useState<string | null>(null);
   const [cloneOpen, setCloneOpen] = useState(false);
   const [previewVoiceId, setPreviewVoiceId] = useState<string | null>(null);
@@ -2659,9 +2665,9 @@ export function StudioVideoEditingPanel({
         .maybeSingle();
       if (cancelled) return;
       setUserTier((profile?.user_tier || 'Free').trim() || 'Free');
-      const { audioUrl, name } = await fetchClonedVoiceFromProfile(id);
+      const { tracks, name } = await fetchClonedVoiceFromProfile(id);
       if (cancelled) return;
-      setClonedAudioUrl(audioUrl);
+      setClonedTracks(tracks);
       setClonedVoiceName(name);
     })();
     return () => {
@@ -2670,14 +2676,9 @@ export function StudioVideoEditingPanel({
   }, []);
 
   const cloningAllowed = canUseVoiceCloning(userTier);
-  const clonedVoicePreset: VoicePreset = useMemo(
-    () => ({
-      id: 'cloned',
-      name: clonedVoiceName || 'Your voice',
-      tags: 'Cloned · Personal · Ready',
-      wash: CLONED_VOICE_WASH,
-    }),
-    [clonedVoiceName],
+  const clonedVoices = useMemo(
+    () => clonedVoicePresets(clonedTracks, clonedVoiceName),
+    [clonedTracks, clonedVoiceName],
   );
   const selectedVoicePreset = useMemo(
     () => voicePresets.find((v) => v.id === selectedVoice) ?? null,
@@ -2693,10 +2694,10 @@ export function StudioVideoEditingPanel({
   const handleCloned = useCallback(async () => {
     if (!userId) return;
     saveClonedVoiceProfile(userId);
-    const { audioUrl, name } = await fetchClonedVoiceFromProfile(userId);
-    setClonedAudioUrl(audioUrl);
+    const { tracks, name } = await fetchClonedVoiceFromProfile(userId);
+    setClonedTracks(tracks);
     setClonedVoiceName(name);
-    if (audioUrl) setSelectedVoice('cloned');
+    if (tracks[0]) setSelectedVoice(clonedVoiceId(tracks[0].code));
   }, [userId]);
 
   const setupScriptReady = Boolean(setupScript.trim());
@@ -2720,7 +2721,7 @@ export function StudioVideoEditingPanel({
       return;
     }
     const voice =
-      selectedVoice === 'cloned' ? 'user' : selectedVoicePreset?.referenceId?.trim() || '';
+      isClonedVoiceId(selectedVoice) ? 'user' : selectedVoicePreset?.referenceId?.trim() || '';
     if (!voice) {
       showToast('Pick a voice to continue');
       return;
@@ -3738,7 +3739,7 @@ export function StudioVideoEditingPanel({
                       className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#6e6e73] hover:text-[#1d1d1f]"
                     >
                       <Mic className="h-3 w-3" />
-                      {clonedAudioUrl ? 'Re-clone voice' : 'Clone your voice'}
+                      {clonedVoices.length ? 'Re-clone voice' : 'Clone your voice'}
                     </button>
                   </div>
                   {voicesLoading ? (
@@ -3747,15 +3748,16 @@ export function StudioVideoEditingPanel({
                     </div>
                   ) : (
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {clonedAudioUrl && (
+                      {clonedVoices.map((voice) => (
                         <VoiceCard
-                          voice={clonedVoicePreset}
-                          active={selectedVoice === 'cloned'}
-                          onSelect={() => setSelectedVoice('cloned')}
-                          onPreview={(e) => handlePreviewVoice(e, 'cloned')}
-                          isPreviewing={previewVoiceId === 'cloned'}
+                          key={voice.id}
+                          voice={voice}
+                          active={selectedVoice === voice.id}
+                          onSelect={() => setSelectedVoice(voice.id)}
+                          onPreview={(e) => handlePreviewVoice(e, voice.id)}
+                          isPreviewing={previewVoiceId === voice.id}
                         />
-                      )}
+                      ))}
                       {voicePresets.map((v) => (
                         <VoiceCard
                           key={v.id}
