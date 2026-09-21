@@ -2702,8 +2702,11 @@ export function StudioVideoEditingPanel({
 
   const setupScriptReady = Boolean(setupScript.trim());
   const setupVoiceReady = videoKind === 'with-face' ? true : Boolean(selectedVoice);
+  // Requires a chosen kind, not a specific one: each generate path guards its own kind
+  // below. Pinning this to 'faceless' narrowed videoKind everywhere canSubmitSetup is
+  // truthy, which made the with-face branch unreachable (and its button never enable).
   const canSubmitSetup =
-    videoKind === 'faceless' && setupScriptReady && setupVoiceReady && !isSubmittingSetup;
+    Boolean(videoKind) && setupScriptReady && setupVoiceReady && !isSubmittingSetup;
 
   /** `durationMinutes` the /edit-video payload will carry — billed as that many minutes × 11. */
   const facelessDurationMinutes = useMemo(() => {

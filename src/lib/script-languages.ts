@@ -13,8 +13,6 @@ export type ScriptLanguageOption = {
 /** Stored jsonb keys that differ from the display-name slug. */
 const SCRIPT_VALUE_OVERRIDES: Record<string, string> = {
   zh: 'chinese-simplified',
-  tl: 'filipino',
-  my: 'myanmar',
 };
 
 function scriptValueFromCloneLang(code: string, name: string): string {
@@ -25,7 +23,7 @@ function scriptValueFromCloneLang(code: string, name: string): string {
     .replace(/^-|-$/g, '');
 }
 
-/** Same 84 languages as voice cloning / speech. */
+/** Same 20 languages as voice cloning — 10 global plus 10 Indian. */
 export const SCRIPT_LANGUAGES: ScriptLanguageOption[] = VOICE_CLONE_LANGUAGES.map((lang) => ({
   value: scriptValueFromCloneLang(lang.code, lang.name),
   label: lang.name,
