@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { resolveAnimationType } from './animationTypes';
 
 export type PlacementKind =
   | 'full_frame'
@@ -154,7 +155,7 @@ export function placementToDesignPx(
  * Shared by the Remotion visual and the preview drag handles so they stay aligned.
  */
 export function defaultOverlayGeometry(animationType: string | undefined): OverlayGeometryPx {
-  switch ((animationType || '').trim().toLowerCase()) {
+  switch (resolveAnimationType(animationType)) {
     case 'emoji_reaction':
       return { x: 1696, y: 64, width: 160, height: 160 };
     case 'badge_sticker':
@@ -167,7 +168,10 @@ export function defaultOverlayGeometry(animationType: string | undefined): Overl
       return { x: 1560, y: 48, width: 300, height: 220 };
     case 'intro_lower_third':
     case 'lower_third':
+    case 'lower_third_glass_card':
       return { x: 64, y: 820, width: 720, height: 180 };
+    case 'thinking_bubble':
+      return { x: 1180, y: 80, width: 560, height: 280 };
     case 'avatar_overlay':
     case 'avatar_overlay_placeholder':
       return { x: 64, y: 64, width: 160, height: 160 };

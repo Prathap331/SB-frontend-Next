@@ -5,6 +5,7 @@ import type { Clock, InfographicData } from '../types';
 import { LucideIconView } from '../icons';
 import { readAccentColor, readNonEmptyString, readStringArray, readIconNames } from '../props';
 import { TEMPLATE_RENDERERS } from '../compositions/templates/registry';
+import { resolveAnimationType } from '../animationTypes';
 import { TemplateErrorBoundary } from '../compositions/templates/shared';
 import {
   OVERLAY_DESIGN_W,
@@ -217,7 +218,7 @@ function displayTextOf(props: Record<string, unknown>): { text: string; lines: s
 }
 
 function readBase(data: InfographicData): BaseAnim {
-  const type = (data.animation_type || '').trim().toLowerCase();
+  const type = resolveAnimationType(data.animation_type);
   const { text, lines } = displayTextOf(data.props);
   const icons = readIconNames(data.props);
   const placement =

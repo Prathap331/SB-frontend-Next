@@ -287,7 +287,7 @@ export function readChartData(props: Record<string, unknown>): ChartDatum[] {
     return out;
   };
 
-  for (const key of ['data', 'chartData', 'chart_data', 'points', 'dataset', 'series']) {
+  for (const key of ['data', 'chartData', 'chart_data', 'points', 'dataset', 'series', 'bars']) {
     const v = props[key];
     if (Array.isArray(v) && v.length) {
       const parsed = fromArray(v);

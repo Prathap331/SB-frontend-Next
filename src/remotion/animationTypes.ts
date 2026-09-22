@@ -92,6 +92,41 @@ export const NEW_TEMPLATE_ANIMATION_TYPES = [
   'split_screen',
   'image_split_screen',
   'pip_video',
+  'bar_chart_anim',
+  'bounce_in_headline',
+  'brush_stroke_reveal',
+  'card_flip_transition',
+  'character_jumping',
+  'community_chat',
+  'eye_reveal',
+  'fireworks_burst',
+  'flip_page_transition',
+  'four_tone_mono_titler',
+  'gradient_text_sweep',
+  'ink_spread_transition',
+  'kinetic_word_stack',
+  'kpi_counter',
+  'line_chart_anim',
+  'logo_mask_wipe',
+  'loop_grid_wave',
+  'lower_third_glass_card',
+  'neon_sign',
+  'particle_snow',
+  'pencil_draw',
+  'pixel_candlestick_ohlc',
+  'pixel_mosaic_transition',
+  'pixel_typewriter_quote',
+  'pixel_waterfall_cycle',
+  'pourover_drip_fill_gauge',
+  'racing_chart',
+  'scramble_text',
+  'shatter_reveal',
+  'social_reel',
+  'text_mask_reveal',
+  'thinking_bubble',
+  'transition_circle_wipe',
+  'wave_hello',
+  'wave_text',
 ] as const;
 
 export type NewTemplateAnimationType = (typeof NEW_TEMPLATE_ANIMATION_TYPES)[number];
@@ -193,12 +228,12 @@ export const KNOWN_ANIMATION_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 export function isSupportedAnimationType(type: string): type is SupportedAnimationType {
-  const t = type.trim().toLowerCase();
-  return KNOWN_ANIMATION_TYPES.has(t) || KNOWN_ANIMATION_TYPES.has(resolveAnimationType(t));
+  return KNOWN_ANIMATION_TYPES.has(resolveAnimationType(type));
 }
 
 /**
  * Only true synonyms (legacy placeholder ids). Similar names are NOT treated as the same animation.
+ * Hyphen vs underscore of the same token is a format difference, not a different animation.
  */
 const ANIMATION_TYPE_ALIASES: Record<string, string> = {
   avatar_overlay_placeholder: 'avatar_overlay',
@@ -206,7 +241,7 @@ const ANIMATION_TYPE_ALIASES: Record<string, string> = {
 };
 
 export function resolveAnimationType(type: string | undefined | null): string {
-  const t = (type || '').trim().toLowerCase();
+  const t = (type || '').trim().toLowerCase().replace(/-/g, '_');
   return ANIMATION_TYPE_ALIASES[t] ?? t;
 }
 
@@ -268,8 +303,12 @@ export function inferAnimationTypeFromCompositionId(compositionId: string | unde
   if (id === 'MascotAnimationPlaceholder' || id === 'MascotAnimation') return 'mascot_animation';
   if (id === 'SpeedRampIndicator') return 'speed_ramp_indicator';
 
+  const snake = id.replace(/-/g, '_').toLowerCase();
+  if (KNOWN_ANIMATION_TYPES.has(snake)) return snake;
+
   for (const type of KNOWN_ANIMATION_TYPES) {
     if (toPascalCase(type) === id) return type;
+    if (type.replace(/_/g, '-') === id.toLowerCase()) return type;
   }
   return undefined;
 }

@@ -599,6 +599,13 @@ const VISUAL_ONLY_ANIMATION_TYPES = new Set([
   'avatar_overlay_placeholder',
   'mascot_animation',
   'mascot_animation_placeholder',
+  'particle_snow',
+  'ink_spread_transition',
+  'loop_grid_wave',
+  'pixel_mosaic_transition',
+  'pixel_waterfall_cycle',
+  'transition_circle_wipe',
+  'fireworks_burst',
 ]);
 
 function asOverlayId(value: unknown): string | undefined {
@@ -628,6 +635,9 @@ export function parseRemotionInfographic(raw: unknown): RemotionInfographicSpec 
   // Legacy payloads may omit animation_type but send a well-known composition_id.
   if (!animationType) {
     animationType = inferAnimationTypeFromCompositionId(compositionIdRaw) ?? '';
+  }
+  if (animationType) {
+    animationType = resolveAnimationType(animationType);
   }
 
   // Need a resolvable animation type (or at least store the payload for fallback UI).

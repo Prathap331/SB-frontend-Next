@@ -1,11 +1,12 @@
 import type { InfographicData } from './types';
 import type { RemotionInfographicSpec } from '@/lib/video-editor/infographics';
+import { resolveAnimationType } from './animationTypes';
 
 /** Convert editor camelCase spec → backend-shaped InfographicData for Remotion. */
 export function specToInfographicData(spec: RemotionInfographicSpec): InfographicData {
   return {
     composition_id: spec.compositionId,
-    animation_type: spec.animationType,
+    animation_type: resolveAnimationType(spec.animationType),
     props: spec.props ?? {},
     duration_frames: spec.durationFrames,
     trigger: spec.trigger || 'scene_start',
@@ -26,7 +27,7 @@ export function clipRemotionToInfographicData(remotion: {
 }): InfographicData {
   return {
     composition_id: remotion.compositionId,
-    animation_type: remotion.animationType,
+    animation_type: resolveAnimationType(remotion.animationType),
     props: remotion.props ?? {},
     duration_frames: remotion.durationFrames,
     trigger: remotion.trigger || 'scene_start',
