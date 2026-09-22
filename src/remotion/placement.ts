@@ -159,8 +159,15 @@ export function defaultOverlayGeometry(animationType: string | undefined): Overl
       return { x: 1696, y: 64, width: 160, height: 160 };
     case 'badge_sticker':
       return { x: 1696, y: 64, width: 200, height: 200 };
+    case 'pip_video':
+      return { x: 1360, y: 720, width: 480, height: 270 };
     case 'pip_video_frame':
       return { x: 1280, y: 64, width: 576, height: 324 };
+    case 'image_pip':
+      return { x: 1560, y: 48, width: 300, height: 220 };
+    case 'intro_lower_third':
+    case 'lower_third':
+      return { x: 64, y: 820, width: 720, height: 180 };
     case 'avatar_overlay':
     case 'avatar_overlay_placeholder':
       return { x: 64, y: 64, width: 160, height: 160 };

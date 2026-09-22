@@ -304,8 +304,6 @@ export function TaxonomyVisual({ data, clock }: { data: InfographicData; clock: 
   switch (type) {
     case 'full_screen_broll':
       return <Fill />;
-    case 'quote_card':
-      return <QuoteCardVisual p={p} clock={clock} />;
     case 'full_screen_transition_fx':
       return <FullScreenTransitionFx p={p} clock={clock} />;
     case 'full_screen_color_wash':

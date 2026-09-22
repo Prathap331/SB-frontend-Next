@@ -1,7 +1,9 @@
 'use client';
 
+import { interpolate } from 'remotion';
 import type { TemplateProps } from '../../../types';
 import { readColor, readDisplayText, readImageUrl, readImageUrls, readNonEmptyString, readNumberProp } from '../../../props';
+import { clockSpring } from '../../../animation';
 import { CardShell, SafeImage, TemplateStage, appearOpacity, clockProgress, staggeredProgress } from '../shared';
 
 export function GalleryGrid({ data, clock }: TemplateProps) {
@@ -116,11 +118,39 @@ export function PhotoStack({ data, clock }: TemplateProps) {
 }
 
 export function PictureInPicture({ data, clock }: TemplateProps) {
-  const src = readImageUrl(data.props);
-  const t = clockProgress(clock, 0, 12);
+  const images = readImageUrls(data.props);
+  const main = images[0] ?? readImageUrl(data.props);
+  const pip = images[1] ?? images[0] ?? main;
+  const title = readNonEmptyString(data.props, 'title') ?? readNonEmptyString(data.props, 'caption');
+  const pipLabel = readNonEmptyString(data.props, 'pipLabel') ?? readNonEmptyString(data.props, 'label');
+  const pipScale = clockSpring(clock.frame, clock.fps, 15, { damping: 12, stiffness: 100 });
   return (
-    <div style={{ position: 'absolute', right: 48, top: 48, width: 420, height: 236, borderRadius: 18, overflow: 'hidden', transform: `translateY(${(1 - t) * 20}px)`, opacity: t, boxShadow: '0 18px 50px rgba(0,0,0,0.45)', border: '3px solid rgba(255,255,255,0.8)' }}>
-      <SafeImage src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    <div style={{ position: 'absolute', inset: 0, background: '#0b0b0f' }}>
+      {main ? <SafeImage src={main} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+      {title ? (
+        <div style={{ position: 'absolute', left: 48, bottom: 48, color: '#fff', fontSize: 32, fontWeight: 800 }}>{title}</div>
+      ) : null}
+      <div
+        style={{
+          position: 'absolute',
+          right: 48,
+          bottom: 48,
+          width: 420,
+          height: 236,
+          borderRadius: 18,
+          overflow: 'hidden',
+          transform: `scale(${pipScale})`,
+          transformOrigin: 'bottom right',
+          boxShadow: '0 18px 50px rgba(0,0,0,0.45)',
+          border: '3px solid rgba(255,255,255,0.85)',
+          background: '#111',
+        }}
+      >
+        <SafeImage src={pip} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        {pipLabel ? (
+          <div style={{ position: 'absolute', left: 12, bottom: 10, color: '#fff', fontSize: 16, fontWeight: 700 }}>{pipLabel}</div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -146,19 +176,39 @@ export function SplitScreen({ data, clock }: TemplateProps) {
   const images = readImageUrls(data.props);
   const left = images[0];
   const right = images[1];
-  const labels = [readNonEmptyString(data.props, 'leftLabel'), readNonEmptyString(data.props, 'rightLabel')];
-  const t = clockProgress(clock, 0, 14);
+  const labels = [
+    readNonEmptyString(data.props, 'leftLabel') ?? readNonEmptyString(data.props, 'left_title'),
+    readNonEmptyString(data.props, 'rightLabel') ?? readNonEmptyString(data.props, 'right_title'),
+  ];
   const color = readColor(data.props, '#fff');
+  const leftSlide = clockSpring(clock.frame, clock.fps, 0, { damping: 15, stiffness: 80 });
+  const rightSlide = clockSpring(clock.frame, clock.fps, 5, { damping: 15, stiffness: 80 });
+  const dividerOpacity = interpolate(clock.frame, [clock.fps * 0.6, clock.fps * 0.9], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
   return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
-      <div style={{ flex: 1, overflow: 'hidden', transform: `translateX(${(1 - t) * -40}px)` }}>
-        <SafeImage src={left} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        {labels[0] ? <div style={{ position: 'absolute', bottom: 32, left: 32, color, fontSize: 28, fontWeight: 800 }}>{labels[0]}</div> : null}
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', overflow: 'hidden', background: '#050505' }}>
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', transform: `translateX(${(1 - leftSlide) * -100}%)` }}>
+        {left ? (
+          <SafeImage src={left} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: '#111827' }} />
+        )}
+        {labels[0] ? (
+          <div style={{ position: 'absolute', bottom: 32, left: 32, color, fontSize: 28, fontWeight: 800 }}>{labels[0]}</div>
+        ) : null}
       </div>
-      <div style={{ width: 4, background: color }} />
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', transform: `translateX(${(1 - t) * 40}px)` }}>
-        <SafeImage src={right} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        {labels[1] ? <div style={{ position: 'absolute', bottom: 32, right: 32, color, fontSize: 28, fontWeight: 800 }}>{labels[1]}</div> : null}
+      <div style={{ width: 4, background: color, opacity: dividerOpacity, zIndex: 2 }} />
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', transform: `translateX(${(1 - rightSlide) * 100}%)` }}>
+        {right ? (
+          <SafeImage src={right} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: '#1f2937' }} />
+        )}
+        {labels[1] ? (
+          <div style={{ position: 'absolute', bottom: 32, right: 32, color, fontSize: 28, fontWeight: 800 }}>{labels[1]}</div>
+        ) : null}
       </div>
     </div>
   );

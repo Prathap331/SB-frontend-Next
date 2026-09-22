@@ -1,7 +1,7 @@
 import { EDITOR_FPS, framesToSeconds, secondsToFrame } from './fps';
 import { frameWindowSeconds, toSceneLocalSeconds } from './timings';
 import { iconNamesFromContentBinding, readIconNames } from '@/remotion/props';
-import { inferAnimationTypeFromCompositionId } from '@/remotion/animationTypes';
+import { inferAnimationTypeFromCompositionId, resolveAnimationType } from '@/remotion/animationTypes';
 import {
   defaultOverlayGeometry,
   fitOverlayBoxForIcons,
@@ -574,15 +574,22 @@ function parseGeometryPx(raw: unknown): Partial<OverlayGeometryPx> & { scale?: n
 
 const VISUAL_ONLY_ANIMATION_TYPES = new Set([
   'full_screen_broll',
+  'full_screen_transition',
   'full_screen_transition_fx',
   'full_screen_color_wash',
   'ken_burns',
   'ken_burns_pan_zoom',
+  'shake_impact',
   'shake_impact_flash',
   'parallax_accent',
+  'parallax_layering',
+  'split_screen',
   'split_screen_divider',
   'multi_panel_grid',
+  'pip_video',
   'pip_video_frame',
+  'image_pip',
+  'image_split_screen',
   'speed_ramp_indicator',
   'arrow_highlight',
   'emoji_reaction',
@@ -685,7 +692,8 @@ export function parseRemotionInfographic(raw: unknown): RemotionInfographicSpec 
     icons.length > 0;
   const typeKey = animationType.toLowerCase();
   const isIconAnim = typeKey.startsWith('icon_');
-  const visualOnly = VISUAL_ONLY_ANIMATION_TYPES.has(typeKey);
+  const visualOnly =
+    VISUAL_ONLY_ANIMATION_TYPES.has(typeKey) || VISUAL_ONLY_ANIMATION_TYPES.has(resolveAnimationType(typeKey));
   if (!hasCopy && !isIconAnim && !visualOnly) {
     const fallbackLabel = asString(obj.animation_type)?.replace(/_/g, ' ').trim();
     if (fallbackLabel) props.title = fallbackLabel;

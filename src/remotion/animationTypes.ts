@@ -5,6 +5,7 @@
 
 export const NEW_TEMPLATE_ANIMATION_TYPES = [
   'bar_chart',
+  'chart_animation',
   'line_chart',
   'pie_chart',
   'donut_chart',
@@ -17,8 +18,10 @@ export const NEW_TEMPLATE_ANIMATION_TYPES = [
   'bounce_text',
   'bubble_pop_text',
   'floating_text_chip',
+  'floating_bubble_text',
   'glitch_text',
   'popping_scale_text',
+  'popping_text',
   'pulsing_text',
   'slide_text',
   'typewriter_subtitle',
@@ -72,6 +75,8 @@ export const NEW_TEMPLATE_ANIMATION_TYPES = [
   'countdown_intro',
   'credits_roll',
   'end_card',
+  'intro_lower_third',
+  'intro_quote_card',
   'quote_card',
   'subscribe_reminder',
   'title_split',
@@ -82,8 +87,11 @@ export const NEW_TEMPLATE_ANIMATION_TYPES = [
   'masonry_gallery',
   'photo_stack',
   'picture_in_picture',
+  'image_pip',
   'polaroid_frame',
   'split_screen',
+  'image_split_screen',
+  'pip_video',
 ] as const;
 
 export type NewTemplateAnimationType = (typeof NEW_TEMPLATE_ANIMATION_TYPES)[number];
@@ -105,15 +113,20 @@ export type SupportedAnimationType =
   | 'arrow_highlight'
   | 'badge_sticker'
   | 'full_screen_broll'
+  | 'full_screen_transition'
   | 'full_screen_transition_fx'
   | 'full_screen_color_wash'
   | 'full_screen_document_highlight'
+  | 'pip_video'
   | 'pip_video_frame'
+  | 'split_screen'
   | 'split_screen_divider'
   | 'multi_panel_grid'
   | 'avatar_overlay'
   | 'mascot_animation'
   | 'parallax_accent'
+  | 'parallax_layering'
+  | 'shake_impact'
   | 'shake_impact_flash'
   | 'speed_ramp_indicator'
   | 'fade_in'
@@ -146,10 +159,13 @@ export const KNOWN_ANIMATION_TYPES: ReadonlySet<string> = new Set([
   'arrow_highlight',
   'badge_sticker',
   'full_screen_broll',
+  'full_screen_transition',
   'full_screen_transition_fx',
   'full_screen_color_wash',
   'full_screen_document_highlight',
+  'pip_video',
   'pip_video_frame',
+  'split_screen',
   'split_screen_divider',
   'multi_panel_grid',
   'avatar_overlay',
@@ -157,6 +173,8 @@ export const KNOWN_ANIMATION_TYPES: ReadonlySet<string> = new Set([
   'mascot_animation',
   'mascot_animation_placeholder',
   'parallax_accent',
+  'parallax_layering',
+  'shake_impact',
   'shake_impact_flash',
   'speed_ramp_indicator',
   'ken_burns_pan_zoom',
@@ -175,7 +193,21 @@ export const KNOWN_ANIMATION_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 export function isSupportedAnimationType(type: string): type is SupportedAnimationType {
-  return KNOWN_ANIMATION_TYPES.has(type.trim().toLowerCase());
+  const t = type.trim().toLowerCase();
+  return KNOWN_ANIMATION_TYPES.has(t) || KNOWN_ANIMATION_TYPES.has(resolveAnimationType(t));
+}
+
+/**
+ * Only true synonyms (legacy placeholder ids). Similar names are NOT treated as the same animation.
+ */
+const ANIMATION_TYPE_ALIASES: Record<string, string> = {
+  avatar_overlay_placeholder: 'avatar_overlay',
+  mascot_animation_placeholder: 'mascot_animation',
+};
+
+export function resolveAnimationType(type: string | undefined | null): string {
+  const t = (type || '').trim().toLowerCase();
+  return ANIMATION_TYPE_ALIASES[t] ?? t;
 }
 
 export function toPascalCase(snake: string): string {
@@ -209,16 +241,31 @@ export function inferAnimationTypeFromCompositionId(compositionId: string | unde
   if (id === 'BadgeSticker') return 'badge_sticker';
   if (id === 'FullScreenBroll') return 'full_screen_broll';
   if (id === 'FullScreenTransitionFx') return 'full_screen_transition_fx';
+  if (id === 'FullScreenTransition') return 'full_screen_transition';
   if (id === 'FullScreenColorWash') return 'full_screen_color_wash';
   if (id === 'FullScreenDocumentHighlight') return 'full_screen_document_highlight';
   if (id === 'PipVideoFrame') return 'pip_video_frame';
+  if (id === 'PipVideo') return 'pip_video';
   if (id === 'SplitScreenDivider') return 'split_screen_divider';
+  if (id === 'SplitScreen') return 'split_screen';
+  if (id === 'ImageSplitScreen') return 'image_split_screen';
+  if (id === 'ImagePip' || id === 'ImagePIP') return 'image_pip';
+  if (id === 'PictureInPicture') return 'picture_in_picture';
+  if (id === 'IntroLowerThird') return 'intro_lower_third';
+  if (id === 'IntroQuoteCard') return 'intro_quote_card';
+  if (id === 'QuoteCardTemplate') return 'quote_card';
+  if (id === 'ParallaxAccent') return 'parallax_accent';
+  if (id === 'ParallaxLayering') return 'parallax_layering';
+  if (id === 'ShakeImpactFlash') return 'shake_impact_flash';
+  if (id === 'ShakeImpact') return 'shake_impact';
+  if (id === 'KenBurnsNoOp' || id === 'KenBurnsPanZoom') return 'ken_burns_pan_zoom';
+  if (id === 'KenBurns') return 'ken_burns';
+  if (id === 'ChartAnimation') return 'chart_animation';
+  if (id === 'PoppingText') return 'popping_text';
+  if (id === 'FloatingBubbleText') return 'floating_bubble_text';
   if (id === 'MultiPanelGrid') return 'multi_panel_grid';
   if (id === 'AvatarOverlayPlaceholder' || id === 'AvatarOverlay') return 'avatar_overlay';
   if (id === 'MascotAnimationPlaceholder' || id === 'MascotAnimation') return 'mascot_animation';
-  if (id === 'KenBurnsNoOp' || id === 'KenBurns') return 'ken_burns_pan_zoom';
-  if (id === 'ParallaxAccent') return 'parallax_accent';
-  if (id === 'ShakeImpactFlash') return 'shake_impact_flash';
   if (id === 'SpeedRampIndicator') return 'speed_ramp_indicator';
 
   for (const type of KNOWN_ANIMATION_TYPES) {

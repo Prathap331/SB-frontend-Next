@@ -11,6 +11,7 @@ export {
   KNOWN_ANIMATION_TYPES,
   isSupportedAnimationType,
   inferAnimationTypeFromCompositionId,
+  resolveAnimationType,
 } from './animationTypes';
 
 export type RemotionRendererComponent = ComponentType<InfographicRemotionInputProps>;

@@ -1,25 +1,40 @@
 'use client';
 
+import { interpolate } from 'remotion';
 import type { TemplateProps } from '../../../types';
-import { readColor, readDisplayText, readImageUrl } from '../../../props';
-import { hash01 } from '../../../animation';
+import { readColor, readDisplayText, readImageUrl, readNonEmptyString } from '../../../props';
 import { SafeImage, TemplateStage, clockProgress } from '../shared';
 
 export function CameraShake({ data, clock }: TemplateProps) {
   const color = readColor(data.props, '#fff');
-  const mag = 8;
-  const x = (hash01(clock.frame * 0.7) - 0.5) * mag;
-  const y = (hash01(clock.frame * 1.3) - 0.5) * mag;
+  const amplitude = interpolate(clock.frame, [0, Math.max(1, clock.durationInFrames - 1)], [15, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const x = Math.sin(clock.frame * 0.8) * amplitude;
+  const y = Math.cos(clock.frame * 1.1) * amplitude;
   const src = readImageUrl(data.props);
-  const text = readDisplayText(data.props);
+  const text = readNonEmptyString(data.props, 'title') ?? readDisplayText(data.props);
+  const sub = readNonEmptyString(data.props, 'subtitle');
   return (
-    <div style={{ position: 'absolute', inset: 0, transform: `translate(${x}px, ${y}px)` }}>
-      {src ? <SafeImage src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
-      {text ? (
-        <TemplateStage>
-          <div style={{ color, fontSize: 56, fontWeight: 800 }}>{text}</div>
-        </TemplateStage>
-      ) : null}
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      {src ? <SafeImage src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ position: 'absolute', inset: 0, background: '#111827' }} />}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: `translate(${x}px, ${y}px)` }}>
+        {text ? (
+          <div
+            style={{
+              background: src ? 'rgba(15,23,42,0.72)' : 'linear-gradient(135deg, #1e293b, #0f172a)',
+              border: '1px solid rgba(59,130,246,0.3)',
+              borderRadius: 16,
+              padding: '40px 56px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ color, fontSize: 56, fontWeight: 800, letterSpacing: '0.12em' }}>{text}</div>
+            {sub ? <div style={{ marginTop: 12, color: '#93c5fd', fontSize: 20 }}>{sub}</div> : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
