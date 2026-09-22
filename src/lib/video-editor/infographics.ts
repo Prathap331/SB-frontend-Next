@@ -1,6 +1,7 @@
 import { EDITOR_FPS, framesToSeconds, secondsToFrame } from './fps';
 import { frameWindowSeconds, toSceneLocalSeconds } from './timings';
 import { iconNamesFromContentBinding, readIconNames } from '@/remotion/props';
+import { inferAnimationTypeFromCompositionId } from '@/remotion/animationTypes';
 import {
   defaultOverlayGeometry,
   fitOverlayBoxForIcons,
@@ -756,26 +757,6 @@ export function readInfographicFromEditScene(scene: unknown): RemotionInfographi
   }
 
   return parseRemotionInfographic(merged);
-}
-
-/**
- * Legacy helper: if animation_type is missing, infer from well-known composition_id names.
- * New/random composition_ids are NOT mapped — they require animation_type.
- */
-function inferAnimationTypeFromCompositionId(compositionId: string): string | undefined {
-  if (compositionId === 'TitleCard' || compositionId.startsWith('TitleCard_')) {
-    return 'full_screen_title_card';
-  }
-  if (compositionId === 'QuoteCard' || compositionId.startsWith('QuoteCard_')) {
-    return 'full_screen_quote_card';
-  }
-  if (compositionId === 'DataVizFullScreen' || compositionId.startsWith('DataViz')) {
-    return 'full_screen_data_viz';
-  }
-  if (compositionId === 'BulletListReveal' || compositionId.startsWith('BulletList')) {
-    return 'bullet_list_reveal';
-  }
-  return undefined;
 }
 
 /** Human-readable label for library cards and timeline clips. */

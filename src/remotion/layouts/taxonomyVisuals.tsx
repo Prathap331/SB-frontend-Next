@@ -1,9 +1,11 @@
 'use client';
 
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
-import type { InfographicData } from '../types';
+import type { Clock, InfographicData } from '../types';
 import { LucideIconView } from '../icons';
 import { readAccentColor, readNonEmptyString, readStringArray, readIconNames } from '../props';
+import { TEMPLATE_RENDERERS } from '../compositions/templates/registry';
+import { TemplateErrorBoundary } from '../compositions/templates/shared';
 import {
   OVERLAY_DESIGN_W,
   defaultOverlayGeometry,
@@ -15,11 +17,7 @@ import {
   resolveOverlayGeometry,
 } from '../placement';
 
-export type Clock = {
-  frame: number;
-  fps: number;
-  durationInFrames: number;
-};
+export type { Clock };
 
 type GeometryPx = {
   x: number;
@@ -294,11 +292,20 @@ export function TaxonomyVisual({ data, clock }: { data: InfographicData; clock: 
   const p = readBase(data);
   const type = p.type;
 
+  const Template = TEMPLATE_RENDERERS[type];
+  if (Template) {
+    return (
+      <TemplateErrorBoundary>
+        <Template data={data} clock={clock} />
+      </TemplateErrorBoundary>
+    );
+  }
+
   switch (type) {
     case 'full_screen_broll':
-    case 'ken_burns':
-    case 'ken_burns_pan_zoom':
       return <Fill />;
+    case 'quote_card':
+      return <QuoteCardVisual p={p} clock={clock} />;
     case 'full_screen_transition_fx':
       return <FullScreenTransitionFx p={p} clock={clock} />;
     case 'full_screen_color_wash':

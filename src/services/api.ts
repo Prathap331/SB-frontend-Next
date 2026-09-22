@@ -973,6 +973,8 @@ export interface GenerationParams {
   topic: string;
   /** Video length in minutes */
   time: number;
+  /** Title Case English language name, e.g. "English", "Telugu" — same as /translate-script. */
+  language?: string;
 }
 
 /** Payload for POST /generate-thumbnail */
@@ -1647,6 +1649,7 @@ export class ApiService {
         description: params.description,
         topic: params.topic,
         time: params.time,
+        language: params.language || 'English',
       };
 
       const response = await this.authorizedFetch(

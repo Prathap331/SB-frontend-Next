@@ -31,7 +31,11 @@ import { StudioVideoEditingPanel } from '@/components/studio/StudioVideoEditingP
 import { StudioCloningPanel } from '@/components/studio/StudioCloningPanel';
 import { StudioChromeProvider, useStudioChrome } from '@/components/studio/StudioChromeContext';
 import { getScriptTextFromMap } from '@/lib/script-data';
-import { DEFAULT_SCRIPT_LANGUAGE } from '@/lib/script-languages';
+import {
+  DEFAULT_SCRIPT_LANGUAGE,
+  SCRIPT_LANGUAGES,
+  scriptLanguageApiName,
+} from '@/lib/script-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   saveTopicIdeasToDb,
@@ -540,6 +544,34 @@ const TSSCard: React.FC<TSSCardProps> = ({
   );
 };
 
+/** Language picker for /generate-script — the same 20 languages as translation. */
+function ScriptLanguageSelect({
+  value,
+  onChange,
+  className = '',
+  ariaLabel = 'Script language',
+}: {
+  value: string;
+  onChange: (language: string) => void;
+  className?: string;
+  ariaLabel?: string;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={ariaLabel}
+      className={`h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-[#1d1d1f] outline-none focus:border-gray-400 ${className}`}
+    >
+      {SCRIPT_LANGUAGES.map((lang) => (
+        <option key={lang.value} value={lang.value}>
+          {lang.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export default function SearchTopicPage() {
   return (
     <StudioChromeProvider>
@@ -645,6 +677,10 @@ function SearchTopicPageInner() {
   const maxScriptMinutes = maxScriptMinutesForPlan(userTier);
   const [lengthWarnIdea, setLengthWarnIdea] = useState<ScriptIdea | null>(null);
   const [lengthWarnMinutes, setLengthWarnMinutes] = useState('');
+  /** Language chosen per idea for /generate-script; defaults to English. */
+  const [scriptLanguages, setScriptLanguages] = useState<Record<number, string>>({});
+  const [lengthWarnLanguage, setLengthWarnLanguage] = useState(DEFAULT_SCRIPT_LANGUAGE);
+  const ideaLanguage = (id: number) => scriptLanguages[id] ?? DEFAULT_SCRIPT_LANGUAGE;
 
   // Load plan tier for script length limits
   useEffect(() => {
@@ -1535,7 +1571,7 @@ useEffect(() => {
   // ── Script generation ─────────────────────────────────────────────────────
   const startScriptGeneration = async (
     idea: ScriptIdea,
-    opts?: { confirmedShort?: boolean; lengthOverride?: number },
+    opts?: { confirmedShort?: boolean; lengthOverride?: number; languageOverride?: string },
   ) => {
     const requested = Number(
       opts?.lengthOverride ?? videoLengths[idea.id] ?? 0,
@@ -1573,11 +1609,16 @@ useEffect(() => {
     ) {
       setLengthWarnIdea(idea);
       setLengthWarnMinutes(String(requested));
+      setLengthWarnLanguage(ideaLanguage(idea.id));
       return;
     }
 
     if (opts?.lengthOverride != null) {
       setVideoLengths((prev) => ({ ...prev, [idea.id]: String(requested) }));
+    }
+    const language = opts?.languageOverride ?? ideaLanguage(idea.id);
+    if (opts?.languageOverride) {
+      setScriptLanguages((prev) => ({ ...prev, [idea.id]: language }));
     }
 
     const { data: { session } } = await sbClient.auth.getSession();
@@ -1592,6 +1633,7 @@ useEffect(() => {
       description: idea.description,
       topic,
       time: Math.min(Math.max(requested, minScriptMinutes), maxScriptMinutes),
+      language: scriptLanguageApiName(language),
     };
 
     // Keep the full idea list in saved_ideas intact — never overwrite with a
@@ -1674,6 +1716,7 @@ useEffect(() => {
     void startScriptGeneration(idea, {
       confirmedShort: true,
       lengthOverride: n,
+      languageOverride: lengthWarnLanguage,
     });
   };
 
@@ -2100,7 +2143,18 @@ useEffect(() => {
                                   max={maxScriptMinutes}
                                   title={`${userTier} plan: ${minScriptMinutes}–${maxScriptMinutes} min`}
                                 />
-                               
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
+                                  Language
+                                </label>
+                                <ScriptLanguageSelect
+                                  value={ideaLanguage(statement.id)}
+                                  onChange={(language) =>
+                                    setScriptLanguages((prev) => ({ ...prev, [statement.id]: language }))
+                                  }
+                                  className="w-32"
+                                />
                               </div>
                               <button
                                 type="button"
@@ -2204,6 +2258,18 @@ useEffect(() => {
                                         <p className="text-[9px] text-gray-400 mt-0.5 text-center">
                                           {minScriptMinutes}–{maxScriptMinutes}m
                                         </p>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
+                                          Language
+                                        </label>
+                                        <ScriptLanguageSelect
+                                          value={ideaLanguage(ideaId)}
+                                          onChange={(language) =>
+                                            setScriptLanguages((prev) => ({ ...prev, [ideaId]: language }))
+                                          }
+                                          className="w-32"
+                                        />
                                       </div>
                                       <button
                                         type="button"
@@ -2504,6 +2570,16 @@ useEffect(() => {
                 <p className="text-[11px] text-[#86868b] mt-1.5">
                   {minScriptMinutes}–{maxScriptMinutes} min on your plan. Current: {videoLengths[lengthWarnIdea.id] || lengthWarnMinutes} min.
                 </p>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1.5">
+                  Language
+                </label>
+                <ScriptLanguageSelect
+                  value={lengthWarnLanguage}
+                  onChange={setLengthWarnLanguage}
+                  className="w-full h-10 rounded-xl"
+                />
               </div>
               <button
                 type="button"

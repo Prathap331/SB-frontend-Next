@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
       description: body?.description,
       topic: body?.topic,
       time: body?.time,
+      language: body?.language || 'English',
     };
 
     const response = await fetch(API_URL, {

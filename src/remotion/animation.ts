@@ -144,3 +144,42 @@ export function springScale(frame: number, fps: number, delay = 0): number {
     config: { damping: 18, stiffness: 120, mass: 0.8 },
   });
 }
+
+export function clamp01(value: number): number {
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  return value;
+}
+
+export function easeOutCubic(t: number): number {
+  const x = clamp01(t);
+  return 1 - (1 - x) ** 3;
+}
+
+export function unitProgress(frame: number, start: number, end: number): number {
+  if (end <= start) return 1;
+  return clamp01((frame - start) / (end - start));
+}
+
+/** Deterministic 0–1 value. Safe for Remotion (no Math.random). */
+export function hash01(seed: number): number {
+  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+export function clockSpring(
+  frame: number,
+  fps: number,
+  delay = 0,
+  config?: { damping?: number; stiffness?: number; mass?: number },
+): number {
+  return spring({
+    frame: Math.max(0, frame - delay),
+    fps,
+    config: {
+      damping: config?.damping ?? 14,
+      stiffness: config?.stiffness ?? 120,
+      mass: config?.mass ?? 0.7,
+    },
+  });
+}

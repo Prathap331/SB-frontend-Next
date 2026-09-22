@@ -2,8 +2,8 @@
 
 import React from 'react';
 import { useCurrentFrame, useVideoConfig } from 'remotion';
-import type { InfographicData, InfographicRemotionInputProps } from '../types';
-import { TaxonomyVisual, type Clock } from '../layouts/taxonomyVisuals';
+import type { InfographicData, InfographicRemotionInputProps, Clock } from '../types';
+import { TaxonomyVisual } from '../layouts/taxonomyVisuals';
 import { textEntrance } from '../animation';
 import { readIconNames, readTextAnimationStyle } from '../props';
 

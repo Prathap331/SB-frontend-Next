@@ -12,6 +12,23 @@ export type InfographicData = {
   render_engine_hint: string;
 };
 
+export type Clock = {
+  frame: number;
+  fps: number;
+  durationInFrames: number;
+};
+
+export type TemplateProps = {
+  data: InfographicData;
+  clock: Clock;
+};
+
+export type ChartDatum = {
+  label: string;
+  value: number;
+  color?: string;
+};
+
 export type InfographicRemotionInputProps = {
   data: InfographicData;
   /** Backend `icon_name` — one Lucide id or a list — passed straight into the composition. */
