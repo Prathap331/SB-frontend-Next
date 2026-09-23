@@ -544,7 +544,11 @@ const TSSCard: React.FC<TSSCardProps> = ({
   );
 };
 
-/** Language picker for /generate-script — the same 20 languages as translation. */
+/**
+ * Language picker for /generate-script.
+ * Only English generates today; the rest are listed as coming soon so the roadmap is
+ * visible without being selectable.
+ */
 function ScriptLanguageSelect({
   value,
   onChange,
@@ -563,11 +567,14 @@ function ScriptLanguageSelect({
       aria-label={ariaLabel}
       className={`h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-[#1d1d1f] outline-none focus:border-gray-400 ${className}`}
     >
-      {SCRIPT_LANGUAGES.map((lang) => (
-        <option key={lang.value} value={lang.value}>
-          {lang.label}
-        </option>
-      ))}
+      {SCRIPT_LANGUAGES.map((lang) => {
+        const available = lang.value === DEFAULT_SCRIPT_LANGUAGE;
+        return (
+          <option key={lang.value} value={lang.value} disabled={!available}>
+            {available ? lang.label : `${lang.label} 🔜`}
+          </option>
+        );
+      })}
     </select>
   );
 }

@@ -26,30 +26,21 @@ import {
   AlertCircle,
   Rocket,
   Target,
-  Languages,
-  ChevronDown,
 } from 'lucide-react';
 import type { GeneratedScriptData } from '@/services/api';
 import { ApiService } from '@/services/api';
 import {
   getScriptTextFromMap,
-  mergeScriptLanguage,
   unwrapScriptJson,
   wrapEnglishScript,
   type ScriptLanguageMap,
 } from '@/lib/script-data';
-import {
-  DEFAULT_SCRIPT_LANGUAGE,
-  SCRIPT_LANGUAGES,
-  scriptLanguageApiName,
-} from '@/lib/script-languages';
+import { DEFAULT_SCRIPT_LANGUAGE } from '@/lib/script-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/lib/supabaseClient';
 import { STORYBIT_PRODUCTION_GUIDE } from '@/lib/production-guide';
-import { updateAssignedScriptLanguages } from '@/lib/script-persistence';
 import { lockedScriptPlaceholder } from '@/lib/script-security';
 import { withBlurredPatches } from '@/components/studio/renderRedactedScript';
-import { toast } from 'sonner';
 
 export type StudioTab = 'ideas' | 'script' | 'metadata' | 'thumbnails' | 'broll' | 'audio' | 'video-editing';
 
@@ -277,7 +268,6 @@ export function StudioScriptPanel({
   const [activeSegment, setActiveSegment] = useState(0);
   const segmentRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scriptScrollRef = useRef<HTMLDivElement | null>(null);
-  const translateMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [showSourcesPanel, setShowSourcesPanel] = useState(false);
   const [panelFocus, setPanelFocus] = useState<'sources' | 'books'>('sources');
@@ -297,10 +287,6 @@ export function StudioScriptPanel({
 
   const [languageMap, setLanguageMap] = useState<ScriptLanguageMap>({});
   const [activeLang, setActiveLang] = useState(DEFAULT_SCRIPT_LANGUAGE);
-  const [translateOpen, setTranslateOpen] = useState(false);
-  const [langSearch, setLangSearch] = useState('');
-  const [isTranslating, setIsTranslating] = useState(false);
-  const langSearchRef = useRef<HTMLInputElement | null>(null);
   const [assignedId, setAssignedId] = useState<string | null>(
     scriptRowId != null && scriptRowId !== '' ? String(scriptRowId) : null,
   );
@@ -347,28 +333,9 @@ export function StudioScriptPanel({
     setFeedbackError('');
     setScriptSaved(false);
     setShowSourcesPanel(false);
-    setTranslateOpen(false);
     // Unlock state is authoritative only from scripts_assigned (initiallyUnlocked)
     setIsUnlocked(!!initiallyUnlocked);
   }, [data?.scriptRowId, data?.title, initiallyUnlocked]);
-
-  useEffect(() => {
-    if (!translateOpen) {
-      setLangSearch('');
-      return;
-    }
-    const onDocClick = (e: MouseEvent) => {
-      if (!translateMenuRef.current?.contains(e.target as Node)) {
-        setTranslateOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDocClick);
-    const focusTimer = window.setTimeout(() => langSearchRef.current?.focus(), 20);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      window.clearTimeout(focusTimer);
-    };
-  }, [translateOpen]);
 
   useEffect(() => {
     if (!showSourcesPanel) return;
@@ -436,73 +403,6 @@ export function StudioScriptPanel({
       scriptsByLanguage: next,
       activeLanguage: lang,
     });
-  };
-
-  const handleSelectLanguage = async (langValue: string) => {
-    setTranslateOpen(false);
-    if (!isUnlocked) return;
-
-    if (languageMap[langValue]?.trim()) {
-      applyLanguageMap(languageMap, langValue);
-      return;
-    }
-
-    const source =
-      languageMap[DEFAULT_SCRIPT_LANGUAGE]?.trim() ||
-      data?.script?.trim() ||
-      '';
-    if (!source) return;
-
-    setIsTranslating(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/auth');
-        return;
-      }
-
-      const translated = await ApiService.translateScript({
-        userId: session.user.id,
-        script: source,
-        language: scriptLanguageApiName(langValue),
-      });
-
-      const next = mergeScriptLanguage(languageMap, langValue, translated);
-      // Ensure english source is always present
-      const withEnglish = next.english
-        ? next
-        : mergeScriptLanguage(next, DEFAULT_SCRIPT_LANGUAGE, source);
-
-      // Update UI immediately so translated text + button label show
-      applyLanguageMap(withEnglish, langValue);
-
-      const saveTopic = topic || '';
-      const saveTitle = ideaTitle || data?.title || '';
-      const save = await updateAssignedScriptLanguages({
-        assignedId,
-        userId: session.user.id,
-        title: saveTitle,
-        topic: saveTopic || saveTitle,
-        description: ideaDescription,
-        scriptText: source,
-        scriptsByLanguage: withEnglish,
-      });
-      if (!save.ok) {
-        console.error('[script translate save]', save.error);
-        toast.error('Translation generated, but failed to save', {
-          description: save.error || 'Check scripts_assigned RLS update policy.',
-        });
-      } else {
-        if (save.assignedId && save.assignedId !== assignedId) {
-          setAssignedId(String(save.assignedId));
-        }
-        toast.success('Translation saved');
-      }
-    } catch (err) {
-      console.error('Translate error:', err);
-    } finally {
-      setIsTranslating(false);
-    }
   };
 
   const handleFeedbackSubmit = async () => {
@@ -626,25 +526,6 @@ export function StudioScriptPanel({
   const toolbarBtn =
     'flex items-center gap-1.5 text-[11px] font-medium text-[#1d1d1f] bg-[#f5f5f7] hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors';
 
-  const activeLangMeta =
-    SCRIPT_LANGUAGES.find((l) => l.value === activeLang) ?? SCRIPT_LANGUAGES[0];
-  const translateButtonLabel = activeLangMeta.label;
-  const langQuery = langSearch.trim().toLowerCase();
-  const filteredLanguages = useMemo(() => {
-    const base = langQuery
-      ? SCRIPT_LANGUAGES.filter((l) => {
-          const hay = `${l.label} ${l.value} ${l.apiName ?? ''}`.toLowerCase();
-          return hay.includes(langQuery);
-        })
-      : [...SCRIPT_LANGUAGES];
-    // Saved translations float to the top (stable order within each group)
-    return base.sort((a, b) => {
-      const aSaved = !!languageMap[a.value]?.trim() ? 0 : 1;
-      const bSaved = !!languageMap[b.value]?.trim() ? 0 : 1;
-      return aSaved - bSaved;
-    });
-  }, [langQuery, languageMap]);
-
   return (
     <>
     <div className={`space-y-5 transition-all duration-300 ${showSourcesPanel ? 'blur-sm' : ''}`}>
@@ -748,83 +629,6 @@ export function StudioScriptPanel({
                   <Monitor className="w-3.5 h-3.5" />
                   Teleprompter
                 </button>
-                <div className="relative" ref={translateMenuRef}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!isUnlocked || isTranslating) return;
-                      setTranslateOpen((v) => !v);
-                    }}
-                    disabled={!isUnlocked || isTranslating}
-                    className={`${toolbarBtn} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#f5f5f7]`}
-                    aria-expanded={translateOpen}
-                    aria-haspopup="listbox"
-                  >
-                    {isTranslating ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Languages className="w-3.5 h-3.5" />
-                    )}
-                    {translateButtonLabel}
-                    <ChevronDown className={`w-3 h-3 transition-transform ${translateOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {translateOpen && (
-                    <div
-                      role="listbox"
-                      className="absolute right-0 top-full mt-1.5 z-30 w-64 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
-                    >
-                      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 p-2">
-                        <div className="relative">
-                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                          <input
-                            ref={langSearchRef}
-                            type="search"
-                            value={langSearch}
-                            onChange={(e) => setLangSearch(e.target.value)}
-                            onKeyDown={(e) => e.stopPropagation()}
-                            placeholder="Search languages…"
-                            className="w-full pl-8 pr-3 py-2 rounded-lg border border-gray-200 bg-[#f5f5f7] text-sm text-[#1d1d1f] placeholder:text-[#a1a1a6] focus:outline-none focus:ring-2 focus:ring-[#1d1d1f]/15 focus:border-[#1d1d1f]"
-                          />
-                        </div>
-                        <p className="mt-1.5 px-0.5 text-[10px] text-[#6e6e73]">
-                          {filteredLanguages.length} of {SCRIPT_LANGUAGES.length} languages
-                        </p>
-                      </div>
-                      <div className="max-h-64 overflow-y-auto py-1">
-                        {filteredLanguages.length > 0 ? (
-                          filteredLanguages.map((lang) => {
-                            const saved = !!languageMap[lang.value]?.trim();
-                            const active = activeLang === lang.value;
-                            return (
-                              <button
-                                key={lang.value}
-                                type="button"
-                                role="option"
-                                aria-selected={active}
-                                onClick={() => void handleSelectLanguage(lang.value)}
-                                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 ${
-                                  active ? 'bg-gray-50 font-semibold text-[#1d1d1f]' : 'text-[#1d1d1f]'
-                                }`}
-                              >
-                                <span className="min-w-0">
-                                  <span className="block leading-snug truncate">{lang.label}</span>
-                                  <span className="block text-[10px] text-gray-400">
-                                    {saved ? 'Saved' : 'Translate'}
-                                  </span>
-                                </span>
-                                {active ? <Check className="w-3.5 h-3.5 flex-shrink-0" /> : null}
-                              </button>
-                            );
-                          })
-                        ) : (
-                          <p className="px-3 py-4 text-xs text-[#6e6e73] text-center">
-                            No languages found
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
                 <button
                   type="button"
                   onClick={handleDownloadScript}
