@@ -1,0 +1,827 @@
+{
+  "template": "MP-11",
+  "name": "Globe Zoom to Location",
+  "animation_type": "mp_globe_zoom",
+  "pick_when": "Introducing where a story happens: fly from the globe into a place — or show several places / countries at once.",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 180,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "lat",
+      "type": "number",
+      "required": false,
+      "fills": "One place: latitude (north positive). Use locations[] for several.",
+      "limits": "number · ≥ -90 · ≤ 90",
+      "example": 25.32
+    },
+    {
+      "path": "lon",
+      "type": "number",
+      "required": false,
+      "fills": "One place: longitude (east positive)",
+      "limits": "number · ≥ -180 · ≤ 180",
+      "example": 82.97
+    },
+    {
+      "path": "start_lat",
+      "type": "number",
+      "required": false,
+      "fills": "Where the globe starts facing (default 20° N)",
+      "limits": "number · ≥ -90 · ≤ 90"
+    },
+    {
+      "path": "start_lon",
+      "type": "number",
+      "required": false,
+      "fills": "Where the globe starts facing (default 100° west of the target)",
+      "limits": "number · ≥ -180 · ≤ 180"
+    },
+    {
+      "path": "location",
+      "type": "text",
+      "required": false,
+      "fills": "Name on the label card",
+      "limits": "2–30 chars · 1–5 words · longest word 18 · max 1 line",
+      "hint": "One place: its name.",
+      "example": "Varanasi"
+    },
+    {
+      "path": "detail",
+      "type": "text",
+      "required": false,
+      "fills": "Line under the name",
+      "limits": "2–40 chars · 1–7 words · longest word 18 · max 1 line",
+      "hint": "\"Uttar Pradesh, India\".",
+      "example": "Uttar Pradesh, India"
+    },
+    {
+      "path": "highlight_country",
+      "type": "text",
+      "required": false,
+      "fills": "Country filled in the accent colour (no label)",
+      "limits": "2–40 chars · 1–6 words · longest word 20 · max 1 line",
+      "hint": "Country name in English or ISO code.",
+      "example": "India"
+    },
+    {
+      "path": "locations[]",
+      "type": "list",
+      "required": false,
+      "fills": "Several places at once (pins + labels), in reveal order",
+      "limits": "1–5 items"
+    },
+    {
+      "path": "locations[].label",
+      "type": "text",
+      "required": true,
+      "fills": "Place name",
+      "limits": "2–30 chars · 1–5 words · longest word 18 · max 1 line"
+    },
+    {
+      "path": "locations[].detail",
+      "type": "text",
+      "required": false,
+      "fills": "Line under the name",
+      "limits": "2–40 chars · 1–7 words · longest word 18 · max 1 line"
+    },
+    {
+      "path": "locations[].lat",
+      "type": "number",
+      "required": true,
+      "fills": "Latitude (north positive)",
+      "limits": "number · ≥ -90 · ≤ 90"
+    },
+    {
+      "path": "locations[].lon",
+      "type": "number",
+      "required": true,
+      "fills": "Longitude (east positive)",
+      "limits": "number · ≥ -180 · ≤ 180"
+    },
+    {
+      "path": "locations[].image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Picture on this place's label card",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "regions[]",
+      "type": "list",
+      "required": false,
+      "fills": "Countries to fill (and label), in reveal order",
+      "limits": "1–5 items"
+    },
+    {
+      "path": "regions[].name",
+      "type": "text",
+      "required": true,
+      "fills": "Which country is filled",
+      "limits": "2–40 chars · 1–6 words · longest word 20 · max 1 line",
+      "hint": "English name or ISO code (\"India\", \"JPN\")."
+    },
+    {
+      "path": "regions[].label",
+      "type": "text",
+      "required": false,
+      "fills": "Region label",
+      "limits": "2–30 chars · 1–5 words · longest word 18 · max 1 line",
+      "hint": "Text on the region (omit for no label unless there is a picture)."
+    },
+    {
+      "path": "regions[].image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Picture on this region's label card",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Picture on the label card of the single place",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "zoom",
+      "type": "choice",
+      "required": false,
+      "fills": "One place only: how far it zooms in. With several items the view frames them all.",
+      "values": [
+        "country",
+        "region",
+        "city"
+      ],
+      "default": "region"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.icon_color",
+      "type": "color",
+      "required": false,
+      "fills": "Icon strokes (default: accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.series_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Second data series / slice (the first uses accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#22D3EE"
+    },
+    {
+      "path": "style.series_3_color",
+      "type": "color",
+      "required": false,
+      "fills": "Third data series / slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#A78BFA"
+    },
+    {
+      "path": "style.series_4_color",
+      "type": "color",
+      "required": false,
+      "fills": "Fourth data series / slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F472B6"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.location",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of name on the label card (px, largest; shrinks only if it would not fit)",
+      "limits": "26–44 px",
+      "default": 44
+    },
+    {
+      "path": "font_sizes.detail",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of line under the name (px, largest; shrinks only if it would not fit)",
+      "limits": "18–26 px",
+      "default": 26
+    },
+    {
+      "path": "font_sizes.locations.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of place name (px, largest; shrinks only if it would not fit)",
+      "limits": "22–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.locations.detail",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of line under the name (px, largest; shrinks only if it would not fit)",
+      "limits": "16–22 px",
+      "default": 22
+    },
+    {
+      "path": "font_sizes.regions.name",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of which country is filled (px, largest; shrinks only if it would not fit)",
+      "limits": "20–20 px",
+      "default": 20
+    },
+    {
+      "path": "font_sizes.regions.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of region label (px, largest; shrinks only if it would not fit)",
+      "limits": "20–30 px",
+      "default": 30
+    },
+    {
+      "path": "animations.regions",
+      "type": "animation",
+      "required": false,
+      "fills": "country fills",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "fade",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.pins",
+      "type": "animation",
+      "required": false,
+      "fills": "map pins",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "bounce",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.labels",
+      "type": "animation",
+      "required": false,
+      "fills": "label cards",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "pins and labels",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: fly → item 1 → item 2 → item 3 → item 4 → item 5 → item 6 → item 7 → item 8 → item 9 → item 10",
+      "limits": "seconds from the template start, increasing; fly = globe starts turning; then one cue per item (regions first, then places)."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "MP-11 Globe Zoom to Location",
+    "type": "object",
+    "properties": {
+      "lat": {
+        "type": "number",
+        "minimum": -90,
+        "maximum": 90,
+        "description": "One place: latitude (north positive). Use locations[] for several.. Raw number, no units or commas."
+      },
+      "lon": {
+        "type": "number",
+        "minimum": -180,
+        "maximum": 180,
+        "description": "One place: longitude (east positive). Raw number, no units or commas."
+      },
+      "start_lat": {
+        "type": "number",
+        "minimum": -90,
+        "maximum": 90,
+        "description": "Where the globe starts facing (default 20° N). Raw number, no units or commas."
+      },
+      "start_lon": {
+        "type": "number",
+        "minimum": -180,
+        "maximum": 180,
+        "description": "Where the globe starts facing (default 100° west of the target). Raw number, no units or commas."
+      },
+      "location": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 30,
+        "description": "Name on the label card. 1–5 words, longest word 18 letters. One place: its name."
+      },
+      "detail": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 40,
+        "description": "Line under the name. 1–7 words, longest word 18 letters. \"Uttar Pradesh, India\"."
+      },
+      "highlight_country": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 40,
+        "description": "Country filled in the accent colour (no label). 1–6 words, longest word 20 letters. Country name in English or ISO code."
+      },
+      "locations": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 5,
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 30,
+              "description": "Place name. 1–5 words, longest word 18 letters."
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 40,
+              "description": "Line under the name. 1–7 words, longest word 18 letters."
+            },
+            "lat": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90,
+              "description": "Latitude (north positive). Raw number, no units or commas."
+            },
+            "lon": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180,
+              "description": "Longitude (east positive). Raw number, no units or commas."
+            },
+            "image_url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Picture on this place's label card"
+            }
+          },
+          "required": [
+            "label",
+            "lat",
+            "lon"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Several places at once (pins + labels), in reveal order"
+      },
+      "regions": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 5,
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 40,
+              "description": "Which country is filled. 1–6 words, longest word 20 letters. English name or ISO code (\"India\", \"JPN\")."
+            },
+            "label": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 30,
+              "description": "Region label. 1–5 words, longest word 18 letters. Text on the region (omit for no label unless there is a picture)."
+            },
+            "image_url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Picture on this region's label card"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Countries to fill (and label), in reveal order"
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Picture on the label card of the single place"
+      },
+      "zoom": {
+        "type": "string",
+        "enum": [
+          "country",
+          "region",
+          "city"
+        ],
+        "default": "region",
+        "description": "One place only: how far it zooms in. With several items the view frames them all."
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "icon_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Icon strokes (default: accent)"
+          },
+          "series_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Second data series / slice (the first uses accent)",
+            "default": "#22D3EE"
+          },
+          "series_3_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Third data series / slice",
+            "default": "#A78BFA"
+          },
+          "series_4_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Fourth data series / slice",
+            "default": "#F472B6"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "location": {
+            "type": "number",
+            "minimum": 26,
+            "maximum": 44,
+            "default": 44,
+            "description": "Name on the label card"
+          },
+          "detail": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 26,
+            "default": 26,
+            "description": "Line under the name"
+          },
+          "locations.label": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 34,
+            "default": 34,
+            "description": "Place name"
+          },
+          "locations.detail": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 22,
+            "default": 22,
+            "description": "Line under the name"
+          },
+          "regions.name": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 20,
+            "default": 20,
+            "description": "Which country is filled"
+          },
+          "regions.label": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 30,
+            "default": 30,
+            "description": "Region label"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "regions": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "fade",
+            "description": "country fills"
+          },
+          "pins": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "bounce",
+            "description": "map pins"
+          },
+          "labels": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "label cards"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "pins and labels"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 11,
+        "description": "Seconds from the template start when each element appears, in order: fly, item 1, item 2, item 3, item 4, item 5, item 6, item 7, item 8, item 9, item 10. fly = globe starts turning; then one cue per item (regions first, then places). Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "example": {
+    "location": "Varanasi",
+    "detail": "Uttar Pradesh, India",
+    "lat": 25.32,
+    "lon": 82.97,
+    "highlight_country": "India",
+    "zoom": "region"
+  }
+}

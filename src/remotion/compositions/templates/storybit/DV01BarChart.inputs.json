@@ -1,0 +1,1036 @@
+{
+  "template": "DV-01",
+  "name": "Bar Chart",
+  "animation_type": "dv_bar_chart",
+  "pick_when": "Values compared across 3–10 categories: states, companies, years, products; rankings with numbers; a threshold to beat.",
+  "placement": "both",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 180,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "reference_value",
+      "type": "number",
+      "required": false,
+      "fills": "Dashed line across the chart at this value (average, target, threshold)",
+      "limits": "number"
+    },
+    {
+      "path": "title",
+      "type": "text",
+      "required": false,
+      "fills": "Heading above the chart",
+      "limits": "3–50 chars · 1–10 words · longest word 18 · max 1 line",
+      "hint": "What is measured, with the unit if helpful: \"Monthly UPI payments (₹ lakh crore)\".",
+      "example": "Top UPI apps by market share"
+    },
+    {
+      "path": "prefix",
+      "type": "text",
+      "required": false,
+      "fills": "Symbol before each value label",
+      "limits": "1–3 chars · 1–1 words · longest word 3 · max 1 line",
+      "hint": "Currency or symbol before every value: ₹, $."
+    },
+    {
+      "path": "unit",
+      "type": "text",
+      "required": false,
+      "fills": "Unit after each value label",
+      "limits": "1–8 chars · 1–1 words · longest word 8 · max 1 line",
+      "hint": "Unit after every value: %, km, t.",
+      "example": "%"
+    },
+    {
+      "path": "reference_label",
+      "type": "text",
+      "required": false,
+      "fills": "Label on the reference line (vertical charts)",
+      "limits": "2–24 chars · 1–4 words · longest word 14 · max 1 line",
+      "hint": "Name of the reference line: \"National average\", \"Target\"."
+    },
+    {
+      "path": "source",
+      "type": "text",
+      "required": false,
+      "fills": "Source line under the chart",
+      "limits": "3–60 chars · 1–10 words · longest word 18 · max 1 line",
+      "hint": "Where the data comes from: \"Source: NPCI, March 2025\".",
+      "example": "Source: NPCI, illustrative"
+    },
+    {
+      "path": "bars[]",
+      "type": "list",
+      "required": true,
+      "fills": "One bar per category, in the order given (unless sorted)",
+      "limits": "3–10 items"
+    },
+    {
+      "path": "bars[].label",
+      "type": "text",
+      "required": true,
+      "fills": "Category label (under the bar, or left of it)",
+      "limits": "1–18 chars · 1–3 words · longest word 14 · max 2 lines",
+      "hint": "Category name: \"PhonePe\", \"2024\", \"Kerala\"."
+    },
+    {
+      "path": "bars[].value",
+      "type": "number",
+      "required": true,
+      "fills": "Bar value (raw number, same unit for all bars)",
+      "limits": "number"
+    },
+    {
+      "path": "bars[].highlight",
+      "type": "number",
+      "required": false,
+      "fills": "1 = draw this bar in the accent colour (others turn grey)",
+      "limits": "integer · ≥ 0 · ≤ 1"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "orientation",
+      "type": "choice",
+      "required": false,
+      "fills": "Columns (vertical) or rows (horizontal, better for long labels)",
+      "values": [
+        "vertical",
+        "horizontal"
+      ],
+      "default": "vertical"
+    },
+    {
+      "path": "sort",
+      "type": "choice",
+      "required": false,
+      "fills": "Keep the given order, or sort by value",
+      "values": [
+        "none",
+        "desc",
+        "asc"
+      ],
+      "default": "none"
+    },
+    {
+      "path": "highlight",
+      "type": "choice",
+      "required": false,
+      "fills": "Which bar gets the accent colour (bars[].highlight = 1 also works)",
+      "values": [
+        "none",
+        "max",
+        "min",
+        "first",
+        "last"
+      ],
+      "default": "none"
+    },
+    {
+      "path": "show_values",
+      "type": "choice",
+      "required": false,
+      "fills": "Numbers on the bars",
+      "values": [
+        "on",
+        "off"
+      ],
+      "default": "on"
+    },
+    {
+      "path": "format",
+      "type": "choice",
+      "required": false,
+      "fills": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000",
+      "values": [
+        "indian_compact",
+        "intl_compact",
+        "indian_full",
+        "intl_full",
+        "plain"
+      ],
+      "default": "indian_compact"
+    },
+    {
+      "path": "decimals",
+      "type": "choice",
+      "required": false,
+      "fills": "Decimal places shown",
+      "values": [
+        "auto",
+        "0",
+        "1",
+        "2"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.negative_color",
+      "type": "color",
+      "required": false,
+      "fills": "Bad change (down arrows, losses)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F87171"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.title",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of heading above the chart (px, largest; shrinks only if it would not fit)",
+      "limits": "40–60 px",
+      "default": 60
+    },
+    {
+      "path": "font_sizes.reference_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of label on the reference line (vertical charts) (px, largest; shrinks only if it would not fit)",
+      "limits": "18–26 px",
+      "default": 26
+    },
+    {
+      "path": "font_sizes.source",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of source line under the chart (px, largest; shrinks only if it would not fit)",
+      "limits": "18–24 px",
+      "default": 24
+    },
+    {
+      "path": "font_sizes.bars.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of category label (under the bar, or left of it) (px, largest; shrinks only if it would not fit)",
+      "limits": "16–30 px",
+      "default": 30
+    },
+    {
+      "path": "font_sizes.values",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of numbers on the bars (px, largest; shrinks only if it would not fit)",
+      "limits": "18–48 px",
+      "default": 48
+    },
+    {
+      "path": "animations.title",
+      "type": "animation",
+      "required": false,
+      "fills": "heading",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "rise",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.axis",
+      "type": "animation",
+      "required": false,
+      "fills": "baseline / zero line",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.bars",
+      "type": "animation",
+      "required": false,
+      "fills": "each bar (one after another)",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.values",
+      "type": "animation",
+      "required": false,
+      "fills": "numbers on the bars",
+      "values": [
+        "count_up",
+        "count_up_pop",
+        "rise",
+        "fade_up",
+        "scale_in",
+        "blur_in",
+        "none"
+      ],
+      "default": "count_up",
+      "hint": "count_up: Counts up to the value; count_up_pop: Counts up, then pops when it lands; rise: Line rises out of a mask; fade_up: Fades in while moving up; scale_in: Grows from 85% while fading in; blur_in: Sharpens from a blur; none: Appears instantly"
+    },
+    {
+      "path": "animations.labels",
+      "type": "animation",
+      "required": false,
+      "fills": "category labels",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade_up",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.reference",
+      "type": "animation",
+      "required": false,
+      "fills": "dashed reference line and its label",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.source",
+      "type": "animation",
+      "required": false,
+      "fills": "source line",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image (whole clip)",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "all foreground content",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: heading → bars → reference line → source",
+      "limits": "seconds from the template start, increasing; heading → bars start growing → reference line → source. Missing elements are skipped."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DV-01 Bar Chart",
+    "type": "object",
+    "properties": {
+      "reference_value": {
+        "type": "number",
+        "description": "Dashed line across the chart at this value (average, target, threshold). Raw number, no units or commas."
+      },
+      "title": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 50,
+        "description": "Heading above the chart. 1–10 words, longest word 18 letters. What is measured, with the unit if helpful: \"Monthly UPI payments (₹ lakh crore)\"."
+      },
+      "prefix": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 3,
+        "description": "Symbol before each value label. 1–1 words, longest word 3 letters. Currency or symbol before every value: ₹, $."
+      },
+      "unit": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 8,
+        "description": "Unit after each value label. 1–1 words, longest word 8 letters. Unit after every value: %, km, t."
+      },
+      "reference_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 24,
+        "description": "Label on the reference line (vertical charts). 1–4 words, longest word 14 letters. Name of the reference line: \"National average\", \"Target\"."
+      },
+      "source": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 60,
+        "description": "Source line under the chart. 1–10 words, longest word 18 letters. Where the data comes from: \"Source: NPCI, March 2025\"."
+      },
+      "bars": {
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 18,
+              "description": "Category label (under the bar, or left of it). 1–3 words, longest word 14 letters. Category name: \"PhonePe\", \"2024\", \"Kerala\"."
+            },
+            "value": {
+              "type": "number",
+              "description": "Bar value (raw number, same unit for all bars). Raw number, no units or commas."
+            },
+            "highlight": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "1 = draw this bar in the accent colour (others turn grey). Raw number, no units or commas."
+            }
+          },
+          "required": [
+            "label",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "description": "One bar per category, in the order given (unless sorted)"
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "orientation": {
+        "type": "string",
+        "enum": [
+          "vertical",
+          "horizontal"
+        ],
+        "default": "vertical",
+        "description": "Columns (vertical) or rows (horizontal, better for long labels)"
+      },
+      "sort": {
+        "type": "string",
+        "enum": [
+          "none",
+          "desc",
+          "asc"
+        ],
+        "default": "none",
+        "description": "Keep the given order, or sort by value"
+      },
+      "highlight": {
+        "type": "string",
+        "enum": [
+          "none",
+          "max",
+          "min",
+          "first",
+          "last"
+        ],
+        "default": "none",
+        "description": "Which bar gets the accent colour (bars[].highlight = 1 also works)"
+      },
+      "show_values": {
+        "type": "string",
+        "enum": [
+          "on",
+          "off"
+        ],
+        "default": "on",
+        "description": "Numbers on the bars"
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "indian_compact",
+          "intl_compact",
+          "indian_full",
+          "intl_full",
+          "plain"
+        ],
+        "default": "indian_compact",
+        "description": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000"
+      },
+      "decimals": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "0",
+          "1",
+          "2"
+        ],
+        "default": "auto",
+        "description": "Decimal places shown"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "negative_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Bad change (down arrows, losses)",
+            "default": "#F87171"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "title": {
+            "type": "number",
+            "minimum": 40,
+            "maximum": 60,
+            "default": 60,
+            "description": "Heading above the chart"
+          },
+          "reference_label": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 26,
+            "default": 26,
+            "description": "Label on the reference line (vertical charts)"
+          },
+          "source": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 24,
+            "default": 24,
+            "description": "Source line under the chart"
+          },
+          "bars.label": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 30,
+            "default": 30,
+            "description": "Category label (under the bar, or left of it)"
+          },
+          "values": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 48,
+            "default": 48,
+            "description": "Numbers on the bars"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "rise",
+            "description": "heading"
+          },
+          "axis": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "baseline / zero line"
+          },
+          "bars": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "each bar (one after another)"
+          },
+          "values": {
+            "type": "string",
+            "enum": [
+              "count_up",
+              "count_up_pop",
+              "rise",
+              "fade_up",
+              "scale_in",
+              "blur_in",
+              "none"
+            ],
+            "default": "count_up",
+            "description": "numbers on the bars"
+          },
+          "labels": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade_up",
+            "description": "category labels"
+          },
+          "reference": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "dashed reference line and its label"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade",
+            "description": "source line"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image (whole clip)"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "all foreground content"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 4,
+        "description": "Seconds from the template start when each element appears, in order: heading, bars, reference line, source. heading → bars start growing → reference line → source. Missing elements are skipped. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "bars"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "title": "UPI app market share (illustrative)",
+    "bars": [
+      {
+        "label": "PhonePe",
+        "value": 47
+      },
+      {
+        "label": "Google Pay",
+        "value": 36,
+        "highlight": 1
+      },
+      {
+        "label": "Paytm",
+        "value": 7
+      },
+      {
+        "label": "Others",
+        "value": 10
+      }
+    ],
+    "unit": "%",
+    "format": "plain",
+    "orientation": "vertical",
+    "reference_value": 25,
+    "reference_label": "Fair share",
+    "source": "Source: illustrative figures",
+    "background": "theme"
+  }
+}

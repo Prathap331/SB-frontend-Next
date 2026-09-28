@@ -1,0 +1,928 @@
+{
+  "template": "FS-08",
+  "name": "Quote Card",
+  "animation_type": "fs_quote_card",
+  "pick_when": "Narration quotes a real person, speech, document or report word for word.",
+  "placement": "both",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 180,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "quote",
+      "type": "text",
+      "required": true,
+      "fills": "The quotation",
+      "limits": "10–160 chars · 3–30 words · longest word 18 · max 4 lines",
+      "hint": "Verbatim words only, no quotation marks (the template adds them). Trim with \"…\" if needed.",
+      "example": "At the stroke of the midnight hour, when the world sleeps, India will awake to life and freedom."
+    },
+    {
+      "path": "speaker",
+      "type": "text",
+      "required": true,
+      "fills": "Speaker name",
+      "limits": "2–30 chars · 1–5 words · longest word 16 · max 1 line",
+      "hint": "Full name of the person quoted.",
+      "example": "Jawaharlal Nehru"
+    },
+    {
+      "path": "role",
+      "type": "text",
+      "required": false,
+      "fills": "Line under the speaker name",
+      "limits": "2–40 chars · 1–7 words · longest word 18 · max 1 line",
+      "hint": "Who they are, at the time of the quote.",
+      "example": "First Prime Minister of India"
+    },
+    {
+      "path": "source",
+      "type": "text",
+      "required": false,
+      "fills": "Small source line",
+      "limits": "3–40 chars · 1–7 words · longest word 18 · max 1 line",
+      "hint": "Where and when it was said: speech, interview, book, date.",
+      "example": "Tryst with Destiny speech, 1947"
+    },
+    {
+      "path": "highlight",
+      "type": "text",
+      "required": false,
+      "fills": "Words of the quote drawn in the accent colour",
+      "limits": "2–60 chars · 1–10 words · longest word 18 · max 1 line",
+      "hint": "Exact words from the quote to draw in the accent colour.",
+      "example": "India will awake to life and freedom"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "portrait_url",
+      "type": "image",
+      "required": false,
+      "fills": "Photo of the speaker (portrait_left / portrait_right layouts)",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "layout",
+      "type": "choice",
+      "required": false,
+      "fills": "Quote alone, or beside a portrait (portrait layouts need portrait_url; without it the card is centred)",
+      "values": [
+        "centered",
+        "portrait_left",
+        "portrait_right"
+      ],
+      "default": "centered"
+    },
+    {
+      "path": "align",
+      "type": "choice",
+      "required": false,
+      "fills": "Text alignment in the centred layout (portrait layouts are left-aligned)",
+      "values": [
+        "center",
+        "left"
+      ],
+      "default": "center"
+    },
+    {
+      "path": "quote_mark",
+      "type": "choice",
+      "required": false,
+      "fills": "Large accent quote mark above the quote",
+      "values": [
+        "on",
+        "off"
+      ],
+      "default": "on"
+    },
+    {
+      "path": "portrait_shape",
+      "type": "choice",
+      "required": false,
+      "fills": "Shape of the portrait",
+      "values": [
+        "circle",
+        "rounded"
+      ],
+      "default": "circle"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.icon_color",
+      "type": "color",
+      "required": false,
+      "fills": "Icon strokes (default: accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.quote",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of the quotation (px, largest; shrinks only if it would not fit)",
+      "limits": "40–72 px",
+      "default": 72
+    },
+    {
+      "path": "font_sizes.speaker",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of speaker name (px, largest; shrinks only if it would not fit)",
+      "limits": "28–40 px",
+      "default": 40
+    },
+    {
+      "path": "font_sizes.role",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of line under the speaker name (px, largest; shrinks only if it would not fit)",
+      "limits": "22–30 px",
+      "default": 30
+    },
+    {
+      "path": "font_sizes.source",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of small source line (px, largest; shrinks only if it would not fit)",
+      "limits": "20–24 px",
+      "default": 24
+    },
+    {
+      "path": "font_sizes.quote_mark",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of large quote mark (px, largest; shrinks only if it would not fit)",
+      "limits": "60–140 px",
+      "default": 140
+    },
+    {
+      "path": "animations.quote_mark",
+      "type": "animation",
+      "required": false,
+      "fills": "large quote mark",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.quote",
+      "type": "animation",
+      "required": false,
+      "fills": "the quotation",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "word_fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.portrait",
+      "type": "animation",
+      "required": false,
+      "fills": "speaker photo",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.rule",
+      "type": "animation",
+      "required": false,
+      "fills": "line before the speaker",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.speaker",
+      "type": "animation",
+      "required": false,
+      "fills": "speaker name",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "slide_left",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.role",
+      "type": "animation",
+      "required": false,
+      "fills": "role line",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.source",
+      "type": "animation",
+      "required": false,
+      "fills": "source line",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image (whole clip)",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "all foreground content",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: quote → speaker → source",
+      "limits": "seconds from the template start, increasing; quote = when the narrator starts the quote; speaker = when the name is said (the word-by-word reveal fills the gap); source is optional."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FS-08 Quote Card",
+    "type": "object",
+    "properties": {
+      "quote": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 160,
+        "description": "The quotation. 3–30 words, longest word 18 letters. Verbatim words only, no quotation marks (the template adds them). Trim with \"…\" if needed."
+      },
+      "speaker": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 30,
+        "description": "Speaker name. 1–5 words, longest word 16 letters. Full name of the person quoted."
+      },
+      "role": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 40,
+        "description": "Line under the speaker name. 1–7 words, longest word 18 letters. Who they are, at the time of the quote."
+      },
+      "source": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 40,
+        "description": "Small source line. 1–7 words, longest word 18 letters. Where and when it was said: speech, interview, book, date."
+      },
+      "highlight": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 60,
+        "description": "Words of the quote drawn in the accent colour. 1–10 words, longest word 18 letters. Exact words from the quote to draw in the accent colour."
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "portrait_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Photo of the speaker (portrait_left / portrait_right layouts)"
+      },
+      "layout": {
+        "type": "string",
+        "enum": [
+          "centered",
+          "portrait_left",
+          "portrait_right"
+        ],
+        "default": "centered",
+        "description": "Quote alone, or beside a portrait (portrait layouts need portrait_url; without it the card is centred)"
+      },
+      "align": {
+        "type": "string",
+        "enum": [
+          "center",
+          "left"
+        ],
+        "default": "center",
+        "description": "Text alignment in the centred layout (portrait layouts are left-aligned)"
+      },
+      "quote_mark": {
+        "type": "string",
+        "enum": [
+          "on",
+          "off"
+        ],
+        "default": "on",
+        "description": "Large accent quote mark above the quote"
+      },
+      "portrait_shape": {
+        "type": "string",
+        "enum": [
+          "circle",
+          "rounded"
+        ],
+        "default": "circle",
+        "description": "Shape of the portrait"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "icon_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Icon strokes (default: accent)"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "quote": {
+            "type": "number",
+            "minimum": 40,
+            "maximum": 72,
+            "default": 72,
+            "description": "The quotation"
+          },
+          "speaker": {
+            "type": "number",
+            "minimum": 28,
+            "maximum": 40,
+            "default": 40,
+            "description": "Speaker name"
+          },
+          "role": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 30,
+            "default": 30,
+            "description": "Line under the speaker name"
+          },
+          "source": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 24,
+            "default": 24,
+            "description": "Small source line"
+          },
+          "quote_mark": {
+            "type": "number",
+            "minimum": 60,
+            "maximum": 140,
+            "default": 140,
+            "description": "Large quote mark"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "quote_mark": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "large quote mark"
+          },
+          "quote": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "word_fade",
+            "description": "the quotation"
+          },
+          "portrait": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "speaker photo"
+          },
+          "rule": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "line before the speaker"
+          },
+          "speaker": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "slide_left",
+            "description": "speaker name"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade",
+            "description": "role line"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade",
+            "description": "source line"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image (whole clip)"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "all foreground content"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 3,
+        "description": "Seconds from the template start when each element appears, in order: quote, speaker, source. quote = when the narrator starts the quote; speaker = when the name is said (the word-by-word reveal fills the gap); source is optional. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "quote",
+      "speaker"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "quote": "At the stroke of the midnight hour, when the world sleeps, India will awake to life and freedom.",
+    "speaker": "Jawaharlal Nehru",
+    "role": "First Prime Minister of India",
+    "source": "Tryst with Destiny speech, 1947",
+    "highlight": "India will awake to life and freedom",
+    "layout": "centered",
+    "align": "center",
+    "background": "theme",
+    "animations": {
+      "quote": "word_fade"
+    },
+    "cue_times": [
+      0.2,
+      4.2
+    ]
+  }
+}

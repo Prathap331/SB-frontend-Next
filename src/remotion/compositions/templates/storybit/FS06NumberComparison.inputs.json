@@ -1,0 +1,1163 @@
+{
+  "template": "FS-06",
+  "name": "Number Comparison",
+  "animation_type": "fs_number_comparison",
+  "pick_when": "Two figures are compared, or the same metric before and after: \"from ₹12 lakh to ₹45 lakh\", \"India 7% vs China 5%\".",
+  "placement": "both",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 150,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "value_a",
+      "type": "number",
+      "required": true,
+      "fills": "First (left / before) number",
+      "limits": "number",
+      "hint": "Raw value, e.g. 1200000.",
+      "example": 1200000
+    },
+    {
+      "path": "value_b",
+      "type": "number",
+      "required": true,
+      "fills": "Second (right / after) number",
+      "limits": "number",
+      "hint": "Raw value, same unit as value A.",
+      "example": 4500000
+    },
+    {
+      "path": "title",
+      "type": "text",
+      "required": false,
+      "fills": "Heading above the comparison",
+      "limits": "3–40 chars · 1–8 words · longest word 18 · max 1 line",
+      "hint": "What is being compared: \"Average salary, 2015 vs 2025\".",
+      "example": "Average IT salary"
+    },
+    {
+      "path": "label_a",
+      "type": "text",
+      "required": true,
+      "fills": "Label under value A",
+      "limits": "2–25 chars · 1–4 words · longest word 14 · max 2 lines",
+      "hint": "What value A is: \"2015\", \"India\", \"Before\".",
+      "example": "2015"
+    },
+    {
+      "path": "label_b",
+      "type": "text",
+      "required": true,
+      "fills": "Label under value B",
+      "limits": "2–25 chars · 1–4 words · longest word 14 · max 2 lines",
+      "hint": "What value B is.",
+      "example": "2025"
+    },
+    {
+      "path": "prefix",
+      "type": "text",
+      "required": false,
+      "fills": "Symbol before both numbers",
+      "limits": "1–3 chars · 1–1 words · longest word 3 · max 1 line",
+      "hint": "Currency or symbol for both values: ₹, $.",
+      "example": "₹"
+    },
+    {
+      "path": "unit",
+      "type": "text",
+      "required": false,
+      "fills": "Unit after both numbers",
+      "limits": "1–10 chars · 1–2 words · longest word 8 · max 1 line",
+      "hint": "Unit for both values: %, km, per year.",
+      "example": "/yr"
+    },
+    {
+      "path": "change_label",
+      "type": "text",
+      "required": false,
+      "fills": "Text after the difference",
+      "limits": "2–20 chars · 1–4 words · longest word 14 · max 1 line",
+      "hint": "Words after the difference: \"in ten years\", \"higher\".",
+      "example": "in ten years"
+    },
+    {
+      "path": "context",
+      "type": "text",
+      "required": false,
+      "fills": "Supporting line at the bottom",
+      "limits": "10–90 chars · 2–16 words · longest word 18 · max 2 lines",
+      "hint": "One line explaining why the difference matters.",
+      "example": "Salaries grew almost four times faster than rent"
+    },
+    {
+      "path": "icon_a",
+      "type": "icon",
+      "required": false,
+      "fills": "Icon above value A",
+      "limits": "Lucide icon name",
+      "fallback": "none (no icon)",
+      "example": "calendar"
+    },
+    {
+      "path": "icon_b",
+      "type": "icon",
+      "required": false,
+      "fills": "Icon above value B",
+      "limits": "Lucide icon name",
+      "fallback": "none (no icon)",
+      "example": "calendar"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "layout",
+      "type": "choice",
+      "required": false,
+      "fills": "side_by_side: two cards with VS · before_after: A → B with an arrow · bars: two bars sized by value (positive values only)",
+      "values": [
+        "side_by_side",
+        "before_after",
+        "bars"
+      ],
+      "default": "side_by_side"
+    },
+    {
+      "path": "format",
+      "type": "choice",
+      "required": false,
+      "fills": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000",
+      "values": [
+        "indian_compact",
+        "intl_compact",
+        "indian_full",
+        "intl_full",
+        "plain"
+      ],
+      "default": "indian_compact"
+    },
+    {
+      "path": "decimals",
+      "type": "choice",
+      "required": false,
+      "fills": "Decimal places shown",
+      "values": [
+        "auto",
+        "0",
+        "1",
+        "2"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "show_change",
+      "type": "choice",
+      "required": false,
+      "fills": "How B differs from A: +275% · 3.8× · +₹33 L · hidden (auto picks percent, or multiple for big jumps)",
+      "values": [
+        "auto",
+        "percent",
+        "multiple",
+        "absolute",
+        "none"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "good_direction",
+      "type": "choice",
+      "required": false,
+      "fills": "Which direction is shown green (down for prices, deaths, pollution)",
+      "values": [
+        "up",
+        "down"
+      ],
+      "default": "up"
+    },
+    {
+      "path": "highlight",
+      "type": "choice",
+      "required": false,
+      "fills": "Which value is drawn in the accent colour",
+      "values": [
+        "none",
+        "a",
+        "b",
+        "higher",
+        "lower"
+      ],
+      "default": "none"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.icon_color",
+      "type": "color",
+      "required": false,
+      "fills": "Icon strokes (default: accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.icon_bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Circle behind icons (default: accent at 18%)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card / step fill (default: translucent white, darker over footage)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_border_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card outline (default: translucent white)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.positive_color",
+      "type": "color",
+      "required": false,
+      "fills": "Good change (up arrows, gains)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#34D399"
+    },
+    {
+      "path": "style.negative_color",
+      "type": "color",
+      "required": false,
+      "fills": "Bad change (down arrows, losses)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F87171"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.title",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of heading above the comparison (px, largest; shrinks only if it would not fit)",
+      "limits": "44–64 px",
+      "default": 64
+    },
+    {
+      "path": "font_sizes.label_a",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of label under value a (px, largest; shrinks only if it would not fit)",
+      "limits": "28–44 px",
+      "default": 44
+    },
+    {
+      "path": "font_sizes.label_b",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of label under value b (px, largest; shrinks only if it would not fit)",
+      "limits": "28–44 px",
+      "default": 44
+    },
+    {
+      "path": "font_sizes.change_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of text after the difference (px, largest; shrinks only if it would not fit)",
+      "limits": "24–30 px",
+      "default": 30
+    },
+    {
+      "path": "font_sizes.context",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of supporting line at the bottom (px, largest; shrinks only if it would not fit)",
+      "limits": "26–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.values",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of both numbers (prefix, scale and unit follow) (px, largest; shrinks only if it would not fit)",
+      "limits": "80–200 px",
+      "default": 200
+    },
+    {
+      "path": "animations.title",
+      "type": "animation",
+      "required": false,
+      "fills": "heading",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "rise",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.cards",
+      "type": "animation",
+      "required": false,
+      "fills": "the two cards (side_by_side, before_after) or bar columns",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "fade",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.icons",
+      "type": "animation",
+      "required": false,
+      "fills": "icons above the values",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.values",
+      "type": "animation",
+      "required": false,
+      "fills": "both numbers",
+      "values": [
+        "count_up",
+        "count_up_pop",
+        "rise",
+        "fade_up",
+        "scale_in",
+        "blur_in",
+        "none"
+      ],
+      "default": "count_up",
+      "hint": "count_up: Counts up to the value; count_up_pop: Counts up, then pops when it lands; rise: Line rises out of a mask; fade_up: Fades in while moving up; scale_in: Grows from 85% while fading in; blur_in: Sharpens from a blur; none: Appears instantly"
+    },
+    {
+      "path": "animations.labels",
+      "type": "animation",
+      "required": false,
+      "fills": "labels under the numbers",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade_up",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.connector",
+      "type": "animation",
+      "required": false,
+      "fills": "VS badge, arrow, or bar growth",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.change",
+      "type": "animation",
+      "required": false,
+      "fills": "difference chip",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_up",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.context",
+      "type": "animation",
+      "required": false,
+      "fills": "supporting line",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade_up",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image (whole clip)",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "all foreground content",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: heading → value A → value B → difference → context",
+      "limits": "seconds from the template start, increasing; One cue per element that is present, in order: heading, value A, value B, difference, context. Missing elements are skipped."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FS-06 Number Comparison",
+    "type": "object",
+    "properties": {
+      "value_a": {
+        "type": "number",
+        "description": "First (left / before) number. Raw value, e.g. 1200000. Raw number, no units or commas."
+      },
+      "value_b": {
+        "type": "number",
+        "description": "Second (right / after) number. Raw value, same unit as value A. Raw number, no units or commas."
+      },
+      "title": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 40,
+        "description": "Heading above the comparison. 1–8 words, longest word 18 letters. What is being compared: \"Average salary, 2015 vs 2025\"."
+      },
+      "label_a": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 25,
+        "description": "Label under value A. 1–4 words, longest word 14 letters. What value A is: \"2015\", \"India\", \"Before\"."
+      },
+      "label_b": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 25,
+        "description": "Label under value B. 1–4 words, longest word 14 letters. What value B is."
+      },
+      "prefix": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 3,
+        "description": "Symbol before both numbers. 1–1 words, longest word 3 letters. Currency or symbol for both values: ₹, $."
+      },
+      "unit": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 10,
+        "description": "Unit after both numbers. 1–2 words, longest word 8 letters. Unit for both values: %, km, per year."
+      },
+      "change_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 20,
+        "description": "Text after the difference. 1–4 words, longest word 14 letters. Words after the difference: \"in ten years\", \"higher\"."
+      },
+      "context": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 90,
+        "description": "Supporting line at the bottom. 2–16 words, longest word 18 letters. One line explaining why the difference matters."
+      },
+      "icon_a": {
+        "type": "string",
+        "description": "Icon above value A. Lucide icon name (kebab-case), e.g. \"calendar\"."
+      },
+      "icon_b": {
+        "type": "string",
+        "description": "Icon above value B. Lucide icon name (kebab-case), e.g. \"calendar\"."
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "layout": {
+        "type": "string",
+        "enum": [
+          "side_by_side",
+          "before_after",
+          "bars"
+        ],
+        "default": "side_by_side",
+        "description": "side_by_side: two cards with VS · before_after: A → B with an arrow · bars: two bars sized by value (positive values only)"
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "indian_compact",
+          "intl_compact",
+          "indian_full",
+          "intl_full",
+          "plain"
+        ],
+        "default": "indian_compact",
+        "description": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000"
+      },
+      "decimals": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "0",
+          "1",
+          "2"
+        ],
+        "default": "auto",
+        "description": "Decimal places shown"
+      },
+      "show_change": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "percent",
+          "multiple",
+          "absolute",
+          "none"
+        ],
+        "default": "auto",
+        "description": "How B differs from A: +275% · 3.8× · +₹33 L · hidden (auto picks percent, or multiple for big jumps)"
+      },
+      "good_direction": {
+        "type": "string",
+        "enum": [
+          "up",
+          "down"
+        ],
+        "default": "up",
+        "description": "Which direction is shown green (down for prices, deaths, pollution)"
+      },
+      "highlight": {
+        "type": "string",
+        "enum": [
+          "none",
+          "a",
+          "b",
+          "higher",
+          "lower"
+        ],
+        "default": "none",
+        "description": "Which value is drawn in the accent colour"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "icon_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Icon strokes (default: accent)"
+          },
+          "icon_bg_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Circle behind icons (default: accent at 18%)"
+          },
+          "card_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card / step fill (default: translucent white, darker over footage)"
+          },
+          "card_border_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card outline (default: translucent white)"
+          },
+          "positive_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Good change (up arrows, gains)",
+            "default": "#34D399"
+          },
+          "negative_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Bad change (down arrows, losses)",
+            "default": "#F87171"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "title": {
+            "type": "number",
+            "minimum": 44,
+            "maximum": 64,
+            "default": 64,
+            "description": "Heading above the comparison"
+          },
+          "label_a": {
+            "type": "number",
+            "minimum": 28,
+            "maximum": 44,
+            "default": 44,
+            "description": "Label under value A"
+          },
+          "label_b": {
+            "type": "number",
+            "minimum": 28,
+            "maximum": 44,
+            "default": 44,
+            "description": "Label under value B"
+          },
+          "change_label": {
+            "type": "number",
+            "minimum": 24,
+            "maximum": 30,
+            "default": 30,
+            "description": "Text after the difference"
+          },
+          "context": {
+            "type": "number",
+            "minimum": 26,
+            "maximum": 34,
+            "default": 34,
+            "description": "Supporting line at the bottom"
+          },
+          "values": {
+            "type": "number",
+            "minimum": 80,
+            "maximum": 200,
+            "default": 200,
+            "description": "Both numbers (prefix, scale and unit follow)"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "rise",
+            "description": "heading"
+          },
+          "cards": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "fade",
+            "description": "the two cards (side_by_side, before_after) or bar columns"
+          },
+          "icons": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "icons above the values"
+          },
+          "values": {
+            "type": "string",
+            "enum": [
+              "count_up",
+              "count_up_pop",
+              "rise",
+              "fade_up",
+              "scale_in",
+              "blur_in",
+              "none"
+            ],
+            "default": "count_up",
+            "description": "both numbers"
+          },
+          "labels": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade_up",
+            "description": "labels under the numbers"
+          },
+          "connector": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "VS badge, arrow, or bar growth"
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_up",
+            "description": "difference chip"
+          },
+          "context": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade_up",
+            "description": "supporting line"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image (whole clip)"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "all foreground content"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 5,
+        "description": "Seconds from the template start when each element appears, in order: heading, value A, value B, difference, context. One cue per element that is present, in order: heading, value A, value B, difference, context. Missing elements are skipped. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "value_a",
+      "value_b",
+      "label_a",
+      "label_b"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "title": "Average IT salary",
+    "prefix": "₹",
+    "value_a": 1200000,
+    "label_a": "2015",
+    "value_b": 4500000,
+    "label_b": "2025",
+    "change_label": "in ten years",
+    "context": "Salaries grew almost four times faster than rent",
+    "layout": "before_after",
+    "format": "indian_compact",
+    "highlight": "b",
+    "background": "theme",
+    "cue_times": [
+      0.1,
+      0.8,
+      2,
+      3,
+      3.8
+    ]
+  }
+}

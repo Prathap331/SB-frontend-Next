@@ -1,0 +1,809 @@
+{
+  "template": "UI-01",
+  "name": "Social Post",
+  "animation_type": "ui_social_post",
+  "pick_when": "Quoting a real post from X / Twitter, Threads or similar: who said it, what, when, how it spread.",
+  "placement": "both",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 180,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "replies",
+      "type": "number",
+      "required": false,
+      "fills": "Reply count (raw number)",
+      "limits": "number"
+    },
+    {
+      "path": "reposts",
+      "type": "number",
+      "required": false,
+      "fills": "Repost count",
+      "limits": "number"
+    },
+    {
+      "path": "likes",
+      "type": "number",
+      "required": false,
+      "fills": "Like count",
+      "limits": "number"
+    },
+    {
+      "path": "views",
+      "type": "number",
+      "required": false,
+      "fills": "View count",
+      "limits": "number"
+    },
+    {
+      "path": "name",
+      "type": "text",
+      "required": true,
+      "fills": "Display name",
+      "limits": "1–30 chars · 1–5 words · longest word 18 · max 1 line",
+      "example": "Sample Account"
+    },
+    {
+      "path": "handle",
+      "type": "text",
+      "required": false,
+      "fills": "@handle",
+      "limits": "2–24 chars · 1–1 words · longest word 24 · max 1 line",
+      "hint": "Without the @.",
+      "example": "sample_account"
+    },
+    {
+      "path": "text",
+      "type": "text",
+      "required": true,
+      "fills": "Body of the post",
+      "limits": "2–280 chars · 1–55 words · longest word 22 · max 7 lines",
+      "hint": "The post, word for word.",
+      "example": "Replace with the real post text, word for word."
+    },
+    {
+      "path": "highlight",
+      "type": "text",
+      "required": false,
+      "fills": "Phrase marked in the post",
+      "limits": "2–80 chars · 1–14 words · longest word 22 · max 1 line",
+      "hint": "Exact words from the post to mark."
+    },
+    {
+      "path": "date",
+      "type": "text",
+      "required": false,
+      "fills": "Time and date line",
+      "limits": "2–30 chars · 1–6 words · longest word 14 · max 1 line",
+      "hint": "\"9:41 PM · 12 Mar 2025\".",
+      "example": "9:41 PM · 12 Mar 2025"
+    },
+    {
+      "path": "label",
+      "type": "text",
+      "required": false,
+      "fills": "Small tag above the card",
+      "limits": "2–28 chars · 1–4 words · longest word 16 · max 1 line",
+      "hint": "e.g. \"Recreated post\" / \"Post since deleted\"."
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "avatar_url",
+      "type": "image",
+      "required": false,
+      "fills": "Profile picture (first letter of the name if missing)",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "post_image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Picture attached to the post",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "verified",
+      "type": "choice",
+      "required": false,
+      "fills": "Show a verified tick next to the name",
+      "values": [
+        "off",
+        "on"
+      ],
+      "default": "off"
+    },
+    {
+      "path": "theme_style",
+      "type": "choice",
+      "required": false,
+      "fills": "Dark or light card",
+      "values": [
+        "dark",
+        "light"
+      ],
+      "default": "dark"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.name",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of display name (px, largest; shrinks only if it would not fit)",
+      "limits": "24–36 px",
+      "default": 36
+    },
+    {
+      "path": "font_sizes.handle",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of @handle (px, largest; shrinks only if it would not fit)",
+      "limits": "20–28 px",
+      "default": 28
+    },
+    {
+      "path": "font_sizes.text",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of body of the post (px, largest; shrinks only if it would not fit)",
+      "limits": "26–44 px",
+      "default": 44
+    },
+    {
+      "path": "font_sizes.date",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of time and date line (px, largest; shrinks only if it would not fit)",
+      "limits": "18–24 px",
+      "default": 24
+    },
+    {
+      "path": "font_sizes.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of small tag above the card (px, largest; shrinks only if it would not fit)",
+      "limits": "16–22 px",
+      "default": 22
+    },
+    {
+      "path": "animations.card",
+      "type": "animation",
+      "required": false,
+      "fills": "the post card",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.text",
+      "type": "animation",
+      "required": false,
+      "fills": "post text",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "word_fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.highlight",
+      "type": "animation",
+      "required": false,
+      "fills": "marker over the highlighted words",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.counts",
+      "type": "animation",
+      "required": false,
+      "fills": "replies / reposts / likes / views",
+      "values": [
+        "count_up",
+        "count_up_pop",
+        "rise",
+        "fade_up",
+        "scale_in",
+        "blur_in",
+        "none"
+      ],
+      "default": "count_up",
+      "hint": "count_up: Counts up to the value; count_up_pop: Counts up, then pops when it lands; rise: Line rises out of a mask; fade_up: Fades in while moving up; scale_in: Grows from 85% while fading in; blur_in: Sharpens from a blur; none: Appears instantly"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "the card",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: card → text → highlight → counts",
+      "limits": "seconds from the template start, increasing; card → text → highlight → counts."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "UI-01 Social Post",
+    "type": "object",
+    "properties": {
+      "replies": {
+        "type": "number",
+        "description": "Reply count (raw number). Raw number, no units or commas."
+      },
+      "reposts": {
+        "type": "number",
+        "description": "Repost count. Raw number, no units or commas."
+      },
+      "likes": {
+        "type": "number",
+        "description": "Like count. Raw number, no units or commas."
+      },
+      "views": {
+        "type": "number",
+        "description": "View count. Raw number, no units or commas."
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 30,
+        "description": "Display name. 1–5 words, longest word 18 letters."
+      },
+      "handle": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 24,
+        "description": "@handle. 1–1 words, longest word 24 letters. Without the @."
+      },
+      "text": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 280,
+        "description": "Body of the post. 1–55 words, longest word 22 letters. The post, word for word."
+      },
+      "highlight": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 80,
+        "description": "Phrase marked in the post. 1–14 words, longest word 22 letters. Exact words from the post to mark."
+      },
+      "date": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 30,
+        "description": "Time and date line. 1–6 words, longest word 14 letters. \"9:41 PM · 12 Mar 2025\"."
+      },
+      "label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 28,
+        "description": "Small tag above the card. 1–4 words, longest word 16 letters. e.g. \"Recreated post\" / \"Post since deleted\"."
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "avatar_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Profile picture (first letter of the name if missing)"
+      },
+      "post_image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Picture attached to the post"
+      },
+      "verified": {
+        "type": "string",
+        "enum": [
+          "off",
+          "on"
+        ],
+        "default": "off",
+        "description": "Show a verified tick next to the name"
+      },
+      "theme_style": {
+        "type": "string",
+        "enum": [
+          "dark",
+          "light"
+        ],
+        "default": "dark",
+        "description": "Dark or light card"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "name": {
+            "type": "number",
+            "minimum": 24,
+            "maximum": 36,
+            "default": 36,
+            "description": "Display name"
+          },
+          "handle": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 28,
+            "default": 28,
+            "description": "@handle"
+          },
+          "text": {
+            "type": "number",
+            "minimum": 26,
+            "maximum": 44,
+            "default": 44,
+            "description": "Body of the post"
+          },
+          "date": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 24,
+            "default": 24,
+            "description": "Time and date line"
+          },
+          "label": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 22,
+            "default": 22,
+            "description": "Small tag above the card"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "card": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "the post card"
+          },
+          "text": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "word_fade",
+            "description": "post text"
+          },
+          "highlight": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "marker over the highlighted words"
+          },
+          "counts": {
+            "type": "string",
+            "enum": [
+              "count_up",
+              "count_up_pop",
+              "rise",
+              "fade_up",
+              "scale_in",
+              "blur_in",
+              "none"
+            ],
+            "default": "count_up",
+            "description": "replies / reposts / likes / views"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "the card"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 4,
+        "description": "Seconds from the template start when each element appears, in order: card, text, highlight, counts. card → text → highlight → counts. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "name",
+      "text"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "name": "Sample Account",
+    "handle": "sample_account",
+    "verified": "on",
+    "text": "Replace with the real post text, word for word.",
+    "date": "9:41 PM · 12 Mar 2025",
+    "replies": 1200,
+    "reposts": 8400,
+    "likes": 52000,
+    "theme_style": "dark",
+    "background": "theme"
+  }
+}

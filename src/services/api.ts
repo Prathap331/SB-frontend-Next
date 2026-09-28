@@ -99,6 +99,62 @@ export interface EditVideoWordSegment {
   score?: number;
 }
 
+/** Stock still on a scene direction (`asserts.photos`). */
+export interface EditVideoDirectionPhoto {
+  id: number;
+  url?: string;
+  type?: string;
+  query?: string;
+  width?: number;
+  height?: number;
+  image_url?: string;
+  photographer?: string | { name?: string; url?: string };
+}
+
+/** Stock clip on a scene direction (`asserts.videos`). */
+export interface EditVideoDirectionVideo {
+  id: number;
+  url?: string;
+  type?: string;
+  query?: string;
+  width?: number;
+  height?: number;
+  duration?: number;
+  video_url?: string;
+}
+
+export interface EditVideoDirectionAsserts {
+  photos?: EditVideoDirectionPhoto[];
+  videos?: EditVideoDirectionVideo[];
+}
+
+/**
+ * One timed beat inside a scene (`timeline.scenes[].directions`).
+ * `B-roll` is footage only; `B-roll+overlay_animation` / `full_screen_animation` also carry a template.
+ */
+export interface EditVideoDirection {
+  type: string;
+  start: number;
+  end: number;
+  text?: string;
+  keywords?: string[];
+  asserts?: EditVideoDirectionAsserts;
+  template_name?: string;
+  template_props?: Record<string, unknown> | null;
+  template_keywords?: string[];
+  start_word_index?: number;
+  end_word_index?: number;
+}
+
+/** Scene as stored on `videos.timeline` and returned by POST /edit-video. */
+export interface EditVideoDirectionScene {
+  id: string | number;
+  script: string;
+  audio_url?: string;
+  directions?: EditVideoDirection[];
+  word_timestamps?: EditVideoWordSegment[];
+}
+
 export interface EditVideoVoiceover {
   message?: string;
   userId?: string;
@@ -301,6 +357,7 @@ export interface EditVideoResponse {
   video_id: string;
   timeline: EditVideoTimeline;
   scenes: EditVideoScene[];
+  timeline_version?: number;
   /** Scene ids where voice/tagging/whisperx generation failed */
   failed_scene_ids?: string[];
   /** Full-screen/callout text overlays, scene-scoped. */
@@ -2006,9 +2063,9 @@ export class ApiService {
         text_normalization: params.textNormalization,
       }),
     });
-    const data = await this.parseJsonOrThrow<Record<string, unknown>>(response, 'Edit video');
-    const scenes = Array.isArray(data.scenes) ? (data.scenes as EditVideoScene[]) : [];
-    return { ...data, scenes } as EditVideoResponse;
+    const data = await this.parseJsonOrThrow<unknown>(response, 'Edit video');
+    const { normalizeEditVideoPayload } = await import('@/lib/video-editor/editVideoNormalize');
+    return normalizeEditVideoPayload(data);
   }
 
   /** Update caption styling and/or scene background color via PATCH .../scene/{scene_id}/style. */

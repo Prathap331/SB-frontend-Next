@@ -1,11 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCurrentFrame, useVideoConfig } from 'remotion';
 import type { InfographicData, InfographicRemotionInputProps, Clock } from '../types';
 import { TaxonomyVisual } from '../layouts/taxonomyVisuals';
 import { textEntrance } from '../animation';
 import { readIconNames, readTextAnimationStyle } from '../props';
+import { resolveAnimationType } from '../animationTypes';
+import { TEMPLATE_RENDERERS } from './templates/registry';
+import { loadStorybitFonts } from './templates/storybit/core/loadFonts';
 
 /** Normalize backend `icon_name` (string or list) for Remotion props. */
 export function iconNameForRemotion(props: Record<string, unknown>): string | string[] | undefined {
@@ -46,8 +49,26 @@ export function InfographicVisual({
   icon_name?: string | string[];
 }) {
   const merged = withIconNameProp(data, icon_name);
+  const type = resolveAnimationType(merged.animation_type);
+  const isTemplate = Boolean(TEMPLATE_RENDERERS[type]);
+  const [fontsGen, setFontsGen] = useState(0);
+
+  useEffect(() => {
+    if (!isTemplate) return;
+    let cancelled = false;
+    void loadStorybitFonts().then(() => {
+      if (!cancelled) setFontsGen((n) => n + 1);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isTemplate]);
+
+  const visual = (
+    <TaxonomyVisual key={isTemplate ? `sb-${fontsGen}` : 'overlay'} data={merged} clock={clock} />
+  );
+  if (isTemplate) return visual;
   const entrance = textEntrance(readTextAnimationStyle(merged.props), clock.frame, clock.fps);
-  const visual = <TaxonomyVisual data={merged} clock={clock} />;
   if (!entrance) return visual;
   return (
     <div

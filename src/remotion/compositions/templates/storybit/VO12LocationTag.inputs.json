@@ -1,0 +1,656 @@
+{
+  "template": "VO-12",
+  "name": "Location Tag",
+  "animation_type": "vo_location_tag",
+  "pick_when": "An establishing shot of a place: name the city, landmark or region on screen.",
+  "placement": "overlay",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      45,
+      240
+    ],
+    "seconds": [
+      1.5,
+      8
+    ],
+    "default_frames": 120,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "location",
+      "type": "text",
+      "required": true,
+      "fills": "Place name",
+      "limits": "2–30 chars · 1–5 words · longest word 18 · max 1 line",
+      "hint": "\"Varanasi\", \"Gateway of India\".",
+      "example": "Varanasi"
+    },
+    {
+      "path": "detail",
+      "type": "text",
+      "required": false,
+      "fills": "Line under the place name",
+      "limits": "2–30 chars · 1–5 words · longest word 18 · max 1 line",
+      "hint": "Region or country: \"Uttar Pradesh, India\".",
+      "example": "Uttar Pradesh, India"
+    },
+    {
+      "path": "date",
+      "type": "text",
+      "required": false,
+      "fills": "Date after the detail",
+      "limits": "2–20 chars · 1–4 words · longest word 12 · max 1 line",
+      "hint": "\"March 2024\", \"1947\".",
+      "example": "2024"
+    },
+    {
+      "path": "icon",
+      "type": "icon",
+      "required": false,
+      "fills": "Icon in the tag",
+      "limits": "Lucide icon name",
+      "fallback": "map-pin",
+      "example": "map-pin"
+    },
+    {
+      "path": "position",
+      "type": "choice",
+      "required": false,
+      "fills": "Where the tag sits inside the safe box",
+      "values": [
+        "top_left",
+        "top_right",
+        "bottom_left",
+        "bottom_right",
+        "bottom_center",
+        "top_center",
+        "center"
+      ],
+      "default": "top_left"
+    },
+    {
+      "path": "look",
+      "type": "choice",
+      "required": false,
+      "fills": "Rounded pill, square-cornered card, or text with shadow only",
+      "values": [
+        "pill",
+        "card",
+        "plain"
+      ],
+      "default": "pill"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.icon_color",
+      "type": "color",
+      "required": false,
+      "fills": "Icon strokes (default: accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.icon_bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Circle behind icons (default: accent at 18%)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card / step fill (default: translucent white, darker over footage)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.location",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of place name (px, largest; shrinks only if it would not fit)",
+      "limits": "26–40 px",
+      "default": 40
+    },
+    {
+      "path": "font_sizes.detail",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of line under the place name (px, largest; shrinks only if it would not fit)",
+      "limits": "18–26 px",
+      "default": 26
+    },
+    {
+      "path": "font_sizes.date",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of date after the detail (px, largest; shrinks only if it would not fit)",
+      "limits": "18–26 px",
+      "default": 26
+    },
+    {
+      "path": "animations.tag",
+      "type": "animation",
+      "required": false,
+      "fills": "the tag background",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_left",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.icon",
+      "type": "animation",
+      "required": false,
+      "fills": "pin icon",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "bounce",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.location",
+      "type": "animation",
+      "required": false,
+      "fills": "place name",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "typewriter",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.detail",
+      "type": "animation",
+      "required": false,
+      "fills": "detail and date line",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "the tag",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: location → detail",
+      "limits": "seconds from the template start, increasing; location → detail. Missing elements are skipped."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "VO-12 Location Tag",
+    "type": "object",
+    "properties": {
+      "location": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 30,
+        "description": "Place name. 1–5 words, longest word 18 letters. \"Varanasi\", \"Gateway of India\"."
+      },
+      "detail": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 30,
+        "description": "Line under the place name. 1–5 words, longest word 18 letters. Region or country: \"Uttar Pradesh, India\"."
+      },
+      "date": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 20,
+        "description": "Date after the detail. 1–4 words, longest word 12 letters. \"March 2024\", \"1947\"."
+      },
+      "icon": {
+        "type": "string",
+        "description": "Icon in the tag. Lucide icon name (kebab-case), e.g. \"map-pin\"."
+      },
+      "position": {
+        "type": "string",
+        "enum": [
+          "top_left",
+          "top_right",
+          "bottom_left",
+          "bottom_right",
+          "bottom_center",
+          "top_center",
+          "center"
+        ],
+        "default": "top_left",
+        "description": "Where the tag sits inside the safe box"
+      },
+      "look": {
+        "type": "string",
+        "enum": [
+          "pill",
+          "card",
+          "plain"
+        ],
+        "default": "pill",
+        "description": "Rounded pill, square-cornered card, or text with shadow only"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "icon_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Icon strokes (default: accent)"
+          },
+          "icon_bg_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Circle behind icons (default: accent at 18%)"
+          },
+          "card_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card / step fill (default: translucent white, darker over footage)"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "location": {
+            "type": "number",
+            "minimum": 26,
+            "maximum": 40,
+            "default": 40,
+            "description": "Place name"
+          },
+          "detail": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 26,
+            "default": 26,
+            "description": "Line under the place name"
+          },
+          "date": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 26,
+            "default": 26,
+            "description": "Date after the detail"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "tag": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_left",
+            "description": "the tag background"
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "bounce",
+            "description": "pin icon"
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "typewriter",
+            "description": "place name"
+          },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade",
+            "description": "detail and date line"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "the tag"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 2,
+        "description": "Seconds from the template start when each element appears, in order: location, detail. location → detail. Missing elements are skipped. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "location"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "location": "Varanasi",
+    "detail": "Uttar Pradesh, India",
+    "date": "2024",
+    "icon": "map-pin",
+    "position": "top_left",
+    "look": "pill"
+  }
+}

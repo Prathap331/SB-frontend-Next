@@ -1,0 +1,1148 @@
+{
+  "template": "DV-04",
+  "name": "Line Chart",
+  "animation_type": "dv_line_chart",
+  "pick_when": "A trend over time: growth, a crash, a peak, a recovery, or 2–4 things changing over the same years.",
+  "placement": "both",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 180,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "reference_value",
+      "type": "number",
+      "required": false,
+      "fills": "Dashed line across the chart at this value",
+      "limits": "number"
+    },
+    {
+      "path": "title",
+      "type": "text",
+      "required": false,
+      "fills": "Heading above the chart",
+      "limits": "3–50 chars · 1–10 words · longest word 18 · max 1 line",
+      "hint": "What is measured: \"Petrol price in Delhi (₹/litre)\".",
+      "example": "Sensex, 2019–2025 (illustrative)"
+    },
+    {
+      "path": "prefix",
+      "type": "text",
+      "required": false,
+      "fills": "Symbol before every value",
+      "limits": "1–3 chars · 1–1 words · longest word 3 · max 1 line",
+      "hint": "₹, $."
+    },
+    {
+      "path": "unit",
+      "type": "text",
+      "required": false,
+      "fills": "Unit after every value",
+      "limits": "1–8 chars · 1–1 words · longest word 8 · max 1 line",
+      "hint": "%, /litre, pts."
+    },
+    {
+      "path": "reference_label",
+      "type": "text",
+      "required": false,
+      "fills": "Label on the reference line",
+      "limits": "2–24 chars · 1–4 words · longest word 14 · max 1 line",
+      "hint": "\"Pre-covid level\", \"Target\"."
+    },
+    {
+      "path": "source",
+      "type": "text",
+      "required": false,
+      "fills": "Source line under the chart",
+      "limits": "3–60 chars · 1–10 words · longest word 18 · max 1 line",
+      "hint": "\"Source: RBI, 2025\"."
+    },
+    {
+      "path": "axis_labels",
+      "type": "text",
+      "required": false,
+      "fills": "Year / month labels and value labels on the axes",
+      "limits": "1–12 chars · 1–3 words · longest word 14 · max 1 line"
+    },
+    {
+      "path": "x_labels[]",
+      "type": "array",
+      "required": true,
+      "fills": "Labels along the bottom, left to right (years, months)",
+      "limits": "4–40 labels · 1–12 chars each"
+    },
+    {
+      "path": "series[]",
+      "type": "list",
+      "required": true,
+      "fills": "Lines on the chart (first line uses the accent colour)",
+      "limits": "1–4 series"
+    },
+    {
+      "path": "series[].name",
+      "type": "text",
+      "required": false,
+      "fills": "Series name in the legend (needed when there are 2+ series)",
+      "limits": "1–20 chars · 1–4 words"
+    },
+    {
+      "path": "series[].values[]",
+      "type": "array",
+      "required": true,
+      "fills": "One raw number per x label (null for a gap)",
+      "limits": "same length as x_labels"
+    },
+    {
+      "path": "annotations[]",
+      "type": "list",
+      "required": false,
+      "fills": "Callouts on points (peak, crash, event)",
+      "limits": "0–3 items"
+    },
+    {
+      "path": "annotations[].at",
+      "type": "text",
+      "required": true,
+      "fills": "Which point: an x label (\"2020\") or its 0-based index",
+      "limits": "x label or integer"
+    },
+    {
+      "path": "annotations[].text",
+      "type": "text",
+      "required": true,
+      "fills": "Callout text",
+      "limits": "2–25 chars · 1–5 words"
+    },
+    {
+      "path": "annotations[].series",
+      "type": "number",
+      "required": false,
+      "fills": "Which series the point is on (1–4, default 1)",
+      "limits": "integer 1–4"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "transform",
+      "type": "choice",
+      "required": false,
+      "fills": "none · indexed (every series = 100 at the first point, to compare growth) · cumulative (running total)",
+      "values": [
+        "none",
+        "indexed",
+        "cumulative"
+      ],
+      "default": "none"
+    },
+    {
+      "path": "area",
+      "type": "choice",
+      "required": false,
+      "fills": "Shade under the line (auto = on for a single series)",
+      "values": [
+        "auto",
+        "on",
+        "off"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "show_points",
+      "type": "choice",
+      "required": false,
+      "fills": "Dots on each point (auto = on up to 12 points)",
+      "values": [
+        "auto",
+        "on",
+        "off"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "end_labels",
+      "type": "choice",
+      "required": false,
+      "fills": "Value at the end of each line",
+      "values": [
+        "on",
+        "off"
+      ],
+      "default": "on"
+    },
+    {
+      "path": "format",
+      "type": "choice",
+      "required": false,
+      "fills": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000",
+      "values": [
+        "indian_compact",
+        "intl_compact",
+        "indian_full",
+        "intl_full",
+        "plain"
+      ],
+      "default": "indian_compact"
+    },
+    {
+      "path": "decimals",
+      "type": "choice",
+      "required": false,
+      "fills": "Decimal places shown",
+      "values": [
+        "auto",
+        "0",
+        "1",
+        "2"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.series_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Second data series / slice (the first uses accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#22D3EE"
+    },
+    {
+      "path": "style.series_3_color",
+      "type": "color",
+      "required": false,
+      "fills": "Third data series / slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#A78BFA"
+    },
+    {
+      "path": "style.series_4_color",
+      "type": "color",
+      "required": false,
+      "fills": "Fourth data series / slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F472B6"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.title",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of heading above the chart (px, largest; shrinks only if it would not fit)",
+      "limits": "40–60 px",
+      "default": 60
+    },
+    {
+      "path": "font_sizes.reference_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of label on the reference line (px, largest; shrinks only if it would not fit)",
+      "limits": "16–26 px",
+      "default": 26
+    },
+    {
+      "path": "font_sizes.source",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of source line under the chart (px, largest; shrinks only if it would not fit)",
+      "limits": "18–24 px",
+      "default": 24
+    },
+    {
+      "path": "font_sizes.axis_labels",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of year / month labels and value labels on the axes (px, largest; shrinks only if it would not fit)",
+      "limits": "16–26 px",
+      "default": 26
+    },
+    {
+      "path": "animations.title",
+      "type": "animation",
+      "required": false,
+      "fills": "heading",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "rise",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.grid",
+      "type": "animation",
+      "required": false,
+      "fills": "grid lines and axis labels",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "fade",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.lines",
+      "type": "animation",
+      "required": false,
+      "fills": "each line (draws left to right)",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.points",
+      "type": "animation",
+      "required": false,
+      "fills": "dots on the line",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.end_labels",
+      "type": "animation",
+      "required": false,
+      "fills": "value at the end of each line",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_left",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.annotations",
+      "type": "animation",
+      "required": false,
+      "fills": "callouts on points",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.reference",
+      "type": "animation",
+      "required": false,
+      "fills": "dashed reference line",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.source",
+      "type": "animation",
+      "required": false,
+      "fills": "source line",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image (whole clip)",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "all foreground content",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: heading → lines → annotation 1 → annotation 2 → annotation 3 → reference line → source",
+      "limits": "seconds from the template start, increasing; heading (skipped if absent) → lines start drawing → annotation 1 → annotation 2 → annotation 3 → reference line → source. Annotation slots are fixed: send null for an annotation you do not have."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DV-04 Line Chart",
+    "type": "object",
+    "properties": {
+      "reference_value": {
+        "type": "number",
+        "description": "Dashed line across the chart at this value. Raw number, no units or commas."
+      },
+      "title": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 50,
+        "description": "Heading above the chart. 1–10 words, longest word 18 letters. What is measured: \"Petrol price in Delhi (₹/litre)\"."
+      },
+      "prefix": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 3,
+        "description": "Symbol before every value. 1–1 words, longest word 3 letters. ₹, $."
+      },
+      "unit": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 8,
+        "description": "Unit after every value. 1–1 words, longest word 8 letters. %, /litre, pts."
+      },
+      "reference_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 24,
+        "description": "Label on the reference line. 1–4 words, longest word 14 letters. \"Pre-covid level\", \"Target\"."
+      },
+      "source": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 60,
+        "description": "Source line under the chart. 1–10 words, longest word 18 letters. \"Source: RBI, 2025\"."
+      },
+      "axis_labels": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 12,
+        "description": "Year / month labels and value labels on the axes. 1–3 words, longest word 14 letters."
+      },
+      "x_labels": {
+        "type": "array",
+        "minItems": 4,
+        "maxItems": 40,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12
+        },
+        "description": "Labels along the bottom, left to right."
+      },
+      "series": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 4,
+        "description": "Lines. values must have one number per x label (null for a gap).",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "values"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20,
+              "description": "Legend name (needed with 2+ series)."
+            },
+            "values": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 40,
+              "items": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "description": "Raw numbers, same length as x_labels."
+            }
+          }
+        }
+      },
+      "annotations": {
+        "type": "array",
+        "maxItems": 3,
+        "description": "Callouts on points.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "at",
+            "text"
+          ],
+          "properties": {
+            "at": {
+              "type": [
+                "string",
+                "integer"
+              ],
+              "description": "x label or 0-based index of the point."
+            },
+            "text": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 25,
+              "description": "Callout text, 1–5 words."
+            },
+            "series": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4,
+              "description": "Series number (default 1)."
+            }
+          }
+        }
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "transform": {
+        "type": "string",
+        "enum": [
+          "none",
+          "indexed",
+          "cumulative"
+        ],
+        "default": "none",
+        "description": "none · indexed (every series = 100 at the first point, to compare growth) · cumulative (running total)"
+      },
+      "area": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "on",
+          "off"
+        ],
+        "default": "auto",
+        "description": "Shade under the line (auto = on for a single series)"
+      },
+      "show_points": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "on",
+          "off"
+        ],
+        "default": "auto",
+        "description": "Dots on each point (auto = on up to 12 points)"
+      },
+      "end_labels": {
+        "type": "string",
+        "enum": [
+          "on",
+          "off"
+        ],
+        "default": "on",
+        "description": "Value at the end of each line"
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "indian_compact",
+          "intl_compact",
+          "indian_full",
+          "intl_full",
+          "plain"
+        ],
+        "default": "indian_compact",
+        "description": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000"
+      },
+      "decimals": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "0",
+          "1",
+          "2"
+        ],
+        "default": "auto",
+        "description": "Decimal places shown"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "series_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Second data series / slice (the first uses accent)",
+            "default": "#22D3EE"
+          },
+          "series_3_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Third data series / slice",
+            "default": "#A78BFA"
+          },
+          "series_4_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Fourth data series / slice",
+            "default": "#F472B6"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "title": {
+            "type": "number",
+            "minimum": 40,
+            "maximum": 60,
+            "default": 60,
+            "description": "Heading above the chart"
+          },
+          "reference_label": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 26,
+            "default": 26,
+            "description": "Label on the reference line"
+          },
+          "source": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 24,
+            "default": 24,
+            "description": "Source line under the chart"
+          },
+          "axis_labels": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 26,
+            "default": 26,
+            "description": "Year / month labels and value labels on the axes"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "rise",
+            "description": "heading"
+          },
+          "grid": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "fade",
+            "description": "grid lines and axis labels"
+          },
+          "lines": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "each line (draws left to right)"
+          },
+          "points": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "dots on the line"
+          },
+          "end_labels": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_left",
+            "description": "value at the end of each line"
+          },
+          "annotations": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "callouts on points"
+          },
+          "reference": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "dashed reference line"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade",
+            "description": "source line"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image (whole clip)"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "all foreground content"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 7,
+        "description": "Seconds from the template start when each element appears, in order: heading, lines, annotation 1, annotation 2, annotation 3, reference line, source. heading (skipped if absent) → lines start drawing → annotation 1 → annotation 2 → annotation 3 → reference line → source. Annotation slots are fixed: send null for an annotation you do not have. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "x_labels",
+      "series"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "title": "Monthly UPI transactions (billion, illustrative)",
+    "x_labels": [
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "series": [
+      {
+        "name": "UPI",
+        "values": [
+          0.8,
+          1.3,
+          3.2,
+          6.6,
+          10.2,
+          14.4,
+          18.4
+        ]
+      }
+    ],
+    "annotations": [
+      {
+        "at": "2020",
+        "text": "Lockdown boost"
+      }
+    ],
+    "format": "plain",
+    "area": "auto",
+    "source": "Source: illustrative figures",
+    "background": "theme"
+  }
+}

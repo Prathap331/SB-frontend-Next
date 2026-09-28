@@ -1,0 +1,1020 @@
+{
+  "template": "FS-04",
+  "name": "Big Number",
+  "animation_type": "fs_big_number",
+  "pick_when": "Narration states one striking figure: \"₹4,200 crore\", \"73% of Indians\", \"3 million users\".",
+  "placement": "both",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 120,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "value",
+      "type": "number",
+      "required": true,
+      "fills": "The big number (formatted by the template)",
+      "limits": "number",
+      "hint": "Raw value, e.g. 42000000000 for ₹4,200 crore, 73 for 73%.",
+      "example": 42000000000
+    },
+    {
+      "path": "change",
+      "type": "number",
+      "required": false,
+      "fills": "Change indicator under the label (arrow + value)",
+      "limits": "number",
+      "hint": "Percent points when change_type = percent (12.4 = +12.4%), otherwise same unit as value. Negative = down.",
+      "example": 12.4
+    },
+    {
+      "path": "count_from",
+      "type": "number",
+      "required": false,
+      "fills": "Where the count-up starts (default 0)",
+      "limits": "number",
+      "example": 0
+    },
+    {
+      "path": "prefix",
+      "type": "text",
+      "required": false,
+      "fills": "Symbol before the number",
+      "limits": "1–3 chars · 1–1 words · longest word 3 · max 1 line",
+      "hint": "Currency or symbol before the number: ₹, $, ~.",
+      "example": "₹"
+    },
+    {
+      "path": "unit",
+      "type": "text",
+      "required": false,
+      "fills": "Unit after the number",
+      "limits": "1–10 chars · 1–2 words · longest word 8 · max 1 line",
+      "hint": "After the number: %, km, users, per day.",
+      "example": "%"
+    },
+    {
+      "path": "label",
+      "type": "text",
+      "required": true,
+      "fills": "Label under the number",
+      "limits": "3–40 chars · 1–8 words · longest word 18 · max 2 lines",
+      "hint": "What the number is: \"spent on ads in 2025\".",
+      "example": "spent on digital ads in 2025"
+    },
+    {
+      "path": "context",
+      "type": "text",
+      "required": false,
+      "fills": "Supporting line under the label",
+      "limits": "10–90 chars · 2–16 words · longest word 18 · max 2 lines",
+      "hint": "One line that makes the number meaningful.",
+      "example": "More than TV and print combined for the first time"
+    },
+    {
+      "path": "change_label",
+      "type": "text",
+      "required": false,
+      "fills": "Text after the change value",
+      "limits": "2–20 chars · 1–4 words · longest word 14 · max 1 line",
+      "hint": "What the change is measured against: \"vs 2024\".",
+      "example": "vs 2024"
+    },
+    {
+      "path": "icon",
+      "type": "icon",
+      "required": false,
+      "fills": "Icon above the number",
+      "limits": "Lucide icon name",
+      "fallback": "none (no icon shown)",
+      "example": "trending-up"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "format",
+      "type": "choice",
+      "required": false,
+      "fills": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000",
+      "values": [
+        "indian_compact",
+        "intl_compact",
+        "indian_full",
+        "intl_full",
+        "plain"
+      ],
+      "default": "indian_compact"
+    },
+    {
+      "path": "decimals",
+      "type": "choice",
+      "required": false,
+      "fills": "Decimal places shown",
+      "values": [
+        "auto",
+        "0",
+        "1",
+        "2"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "change_type",
+      "type": "choice",
+      "required": false,
+      "fills": "How change is shown: +12.4% or +₹1.2 Cr",
+      "values": [
+        "percent",
+        "absolute"
+      ],
+      "default": "percent"
+    },
+    {
+      "path": "direction",
+      "type": "choice",
+      "required": false,
+      "fills": "Arrow direction (auto = from the sign of change)",
+      "values": [
+        "auto",
+        "up",
+        "down",
+        "flat"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "good_direction",
+      "type": "choice",
+      "required": false,
+      "fills": "Which direction is shown green (e.g. down for prices or deaths)",
+      "values": [
+        "up",
+        "down"
+      ],
+      "default": "up"
+    },
+    {
+      "path": "align",
+      "type": "choice",
+      "required": false,
+      "fills": "Horizontal alignment",
+      "values": [
+        "center",
+        "left"
+      ],
+      "default": "center"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.icon_color",
+      "type": "color",
+      "required": false,
+      "fills": "Icon strokes (default: accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.icon_bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Circle behind icons (default: accent at 18%)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card / step fill (default: translucent white, darker over footage)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_border_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card outline (default: translucent white)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.positive_color",
+      "type": "color",
+      "required": false,
+      "fills": "Good change (up arrows, gains)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#34D399"
+    },
+    {
+      "path": "style.negative_color",
+      "type": "color",
+      "required": false,
+      "fills": "Bad change (down arrows, losses)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F87171"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of label under the number (px, largest; shrinks only if it would not fit)",
+      "limits": "36–56 px",
+      "default": 56
+    },
+    {
+      "path": "font_sizes.context",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of supporting line under the label (px, largest; shrinks only if it would not fit)",
+      "limits": "26–36 px",
+      "default": 36
+    },
+    {
+      "path": "font_sizes.change_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of text after the change value (px, largest; shrinks only if it would not fit)",
+      "limits": "24–30 px",
+      "default": 30
+    },
+    {
+      "path": "font_sizes.value",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of big number (prefix, scale and unit follow it) (px, largest; shrinks only if it would not fit)",
+      "limits": "120–260 px",
+      "default": 260
+    },
+    {
+      "path": "animations.icon",
+      "type": "animation",
+      "required": false,
+      "fills": "icon above the number",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.value",
+      "type": "animation",
+      "required": false,
+      "fills": "the big number with prefix and unit",
+      "values": [
+        "count_up",
+        "count_up_pop",
+        "rise",
+        "fade_up",
+        "scale_in",
+        "blur_in",
+        "none"
+      ],
+      "default": "count_up",
+      "hint": "count_up: Counts up to the value; count_up_pop: Counts up, then pops when it lands; rise: Line rises out of a mask; fade_up: Fades in while moving up; scale_in: Grows from 85% while fading in; blur_in: Sharpens from a blur; none: Appears instantly"
+    },
+    {
+      "path": "animations.rule",
+      "type": "animation",
+      "required": false,
+      "fills": "line under the number",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.label",
+      "type": "animation",
+      "required": false,
+      "fills": "label under the number",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade_up",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.context",
+      "type": "animation",
+      "required": false,
+      "fills": "supporting line",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade_up",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.change",
+      "type": "animation",
+      "required": false,
+      "fills": "change indicator chip",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_up",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image (whole clip)",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "all foreground content",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: value → label → context → change",
+      "limits": "seconds from the template start, increasing; One cue per element that is present, in order: value, label, context, change. Missing elements are skipped."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FS-04 Big Number",
+    "type": "object",
+    "properties": {
+      "value": {
+        "type": "number",
+        "description": "The big number (formatted by the template). Raw value, e.g. 42000000000 for ₹4,200 crore, 73 for 73%. Raw number, no units or commas."
+      },
+      "change": {
+        "type": "number",
+        "description": "Change indicator under the label (arrow + value). Percent points when change_type = percent (12.4 = +12.4%), otherwise same unit as value. Negative = down. Raw number, no units or commas."
+      },
+      "count_from": {
+        "type": "number",
+        "description": "Where the count-up starts (default 0). Raw number, no units or commas."
+      },
+      "prefix": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 3,
+        "description": "Symbol before the number. 1–1 words, longest word 3 letters. Currency or symbol before the number: ₹, $, ~."
+      },
+      "unit": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 10,
+        "description": "Unit after the number. 1–2 words, longest word 8 letters. After the number: %, km, users, per day."
+      },
+      "label": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 40,
+        "description": "Label under the number. 1–8 words, longest word 18 letters. What the number is: \"spent on ads in 2025\"."
+      },
+      "context": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 90,
+        "description": "Supporting line under the label. 2–16 words, longest word 18 letters. One line that makes the number meaningful."
+      },
+      "change_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 20,
+        "description": "Text after the change value. 1–4 words, longest word 14 letters. What the change is measured against: \"vs 2024\"."
+      },
+      "icon": {
+        "type": "string",
+        "description": "Icon above the number. Lucide icon name (kebab-case), e.g. \"trending-up\"."
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "indian_compact",
+          "intl_compact",
+          "indian_full",
+          "intl_full",
+          "plain"
+        ],
+        "default": "indian_compact",
+        "description": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000"
+      },
+      "decimals": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "0",
+          "1",
+          "2"
+        ],
+        "default": "auto",
+        "description": "Decimal places shown"
+      },
+      "change_type": {
+        "type": "string",
+        "enum": [
+          "percent",
+          "absolute"
+        ],
+        "default": "percent",
+        "description": "How change is shown: +12.4% or +₹1.2 Cr"
+      },
+      "direction": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "up",
+          "down",
+          "flat"
+        ],
+        "default": "auto",
+        "description": "Arrow direction (auto = from the sign of change)"
+      },
+      "good_direction": {
+        "type": "string",
+        "enum": [
+          "up",
+          "down"
+        ],
+        "default": "up",
+        "description": "Which direction is shown green (e.g. down for prices or deaths)"
+      },
+      "align": {
+        "type": "string",
+        "enum": [
+          "center",
+          "left"
+        ],
+        "default": "center",
+        "description": "Horizontal alignment"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "icon_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Icon strokes (default: accent)"
+          },
+          "icon_bg_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Circle behind icons (default: accent at 18%)"
+          },
+          "card_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card / step fill (default: translucent white, darker over footage)"
+          },
+          "card_border_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card outline (default: translucent white)"
+          },
+          "positive_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Good change (up arrows, gains)",
+            "default": "#34D399"
+          },
+          "negative_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Bad change (down arrows, losses)",
+            "default": "#F87171"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "label": {
+            "type": "number",
+            "minimum": 36,
+            "maximum": 56,
+            "default": 56,
+            "description": "Label under the number"
+          },
+          "context": {
+            "type": "number",
+            "minimum": 26,
+            "maximum": 36,
+            "default": 36,
+            "description": "Supporting line under the label"
+          },
+          "change_label": {
+            "type": "number",
+            "minimum": 24,
+            "maximum": 30,
+            "default": 30,
+            "description": "Text after the change value"
+          },
+          "value": {
+            "type": "number",
+            "minimum": 120,
+            "maximum": 260,
+            "default": 260,
+            "description": "Big number (prefix, scale and unit follow it)"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "icon": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "icon above the number"
+          },
+          "value": {
+            "type": "string",
+            "enum": [
+              "count_up",
+              "count_up_pop",
+              "rise",
+              "fade_up",
+              "scale_in",
+              "blur_in",
+              "none"
+            ],
+            "default": "count_up",
+            "description": "the big number with prefix and unit"
+          },
+          "rule": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "line under the number"
+          },
+          "label": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade_up",
+            "description": "label under the number"
+          },
+          "context": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade_up",
+            "description": "supporting line"
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_up",
+            "description": "change indicator chip"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image (whole clip)"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "all foreground content"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 4,
+        "description": "Seconds from the template start when each element appears, in order: value, label, context, change. One cue per element that is present, in order: value, label, context, change. Missing elements are skipped. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "value",
+      "label"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "prefix": "₹",
+    "value": 42000000000,
+    "label": "spent on digital ads in 2025",
+    "context": "More than TV and print combined for the first time",
+    "change": 18.5,
+    "change_label": "vs 2024",
+    "icon": "megaphone",
+    "format": "indian_compact",
+    "align": "center",
+    "background": "theme",
+    "animations": {
+      "value": "count_up_pop"
+    },
+    "cue_times": [
+      0.1,
+      1,
+      1.9,
+      2.8
+    ]
+  }
+}

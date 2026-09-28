@@ -1,5 +1,6 @@
 import { getScriptTextFromMap, parseScriptLanguageMap } from '@/lib/script-data';
 import { supabase } from '@/lib/supabaseClient';
+import { isDirectionScene, isLegacyTimeline, normalizeEditVideoPayload } from '@/lib/video-editor/editVideoNormalize';
 import type {
   EditVideoBeatAsset,
   EditVideoInfographicListItem,
@@ -38,10 +39,14 @@ export type VideosTableRow = {
   script: string | null;
   voice: string | null;
   lang_code: string | null;
-  timeline_json: EditVideoTimeline | null;
+  /** New schema: `{ scenes: DirectionScene[] }`. Legacy: `{ fps, tracks }`. */
+  timeline: unknown;
   timeline_version: number | null;
-  raw_scenes: EditVideoScene[] | null;
   created_at: string;
+  updated_at: string | null;
+  /** Legacy columns — still read when present. */
+  timeline_json: EditVideoTimeline | null;
+  raw_scenes: EditVideoScene[] | null;
   final_video_url: string | null;
   render_status: string | null;
   scene_timings: unknown;
@@ -112,23 +117,15 @@ export function resolveBeatAsset(beat: {
 }
 
 export function videosRowToEditVideoResponse(row: VideosTableRow): EditVideoResponse {
-  const scenes = Array.isArray(row.raw_scenes) ? row.raw_scenes : [];
-  const timeline =
-    row.timeline_json && typeof row.timeline_json === 'object'
-      ? row.timeline_json
-      : {
-          fps: EDITOR_FPS,
-          total_frames: 0,
-          resolution: { width: 1080, height: 2320 },
-          tracks: [],
-        };
-  return {
+  return normalizeEditVideoPayload({
     video_id: row.id,
-    timeline,
-    scenes,
-    text_list: Array.isArray(row.text_list) ? row.text_list : [],
-    infographics_list: Array.isArray(row.infographics_list) ? row.infographics_list : [],
-  };
+    id: row.id,
+    timeline: row.timeline ?? row.timeline_json,
+    timeline_version: row.timeline_version,
+    scenes: row.raw_scenes,
+    text_list: row.text_list,
+    infographics_list: row.infographics_list,
+  });
 }
 
 function trackSceneId(track: EditVideoTimelineTrack): string {
@@ -447,12 +444,13 @@ export function hydrateSceneTimelinesFromVideosRow(
   row: VideosTableRow,
 ): Record<string, TimelineState> {
   const maps = createSceneTimelinesMap(scenes);
-  const tracks = row.timeline_json?.tracks ?? [];
+  const tracks = (isLegacyTimeline(row.timeline) ? row.timeline.tracks : null) ?? row.timeline_json?.tracks ?? [];
   if (!tracks.length) return maps;
 
   const infographicsList = Array.isArray(row.infographics_list) ? row.infographics_list : [];
   const textList = Array.isArray(row.text_list) ? row.text_list : [];
-  const fps = row.timeline_json?.fps || EDITOR_FPS;
+  const fps =
+    (isLegacyTimeline(row.timeline) ? row.timeline.fps : null) || row.timeline_json?.fps || EDITOR_FPS;
 
   for (const scene of scenes) {
     const current = maps[scene.id];
@@ -480,16 +478,19 @@ function coerceRow(raw: Record<string, unknown>): VideosTableRow | null {
   const id = typeof raw.id === 'string' ? raw.id : '';
   const userId = typeof raw.user_id === 'string' ? raw.user_id : '';
   if (!id || !userId) return null;
+  const timeline = parseJsonColumn<unknown>(raw.timeline ?? raw.timeline_json);
   return {
     id,
     user_id: userId,
     script: typeof raw.script === 'string' ? raw.script : null,
     voice: typeof raw.voice === 'string' ? raw.voice : null,
     lang_code: typeof raw.lang_code === 'string' ? raw.lang_code : null,
-    timeline_json: parseJsonColumn<EditVideoTimeline>(raw.timeline_json),
+    timeline,
     timeline_version: num(raw.timeline_version),
-    raw_scenes: parseJsonColumn<EditVideoScene[]>(raw.raw_scenes),
     created_at: typeof raw.created_at === 'string' ? raw.created_at : '',
+    updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : null,
+    timeline_json: isLegacyTimeline(timeline) ? timeline : null,
+    raw_scenes: parseJsonColumn<EditVideoScene[]>(raw.raw_scenes),
     final_video_url: typeof raw.final_video_url === 'string' ? raw.final_video_url : null,
     render_status: typeof raw.render_status === 'string' ? raw.render_status : null,
     scene_timings: raw.scene_timings ?? null,
@@ -498,29 +499,42 @@ function coerceRow(raw: Record<string, unknown>): VideosTableRow | null {
   };
 }
 
-/**
- * Load the saved /edit-video project for this user + script from the `videos` table.
- * A row is returned only when `videos.script` matches `scripts_assigned.script`
- * (or the in-memory script text if no assigned row id is available).
- */
+function rowHasProjectScenes(row: VideosTableRow): boolean {
+  if (row.raw_scenes?.length) return true;
+  const rec = row.timeline && typeof row.timeline === 'object' && !Array.isArray(row.timeline) ? (row.timeline as Record<string, unknown>) : null;
+  const scenes = Array.isArray(rec?.scenes) ? rec.scenes : [];
+  return scenes.length > 0 && (isDirectionScene(scenes[0]) || Boolean(asRecord(scenes[0])?.scene_id) || Boolean(asRecord(scenes[0])?.vo_text));
+}
+
 /**
  * Current render state of one video row.
  * Read when the editor opens, and polled while a render is still running so a
  * queued render keeps being tracked across reloads (the queue id lives only in memory).
  */
+let videosRenderColumnsAvailable: boolean | null = null;
+
 export async function fetchVideoRenderState(
   videoId: string,
 ): Promise<{ status: string | null; finalVideoUrl: string | null } | null> {
   if (!videoId.trim()) return null;
+  if (videosRenderColumnsAvailable === false) {
+    const { data, error } = await supabase.from('videos').select('id').eq('id', videoId).maybeSingle();
+    if (error || !data) return null;
+    return { status: null, finalVideoUrl: null };
+  }
   const { data, error } = await supabase
     .from('videos')
-    .select('render_status, final_video_url')
+    .select('id, render_status, final_video_url')
     .eq('id', videoId)
     .maybeSingle();
   if (error) {
+    videosRenderColumnsAvailable = false;
     console.error('[videos render_status]', error.message);
-    return null;
+    const fallback = await supabase.from('videos').select('id').eq('id', videoId).maybeSingle();
+    if (fallback.error || !fallback.data) return null;
+    return { status: null, finalVideoUrl: null };
   }
+  videosRenderColumnsAvailable = true;
   if (!data) return null;
   const row = data as Record<string, unknown>;
   return {
@@ -529,6 +543,11 @@ export async function fetchVideoRenderState(
   };
 }
 
+/**
+ * Load the saved /edit-video project for this user + script from the `videos` table.
+ * A row is returned only when `videos.script` matches `scripts_assigned.script`
+ * (or the in-memory script text if no assigned row id is available).
+ */
 export async function fetchVideosProject(
   userId: string,
   opts?: {
@@ -544,22 +563,37 @@ export async function fetchVideosProject(
   const wanted = assignedScript || scriptTextOf(opts?.script);
   if (!wanted) return null;
 
-  const { data, error } = await supabase
+  const NEW_SELECT =
+    'id, user_id, script, voice, lang_code, timeline, timeline_version, created_at, updated_at';
+  const LEGACY_SELECT =
+    'id, user_id, script, voice, lang_code, timeline_json, timeline_version, raw_scenes, created_at, final_video_url, render_status, scene_timings, infographics_list, text_list';
+
+  const first = await supabase
     .from('videos')
-    .select(
-      'id, user_id, script, voice, lang_code, timeline_json, timeline_version, raw_scenes, created_at, final_video_url, render_status, scene_timings, infographics_list, text_list',
-    )
+    .select(NEW_SELECT)
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(50);
-
+  let rowsRaw: unknown[] | null = first.data;
+  let error = first.error;
+  if (error) {
+    console.error('[videos table]', error.message);
+    const retry = await supabase
+      .from('videos')
+      .select(LEGACY_SELECT)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    rowsRaw = retry.data;
+    error = retry.error;
+  }
   if (error) {
     console.error('[videos table]', error.message);
     return null;
   }
-  const rows = (data ?? [])
+  const rows = (rowsRaw ?? [])
     .map((row) => coerceRow(row as Record<string, unknown>))
-    .filter((row): row is VideosTableRow => Boolean(row?.raw_scenes?.length));
+    .filter((row): row is VideosTableRow => Boolean(row && rowHasProjectScenes(row)));
   if (!rows.length) return null;
 
   return rows.find((row) => scriptsMatch(row.script, wanted)) ?? null;

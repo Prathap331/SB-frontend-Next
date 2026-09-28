@@ -1,0 +1,987 @@
+{
+  "template": "DG-05",
+  "name": "A → B Relationship",
+  "animation_type": "dg_relationship",
+  "pick_when": "One thing leads to another: cause → effect, problem → solution, trigger → response, or a short chain of three.",
+  "placement": "both",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 150,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "title",
+      "type": "text",
+      "required": false,
+      "fills": "Heading above the cards",
+      "limits": "3–50 chars · 1–10 words · longest word 18 · max 1 line",
+      "hint": "\"Why onion prices spike\".",
+      "example": "Why onion prices spike"
+    },
+    {
+      "path": "nodes[]",
+      "type": "list",
+      "required": true,
+      "fills": "Cards left to right (or top to bottom)",
+      "limits": "2–3 items"
+    },
+    {
+      "path": "nodes[].label",
+      "type": "text",
+      "required": true,
+      "fills": "Card label",
+      "limits": "2–30 chars · 1–6 words · longest word 16 · max 2 lines",
+      "hint": "The thing itself: \"Heavy rain in Nashik\"."
+    },
+    {
+      "path": "nodes[].sub",
+      "type": "text",
+      "required": false,
+      "fills": "Detail under the label",
+      "limits": "5–60 chars · 1–11 words · longest word 16 · max 3 lines",
+      "hint": "One line of detail."
+    },
+    {
+      "path": "nodes[].tag",
+      "type": "text",
+      "required": false,
+      "fills": "Small tag at the top of the card",
+      "limits": "2–16 chars · 1–2 words · longest word 14 · max 1 line",
+      "hint": "Small label on the card; defaults from `kind` (Cause / Effect…)."
+    },
+    {
+      "path": "nodes[].arrow",
+      "type": "text",
+      "required": false,
+      "fills": "Label on the arrow to the next card",
+      "limits": "2–20 chars · 1–4 words · longest word 12 · max 2 lines",
+      "hint": "Words on the arrow AFTER this card: \"leads to\", \"causes\". Ignored on the last card."
+    },
+    {
+      "path": "nodes[].icon",
+      "type": "icon",
+      "required": false,
+      "fills": "Card icon",
+      "limits": "Lucide icon name",
+      "fallback": "none"
+    },
+    {
+      "path": "nodes[].image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Circle picture at the top of the card",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "kind",
+      "type": "choice",
+      "required": false,
+      "fills": "Sets default tags (Cause → Effect, Problem → Solution, Trigger → Response) and colours the last card (solution / response in accent)",
+      "values": [
+        "cause_effect",
+        "problem_solution",
+        "trigger_response",
+        "custom"
+      ],
+      "default": "cause_effect"
+    },
+    {
+      "path": "orientation",
+      "type": "choice",
+      "required": false,
+      "fills": "Cards in a row, or stacked top to bottom (better for long sub-lines)",
+      "values": [
+        "horizontal",
+        "vertical"
+      ],
+      "default": "horizontal"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.icon_color",
+      "type": "color",
+      "required": false,
+      "fills": "Icon strokes (default: accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.icon_bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Circle behind icons (default: accent at 18%)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card / step fill (default: translucent white, darker over footage)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_border_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card outline (default: translucent white)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.positive_color",
+      "type": "color",
+      "required": false,
+      "fills": "Good change (up arrows, gains)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#34D399"
+    },
+    {
+      "path": "style.negative_color",
+      "type": "color",
+      "required": false,
+      "fills": "Bad change (down arrows, losses)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F87171"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.title",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of heading above the cards (px, largest; shrinks only if it would not fit)",
+      "limits": "40–60 px",
+      "default": 60
+    },
+    {
+      "path": "font_sizes.nodes.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of card label (px, largest; shrinks only if it would not fit)",
+      "limits": "26–48 px",
+      "default": 48
+    },
+    {
+      "path": "font_sizes.nodes.sub",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of detail under the label (px, largest; shrinks only if it would not fit)",
+      "limits": "18–28 px",
+      "default": 28
+    },
+    {
+      "path": "font_sizes.nodes.tag",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of small tag at the top of the card (px, largest; shrinks only if it would not fit)",
+      "limits": "16–24 px",
+      "default": 24
+    },
+    {
+      "path": "font_sizes.nodes.arrow",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of label on the arrow to the next card (px, largest; shrinks only if it would not fit)",
+      "limits": "16–26 px",
+      "default": 26
+    },
+    {
+      "path": "animations.title",
+      "type": "animation",
+      "required": false,
+      "fills": "heading",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "rise",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.cards",
+      "type": "animation",
+      "required": false,
+      "fills": "each card",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.media",
+      "type": "animation",
+      "required": false,
+      "fills": "icon or picture of each card",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.labels",
+      "type": "animation",
+      "required": false,
+      "fills": "label of each card",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade_up",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.subs",
+      "type": "animation",
+      "required": false,
+      "fills": "sub-line of each card",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.arrows",
+      "type": "animation",
+      "required": false,
+      "fills": "each arrow (draws towards the next card)",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.arrow_labels",
+      "type": "animation",
+      "required": false,
+      "fills": "words on each arrow",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image (whole clip)",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "all foreground content",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: heading → card 1 → arrow 1 → card 2 → arrow 2 → card 3",
+      "limits": "seconds from the template start, increasing; heading (skipped if absent) → card 1 → arrow 1 → card 2 → arrow 2 → card 3. Slots are fixed: send null for ones you do not need."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DG-05 A → B Relationship",
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 50,
+        "description": "Heading above the cards. 1–10 words, longest word 18 letters. \"Why onion prices spike\"."
+      },
+      "nodes": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 3,
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 30,
+              "description": "Card label. 1–6 words, longest word 16 letters. The thing itself: \"Heavy rain in Nashik\"."
+            },
+            "sub": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 60,
+              "description": "Detail under the label. 1–11 words, longest word 16 letters. One line of detail."
+            },
+            "tag": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 16,
+              "description": "Small tag at the top of the card. 1–2 words, longest word 14 letters. Small label on the card; defaults from `kind` (Cause / Effect…)."
+            },
+            "arrow": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 20,
+              "description": "Label on the arrow to the next card. 1–4 words, longest word 12 letters. Words on the arrow AFTER this card: \"leads to\", \"causes\". Ignored on the last card."
+            },
+            "icon": {
+              "type": "string",
+              "description": "Lucide icon name (kebab-case). Optional; fallback none."
+            },
+            "image_url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Circle picture at the top of the card"
+            }
+          },
+          "required": [
+            "label"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Cards left to right (or top to bottom)"
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "cause_effect",
+          "problem_solution",
+          "trigger_response",
+          "custom"
+        ],
+        "default": "cause_effect",
+        "description": "Sets default tags (Cause → Effect, Problem → Solution, Trigger → Response) and colours the last card (solution / response in accent)"
+      },
+      "orientation": {
+        "type": "string",
+        "enum": [
+          "horizontal",
+          "vertical"
+        ],
+        "default": "horizontal",
+        "description": "Cards in a row, or stacked top to bottom (better for long sub-lines)"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "icon_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Icon strokes (default: accent)"
+          },
+          "icon_bg_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Circle behind icons (default: accent at 18%)"
+          },
+          "card_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card / step fill (default: translucent white, darker over footage)"
+          },
+          "card_border_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card outline (default: translucent white)"
+          },
+          "positive_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Good change (up arrows, gains)",
+            "default": "#34D399"
+          },
+          "negative_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Bad change (down arrows, losses)",
+            "default": "#F87171"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "title": {
+            "type": "number",
+            "minimum": 40,
+            "maximum": 60,
+            "default": 60,
+            "description": "Heading above the cards"
+          },
+          "nodes.label": {
+            "type": "number",
+            "minimum": 26,
+            "maximum": 48,
+            "default": 48,
+            "description": "Card label"
+          },
+          "nodes.sub": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 28,
+            "default": 28,
+            "description": "Detail under the label"
+          },
+          "nodes.tag": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 24,
+            "default": 24,
+            "description": "Small tag at the top of the card"
+          },
+          "nodes.arrow": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 26,
+            "default": 26,
+            "description": "Label on the arrow to the next card"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "rise",
+            "description": "heading"
+          },
+          "cards": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "each card"
+          },
+          "media": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "icon or picture of each card"
+          },
+          "labels": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade_up",
+            "description": "label of each card"
+          },
+          "subs": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade",
+            "description": "sub-line of each card"
+          },
+          "arrows": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "each arrow (draws towards the next card)"
+          },
+          "arrow_labels": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade",
+            "description": "words on each arrow"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image (whole clip)"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "all foreground content"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 6,
+        "description": "Seconds from the template start when each element appears, in order: heading, card 1, arrow 1, card 2, arrow 2, card 3. heading (skipped if absent) → card 1 → arrow 1 → card 2 → arrow 2 → card 3. Slots are fixed: send null for ones you do not need. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "nodes"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "title": "Why onion prices spike",
+    "nodes": [
+      {
+        "label": "Heavy rain in Nashik",
+        "sub": "Crops damaged before harvest",
+        "icon": "umbrella",
+        "arrow": "cuts supply"
+      },
+      {
+        "label": "Onion prices double",
+        "sub": "Within a few weeks in city markets",
+        "icon": "trending-up"
+      }
+    ],
+    "kind": "cause_effect",
+    "background": "theme"
+  }
+}

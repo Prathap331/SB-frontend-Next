@@ -1,0 +1,564 @@
+{
+  "template": "NV-05",
+  "name": "Subscribe Reminder",
+  "animation_type": "nv_subscribe",
+  "pick_when": "Early in the video (30–60 s) and at most once more: ask viewers to subscribe.",
+  "placement": "overlay",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      45,
+      240
+    ],
+    "seconds": [
+      1.5,
+      8
+    ],
+    "default_frames": 120,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "channel_name",
+      "type": "text",
+      "required": false,
+      "fills": "Name beside the avatar",
+      "limits": "2–30 chars · 1–5 words · longest word 18 · max 1 line",
+      "hint": "Your channel name.",
+      "example": "Storybit Explains"
+    },
+    {
+      "path": "cta",
+      "type": "text",
+      "required": false,
+      "fills": "Small line under the channel name",
+      "limits": "3–34 chars · 1–7 words · longest word 16 · max 1 line",
+      "hint": "\"New explainers every Friday\"."
+    },
+    {
+      "path": "button_text",
+      "type": "text",
+      "required": false,
+      "fills": "Text on the button before the click",
+      "limits": "2–16 chars · 1–2 words · longest word 14 · max 1 line",
+      "hint": "Default \"Subscribe\".",
+      "example": "Subscribe"
+    },
+    {
+      "path": "done_text",
+      "type": "text",
+      "required": false,
+      "fills": "Text on the button after the click",
+      "limits": "2–16 chars · 1–2 words · longest word 14 · max 1 line",
+      "hint": "Default \"Subscribed\".",
+      "example": "Subscribed"
+    },
+    {
+      "path": "avatar_url",
+      "type": "image",
+      "required": false,
+      "fills": "Channel picture in the circle (letter of the name if missing)",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "position",
+      "type": "choice",
+      "required": false,
+      "fills": "Where the card sits inside the safe box",
+      "values": [
+        "top_left",
+        "top_right",
+        "bottom_left",
+        "bottom_right",
+        "bottom_center",
+        "top_center",
+        "center"
+      ],
+      "default": "bottom_center"
+    },
+    {
+      "path": "button_color",
+      "type": "choice",
+      "required": false,
+      "fills": "Classic red subscribe button, or the accent colour",
+      "values": [
+        "red",
+        "accent"
+      ],
+      "default": "red"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.card_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card / step fill (default: translucent white, darker over footage)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.on_accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Icons and numbers drawn on accent-filled shapes",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.channel_name",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of name beside the avatar (px, largest; shrinks only if it would not fit)",
+      "limits": "22–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.cta",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of small line under the channel name (px, largest; shrinks only if it would not fit)",
+      "limits": "18–26 px",
+      "default": 26
+    },
+    {
+      "path": "font_sizes.button_text",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of text on the button before the click (px, largest; shrinks only if it would not fit)",
+      "limits": "22–32 px",
+      "default": 32
+    },
+    {
+      "path": "animations.card",
+      "type": "animation",
+      "required": false,
+      "fills": "the card",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_up",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.cursor",
+      "type": "animation",
+      "required": false,
+      "fills": "the pointer",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "fade",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "the card",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "slide_down",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: card → click",
+      "limits": "seconds from the template start, increasing; card = when it appears; click = the moment the button is pressed (e.g. on \"subscribe\")."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "NV-05 Subscribe Reminder",
+    "type": "object",
+    "properties": {
+      "channel_name": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 30,
+        "description": "Name beside the avatar. 1–5 words, longest word 18 letters. Your channel name."
+      },
+      "cta": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 34,
+        "description": "Small line under the channel name. 1–7 words, longest word 16 letters. \"New explainers every Friday\"."
+      },
+      "button_text": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 16,
+        "description": "Text on the button before the click. 1–2 words, longest word 14 letters. Default \"Subscribe\"."
+      },
+      "done_text": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 16,
+        "description": "Text on the button after the click. 1–2 words, longest word 14 letters. Default \"Subscribed\"."
+      },
+      "avatar_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Channel picture in the circle (letter of the name if missing)"
+      },
+      "position": {
+        "type": "string",
+        "enum": [
+          "top_left",
+          "top_right",
+          "bottom_left",
+          "bottom_right",
+          "bottom_center",
+          "top_center",
+          "center"
+        ],
+        "default": "bottom_center",
+        "description": "Where the card sits inside the safe box"
+      },
+      "button_color": {
+        "type": "string",
+        "enum": [
+          "red",
+          "accent"
+        ],
+        "default": "red",
+        "description": "Classic red subscribe button, or the accent colour"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "card_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card / step fill (default: translucent white, darker over footage)"
+          },
+          "on_accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Icons and numbers drawn on accent-filled shapes",
+            "default": "#141A45"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "channel_name": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 34,
+            "default": 34,
+            "description": "Name beside the avatar"
+          },
+          "cta": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 26,
+            "default": 26,
+            "description": "Small line under the channel name"
+          },
+          "button_text": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 32,
+            "default": 32,
+            "description": "Text on the button before the click"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "card": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_up",
+            "description": "the card"
+          },
+          "cursor": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "fade",
+            "description": "the pointer"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "slide_down",
+            "description": "the card"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 2,
+        "description": "Seconds from the template start when each element appears, in order: card, click. card = when it appears; click = the moment the button is pressed (e.g. on \"subscribe\"). Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "example": {
+    "channel_name": "Storybit Explains",
+    "cta": "New explainers every Friday",
+    "position": "bottom_center"
+  }
+}

@@ -1,0 +1,651 @@
+{
+  "template": "DC-08",
+  "name": "Archive Photo",
+  "animation_type": "dc_archive_photo",
+  "pick_when": "Showing a historical photograph: \"This is Bombay in 1947…\".",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 150,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "caption",
+      "type": "text",
+      "required": true,
+      "fills": "Typed caption",
+      "limits": "3–70 chars · 1–12 words · longest word 18 · max 2 lines",
+      "hint": "What / where: \"Victoria Terminus, Bombay\".",
+      "example": "Victoria Terminus, Bombay"
+    },
+    {
+      "path": "date",
+      "type": "text",
+      "required": false,
+      "fills": "Year / date before the caption",
+      "limits": "2–20 chars · 1–4 words · longest word 12 · max 1 line",
+      "hint": "\"1947\", \"August 1947\".",
+      "example": "1947"
+    },
+    {
+      "path": "credit",
+      "type": "text",
+      "required": false,
+      "fills": "Small credit line",
+      "limits": "3–44 chars · 1–8 words · longest word 18 · max 1 line",
+      "hint": "\"Photo: National Archives of India\".",
+      "example": "Photo: replace with the real archive credit"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": true,
+      "fills": "The historical photo",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "treatment",
+      "type": "choice",
+      "required": false,
+      "fills": "Sepia, black & white, or the photo's own colours (grain and vignette stay)",
+      "values": [
+        "sepia",
+        "bw",
+        "none"
+      ],
+      "default": "sepia"
+    },
+    {
+      "path": "look",
+      "type": "choice",
+      "required": false,
+      "fills": "print: photo with a white border on the background · full: photo fills the frame",
+      "values": [
+        "print",
+        "full"
+      ],
+      "default": "print"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "Behind the print (print look only)",
+      "values": [
+        "theme",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.caption",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of typed caption (px, largest; shrinks only if it would not fit)",
+      "limits": "22–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.date",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of year / date before the caption (px, largest; shrinks only if it would not fit)",
+      "limits": "22–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.credit",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of small credit line (px, largest; shrinks only if it would not fit)",
+      "limits": "16–20 px",
+      "default": 20
+    },
+    {
+      "path": "animations.photo",
+      "type": "animation",
+      "required": false,
+      "fills": "the print",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "slow movement inside the photo",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "full-frame photo (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.caption",
+      "type": "animation",
+      "required": false,
+      "fills": "date and caption",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "typewriter",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.credit",
+      "type": "animation",
+      "required": false,
+      "fills": "credit line",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "photo and captions",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: photo → caption → credit",
+      "limits": "seconds from the template start, increasing; photo → caption → credit."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DC-08 Archive Photo",
+    "type": "object",
+    "properties": {
+      "caption": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 70,
+        "description": "Typed caption. 1–12 words, longest word 18 letters. What / where: \"Victoria Terminus, Bombay\"."
+      },
+      "date": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 20,
+        "description": "Year / date before the caption. 1–4 words, longest word 12 letters. \"1947\", \"August 1947\"."
+      },
+      "credit": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 44,
+        "description": "Small credit line. 1–8 words, longest word 18 letters. \"Photo: National Archives of India\"."
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "The historical photo"
+      },
+      "treatment": {
+        "type": "string",
+        "enum": [
+          "sepia",
+          "bw",
+          "none"
+        ],
+        "default": "sepia",
+        "description": "Sepia, black & white, or the photo's own colours (grain and vignette stay)"
+      },
+      "look": {
+        "type": "string",
+        "enum": [
+          "print",
+          "full"
+        ],
+        "default": "print",
+        "description": "print: photo with a white border on the background · full: photo fills the frame"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "Behind the print (print look only)"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "caption": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 34,
+            "default": 34,
+            "description": "Typed caption"
+          },
+          "date": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 34,
+            "default": 34,
+            "description": "Year / date before the caption"
+          },
+          "credit": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 20,
+            "default": 20,
+            "description": "Small credit line"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "photo": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "the print"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "slow movement inside the photo"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "full-frame photo (first 12 frames)"
+          },
+          "caption": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "typewriter",
+            "description": "date and caption"
+          },
+          "credit": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade",
+            "description": "credit line"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "photo and captions"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 3,
+        "description": "Seconds from the template start when each element appears, in order: photo, caption, credit. photo → caption → credit. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "caption"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "image_url": "https://example.com/archive-photo.jpg",
+    "date": "1947",
+    "caption": "Victoria Terminus, Bombay",
+    "credit": "Photo: replace with the real archive credit",
+    "treatment": "sepia",
+    "look": "print"
+  }
+}

@@ -1,0 +1,830 @@
+{
+  "template": "PE-10",
+  "name": "Profile Card",
+  "animation_type": "pe_profile_card",
+  "pick_when": "Introducing a person with the key facts about them: a founder, politician, athlete, accused.",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 180,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "name",
+      "type": "text",
+      "required": true,
+      "fills": "Full name",
+      "limits": "2–34 chars · 1–5 words · longest word 18 · max 2 lines",
+      "example": "Sample Person"
+    },
+    {
+      "path": "role",
+      "type": "text",
+      "required": false,
+      "fills": "Role / what they are known for",
+      "limits": "2–50 chars · 1–9 words · longest word 18 · max 2 lines",
+      "example": "Founder & CEO, Example Ltd"
+    },
+    {
+      "path": "facts[]",
+      "type": "list",
+      "required": true,
+      "fills": "Key facts",
+      "limits": "2–6 items"
+    },
+    {
+      "path": "facts[].label",
+      "type": "text",
+      "required": true,
+      "fills": "What the fact is",
+      "limits": "2–18 chars · 1–3 words · longest word 14 · max 1 line"
+    },
+    {
+      "path": "facts[].value",
+      "type": "text",
+      "required": true,
+      "fills": "The fact",
+      "limits": "1–40 chars · 1–7 words · longest word 18 · max 2 lines"
+    },
+    {
+      "path": "tags[]",
+      "type": "list",
+      "required": false,
+      "fills": "Short tags under the facts",
+      "limits": "1–4 items"
+    },
+    {
+      "path": "tags[].text",
+      "type": "text",
+      "required": true,
+      "fills": "Short tag",
+      "limits": "2–22 chars · 1–4 words · longest word 16 · max 1 line"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "portrait_url",
+      "type": "image",
+      "required": false,
+      "fills": "Photo of the person (initials if missing)",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "side",
+      "type": "choice",
+      "required": false,
+      "fills": "Which side the portrait is on",
+      "values": [
+        "left",
+        "right"
+      ],
+      "default": "left"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.card_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card / step fill (default: translucent white, darker over footage)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_border_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card outline (default: translucent white)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.name",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of full name (px, largest; shrinks only if it would not fit)",
+      "limits": "40–72 px",
+      "default": 72
+    },
+    {
+      "path": "font_sizes.role",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of role / what they are known for (px, largest; shrinks only if it would not fit)",
+      "limits": "22–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.facts.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of what the fact is (px, largest; shrinks only if it would not fit)",
+      "limits": "15–22 px",
+      "default": 22
+    },
+    {
+      "path": "font_sizes.facts.value",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of the fact (px, largest; shrinks only if it would not fit)",
+      "limits": "20–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.tags.text",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of short tag (px, largest; shrinks only if it would not fit)",
+      "limits": "16–24 px",
+      "default": 24
+    },
+    {
+      "path": "animations.card",
+      "type": "animation",
+      "required": false,
+      "fills": "the card",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.portrait_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "slow movement inside the portrait",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.name",
+      "type": "animation",
+      "required": false,
+      "fills": "name",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "rise",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.facts",
+      "type": "animation",
+      "required": false,
+      "fills": "each fact",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_up",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.tags",
+      "type": "animation",
+      "required": false,
+      "fills": "tags",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "the card",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: card → name → fact 1 → fact 2 → fact 3 → fact 4 → fact 5 → fact 6 → tags",
+      "limits": "seconds from the template start, increasing; Fixed slots: card → name → fact 1…6 → tags."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "PE-10 Profile Card",
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 34,
+        "description": "Full name. 1–5 words, longest word 18 letters."
+      },
+      "role": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 50,
+        "description": "Role / what they are known for. 1–9 words, longest word 18 letters."
+      },
+      "facts": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 18,
+              "description": "What the fact is. 1–3 words, longest word 14 letters."
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "The fact. 1–7 words, longest word 18 letters."
+            }
+          },
+          "required": [
+            "label",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Key facts"
+      },
+      "tags": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 4,
+        "items": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 22,
+              "description": "Short tag. 1–4 words, longest word 16 letters."
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Short tags under the facts"
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "portrait_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Photo of the person (initials if missing)"
+      },
+      "side": {
+        "type": "string",
+        "enum": [
+          "left",
+          "right"
+        ],
+        "default": "left",
+        "description": "Which side the portrait is on"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "card_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card / step fill (default: translucent white, darker over footage)"
+          },
+          "card_border_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card outline (default: translucent white)"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "name": {
+            "type": "number",
+            "minimum": 40,
+            "maximum": 72,
+            "default": 72,
+            "description": "Full name"
+          },
+          "role": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 34,
+            "default": 34,
+            "description": "Role / what they are known for"
+          },
+          "facts.label": {
+            "type": "number",
+            "minimum": 15,
+            "maximum": 22,
+            "default": 22,
+            "description": "What the fact is"
+          },
+          "facts.value": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 34,
+            "default": 34,
+            "description": "The fact"
+          },
+          "tags.text": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 24,
+            "default": 24,
+            "description": "Short tag"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "card": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "the card"
+          },
+          "portrait_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "slow movement inside the portrait"
+          },
+          "name": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "rise",
+            "description": "name"
+          },
+          "facts": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_up",
+            "description": "each fact"
+          },
+          "tags": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "tags"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "the card"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 9,
+        "description": "Seconds from the template start when each element appears, in order: card, name, fact 1, fact 2, fact 3, fact 4, fact 5, fact 6, tags. Fixed slots: card → name → fact 1…6 → tags. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "name",
+      "facts"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "name": "Sample Person",
+    "role": "Founder & CEO, Example Ltd",
+    "facts": [
+      {
+        "label": "Born",
+        "value": "1975, Pune"
+      },
+      {
+        "label": "Education",
+        "value": "B.Tech, IIT Bombay"
+      },
+      {
+        "label": "Company value",
+        "value": "₹12,000 Cr (illustrative)"
+      },
+      {
+        "label": "Known for",
+        "value": "Replace with the real fact"
+      }
+    ],
+    "tags": [
+      {
+        "text": "Entrepreneur"
+      },
+      {
+        "text": "Philanthropist"
+      }
+    ],
+    "background": "theme"
+  }
+}

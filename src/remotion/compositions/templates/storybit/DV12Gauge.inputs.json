@@ -1,0 +1,794 @@
+{
+  "template": "DV-12",
+  "name": "Gauge / Meter",
+  "animation_type": "dv_gauge",
+  "pick_when": "One value on a scale with good / bad zones: AQI, inflation vs target, a score, how full something is.",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 150,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "value",
+      "type": "number",
+      "required": true,
+      "fills": "The reading",
+      "limits": "number",
+      "example": 312
+    },
+    {
+      "path": "min",
+      "type": "number",
+      "required": false,
+      "fills": "Start of the scale (default 0)",
+      "limits": "number"
+    },
+    {
+      "path": "max",
+      "type": "number",
+      "required": false,
+      "fills": "End of the scale (default: the last zone end, or 100)",
+      "limits": "number"
+    },
+    {
+      "path": "label",
+      "type": "text",
+      "required": true,
+      "fills": "Line under the value",
+      "limits": "2–50 chars · 1–9 words · longest word 18 · max 2 lines",
+      "hint": "What is measured: \"Delhi AQI, 3 Nov (illustrative)\".",
+      "example": "Delhi air quality (illustrative)"
+    },
+    {
+      "path": "prefix",
+      "type": "text",
+      "required": false,
+      "fills": "Symbol before the value",
+      "limits": "1–3 chars · 1–1 words · longest word 3 · max 1 line"
+    },
+    {
+      "path": "unit",
+      "type": "text",
+      "required": false,
+      "fills": "Unit after the value",
+      "limits": "1–8 chars · 1–1 words · longest word 8 · max 1 line"
+    },
+    {
+      "path": "source",
+      "type": "text",
+      "required": false,
+      "fills": "Source line",
+      "limits": "3–60 chars · 1–10 words · longest word 18 · max 1 line"
+    },
+    {
+      "path": "zones[]",
+      "type": "list",
+      "required": false,
+      "fills": "Coloured bands along the dial, low to high",
+      "limits": "1–5 zones"
+    },
+    {
+      "path": "zones[].to",
+      "type": "number",
+      "required": true,
+      "fills": "Where the zone ends on the scale"
+    },
+    {
+      "path": "zones[].label",
+      "type": "text",
+      "required": false,
+      "fills": "Zone name (\"Good\", \"Severe\")",
+      "limits": "2–14 chars"
+    },
+    {
+      "path": "zones[].tone",
+      "type": "choice",
+      "required": false,
+      "fills": "Colour of the zone",
+      "values": [
+        "good",
+        "ok",
+        "warn",
+        "bad",
+        "neutral"
+      ]
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "format",
+      "type": "choice",
+      "required": false,
+      "fills": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000",
+      "values": [
+        "indian_compact",
+        "intl_compact",
+        "indian_full",
+        "intl_full",
+        "plain"
+      ],
+      "default": "plain"
+    },
+    {
+      "path": "decimals",
+      "type": "choice",
+      "required": false,
+      "fills": "Decimal places shown",
+      "values": [
+        "auto",
+        "0",
+        "1",
+        "2"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.positive_color",
+      "type": "color",
+      "required": false,
+      "fills": "Good change (up arrows, gains)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#34D399"
+    },
+    {
+      "path": "style.negative_color",
+      "type": "color",
+      "required": false,
+      "fills": "Bad change (down arrows, losses)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F87171"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of line under the value (px, largest; shrinks only if it would not fit)",
+      "limits": "26–44 px",
+      "default": 44
+    },
+    {
+      "path": "font_sizes.source",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of source line (px, largest; shrinks only if it would not fit)",
+      "limits": "16–22 px",
+      "default": 22
+    },
+    {
+      "path": "animations.gauge",
+      "type": "animation",
+      "required": false,
+      "fills": "the dial and its zones",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.needle",
+      "type": "animation",
+      "required": false,
+      "fills": "needle sweep and value count",
+      "values": [
+        "count_up",
+        "count_up_pop",
+        "rise",
+        "fade_up",
+        "scale_in",
+        "blur_in",
+        "none"
+      ],
+      "default": "count_up",
+      "hint": "count_up: Counts up to the value; count_up_pop: Counts up, then pops when it lands; rise: Line rises out of a mask; fade_up: Fades in while moving up; scale_in: Grows from 85% while fading in; blur_in: Sharpens from a blur; none: Appears instantly"
+    },
+    {
+      "path": "animations.label",
+      "type": "animation",
+      "required": false,
+      "fills": "label",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade_up",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "everything",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: gauge → needle → label → source",
+      "limits": "seconds from the template start, increasing; gauge → needle (value is said) → label → source."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DV-12 Gauge / Meter",
+    "type": "object",
+    "properties": {
+      "value": {
+        "type": "number",
+        "description": "The reading. Raw number, no units or commas."
+      },
+      "min": {
+        "type": "number",
+        "description": "Start of the scale (default 0). Raw number, no units or commas."
+      },
+      "max": {
+        "type": "number",
+        "description": "End of the scale (default: the last zone end, or 100). Raw number, no units or commas."
+      },
+      "label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 50,
+        "description": "Line under the value. 1–9 words, longest word 18 letters. What is measured: \"Delhi AQI, 3 Nov (illustrative)\"."
+      },
+      "prefix": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 3,
+        "description": "Symbol before the value. 1–1 words, longest word 3 letters."
+      },
+      "unit": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 8,
+        "description": "Unit after the value. 1–1 words, longest word 8 letters."
+      },
+      "source": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 60,
+        "description": "Source line. 1–10 words, longest word 18 letters."
+      },
+      "zones": {
+        "type": "array",
+        "maxItems": 5,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "to"
+          ],
+          "properties": {
+            "to": {
+              "type": "number"
+            },
+            "label": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 14
+            },
+            "tone": {
+              "type": "string",
+              "enum": [
+                "good",
+                "ok",
+                "warn",
+                "bad",
+                "neutral"
+              ]
+            }
+          }
+        }
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "indian_compact",
+          "intl_compact",
+          "indian_full",
+          "intl_full",
+          "plain"
+        ],
+        "default": "plain",
+        "description": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000"
+      },
+      "decimals": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "0",
+          "1",
+          "2"
+        ],
+        "default": "auto",
+        "description": "Decimal places shown"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "positive_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Good change (up arrows, gains)",
+            "default": "#34D399"
+          },
+          "negative_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Bad change (down arrows, losses)",
+            "default": "#F87171"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "label": {
+            "type": "number",
+            "minimum": 26,
+            "maximum": 44,
+            "default": 44,
+            "description": "Line under the value"
+          },
+          "source": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 22,
+            "default": 22,
+            "description": "Source line"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "gauge": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "the dial and its zones"
+          },
+          "needle": {
+            "type": "string",
+            "enum": [
+              "count_up",
+              "count_up_pop",
+              "rise",
+              "fade_up",
+              "scale_in",
+              "blur_in",
+              "none"
+            ],
+            "default": "count_up",
+            "description": "needle sweep and value count"
+          },
+          "label": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade_up",
+            "description": "label"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "everything"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 4,
+        "description": "Seconds from the template start when each element appears, in order: gauge, needle, label, source. gauge → needle (value is said) → label → source. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "value",
+      "label"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "value": 312,
+    "max": 500,
+    "label": "Delhi air quality, AQI (illustrative)",
+    "zones": [
+      {
+        "to": 50,
+        "label": "Good",
+        "tone": "good"
+      },
+      {
+        "to": 100,
+        "label": "Satisfactory",
+        "tone": "ok"
+      },
+      {
+        "to": 200,
+        "label": "Moderate",
+        "tone": "warn"
+      },
+      {
+        "to": 300,
+        "label": "Poor",
+        "tone": "bad"
+      },
+      {
+        "to": 500,
+        "label": "Severe",
+        "tone": "bad"
+      }
+    ],
+    "format": "plain",
+    "background": "theme"
+  }
+}

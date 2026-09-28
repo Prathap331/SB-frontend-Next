@@ -1,0 +1,843 @@
+{
+  "template": "TL-11",
+  "name": "Roadmap / Gantt",
+  "animation_type": "tl_roadmap",
+  "pick_when": "Phases or projects over time: a roadmap, a construction schedule, overlapping eras, \"what happens when\".",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 180,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "today",
+      "type": "number",
+      "required": false,
+      "fills": "Vertical \"today\" line at this value on the axis",
+      "limits": "number"
+    },
+    {
+      "path": "title",
+      "type": "text",
+      "required": false,
+      "fills": "Heading above the chart",
+      "limits": "3–50 chars · 1–10 words · longest word 18 · max 1 line",
+      "example": "Bullet train roadmap (illustrative)"
+    },
+    {
+      "path": "today_label",
+      "type": "text",
+      "required": false,
+      "fills": "Label on the today marker",
+      "limits": "2–14 chars · 1–2 words · longest word 12 · max 1 line",
+      "hint": "Default \"Today\"."
+    },
+    {
+      "path": "tasks[]",
+      "type": "list",
+      "required": true,
+      "fills": "Rows top to bottom",
+      "limits": "2–8 items"
+    },
+    {
+      "path": "tasks[].label",
+      "type": "text",
+      "required": true,
+      "fills": "Row label",
+      "limits": "2–28 chars · 1–5 words · longest word 16 · max 2 lines",
+      "hint": "Phase or task name."
+    },
+    {
+      "path": "tasks[].start",
+      "type": "number",
+      "required": true,
+      "fills": "Where the bar starts on the axis",
+      "limits": "number"
+    },
+    {
+      "path": "tasks[].end",
+      "type": "number",
+      "required": true,
+      "fills": "Where it ends (same as start = milestone diamond)",
+      "limits": "number"
+    },
+    {
+      "path": "tasks[].highlight",
+      "type": "number",
+      "required": false,
+      "fills": "1 = accent colour (others muted)",
+      "limits": "integer · ≥ 0 · ≤ 1"
+    },
+    {
+      "path": "axis_labels[]",
+      "type": "array",
+      "required": false,
+      "fills": "Labels spread evenly along the axis from the earliest start to the latest end (e.g. [\"2024\",\"2025\",\"2026\"]). Default: whole numbers.",
+      "limits": "2–12 labels · 1–10 chars"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.series_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Second data series / slice (the first uses accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#22D3EE"
+    },
+    {
+      "path": "style.series_3_color",
+      "type": "color",
+      "required": false,
+      "fills": "Third data series / slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#A78BFA"
+    },
+    {
+      "path": "style.series_4_color",
+      "type": "color",
+      "required": false,
+      "fills": "Fourth data series / slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F472B6"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.title",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of heading above the chart (px, largest; shrinks only if it would not fit)",
+      "limits": "40–56 px",
+      "default": 56
+    },
+    {
+      "path": "font_sizes.today_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of label on the today marker (px, largest; shrinks only if it would not fit)",
+      "limits": "18–24 px",
+      "default": 24
+    },
+    {
+      "path": "font_sizes.tasks.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of row label (px, largest; shrinks only if it would not fit)",
+      "limits": "20–32 px",
+      "default": 32
+    },
+    {
+      "path": "animations.title",
+      "type": "animation",
+      "required": false,
+      "fills": "heading",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "rise",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.axis",
+      "type": "animation",
+      "required": false,
+      "fills": "axis labels and grid lines",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "fade",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.labels",
+      "type": "animation",
+      "required": false,
+      "fills": "task labels",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "slide_left",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.bars",
+      "type": "animation",
+      "required": false,
+      "fills": "each bar (grows from its start)",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.milestones",
+      "type": "animation",
+      "required": false,
+      "fills": "milestone diamonds",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.today",
+      "type": "animation",
+      "required": false,
+      "fills": "today line",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "all foreground content",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: heading → task 1 → task 2 → task 3 → task 4 → task 5 → task 6 → task 7 → task 8 → today",
+      "limits": "seconds from the template start, increasing; heading (skipped if absent) → one cue per task → today marker."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "TL-11 Roadmap / Gantt",
+    "type": "object",
+    "properties": {
+      "today": {
+        "type": "number",
+        "description": "Vertical \"today\" line at this value on the axis. Raw number, no units or commas."
+      },
+      "title": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 50,
+        "description": "Heading above the chart. 1–10 words, longest word 18 letters."
+      },
+      "today_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 14,
+        "description": "Label on the today marker. 1–2 words, longest word 12 letters. Default \"Today\"."
+      },
+      "tasks": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 28,
+              "description": "Row label. 1–5 words, longest word 16 letters. Phase or task name."
+            },
+            "start": {
+              "type": "number",
+              "description": "Where the bar starts on the axis. Raw number, no units or commas."
+            },
+            "end": {
+              "type": "number",
+              "description": "Where it ends (same as start = milestone diamond). Raw number, no units or commas."
+            },
+            "highlight": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "1 = accent colour (others muted). Raw number, no units or commas."
+            }
+          },
+          "required": [
+            "label",
+            "start",
+            "end"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Rows top to bottom"
+      },
+      "axis_labels": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 12,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "description": "Axis labels, evenly spaced from the earliest start to the latest end."
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "series_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Second data series / slice (the first uses accent)",
+            "default": "#22D3EE"
+          },
+          "series_3_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Third data series / slice",
+            "default": "#A78BFA"
+          },
+          "series_4_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Fourth data series / slice",
+            "default": "#F472B6"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "title": {
+            "type": "number",
+            "minimum": 40,
+            "maximum": 56,
+            "default": 56,
+            "description": "Heading above the chart"
+          },
+          "today_label": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 24,
+            "default": 24,
+            "description": "Label on the today marker"
+          },
+          "tasks.label": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 32,
+            "default": 32,
+            "description": "Row label"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "rise",
+            "description": "heading"
+          },
+          "axis": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "fade",
+            "description": "axis labels and grid lines"
+          },
+          "labels": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "slide_left",
+            "description": "task labels"
+          },
+          "bars": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "each bar (grows from its start)"
+          },
+          "milestones": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "milestone diamonds"
+          },
+          "today": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "today line"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "all foreground content"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 10,
+        "description": "Seconds from the template start when each element appears, in order: heading, task 1, task 2, task 3, task 4, task 5, task 6, task 7, task 8, today. heading (skipped if absent) → one cue per task → today marker. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "tasks"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "title": "Bullet train roadmap (illustrative)",
+    "tasks": [
+      {
+        "label": "Land acquisition",
+        "start": 2017,
+        "end": 2021
+      },
+      {
+        "label": "Viaduct construction",
+        "start": 2020,
+        "end": 2026
+      },
+      {
+        "label": "Stations",
+        "start": 2022,
+        "end": 2027
+      },
+      {
+        "label": "First trial run",
+        "start": 2027,
+        "end": 2027,
+        "highlight": 1
+      }
+    ],
+    "axis_labels": [
+      "2017",
+      "2019",
+      "2021",
+      "2023",
+      "2025",
+      "2027"
+    ],
+    "today": 2025,
+    "background": "theme"
+  }
+}

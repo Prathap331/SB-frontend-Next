@@ -1,0 +1,574 @@
+{
+  "template": "UI-12",
+  "name": "Notification Pop",
+  "animation_type": "ui_notification",
+  "pick_when": "A phone alert moment: a bank debit SMS, an app ping, a news alert, an OTP message.",
+  "placement": "overlay",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      45,
+      240
+    ],
+    "seconds": [
+      1.5,
+      8
+    ],
+    "default_frames": 120,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "notifications[]",
+      "type": "list",
+      "required": true,
+      "fills": "Notifications, first one on top",
+      "limits": "1–3 items"
+    },
+    {
+      "path": "notifications[].app",
+      "type": "text",
+      "required": true,
+      "fills": "App name",
+      "limits": "2–20 chars · 1–3 words · longest word 14 · max 1 line",
+      "hint": "App or sender: \"Bank\", \"Messages\"."
+    },
+    {
+      "path": "notifications[].title",
+      "type": "text",
+      "required": false,
+      "fills": "Notification title",
+      "limits": "2–36 chars · 1–7 words · longest word 16 · max 1 line",
+      "hint": "Bold first line."
+    },
+    {
+      "path": "notifications[].body",
+      "type": "text",
+      "required": true,
+      "fills": "Notification message",
+      "limits": "3–100 chars · 1–20 words · longest word 16 · max 2 lines",
+      "hint": "\"₹50,000 debited from A/c XX1234\"."
+    },
+    {
+      "path": "notifications[].time",
+      "type": "text",
+      "required": false,
+      "fills": "Time on the right",
+      "limits": "2–10 chars · 1–2 words · longest word 8 · max 1 line",
+      "hint": "\"now\", \"2m ago\"."
+    },
+    {
+      "path": "notifications[].icon",
+      "type": "icon",
+      "required": false,
+      "fills": "Notification icon",
+      "limits": "Lucide icon name",
+      "fallback": "bell"
+    },
+    {
+      "path": "position",
+      "type": "choice",
+      "required": false,
+      "fills": "Where the notifications appear",
+      "values": [
+        "top_center",
+        "top_right",
+        "top_left"
+      ],
+      "default": "top_center"
+    },
+    {
+      "path": "look",
+      "type": "choice",
+      "required": false,
+      "fills": "Dark or light frosted card",
+      "values": [
+        "dark",
+        "light"
+      ],
+      "default": "dark"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.notifications.app",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of app name (px, largest; shrinks only if it would not fit)",
+      "limits": "18–24 px",
+      "default": 24
+    },
+    {
+      "path": "font_sizes.notifications.title",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of notification title (px, largest; shrinks only if it would not fit)",
+      "limits": "22–30 px",
+      "default": 30
+    },
+    {
+      "path": "font_sizes.notifications.body",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of notification message (px, largest; shrinks only if it would not fit)",
+      "limits": "20–28 px",
+      "default": 28
+    },
+    {
+      "path": "font_sizes.notifications.time",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of time on the right (px, largest; shrinks only if it would not fit)",
+      "limits": "16–22 px",
+      "default": 22
+    },
+    {
+      "path": "animations.cards",
+      "type": "animation",
+      "required": false,
+      "fills": "each notification",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_up",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.icons",
+      "type": "animation",
+      "required": false,
+      "fills": "app icon",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "all notifications",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: notification 1 → notification 2 → notification 3",
+      "limits": "seconds from the template start, increasing; One cue per notification."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "UI-12 Notification Pop",
+    "type": "object",
+    "properties": {
+      "notifications": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 3,
+        "items": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 20,
+              "description": "App name. 1–3 words, longest word 14 letters. App or sender: \"Bank\", \"Messages\"."
+            },
+            "title": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 36,
+              "description": "Notification title. 1–7 words, longest word 16 letters. Bold first line."
+            },
+            "body": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 100,
+              "description": "Notification message. 1–20 words, longest word 16 letters. \"₹50,000 debited from A/c XX1234\"."
+            },
+            "time": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 10,
+              "description": "Time on the right. 1–2 words, longest word 8 letters. \"now\", \"2m ago\"."
+            },
+            "icon": {
+              "type": "string",
+              "description": "Lucide icon name (kebab-case). Optional; fallback bell."
+            }
+          },
+          "required": [
+            "app",
+            "body"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Notifications, first one on top"
+      },
+      "position": {
+        "type": "string",
+        "enum": [
+          "top_center",
+          "top_right",
+          "top_left"
+        ],
+        "default": "top_center",
+        "description": "Where the notifications appear"
+      },
+      "look": {
+        "type": "string",
+        "enum": [
+          "dark",
+          "light"
+        ],
+        "default": "dark",
+        "description": "Dark or light frosted card"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "notifications.app": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 24,
+            "default": 24,
+            "description": "App name"
+          },
+          "notifications.title": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 30,
+            "default": 30,
+            "description": "Notification title"
+          },
+          "notifications.body": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 28,
+            "default": 28,
+            "description": "Notification message"
+          },
+          "notifications.time": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 22,
+            "default": 22,
+            "description": "Time on the right"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "cards": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_up",
+            "description": "each notification"
+          },
+          "icons": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "app icon"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "all notifications"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 3,
+        "description": "Seconds from the template start when each element appears, in order: notification 1, notification 2, notification 3. One cue per notification. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "notifications"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "notifications": [
+      {
+        "app": "Bank",
+        "title": "Debit alert",
+        "body": "₹50,000 debited from A/c XX1234. Not you? Call your bank.",
+        "time": "now",
+        "icon": "banknote"
+      }
+    ],
+    "position": "top_center",
+    "look": "dark"
+  }
+}

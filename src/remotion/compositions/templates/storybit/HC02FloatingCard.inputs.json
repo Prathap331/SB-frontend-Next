@@ -1,0 +1,722 @@
+{
+  "template": "HC-02",
+  "name": "Media + Floating Card",
+  "animation_type": "hc_floating_card",
+  "pick_when": "Explaining what is on screen while the footage keeps playing: key facts about a place, product or event.",
+  "placement": "both",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 180,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "title",
+      "type": "text",
+      "required": true,
+      "fills": "Card title",
+      "limits": "2–40 chars · 1–7 words · longest word 18 · max 2 lines",
+      "example": "Chenab Rail Bridge"
+    },
+    {
+      "path": "value",
+      "type": "text",
+      "required": false,
+      "fills": "Big stat",
+      "limits": "1–14 chars · 1–3 words · longest word 12 · max 1 line",
+      "hint": "One big stat instead of points: \"359 m\"."
+    },
+    {
+      "path": "value_label",
+      "type": "text",
+      "required": false,
+      "fills": "Line under the big stat",
+      "limits": "2–50 chars · 1–9 words · longest word 18 · max 2 lines"
+    },
+    {
+      "path": "source",
+      "type": "text",
+      "required": false,
+      "fills": "Source line at the bottom of the card",
+      "limits": "3–50 chars · 1–8 words · longest word 18 · max 1 line"
+    },
+    {
+      "path": "icon",
+      "type": "icon",
+      "required": false,
+      "fills": "Icon next to the title",
+      "limits": "Lucide icon name",
+      "fallback": "info",
+      "example": "train"
+    },
+    {
+      "path": "points[]",
+      "type": "list",
+      "required": false,
+      "fills": "Bullet points (when there is no value)",
+      "limits": "1–4 items"
+    },
+    {
+      "path": "points[].text",
+      "type": "text",
+      "required": true,
+      "fills": "One bullet point",
+      "limits": "2–70 chars · 1–13 words · longest word 18 · max 2 lines"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "side",
+      "type": "choice",
+      "required": false,
+      "fills": "Which side the card floats on",
+      "values": [
+        "right",
+        "left"
+      ],
+      "default": "right"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "Over footage (default), image_url, or theme gradient",
+      "values": [
+        "transparent",
+        "image",
+        "theme"
+      ],
+      "default": "transparent"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.icon_color",
+      "type": "color",
+      "required": false,
+      "fills": "Icon strokes (default: accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.icon_bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Circle behind icons (default: accent at 18%)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card / step fill (default: translucent white, darker over footage)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.title",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of card title (px, largest; shrinks only if it would not fit)",
+      "limits": "28–44 px",
+      "default": 44
+    },
+    {
+      "path": "font_sizes.value_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of line under the big stat (px, largest; shrinks only if it would not fit)",
+      "limits": "20–30 px",
+      "default": 30
+    },
+    {
+      "path": "font_sizes.source",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of source line at the bottom of the card (px, largest; shrinks only if it would not fit)",
+      "limits": "15–20 px",
+      "default": 20
+    },
+    {
+      "path": "font_sizes.points.text",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of one bullet point (px, largest; shrinks only if it would not fit)",
+      "limits": "20–32 px",
+      "default": 32
+    },
+    {
+      "path": "animations.card",
+      "type": "animation",
+      "required": false,
+      "fills": "the floating card",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_left",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.icon",
+      "type": "animation",
+      "required": false,
+      "fills": "title icon",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.points",
+      "type": "animation",
+      "required": false,
+      "fills": "each point / the stat",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_up",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "the card",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: card → point 1 → point 2 → point 3 → point 4 → source",
+      "limits": "seconds from the template start, increasing; Fixed slots: card → point 1…4 (or the value in slot 1) → source."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "HC-02 Media + Floating Card",
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 40,
+        "description": "Card title. 1–7 words, longest word 18 letters."
+      },
+      "value": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 14,
+        "description": "Big stat. 1–3 words, longest word 12 letters. One big stat instead of points: \"359 m\"."
+      },
+      "value_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 50,
+        "description": "Line under the big stat. 1–9 words, longest word 18 letters."
+      },
+      "source": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 50,
+        "description": "Source line at the bottom of the card. 1–8 words, longest word 18 letters."
+      },
+      "icon": {
+        "type": "string",
+        "description": "Icon next to the title. Lucide icon name (kebab-case), e.g. \"train\"."
+      },
+      "points": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 4,
+        "items": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 70,
+              "description": "One bullet point. 1–13 words, longest word 18 letters."
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Bullet points (when there is no value)"
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "side": {
+        "type": "string",
+        "enum": [
+          "right",
+          "left"
+        ],
+        "default": "right",
+        "description": "Which side the card floats on"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "transparent",
+          "image",
+          "theme"
+        ],
+        "default": "transparent",
+        "description": "Over footage (default), image_url, or theme gradient"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "icon_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Icon strokes (default: accent)"
+          },
+          "icon_bg_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Circle behind icons (default: accent at 18%)"
+          },
+          "card_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card / step fill (default: translucent white, darker over footage)"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "title": {
+            "type": "number",
+            "minimum": 28,
+            "maximum": 44,
+            "default": 44,
+            "description": "Card title"
+          },
+          "value_label": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 30,
+            "default": 30,
+            "description": "Line under the big stat"
+          },
+          "source": {
+            "type": "number",
+            "minimum": 15,
+            "maximum": 20,
+            "default": 20,
+            "description": "Source line at the bottom of the card"
+          },
+          "points.text": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 32,
+            "default": 32,
+            "description": "One bullet point"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "card": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_left",
+            "description": "the floating card"
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "title icon"
+          },
+          "points": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_up",
+            "description": "each point / the stat"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "the card"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 6,
+        "description": "Seconds from the template start when each element appears, in order: card, point 1, point 2, point 3, point 4, source. Fixed slots: card → point 1…4 (or the value in slot 1) → source. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "title": "Chenab Rail Bridge",
+    "icon": "train",
+    "points": [
+      {
+        "text": "World’s highest railway arch bridge (as reported)"
+      },
+      {
+        "text": "In Jammu & Kashmir"
+      },
+      {
+        "text": "Opened in 2025"
+      }
+    ],
+    "source": "Source: replace with the real source",
+    "side": "right",
+    "background": "transparent"
+  }
+}

@@ -1,0 +1,548 @@
+{
+  "template": "KT-10",
+  "name": "Word-Synced Captions",
+  "animation_type": "kt_captions",
+  "pick_when": "Burned-in captions that follow the voiceover word by word (Shorts, Reels, hook sections).",
+  "placement": "overlay",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      45,
+      240
+    ],
+    "seconds": [
+      1.5,
+      8
+    ],
+    "default_frames": 120,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "text",
+      "type": "text",
+      "required": false,
+      "fills": "Caption text (fallback)",
+      "limits": "1–200 chars · 1–40 words · longest word 20 · max 20 lines",
+      "hint": "Only when you have no word timings: spread evenly over the clip."
+    },
+    {
+      "path": "words[]",
+      "type": "list",
+      "required": false,
+      "fills": "Word timings from WhisperX (preferred)",
+      "limits": "up to 40 words"
+    },
+    {
+      "path": "words[].text",
+      "type": "text",
+      "required": true,
+      "fills": "The word as spoken (punctuation allowed)",
+      "limits": "1–20 chars"
+    },
+    {
+      "path": "words[].start",
+      "type": "number",
+      "required": true,
+      "fills": "When the word starts, seconds from the start of this clip"
+    },
+    {
+      "path": "words[].end",
+      "type": "number",
+      "required": false,
+      "fills": "When the word ends (default: next word start)"
+    },
+    {
+      "path": "look",
+      "type": "choice",
+      "required": false,
+      "fills": "How the spoken word stands out: accent colour · accent pill behind it · colour + bounce",
+      "values": [
+        "color",
+        "pill",
+        "pop"
+      ],
+      "default": "pill"
+    },
+    {
+      "path": "position",
+      "type": "choice",
+      "required": false,
+      "fills": "Where the captions sit",
+      "values": [
+        "bottom",
+        "center",
+        "top"
+      ],
+      "default": "bottom"
+    },
+    {
+      "path": "case",
+      "type": "choice",
+      "required": false,
+      "fills": "All capitals, or as written",
+      "values": [
+        "upper",
+        "as_given"
+      ],
+      "default": "upper"
+    },
+    {
+      "path": "max_words",
+      "type": "choice",
+      "required": false,
+      "fills": "Most words on screen at once",
+      "values": [
+        "3",
+        "4",
+        "6",
+        "8"
+      ],
+      "default": "6"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.text",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of caption text (fallback) (px, largest; shrinks only if it would not fit)",
+      "limits": "44–72 px",
+      "default": 72
+    },
+    {
+      "path": "animations.pages",
+      "type": "animation",
+      "required": false,
+      "fills": "each caption page",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "the last page",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: ",
+      "limits": "seconds from the template start, increasing; Timing comes from words[].start / end — no cue_times needed."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "KT-10 Word-Synced Captions",
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "description": "Caption text (fallback). 1–40 words, longest word 20 letters. Only when you have no word timings: spread evenly over the clip."
+      },
+      "words": {
+        "type": "array",
+        "maxItems": 40,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "text",
+            "start"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20
+            },
+            "start": {
+              "type": "number",
+              "minimum": 0
+            },
+            "end": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "look": {
+        "type": "string",
+        "enum": [
+          "color",
+          "pill",
+          "pop"
+        ],
+        "default": "pill",
+        "description": "How the spoken word stands out: accent colour · accent pill behind it · colour + bounce"
+      },
+      "position": {
+        "type": "string",
+        "enum": [
+          "bottom",
+          "center",
+          "top"
+        ],
+        "default": "bottom",
+        "description": "Where the captions sit"
+      },
+      "case": {
+        "type": "string",
+        "enum": [
+          "upper",
+          "as_given"
+        ],
+        "default": "upper",
+        "description": "All capitals, or as written"
+      },
+      "max_words": {
+        "type": "string",
+        "enum": [
+          "3",
+          "4",
+          "6",
+          "8"
+        ],
+        "default": "6",
+        "description": "Most words on screen at once"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "text": {
+            "type": "number",
+            "minimum": 44,
+            "maximum": 72,
+            "default": 72,
+            "description": "Caption text (fallback)"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "pages": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "each caption page"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "the last page"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 0,
+        "description": "Seconds from the template start when each element appears, in order: . Timing comes from words[].start / end — no cue_times needed. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "example": {
+    "words": [
+      {
+        "text": "Nobody",
+        "start": 0.1,
+        "end": 0.45
+      },
+      {
+        "text": "expected",
+        "start": 0.45,
+        "end": 0.9
+      },
+      {
+        "text": "this",
+        "start": 0.9,
+        "end": 1.1
+      },
+      {
+        "text": "to",
+        "start": 1.1,
+        "end": 1.2
+      },
+      {
+        "text": "happen",
+        "start": 1.2,
+        "end": 1.7
+      },
+      {
+        "text": "so",
+        "start": 1.9,
+        "end": 2.05
+      },
+      {
+        "text": "fast.",
+        "start": 2.05,
+        "end": 2.6
+      }
+    ],
+    "look": "pill",
+    "position": "bottom"
+  }
+}

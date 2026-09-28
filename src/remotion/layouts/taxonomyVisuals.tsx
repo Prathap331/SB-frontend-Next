@@ -4,9 +4,8 @@ import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import type { Clock, InfographicData } from '../types';
 import { LucideIconView } from '../icons';
 import { readAccentColor, readNonEmptyString, readStringArray, readIconNames } from '../props';
-import { TEMPLATE_RENDERERS } from '../compositions/templates/registry';
 import { resolveAnimationType } from '../animationTypes';
-import { TemplateErrorBoundary } from '../compositions/templates/shared';
+import { TEMPLATE_RENDERERS, TemplateErrorBoundary } from '../compositions/templates/registry';
 import {
   OVERLAY_DESIGN_W,
   defaultOverlayGeometry,
@@ -290,9 +289,7 @@ function box(p: BaseAnim, clock: Clock, extra?: CSSProperties): CSSProperties {
 
 /** Clock-driven visuals matching the render-service taxonomy compositions. */
 export function TaxonomyVisual({ data, clock }: { data: InfographicData; clock: Clock }) {
-  const p = readBase(data);
-  const type = p.type;
-
+  const type = resolveAnimationType(data.animation_type);
   const Template = TEMPLATE_RENDERERS[type];
   if (Template) {
     return (
@@ -301,6 +298,8 @@ export function TaxonomyVisual({ data, clock }: { data: InfographicData; clock: 
       </TemplateErrorBoundary>
     );
   }
+
+  const p = readBase(data);
 
   switch (type) {
     case 'full_screen_broll':

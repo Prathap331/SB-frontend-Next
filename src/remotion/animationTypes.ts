@@ -3,135 +3,77 @@
  * `composition_id` is identity only — animation_type is the source of truth.
  */
 
-export const NEW_TEMPLATE_ANIMATION_TYPES = [
-  'bar_chart',
-  'chart_animation',
-  'line_chart',
-  'pie_chart',
-  'donut_chart',
-  'area_chart',
-  'progress_bars',
-  'stat_counter',
-  'comparison_chart',
-  'circular_progress',
-  'animated_text',
-  'bounce_text',
-  'bubble_pop_text',
-  'floating_text_chip',
-  'floating_bubble_text',
-  'glitch_text',
-  'popping_scale_text',
-  'popping_text',
-  'pulsing_text',
-  'slide_text',
-  'typewriter_subtitle',
-  'animated_list',
-  'card_flip',
-  'countdown_timer',
-  'notification_pop',
-  'particle_explosion',
-  'progress_steps',
-  'rotating_carousel',
-  'sound_wave',
-  'text_highlight',
-  'bokeh_circles',
-  'geometric_patterns',
-  'gradient_shift',
-  'grid_pulse',
-  'liquid_wave',
-  'matrix_rain',
-  'noise_grain',
-  'pixel_transition',
-  'starfield',
-  'camera_shake',
-  'film_burn',
-  'ken_burns',
-  'letterbox_reveal',
-  'parallax_pan',
-  'spotlight_reveal',
-  'vignette_pulse',
-  'whip_pan',
-  'zoom_pulse',
-  'blinds_transition',
-  'clock_wipe',
-  'cross_dissolve',
-  'fade_through_black',
-  'iris_transition',
-  'morph_transition',
-  'push_transition',
-  'slide_wipe',
-  'zoom_through',
-  'logo_blur_reveal',
-  'logo_bounce_drop',
-  'logo_fade_reveal',
-  'logo_glitch_reveal',
-  'logo_scale_rotate',
-  'logo_spin_reveal',
-  'logo_split_reveal',
-  'logo_stroke_draw',
-  'logo_typewriter',
-  'chapter_title',
-  'cinematic_title_intro',
-  'countdown_intro',
-  'credits_roll',
-  'end_card',
-  'intro_lower_third',
-  'intro_quote_card',
-  'quote_card',
-  'subscribe_reminder',
-  'title_split',
-  'gallery_grid',
-  'image_carousel',
-  'image_comparison_slider',
-  'image_zoom_reveal',
-  'masonry_gallery',
-  'photo_stack',
-  'picture_in_picture',
-  'image_pip',
-  'polaroid_frame',
-  'split_screen',
-  'image_split_screen',
-  'pip_video',
-  'bar_chart_anim',
-  'bounce_in_headline',
-  'brush_stroke_reveal',
-  'card_flip_transition',
-  'character_jumping',
-  'community_chat',
-  'eye_reveal',
-  'fireworks_burst',
-  'flip_page_transition',
-  'four_tone_mono_titler',
-  'gradient_text_sweep',
-  'ink_spread_transition',
-  'kinetic_word_stack',
-  'kpi_counter',
-  'line_chart_anim',
-  'logo_mask_wipe',
-  'loop_grid_wave',
-  'lower_third_glass_card',
-  'neon_sign',
-  'particle_snow',
-  'pencil_draw',
-  'pixel_candlestick_ohlc',
-  'pixel_mosaic_transition',
-  'pixel_typewriter_quote',
-  'pixel_waterfall_cycle',
-  'pourover_drip_fill_gauge',
-  'racing_chart',
-  'scramble_text',
-  'shatter_reveal',
-  'social_reel',
-  'text_mask_reveal',
-  'thinking_bubble',
-  'transition_circle_wipe',
-  'wave_hello',
-  'wave_text',
+/** Storybit library ids from each template SPEC. Not aliases of overlay taxonomy names. */
+export const STORYBIT_ANIMATION_TYPES = [
+  'fs_title_card',
+  'fs_title_metadata',
+  'fs_big_number',
+  'fs_number_comparison',
+  'fs_quote_card',
+  'fs_key_statement',
+  'fs_structured_list',
+  'fs_comparison_columns',
+  'dv_bar_chart',
+  'dv_line_chart',
+  'dv_pie_donut',
+  'dv_gauge',
+  'dv_leaderboard',
+  'dv_icon_array',
+  'tl_timeline',
+  'tl_roadmap',
+  'dg_linear_process',
+  'dg_relationship',
+  'dg_decision_tree',
+  'dg_funnel',
+  'dg_hierarchy',
+  'dg_architecture',
+  'dg_pros_cons',
+  'dg_vs_faceoff',
+  'dg_myth_fact',
+  'pe_person_intro',
+  'pe_profile_card',
+  'vo_image_caption',
+  'vo_image_grid',
+  'vo_image_montage',
+  'vo_before_after',
+  'vo_location_tag',
+  'vo_lower_third',
+  'vo_stat_overlay',
+  'vo_callout',
+  'vo_source_citation',
+  'kt_punch_word',
+  'kt_stacked_text',
+  'kt_question_hook',
+  'kt_captions',
+  'nv_chapter_card',
+  'nv_progress_tracker',
+  'nv_rank_reveal',
+  'nv_subscribe',
+  'nv_end_screen',
+  'ui_social_post',
+  'ui_chat',
+  'ui_news_headline',
+  'ui_newspaper_clipping',
+  'ui_search_bar',
+  'ui_notification',
+  'dc_document_highlight',
+  'dc_investigation_board',
+  'dc_case_file',
+  'dc_archive_photo',
+  'dc_sticky_notes',
+  'mp_globe_zoom',
+  'mp_radius_range',
+  'mp_travel_route',
+  'em_scribble',
+  'hc_floating_card',
 ] as const;
 
-export type NewTemplateAnimationType = (typeof NEW_TEMPLATE_ANIMATION_TYPES)[number];
+export type StorybitAnimationType = (typeof STORYBIT_ANIMATION_TYPES)[number];
+
+const STORYBIT_ANIMATION_TYPE_SET: ReadonlySet<string> = new Set(STORYBIT_ANIMATION_TYPES);
 
 export type SupportedAnimationType =
+  | StorybitAnimationType
   | 'full_screen_title_card'
   | 'full_screen_quote_card'
   | 'full_screen_data_viz'
@@ -174,8 +116,7 @@ export type SupportedAnimationType =
   | 'pop'
   | 'typewriter'
   | 'wipe'
-  | 'overlay_text'
-  | NewTemplateAnimationType;
+  | 'overlay_text';
 
 export const KNOWN_ANIMATION_TYPES: ReadonlySet<string> = new Set([
   'full_screen_title_card',
@@ -224,7 +165,7 @@ export const KNOWN_ANIMATION_TYPES: ReadonlySet<string> = new Set([
   'typewriter',
   'wipe',
   'overlay_text',
-  ...NEW_TEMPLATE_ANIMATION_TYPES,
+  ...STORYBIT_ANIMATION_TYPES,
 ]);
 
 export function isSupportedAnimationType(type: string): type is SupportedAnimationType {
@@ -243,6 +184,10 @@ const ANIMATION_TYPE_ALIASES: Record<string, string> = {
 export function resolveAnimationType(type: string | undefined | null): string {
   const t = (type || '').trim().toLowerCase().replace(/-/g, '_');
   return ANIMATION_TYPE_ALIASES[t] ?? t;
+}
+
+export function isStorybitAnimationType(type: string | undefined | null): boolean {
+  return STORYBIT_ANIMATION_TYPE_SET.has(resolveAnimationType(type));
 }
 
 export function toPascalCase(snake: string): string {
@@ -283,21 +228,11 @@ export function inferAnimationTypeFromCompositionId(compositionId: string | unde
   if (id === 'PipVideo') return 'pip_video';
   if (id === 'SplitScreenDivider') return 'split_screen_divider';
   if (id === 'SplitScreen') return 'split_screen';
-  if (id === 'ImageSplitScreen') return 'image_split_screen';
-  if (id === 'ImagePip' || id === 'ImagePIP') return 'image_pip';
-  if (id === 'PictureInPicture') return 'picture_in_picture';
-  if (id === 'IntroLowerThird') return 'intro_lower_third';
-  if (id === 'IntroQuoteCard') return 'intro_quote_card';
-  if (id === 'QuoteCardTemplate') return 'quote_card';
   if (id === 'ParallaxAccent') return 'parallax_accent';
   if (id === 'ParallaxLayering') return 'parallax_layering';
   if (id === 'ShakeImpactFlash') return 'shake_impact_flash';
   if (id === 'ShakeImpact') return 'shake_impact';
   if (id === 'KenBurnsNoOp' || id === 'KenBurnsPanZoom') return 'ken_burns_pan_zoom';
-  if (id === 'KenBurns') return 'ken_burns';
-  if (id === 'ChartAnimation') return 'chart_animation';
-  if (id === 'PoppingText') return 'popping_text';
-  if (id === 'FloatingBubbleText') return 'floating_bubble_text';
   if (id === 'MultiPanelGrid') return 'multi_panel_grid';
   if (id === 'AvatarOverlayPlaceholder' || id === 'AvatarOverlay') return 'avatar_overlay';
   if (id === 'MascotAnimationPlaceholder' || id === 'MascotAnimation') return 'mascot_animation';

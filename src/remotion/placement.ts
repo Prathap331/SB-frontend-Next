@@ -164,14 +164,8 @@ export function defaultOverlayGeometry(animationType: string | undefined): Overl
       return { x: 1360, y: 720, width: 480, height: 270 };
     case 'pip_video_frame':
       return { x: 1280, y: 64, width: 576, height: 324 };
-    case 'image_pip':
-      return { x: 1560, y: 48, width: 300, height: 220 };
-    case 'intro_lower_third':
     case 'lower_third':
-    case 'lower_third_glass_card':
       return { x: 64, y: 820, width: 720, height: 180 };
-    case 'thinking_bubble':
-      return { x: 1180, y: 80, width: 560, height: 280 };
     case 'avatar_overlay':
     case 'avatar_overlay_placeholder':
       return { x: 64, y: 64, width: 160, height: 160 };

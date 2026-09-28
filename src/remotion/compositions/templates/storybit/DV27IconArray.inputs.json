@@ -1,0 +1,751 @@
+{
+  "template": "DV-27",
+  "name": "Icon Array",
+  "animation_type": "dv_icon_array",
+  "pick_when": "\"1 in 5…\", \"3 out of 10…\", \"40% of…\": a share of people or things that should be felt, not just read.",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 150,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "highlighted",
+      "type": "number",
+      "required": true,
+      "fills": "How many icons light up (out of total)",
+      "limits": "integer · ≥ 0 · ≤ 100",
+      "example": 1
+    },
+    {
+      "path": "statement",
+      "type": "text",
+      "required": true,
+      "fills": "Line under the big figure",
+      "limits": "5–80 chars · 2–14 words · longest word 18 · max 3 lines",
+      "hint": "What the share means: \"Indians over 50 have diabetes\".",
+      "example": "Indian adults have high blood pressure (illustrative)"
+    },
+    {
+      "path": "figure",
+      "type": "text",
+      "required": false,
+      "fills": "Big figure",
+      "limits": "1–12 chars · 1–4 words · longest word 10 · max 1 line",
+      "hint": "Default from the numbers: \"1 in 5\" or \"20%\"."
+    },
+    {
+      "path": "highlight_label",
+      "type": "text",
+      "required": false,
+      "fills": "Legend for highlighted icons",
+      "limits": "2–24 chars · 1–4 words · longest word 16 · max 1 line",
+      "hint": "Legend for the lit icons: \"have it\"."
+    },
+    {
+      "path": "rest_label",
+      "type": "text",
+      "required": false,
+      "fills": "Legend for the other icons",
+      "limits": "2–24 chars · 1–4 words · longest word 16 · max 1 line",
+      "hint": "Legend for the others: \"don’t\"."
+    },
+    {
+      "path": "source",
+      "type": "text",
+      "required": false,
+      "fills": "Source line",
+      "limits": "3–60 chars · 1–10 words · longest word 18 · max 1 line"
+    },
+    {
+      "path": "icon",
+      "type": "icon",
+      "required": false,
+      "fills": "Icon repeated in the grid",
+      "limits": "Lucide icon name",
+      "fallback": "user",
+      "example": "user"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "total",
+      "type": "choice",
+      "required": false,
+      "fills": "Size of the grid (use 10 for \"x in 10\", 100 for percentages)",
+      "values": [
+        "10",
+        "20",
+        "50",
+        "100"
+      ],
+      "default": "10"
+    },
+    {
+      "path": "figure_style",
+      "type": "choice",
+      "required": false,
+      "fills": "Default figure: \"1 in 5\" (reduced ratio) or \"20%\"",
+      "values": [
+        "ratio",
+        "percent"
+      ],
+      "default": "ratio"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.statement",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of line under the big figure (px, largest; shrinks only if it would not fit)",
+      "limits": "28–48 px",
+      "default": 48
+    },
+    {
+      "path": "font_sizes.highlight_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of legend for highlighted icons (px, largest; shrinks only if it would not fit)",
+      "limits": "18–26 px",
+      "default": 26
+    },
+    {
+      "path": "font_sizes.rest_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of legend for the other icons (px, largest; shrinks only if it would not fit)",
+      "limits": "18–26 px",
+      "default": 26
+    },
+    {
+      "path": "font_sizes.source",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of source line (px, largest; shrinks only if it would not fit)",
+      "limits": "16–22 px",
+      "default": 22
+    },
+    {
+      "path": "animations.grid",
+      "type": "animation",
+      "required": false,
+      "fills": "all icons appearing",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "fade",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.fill",
+      "type": "animation",
+      "required": false,
+      "fills": "highlighted icons lighting up one by one",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.figure",
+      "type": "animation",
+      "required": false,
+      "fills": "big figure",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "slam",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.statement",
+      "type": "animation",
+      "required": false,
+      "fills": "statement",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade_up",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "everything",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: grid → fill → statement → source",
+      "limits": "seconds from the template start, increasing; grid → fill (the share is said) → statement → source."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DV-27 Icon Array",
+    "type": "object",
+    "properties": {
+      "highlighted": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "How many icons light up (out of total). Raw number, no units or commas."
+      },
+      "statement": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 80,
+        "description": "Line under the big figure. 2–14 words, longest word 18 letters. What the share means: \"Indians over 50 have diabetes\"."
+      },
+      "figure": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 12,
+        "description": "Big figure. 1–4 words, longest word 10 letters. Default from the numbers: \"1 in 5\" or \"20%\"."
+      },
+      "highlight_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 24,
+        "description": "Legend for highlighted icons. 1–4 words, longest word 16 letters. Legend for the lit icons: \"have it\"."
+      },
+      "rest_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 24,
+        "description": "Legend for the other icons. 1–4 words, longest word 16 letters. Legend for the others: \"don’t\"."
+      },
+      "source": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 60,
+        "description": "Source line. 1–10 words, longest word 18 letters."
+      },
+      "icon": {
+        "type": "string",
+        "description": "Icon repeated in the grid. Lucide icon name (kebab-case), e.g. \"user\"."
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "total": {
+        "type": "string",
+        "enum": [
+          "10",
+          "20",
+          "50",
+          "100"
+        ],
+        "default": "10",
+        "description": "Size of the grid (use 10 for \"x in 10\", 100 for percentages)"
+      },
+      "figure_style": {
+        "type": "string",
+        "enum": [
+          "ratio",
+          "percent"
+        ],
+        "default": "ratio",
+        "description": "Default figure: \"1 in 5\" (reduced ratio) or \"20%\""
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "statement": {
+            "type": "number",
+            "minimum": 28,
+            "maximum": 48,
+            "default": 48,
+            "description": "Line under the big figure"
+          },
+          "highlight_label": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 26,
+            "default": 26,
+            "description": "Legend for highlighted icons"
+          },
+          "rest_label": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 26,
+            "default": 26,
+            "description": "Legend for the other icons"
+          },
+          "source": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 22,
+            "default": 22,
+            "description": "Source line"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "grid": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "fade",
+            "description": "all icons appearing"
+          },
+          "fill": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "highlighted icons lighting up one by one"
+          },
+          "figure": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "slam",
+            "description": "big figure"
+          },
+          "statement": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade_up",
+            "description": "statement"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "everything"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 4,
+        "description": "Seconds from the template start when each element appears, in order: grid, fill, statement, source. grid → fill (the share is said) → statement → source. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "highlighted",
+      "statement"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "highlighted": 3,
+    "total": "10",
+    "statement": "Indian adults have high blood pressure (illustrative)",
+    "icon": "user",
+    "highlight_label": "high BP",
+    "rest_label": "normal",
+    "background": "theme"
+  }
+}

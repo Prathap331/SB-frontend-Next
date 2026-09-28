@@ -975,7 +975,15 @@ export async function listUserVideos(userId: string): Promise<{
 
   if (error) {
     console.error('[videos list final_video_url]', error.message);
-    return { ok: false, error: error.message, videos: [] };
+    const fallback = await supabase
+      .from('videos')
+      .select('id, user_id, script, created_at')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false });
+    if (fallback.error) {
+      return { ok: false, error: fallback.error.message, videos: [] };
+    }
+    return { ok: true, videos: [] };
   }
 
   const videos: LibraryVideo[] = (data ?? [])

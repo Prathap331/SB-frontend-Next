@@ -1,0 +1,1056 @@
+{
+  "template": "DV-08",
+  "name": "Pie / Donut Chart",
+  "animation_type": "dv_pie_donut",
+  "pick_when": "\"X% of…\", market share, a budget split, or how a whole divides into 2–6 parts.",
+  "placement": "both",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 180,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "title",
+      "type": "text",
+      "required": false,
+      "fills": "Heading above the chart",
+      "limits": "3–50 chars · 1–10 words · longest word 18 · max 1 line",
+      "hint": "What the whole is: \"Where each ₹100 of tax goes\".",
+      "example": "UPI market share (illustrative)"
+    },
+    {
+      "path": "center_label",
+      "type": "text",
+      "required": false,
+      "fills": "Text under the number in the donut centre",
+      "limits": "2–24 chars · 1–5 words · longest word 14 · max 2 lines",
+      "hint": "Words under the centre number: \"of all payments\".",
+      "example": "of all UPI payments"
+    },
+    {
+      "path": "prefix",
+      "type": "text",
+      "required": false,
+      "fills": "Symbol before raw values",
+      "limits": "1–3 chars · 1–1 words · longest word 3 · max 1 line"
+    },
+    {
+      "path": "unit",
+      "type": "text",
+      "required": false,
+      "fills": "Unit after raw values",
+      "limits": "1–8 chars · 1–1 words · longest word 8 · max 1 line"
+    },
+    {
+      "path": "source",
+      "type": "text",
+      "required": false,
+      "fills": "Source line under the chart",
+      "limits": "3–60 chars · 1–10 words · longest word 18 · max 1 line",
+      "hint": "\"Source: NPCI, March 2025\"."
+    },
+    {
+      "path": "slices[]",
+      "type": "list",
+      "required": true,
+      "fills": "Parts of the whole, clockwise from 12 o'clock (unless sorted)",
+      "limits": "2–6 items"
+    },
+    {
+      "path": "slices[].label",
+      "type": "text",
+      "required": true,
+      "fills": "Legend label",
+      "limits": "1–24 chars · 1–4 words · longest word 14 · max 2 lines",
+      "hint": "Part name: \"PhonePe\", \"Defence\"."
+    },
+    {
+      "path": "slices[].value",
+      "type": "number",
+      "required": true,
+      "fills": "Raw value of the slice (shares are computed from the total)",
+      "limits": "number · ≥ 0"
+    },
+    {
+      "path": "slices[].highlight",
+      "type": "number",
+      "required": false,
+      "fills": "1 = pop this slice out and show it in the centre",
+      "limits": "integer · ≥ 0 · ≤ 1"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "chart",
+      "type": "choice",
+      "required": false,
+      "fills": "Ring with a centre number, or a full pie",
+      "values": [
+        "donut",
+        "pie"
+      ],
+      "default": "donut"
+    },
+    {
+      "path": "show",
+      "type": "choice",
+      "required": false,
+      "fills": "Share of the total, the raw value, or both",
+      "values": [
+        "percent",
+        "value",
+        "both"
+      ],
+      "default": "percent"
+    },
+    {
+      "path": "center",
+      "type": "choice",
+      "required": false,
+      "fills": "Donut centre: auto = highlighted (or largest) slice %, total = sum of values",
+      "values": [
+        "auto",
+        "highlight",
+        "total",
+        "none"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "sort",
+      "type": "choice",
+      "required": false,
+      "fills": "Keep the given order or largest first",
+      "values": [
+        "none",
+        "desc"
+      ],
+      "default": "none"
+    },
+    {
+      "path": "highlight",
+      "type": "choice",
+      "required": false,
+      "fills": "Slice that pops out (slices[].highlight = 1 also works)",
+      "values": [
+        "none",
+        "max",
+        "min"
+      ],
+      "default": "none"
+    },
+    {
+      "path": "format",
+      "type": "choice",
+      "required": false,
+      "fills": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000",
+      "values": [
+        "indian_compact",
+        "intl_compact",
+        "indian_full",
+        "intl_full",
+        "plain"
+      ],
+      "default": "indian_compact"
+    },
+    {
+      "path": "decimals",
+      "type": "choice",
+      "required": false,
+      "fills": "Decimal places for raw values",
+      "values": [
+        "auto",
+        "0",
+        "1",
+        "2"
+      ],
+      "default": "auto"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.series_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Second data series / slice (the first uses accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#22D3EE"
+    },
+    {
+      "path": "style.series_3_color",
+      "type": "color",
+      "required": false,
+      "fills": "Third data series / slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#A78BFA"
+    },
+    {
+      "path": "style.series_4_color",
+      "type": "color",
+      "required": false,
+      "fills": "Fourth data series / slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F472B6"
+    },
+    {
+      "path": "style.series_5_color",
+      "type": "color",
+      "required": false,
+      "fills": "Fifth slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#34D399"
+    },
+    {
+      "path": "style.series_6_color",
+      "type": "color",
+      "required": false,
+      "fills": "Sixth slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FB923C"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.title",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of heading above the chart (px, largest; shrinks only if it would not fit)",
+      "limits": "40–60 px",
+      "default": 60
+    },
+    {
+      "path": "font_sizes.center_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of text under the number in the donut centre (px, largest; shrinks only if it would not fit)",
+      "limits": "18–30 px",
+      "default": 30
+    },
+    {
+      "path": "font_sizes.source",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of source line under the chart (px, largest; shrinks only if it would not fit)",
+      "limits": "18–24 px",
+      "default": 24
+    },
+    {
+      "path": "font_sizes.slices.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of legend label (px, largest; shrinks only if it would not fit)",
+      "limits": "24–40 px",
+      "default": 40
+    },
+    {
+      "path": "font_sizes.center",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of number in the donut centre (px, largest; shrinks only if it would not fit)",
+      "limits": "48–140 px",
+      "default": 140
+    },
+    {
+      "path": "animations.title",
+      "type": "animation",
+      "required": false,
+      "fills": "heading",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "rise",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.slices",
+      "type": "animation",
+      "required": false,
+      "fills": "ring / pie sweeping in clockwise",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.legend",
+      "type": "animation",
+      "required": false,
+      "fills": "each legend row",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_left",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.highlight",
+      "type": "animation",
+      "required": false,
+      "fills": "highlighted slice moving out",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.center",
+      "type": "animation",
+      "required": false,
+      "fills": "number in the donut centre",
+      "values": [
+        "count_up",
+        "count_up_pop",
+        "rise",
+        "fade_up",
+        "scale_in",
+        "blur_in",
+        "none"
+      ],
+      "default": "count_up",
+      "hint": "count_up: Counts up to the value; count_up_pop: Counts up, then pops when it lands; rise: Line rises out of a mask; fade_up: Fades in while moving up; scale_in: Grows from 85% while fading in; blur_in: Sharpens from a blur; none: Appears instantly"
+    },
+    {
+      "path": "animations.source",
+      "type": "animation",
+      "required": false,
+      "fills": "source line",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image (whole clip)",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "all foreground content",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: heading → chart → centre number → source",
+      "limits": "seconds from the template start, increasing; heading → chart starts sweeping → centre number → source. Missing elements are skipped."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DV-08 Pie / Donut Chart",
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 50,
+        "description": "Heading above the chart. 1–10 words, longest word 18 letters. What the whole is: \"Where each ₹100 of tax goes\"."
+      },
+      "center_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 24,
+        "description": "Text under the number in the donut centre. 1–5 words, longest word 14 letters. Words under the centre number: \"of all payments\"."
+      },
+      "prefix": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 3,
+        "description": "Symbol before raw values. 1–1 words, longest word 3 letters."
+      },
+      "unit": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 8,
+        "description": "Unit after raw values. 1–1 words, longest word 8 letters."
+      },
+      "source": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 60,
+        "description": "Source line under the chart. 1–10 words, longest word 18 letters. \"Source: NPCI, March 2025\"."
+      },
+      "slices": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 24,
+              "description": "Legend label. 1–4 words, longest word 14 letters. Part name: \"PhonePe\", \"Defence\"."
+            },
+            "value": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Raw value of the slice (shares are computed from the total). Raw number, no units or commas."
+            },
+            "highlight": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "1 = pop this slice out and show it in the centre. Raw number, no units or commas."
+            }
+          },
+          "required": [
+            "label",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Parts of the whole, clockwise from 12 o'clock (unless sorted)"
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "chart": {
+        "type": "string",
+        "enum": [
+          "donut",
+          "pie"
+        ],
+        "default": "donut",
+        "description": "Ring with a centre number, or a full pie"
+      },
+      "show": {
+        "type": "string",
+        "enum": [
+          "percent",
+          "value",
+          "both"
+        ],
+        "default": "percent",
+        "description": "Share of the total, the raw value, or both"
+      },
+      "center": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "highlight",
+          "total",
+          "none"
+        ],
+        "default": "auto",
+        "description": "Donut centre: auto = highlighted (or largest) slice %, total = sum of values"
+      },
+      "sort": {
+        "type": "string",
+        "enum": [
+          "none",
+          "desc"
+        ],
+        "default": "none",
+        "description": "Keep the given order or largest first"
+      },
+      "highlight": {
+        "type": "string",
+        "enum": [
+          "none",
+          "max",
+          "min"
+        ],
+        "default": "none",
+        "description": "Slice that pops out (slices[].highlight = 1 also works)"
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "indian_compact",
+          "intl_compact",
+          "indian_full",
+          "intl_full",
+          "plain"
+        ],
+        "default": "indian_compact",
+        "description": "indian_compact 4,200 Cr / 73.5 L · intl_compact 42B · indian_full 4,20,00,00,00,000 · intl_full 42,000,000,000 · plain 42000000000"
+      },
+      "decimals": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "0",
+          "1",
+          "2"
+        ],
+        "default": "auto",
+        "description": "Decimal places for raw values"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "series_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Second data series / slice (the first uses accent)",
+            "default": "#22D3EE"
+          },
+          "series_3_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Third data series / slice",
+            "default": "#A78BFA"
+          },
+          "series_4_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Fourth data series / slice",
+            "default": "#F472B6"
+          },
+          "series_5_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Fifth slice",
+            "default": "#34D399"
+          },
+          "series_6_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Sixth slice",
+            "default": "#FB923C"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "title": {
+            "type": "number",
+            "minimum": 40,
+            "maximum": 60,
+            "default": 60,
+            "description": "Heading above the chart"
+          },
+          "center_label": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 30,
+            "default": 30,
+            "description": "Text under the number in the donut centre"
+          },
+          "source": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 24,
+            "default": 24,
+            "description": "Source line under the chart"
+          },
+          "slices.label": {
+            "type": "number",
+            "minimum": 24,
+            "maximum": 40,
+            "default": 40,
+            "description": "Legend label"
+          },
+          "center": {
+            "type": "number",
+            "minimum": 48,
+            "maximum": 140,
+            "default": 140,
+            "description": "Number in the donut centre"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "rise",
+            "description": "heading"
+          },
+          "slices": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "ring / pie sweeping in clockwise"
+          },
+          "legend": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_left",
+            "description": "each legend row"
+          },
+          "highlight": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "pop",
+            "description": "highlighted slice moving out"
+          },
+          "center": {
+            "type": "string",
+            "enum": [
+              "count_up",
+              "count_up_pop",
+              "rise",
+              "fade_up",
+              "scale_in",
+              "blur_in",
+              "none"
+            ],
+            "default": "count_up",
+            "description": "number in the donut centre"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade",
+            "description": "source line"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image (whole clip)"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "all foreground content"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 4,
+        "description": "Seconds from the template start when each element appears, in order: heading, chart, centre number, source. heading → chart starts sweeping → centre number → source. Missing elements are skipped. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "slices"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "title": "UPI market share (illustrative)",
+    "slices": [
+      {
+        "label": "PhonePe",
+        "value": 47,
+        "highlight": 1
+      },
+      {
+        "label": "Google Pay",
+        "value": 36
+      },
+      {
+        "label": "Paytm",
+        "value": 7
+      },
+      {
+        "label": "Others",
+        "value": 10
+      }
+    ],
+    "center_label": "of all UPI payments",
+    "chart": "donut",
+    "show": "percent",
+    "source": "Source: illustrative figures",
+    "background": "theme"
+  }
+}

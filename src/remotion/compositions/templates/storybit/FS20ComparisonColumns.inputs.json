@@ -1,0 +1,1076 @@
+{
+  "template": "FS-20",
+  "name": "Comparison Columns",
+  "animation_type": "fs_comparison_columns",
+  "pick_when": "Comparing 2–3 options, products, plans or countries on the same attributes (a comparison table).",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 210,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "title",
+      "type": "text",
+      "required": false,
+      "fills": "Heading above the table",
+      "limits": "3–40 chars · 1–8 words · longest word 18 · max 1 line",
+      "hint": "What is compared: \"UPI vs cards vs cash\".",
+      "example": "Ways to pay a shopkeeper"
+    },
+    {
+      "path": "columns[]",
+      "type": "list",
+      "required": true,
+      "fills": "Options being compared (left to right)",
+      "limits": "2–3 items"
+    },
+    {
+      "path": "columns[].name",
+      "type": "text",
+      "required": true,
+      "fills": "Column head",
+      "limits": "1–20 chars · 1–4 words · longest word 14 · max 2 lines",
+      "hint": "Option name."
+    },
+    {
+      "path": "columns[].icon",
+      "type": "icon",
+      "required": false,
+      "fills": "Column icon",
+      "limits": "Lucide icon name",
+      "fallback": "none"
+    },
+    {
+      "path": "columns[].image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Picture above the column name (circle)",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "rows[]",
+      "type": "list",
+      "required": true,
+      "fills": "Attributes compared (top to bottom). a / b / c are the cells for columns 1 / 2 / 3",
+      "limits": "2–6 items"
+    },
+    {
+      "path": "rows[].label",
+      "type": "text",
+      "required": true,
+      "fills": "Row label (left column)",
+      "limits": "2–20 chars · 1–4 words · longest word 14 · max 2 lines",
+      "hint": "Attribute name: \"Speed\", \"Fee\", \"Works offline\". Phrase it so \"yes\" is good — ticks are green, crosses red."
+    },
+    {
+      "path": "rows[].a",
+      "type": "text",
+      "required": true,
+      "fills": "Value for column 1",
+      "limits": "1–25 chars · 1–5 words · longest word 14 · max 2 lines",
+      "hint": "Short value, or yes / no / – for a tick, cross or dash."
+    },
+    {
+      "path": "rows[].b",
+      "type": "text",
+      "required": true,
+      "fills": "Value for column 2",
+      "limits": "1–25 chars · 1–5 words · longest word 14 · max 2 lines",
+      "hint": "Short value, or yes / no / – for a tick, cross or dash."
+    },
+    {
+      "path": "rows[].c",
+      "type": "text",
+      "required": false,
+      "fills": "Value for column 3 (only with 3 columns)",
+      "limits": "1–25 chars · 1–5 words · longest word 14 · max 2 lines",
+      "hint": "Short value, or yes / no / – for a tick, cross or dash."
+    },
+    {
+      "path": "rows[].best",
+      "type": "number",
+      "required": false,
+      "fills": "Column that wins this row (1, 2 or 3) — its cell is highlighted",
+      "limits": "integer · ≥ 1 · ≤ 3"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "highlight_column",
+      "type": "choice",
+      "required": false,
+      "fills": "Tint one whole column (e.g. the recommended option)",
+      "values": [
+        "none",
+        "1",
+        "2",
+        "3"
+      ],
+      "default": "none"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.icon_color",
+      "type": "color",
+      "required": false,
+      "fills": "Icon strokes (default: accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.icon_bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Circle behind icons (default: accent at 18%)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card / step fill (default: translucent white, darker over footage)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.card_border_color",
+      "type": "color",
+      "required": false,
+      "fills": "Chip / card outline (default: translucent white)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "derived"
+    },
+    {
+      "path": "style.positive_color",
+      "type": "color",
+      "required": false,
+      "fills": "Good change (up arrows, gains)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#34D399"
+    },
+    {
+      "path": "style.negative_color",
+      "type": "color",
+      "required": false,
+      "fills": "Bad change (down arrows, losses)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F87171"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.title",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of heading above the table (px, largest; shrinks only if it would not fit)",
+      "limits": "44–64 px",
+      "default": 64
+    },
+    {
+      "path": "font_sizes.columns.name",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of column head (px, largest; shrinks only if it would not fit)",
+      "limits": "28–44 px",
+      "default": 44
+    },
+    {
+      "path": "font_sizes.rows.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of row label (left column) (px, largest; shrinks only if it would not fit)",
+      "limits": "22–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.rows.a",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of value for column 1 (px, largest; shrinks only if it would not fit)",
+      "limits": "22–36 px",
+      "default": 36
+    },
+    {
+      "path": "font_sizes.rows.b",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of value for column 2 (px, largest; shrinks only if it would not fit)",
+      "limits": "22–36 px",
+      "default": 36
+    },
+    {
+      "path": "font_sizes.rows.c",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of value for column 3 (only with 3 columns) (px, largest; shrinks only if it would not fit)",
+      "limits": "22–36 px",
+      "default": 36
+    },
+    {
+      "path": "animations.title",
+      "type": "animation",
+      "required": false,
+      "fills": "heading",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "rise",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.header",
+      "type": "animation",
+      "required": false,
+      "fills": "each column head",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_up",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.header_icons",
+      "type": "animation",
+      "required": false,
+      "fills": "icon or picture above each column name",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.rows",
+      "type": "animation",
+      "required": false,
+      "fills": "each row (stripe)",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "fade",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.row_labels",
+      "type": "animation",
+      "required": false,
+      "fills": "label of each row",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "slide_left",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.cells",
+      "type": "animation",
+      "required": false,
+      "fills": "text in each cell",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade_up",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.marks",
+      "type": "animation",
+      "required": false,
+      "fills": "yes / no marks in cells",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.winner",
+      "type": "animation",
+      "required": false,
+      "fills": "highlight behind the best cell",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image (whole clip)",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "all foreground content",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: heading → row 1 → row 2 → row 3 → row 4 → row 5 → row 6",
+      "limits": "seconds from the template start, increasing; First cue = heading (if present), then one cue per row (when the narrator reaches that attribute). Column heads appear just before the first row."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FS-20 Comparison Columns",
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 40,
+        "description": "Heading above the table. 1–8 words, longest word 18 letters. What is compared: \"UPI vs cards vs cash\"."
+      },
+      "columns": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 3,
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20,
+              "description": "Column head. 1–4 words, longest word 14 letters. Option name."
+            },
+            "icon": {
+              "type": "string",
+              "description": "Lucide icon name (kebab-case). Optional; fallback none."
+            },
+            "image_url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Picture above the column name (circle)"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Options being compared (left to right)"
+      },
+      "rows": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 20,
+              "description": "Row label (left column). 1–4 words, longest word 14 letters. Attribute name: \"Speed\", \"Fee\", \"Works offline\". Phrase it so \"yes\" is good — ticks are green, crosses red."
+            },
+            "a": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 25,
+              "description": "Value for column 1. 1–5 words, longest word 14 letters. Short value, or yes / no / – for a tick, cross or dash."
+            },
+            "b": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 25,
+              "description": "Value for column 2. 1–5 words, longest word 14 letters. Short value, or yes / no / – for a tick, cross or dash."
+            },
+            "c": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 25,
+              "description": "Value for column 3 (only with 3 columns). 1–5 words, longest word 14 letters. Short value, or yes / no / – for a tick, cross or dash."
+            },
+            "best": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3,
+              "description": "Column that wins this row (1, 2 or 3) — its cell is highlighted. Raw number, no units or commas."
+            }
+          },
+          "required": [
+            "label",
+            "a",
+            "b"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Attributes compared (top to bottom). a / b / c are the cells for columns 1 / 2 / 3"
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "highlight_column": {
+        "type": "string",
+        "enum": [
+          "none",
+          "1",
+          "2",
+          "3"
+        ],
+        "default": "none",
+        "description": "Tint one whole column (e.g. the recommended option)"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "icon_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Icon strokes (default: accent)"
+          },
+          "icon_bg_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Circle behind icons (default: accent at 18%)"
+          },
+          "card_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card / step fill (default: translucent white, darker over footage)"
+          },
+          "card_border_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Chip / card outline (default: translucent white)"
+          },
+          "positive_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Good change (up arrows, gains)",
+            "default": "#34D399"
+          },
+          "negative_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Bad change (down arrows, losses)",
+            "default": "#F87171"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "title": {
+            "type": "number",
+            "minimum": 44,
+            "maximum": 64,
+            "default": 64,
+            "description": "Heading above the table"
+          },
+          "columns.name": {
+            "type": "number",
+            "minimum": 28,
+            "maximum": 44,
+            "default": 44,
+            "description": "Column head"
+          },
+          "rows.label": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 34,
+            "default": 34,
+            "description": "Row label (left column)"
+          },
+          "rows.a": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 36,
+            "default": 36,
+            "description": "Value for column 1"
+          },
+          "rows.b": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 36,
+            "default": 36,
+            "description": "Value for column 2"
+          },
+          "rows.c": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 36,
+            "default": 36,
+            "description": "Value for column 3 (only with 3 columns)"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "rise",
+            "description": "heading"
+          },
+          "header": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_up",
+            "description": "each column head"
+          },
+          "header_icons": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "icon or picture above each column name"
+          },
+          "rows": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "fade",
+            "description": "each row (stripe)"
+          },
+          "row_labels": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "slide_left",
+            "description": "label of each row"
+          },
+          "cells": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade_up",
+            "description": "text in each cell"
+          },
+          "marks": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "yes / no marks in cells"
+          },
+          "winner": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "pop",
+            "description": "highlight behind the best cell"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image (whole clip)"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "all foreground content"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 7,
+        "description": "Seconds from the template start when each element appears, in order: heading, row 1, row 2, row 3, row 4, row 5, row 6. First cue = heading (if present), then one cue per row (when the narrator reaches that attribute). Column heads appear just before the first row. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "columns",
+      "rows"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "title": "Ways to pay a shopkeeper",
+    "columns": [
+      {
+        "name": "UPI",
+        "icon": "smartphone"
+      },
+      {
+        "name": "Debit card",
+        "icon": "credit-card"
+      },
+      {
+        "name": "Cash",
+        "icon": "banknote"
+      }
+    ],
+    "rows": [
+      {
+        "label": "Speed",
+        "a": "Seconds",
+        "b": "Seconds",
+        "c": "Instant",
+        "best": 3
+      },
+      {
+        "label": "No machine needed",
+        "a": "yes",
+        "b": "no",
+        "c": "yes"
+      },
+      {
+        "label": "Works offline",
+        "a": "Limited",
+        "b": "no",
+        "c": "yes",
+        "best": 3
+      },
+      {
+        "label": "Payment record",
+        "a": "yes",
+        "b": "yes",
+        "c": "no"
+      }
+    ],
+    "highlight_column": "1",
+    "background": "theme"
+  }
+}

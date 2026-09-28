@@ -9,7 +9,9 @@ import {
 export type { SupportedAnimationType } from './animationTypes';
 export {
   KNOWN_ANIMATION_TYPES,
+  STORYBIT_ANIMATION_TYPES,
   isSupportedAnimationType,
+  isStorybitAnimationType,
   inferAnimationTypeFromCompositionId,
   resolveAnimationType,
 } from './animationTypes';

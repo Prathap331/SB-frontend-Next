@@ -1,0 +1,674 @@
+{
+  "template": "MP-13",
+  "name": "Travel Route Map",
+  "animation_type": "mp_travel_route",
+  "pick_when": "A journey or trade route across places: a trip, a smuggling route, a supply chain, a historic voyage.",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 210,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "title",
+      "type": "text",
+      "required": false,
+      "fills": "Heading in the top-left corner",
+      "limits": "3–44 chars · 1–8 words · longest word 18 · max 1 line",
+      "example": "A trade route (illustrative)"
+    },
+    {
+      "path": "stops[]",
+      "type": "list",
+      "required": true,
+      "fills": "Stops in travel order (a stop may repeat: A → B → C → D → C)",
+      "limits": "2–5 stops"
+    },
+    {
+      "path": "stops[].location",
+      "type": "text",
+      "required": true,
+      "fills": "City / place name shown as the stop label",
+      "limits": "2–28 chars · 1–5 words"
+    },
+    {
+      "path": "stops[].region",
+      "type": "text",
+      "required": false,
+      "fills": "Country or larger region (continent, \"Middle East\", \"Southern Asia\", \"EU\", \"SAARC\"…) — filled on the map and shown under the label",
+      "limits": "English name or ISO-3 code"
+    },
+    {
+      "path": "stops[].lat",
+      "type": "number",
+      "required": false,
+      "fills": "Latitude of the location (north positive). Needed unless region is given.",
+      "limits": "−85 to 85"
+    },
+    {
+      "path": "stops[].lon",
+      "type": "number",
+      "required": false,
+      "fills": "Longitude of the location (east positive). Needed unless region is given.",
+      "limits": "−180 to 180"
+    },
+    {
+      "path": "stops[].route_to_next",
+      "type": "choice",
+      "required": false,
+      "fills": "How to travel to the next stop: air · sea (stays on water) · land (stays on land). Default: land under 700 km, else air. Ignored on the last stop.",
+      "values": [
+        "air",
+        "sea",
+        "land"
+      ]
+    },
+    {
+      "path": "stops[].details",
+      "type": "text",
+      "required": false,
+      "fills": "Short line under the label (date, what happened)",
+      "limits": "2–36 chars · 1–6 words"
+    },
+    {
+      "path": "stops[].image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Picture on the stop card"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.series_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Second data series / slice (the first uses accent)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#22D3EE"
+    },
+    {
+      "path": "style.series_3_color",
+      "type": "color",
+      "required": false,
+      "fills": "Third data series / slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#A78BFA"
+    },
+    {
+      "path": "style.series_4_color",
+      "type": "color",
+      "required": false,
+      "fills": "Fourth data series / slice",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F472B6"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.title",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of heading in the top-left corner (px, largest; shrinks only if it would not fit)",
+      "limits": "36–52 px",
+      "default": 52
+    },
+    {
+      "path": "font_sizes.locations",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of location names on the cards (px, largest; shrinks only if it would not fit)",
+      "limits": "20–30 px",
+      "default": 30
+    },
+    {
+      "path": "animations.title",
+      "type": "animation",
+      "required": false,
+      "fills": "heading",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "fade",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.pins",
+      "type": "animation",
+      "required": false,
+      "fills": "stop markers",
+      "values": [
+        "pop",
+        "spin_in",
+        "bounce",
+        "fade",
+        "wipe",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; spin_in: Spins in a quarter turn while growing; bounce: Drops in and bounces; fade: Fades in; wipe: Revealed left to right; none: Appears instantly"
+    },
+    {
+      "path": "animations.labels",
+      "type": "animation",
+      "required": false,
+      "fills": "label cards",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.paths",
+      "type": "animation",
+      "required": false,
+      "fills": "travel paths (draw along with the vehicle)",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "grow",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "route, stops and labels",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: heading → stop 1 → leg 1 → stop 2 → leg 2 → stop 3 → leg 3 → stop 4 → leg 4 → stop 5",
+      "limits": "seconds from the template start, increasing; Fixed slots: heading → stop 1 → leg 1 → stop 2 → leg 2 → stop 3 → leg 3 → stop 4 → leg 4 → stop 5. Send null for slots you do not use."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "MP-13 Travel Route Map",
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 44,
+        "description": "Heading in the top-left corner. 1–8 words, longest word 18 letters."
+      },
+      "stops": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 5,
+        "description": "Stops in travel order. Each stop holds its own region, location, route to the next stop and details.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "location"
+          ],
+          "properties": {
+            "location": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 28,
+              "description": "City / place name (stop label)."
+            },
+            "region": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 40,
+              "description": "Country or larger region, e.g. \"India\", \"Middle East\"."
+            },
+            "lat": {
+              "type": "number",
+              "minimum": -85,
+              "maximum": 85,
+              "description": "Latitude of the location (needed unless region is given)."
+            },
+            "lon": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180,
+              "description": "Longitude of the location (needed unless region is given)."
+            },
+            "route_to_next": {
+              "type": "string",
+              "enum": [
+                "air",
+                "sea",
+                "land"
+              ],
+              "description": "How to reach the next stop."
+            },
+            "details": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 36,
+              "description": "Short line under the label."
+            },
+            "image_url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Picture on the stop card."
+            }
+          }
+        }
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "series_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Second data series / slice (the first uses accent)",
+            "default": "#22D3EE"
+          },
+          "series_3_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Third data series / slice",
+            "default": "#A78BFA"
+          },
+          "series_4_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Fourth data series / slice",
+            "default": "#F472B6"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "title": {
+            "type": "number",
+            "minimum": 36,
+            "maximum": 52,
+            "default": 52,
+            "description": "Heading in the top-left corner"
+          },
+          "locations": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 30,
+            "default": 30,
+            "description": "Location names on the cards"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "fade",
+            "description": "heading"
+          },
+          "pins": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "spin_in",
+              "bounce",
+              "fade",
+              "wipe",
+              "none"
+            ],
+            "default": "pop",
+            "description": "stop markers"
+          },
+          "labels": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "label cards"
+          },
+          "paths": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "grow",
+            "description": "travel paths (draw along with the vehicle)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "route, stops and labels"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 10,
+        "description": "Seconds from the template start when each element appears, in order: heading, stop 1, leg 1, stop 2, leg 2, stop 3, leg 3, stop 4, leg 4, stop 5. Fixed slots: heading → stop 1 → leg 1 → stop 2 → leg 2 → stop 3 → leg 3 → stop 4 → leg 4 → stop 5. Send null for slots you do not use. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "stops"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "title": "A trade route (illustrative)",
+    "stops": [
+      {
+        "region": "India",
+        "location": "Kochi",
+        "lat": 9.93,
+        "lon": 76.26,
+        "route_to_next": "sea",
+        "details": "Spices loaded"
+      },
+      {
+        "region": "Oman",
+        "location": "Muscat",
+        "lat": 23.59,
+        "lon": 58.41,
+        "route_to_next": "land"
+      },
+      {
+        "region": "Egypt",
+        "location": "Alexandria",
+        "lat": 31.2,
+        "lon": 29.92,
+        "route_to_next": "sea"
+      },
+      {
+        "region": "Italy",
+        "location": "Venice",
+        "lat": 45.44,
+        "lon": 12.32,
+        "details": "Sold in Europe"
+      }
+    ]
+  }
+}

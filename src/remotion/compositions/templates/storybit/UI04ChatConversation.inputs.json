@@ -1,0 +1,711 @@
+{
+  "template": "UI-04",
+  "name": "Chat Conversation",
+  "animation_type": "ui_chat",
+  "pick_when": "Retelling a conversation, a scam message thread, or a story told through chat.",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 210,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "contact_name",
+      "type": "text",
+      "required": true,
+      "fills": "Name in the chat header",
+      "limits": "1–24 chars · 1–4 words · longest word 16 · max 1 line",
+      "hint": "Who the chat is with (\"Bank Support\", \"Rahul\").",
+      "example": "Bank Support"
+    },
+    {
+      "path": "status",
+      "type": "text",
+      "required": false,
+      "fills": "Line under the name",
+      "limits": "2–20 chars · 1–3 words · longest word 14 · max 1 line",
+      "hint": "\"online\", \"last seen today\".",
+      "example": "online"
+    },
+    {
+      "path": "label",
+      "type": "text",
+      "required": false,
+      "fills": "Small tag above the chat",
+      "limits": "2–28 chars · 1–4 words · longest word 16 · max 1 line",
+      "hint": "Default \"Recreated conversation\". Use \"\" only for a real, sourced screenshot."
+    },
+    {
+      "path": "messages[]",
+      "type": "list",
+      "required": true,
+      "fills": "Messages in order",
+      "limits": "2–8 items"
+    },
+    {
+      "path": "messages[].text",
+      "type": "text",
+      "required": true,
+      "fills": "Message text",
+      "limits": "1–90 chars · 1–18 words · longest word 16 · max 3 lines",
+      "hint": "One message."
+    },
+    {
+      "path": "messages[].time",
+      "type": "text",
+      "required": false,
+      "fills": "Time in the bubble corner",
+      "limits": "3–8 chars · 1–2 words · longest word 8 · max 1 line",
+      "hint": "\"10:42\"."
+    },
+    {
+      "path": "messages[].side",
+      "type": "text",
+      "required": true,
+      "fills": "Which side the bubble is on",
+      "limits": "2–3 chars · 1–1 words · longest word 3 · max 1 line",
+      "hint": "\"in\" (from the contact, left) or \"out\" (sent, right)."
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "avatar_url",
+      "type": "image",
+      "required": false,
+      "fills": "Picture in the chat header (letter of the name if missing)",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "theme_style",
+      "type": "choice",
+      "required": false,
+      "fills": "green: WhatsApp-like · blue: iMessage-like · neutral: plain (generic look-alikes, no logos)",
+      "values": [
+        "green",
+        "blue",
+        "neutral"
+      ],
+      "default": "green"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "theme gradient, image_url, or transparent over footage",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.contact_name",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of name in the chat header (px, largest; shrinks only if it would not fit)",
+      "limits": "24–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.status",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of line under the name (px, largest; shrinks only if it would not fit)",
+      "limits": "18–22 px",
+      "default": 22
+    },
+    {
+      "path": "font_sizes.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of small tag above the chat (px, largest; shrinks only if it would not fit)",
+      "limits": "16–22 px",
+      "default": 22
+    },
+    {
+      "path": "font_sizes.messages.text",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of message text (px, largest; shrinks only if it would not fit)",
+      "limits": "22–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.messages.time",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of time in the bubble corner (px, largest; shrinks only if it would not fit)",
+      "limits": "14–18 px",
+      "default": 18
+    },
+    {
+      "path": "font_sizes.messages.side",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of which side the bubble is on (px, largest; shrinks only if it would not fit)",
+      "limits": "20–20 px",
+      "default": 20
+    },
+    {
+      "path": "animations.panel",
+      "type": "animation",
+      "required": false,
+      "fills": "the chat window",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.bubbles",
+      "type": "animation",
+      "required": false,
+      "fills": "each message bubble",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "the chat",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade_up",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: message 1 → message 2 → message 3 → message 4 → message 5 → message 6 → message 7 → message 8",
+      "limits": "seconds from the template start, increasing; One cue per message, when it is read out (incoming messages show \"typing…\" just before)."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "UI-04 Chat Conversation",
+    "type": "object",
+    "properties": {
+      "contact_name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 24,
+        "description": "Name in the chat header. 1–4 words, longest word 16 letters. Who the chat is with (\"Bank Support\", \"Rahul\")."
+      },
+      "status": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 20,
+        "description": "Line under the name. 1–3 words, longest word 14 letters. \"online\", \"last seen today\"."
+      },
+      "label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 28,
+        "description": "Small tag above the chat. 1–4 words, longest word 16 letters. Default \"Recreated conversation\". Use \"\" only for a real, sourced screenshot."
+      },
+      "messages": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 90,
+              "description": "Message text. 1–18 words, longest word 16 letters. One message."
+            },
+            "time": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 8,
+              "description": "Time in the bubble corner. 1–2 words, longest word 8 letters. \"10:42\"."
+            },
+            "side": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 3,
+              "description": "Which side the bubble is on. 1–1 words, longest word 3 letters. \"in\" (from the contact, left) or \"out\" (sent, right)."
+            }
+          },
+          "required": [
+            "text",
+            "side"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Messages in order"
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "avatar_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Picture in the chat header (letter of the name if missing)"
+      },
+      "theme_style": {
+        "type": "string",
+        "enum": [
+          "green",
+          "blue",
+          "neutral"
+        ],
+        "default": "green",
+        "description": "green: WhatsApp-like · blue: iMessage-like · neutral: plain (generic look-alikes, no logos)"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "theme gradient, image_url, or transparent over footage"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "contact_name": {
+            "type": "number",
+            "minimum": 24,
+            "maximum": 34,
+            "default": 34,
+            "description": "Name in the chat header"
+          },
+          "status": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 22,
+            "default": 22,
+            "description": "Line under the name"
+          },
+          "label": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 22,
+            "default": 22,
+            "description": "Small tag above the chat"
+          },
+          "messages.text": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 34,
+            "default": 34,
+            "description": "Message text"
+          },
+          "messages.time": {
+            "type": "number",
+            "minimum": 14,
+            "maximum": 18,
+            "default": 18,
+            "description": "Time in the bubble corner"
+          },
+          "messages.side": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 20,
+            "default": 20,
+            "description": "Which side the bubble is on"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "panel": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "the chat window"
+          },
+          "bubbles": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "each message bubble"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade_up",
+            "description": "the chat"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 8,
+        "description": "Seconds from the template start when each element appears, in order: message 1, message 2, message 3, message 4, message 5, message 6, message 7, message 8. One cue per message, when it is read out (incoming messages show \"typing…\" just before). Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "contact_name",
+      "messages"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "contact_name": "Bank Support",
+    "status": "online",
+    "messages": [
+      {
+        "side": "in",
+        "text": "Your account will be blocked today. Share the OTP to keep it active.",
+        "time": "10:41"
+      },
+      {
+        "side": "out",
+        "text": "Why would my bank ask for an OTP?",
+        "time": "10:42"
+      },
+      {
+        "side": "in",
+        "text": "Sir it is urgent, share it within 5 minutes",
+        "time": "10:42"
+      }
+    ],
+    "theme_style": "green",
+    "background": "theme"
+  }
+}

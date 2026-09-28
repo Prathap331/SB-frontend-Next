@@ -1,0 +1,588 @@
+{
+  "template": "VO-10",
+  "name": "Before / After",
+  "animation_type": "vo_before_after",
+  "pick_when": "Then vs now, before vs after: the same place, product or person compared in two pictures.",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 150,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "before_label",
+      "type": "text",
+      "required": false,
+      "fills": "Label on the before side",
+      "limits": "2–16 chars · 1–3 words · longest word 14 · max 1 line",
+      "hint": "Default \"Before\" (e.g. \"पहले\")."
+    },
+    {
+      "path": "after_label",
+      "type": "text",
+      "required": false,
+      "fills": "Label on the after side",
+      "limits": "2–16 chars · 1–3 words · longest word 14 · max 1 line",
+      "hint": "Default \"After\" (e.g. \"अब\")."
+    },
+    {
+      "path": "before_date",
+      "type": "text",
+      "required": false,
+      "fills": "Date under the before label",
+      "limits": "2–16 chars · 1–3 words · longest word 12 · max 1 line",
+      "example": "2005"
+    },
+    {
+      "path": "after_date",
+      "type": "text",
+      "required": false,
+      "fills": "Date under the after label",
+      "limits": "2–16 chars · 1–3 words · longest word 12 · max 1 line",
+      "example": "2025"
+    },
+    {
+      "path": "caption",
+      "type": "text",
+      "required": false,
+      "fills": "Caption along the bottom",
+      "limits": "3–70 chars · 1–12 words · longest word 18 · max 1 line"
+    },
+    {
+      "path": "before_url",
+      "type": "image",
+      "required": true,
+      "fills": "The \"before\" picture",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "after_url",
+      "type": "image",
+      "required": true,
+      "fills": "The \"after\" picture (same framing works best)",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "mode",
+      "type": "choice",
+      "required": false,
+      "fills": "wipe: a slider reveals the after picture · split: side by side · fade: before fades into after",
+      "values": [
+        "wipe",
+        "split",
+        "fade"
+      ],
+      "default": "wipe"
+    },
+    {
+      "path": "stop_at",
+      "type": "choice",
+      "required": false,
+      "fills": "wipe only: slider rests in the middle (both visible) or goes all the way",
+      "values": [
+        "half",
+        "full"
+      ],
+      "default": "half"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.before_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of label on the before side (px, largest; shrinks only if it would not fit)",
+      "limits": "22–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.after_label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of label on the after side (px, largest; shrinks only if it would not fit)",
+      "limits": "22–34 px",
+      "default": 34
+    },
+    {
+      "path": "font_sizes.before_date",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of date under the before label (px, largest; shrinks only if it would not fit)",
+      "limits": "18–26 px",
+      "default": 26
+    },
+    {
+      "path": "font_sizes.after_date",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of date under the after label (px, largest; shrinks only if it would not fit)",
+      "limits": "18–26 px",
+      "default": 26
+    },
+    {
+      "path": "font_sizes.caption",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of caption along the bottom (px, largest; shrinks only if it would not fit)",
+      "limits": "22–34 px",
+      "default": 34
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "slow movement inside both pictures",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.labels",
+      "type": "animation",
+      "required": false,
+      "fills": "before / after labels",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "labels and caption",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: before → reveal → caption",
+      "limits": "seconds from the template start, increasing; before (the before picture is described) → reveal (the change) → caption."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "VO-10 Before / After",
+    "type": "object",
+    "properties": {
+      "before_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 16,
+        "description": "Label on the before side. 1–3 words, longest word 14 letters. Default \"Before\" (e.g. \"पहले\")."
+      },
+      "after_label": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 16,
+        "description": "Label on the after side. 1–3 words, longest word 14 letters. Default \"After\" (e.g. \"अब\")."
+      },
+      "before_date": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 16,
+        "description": "Date under the before label. 1–3 words, longest word 12 letters."
+      },
+      "after_date": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 16,
+        "description": "Date under the after label. 1–3 words, longest word 12 letters."
+      },
+      "caption": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 70,
+        "description": "Caption along the bottom. 1–12 words, longest word 18 letters."
+      },
+      "before_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "The \"before\" picture"
+      },
+      "after_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "The \"after\" picture (same framing works best)"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "wipe",
+          "split",
+          "fade"
+        ],
+        "default": "wipe",
+        "description": "wipe: a slider reveals the after picture · split: side by side · fade: before fades into after"
+      },
+      "stop_at": {
+        "type": "string",
+        "enum": [
+          "half",
+          "full"
+        ],
+        "default": "half",
+        "description": "wipe only: slider rests in the middle (both visible) or goes all the way"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "before_label": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 34,
+            "default": 34,
+            "description": "Label on the before side"
+          },
+          "after_label": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 34,
+            "default": 34,
+            "description": "Label on the after side"
+          },
+          "before_date": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 26,
+            "default": 26,
+            "description": "Date under the before label"
+          },
+          "after_date": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 26,
+            "default": 26,
+            "description": "Date under the after label"
+          },
+          "caption": {
+            "type": "number",
+            "minimum": 22,
+            "maximum": 34,
+            "default": 34,
+            "description": "Caption along the bottom"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "slow movement inside both pictures"
+          },
+          "labels": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "before / after labels"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "labels and caption"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 3,
+        "description": "Seconds from the template start when each element appears, in order: before, reveal, caption. before (the before picture is described) → reveal (the change) → caption. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "before_url",
+      "after_url"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "before_url": "https://example.com/before.jpg",
+    "after_url": "https://example.com/after.jpg",
+    "before_date": "2005",
+    "after_date": "2025",
+    "caption": "The same street, twenty years apart (sample)",
+    "mode": "wipe",
+    "stop_at": "half"
+  }
+}

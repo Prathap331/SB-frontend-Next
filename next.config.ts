@@ -2,7 +2,14 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  transpilePackages: ['remotion', '@remotion/player'],
+  transpilePackages: [
+    'remotion',
+    '@remotion/player',
+    '@remotion/google-fonts',
+    '@remotion/layout-utils',
+    'd3-geo',
+    'topojson-client',
+  ],
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [

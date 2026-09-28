@@ -1,0 +1,599 @@
+{
+  "template": "VO-07",
+  "name": "Image Montage",
+  "animation_type": "vo_image_montage",
+  "pick_when": "A quick sequence of pictures, or photos in chronological order (a city through the decades, prices over the years).",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 150,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "images[]",
+      "type": "list",
+      "required": true,
+      "fills": "Pictures in the order they appear",
+      "limits": "2–8 items"
+    },
+    {
+      "path": "images[].label",
+      "type": "text",
+      "required": false,
+      "fills": "Label of the picture",
+      "limits": "2–40 chars · 1–7 words · longest word 18 · max 2 lines",
+      "hint": "What is shown."
+    },
+    {
+      "path": "images[].date",
+      "type": "text",
+      "required": false,
+      "fills": "Date chip",
+      "limits": "2–16 chars · 1–3 words · longest word 12 · max 1 line",
+      "hint": "\"1991\", \"Aug 2016\"."
+    },
+    {
+      "path": "images[].value",
+      "type": "text",
+      "required": false,
+      "fills": "Big value in the corner",
+      "limits": "1–16 chars · 1–3 words · longest word 14 · max 1 line",
+      "hint": "A number for this picture: \"₹45\", \"1.2 crore\"."
+    },
+    {
+      "path": "images[].image_url",
+      "type": "image",
+      "required": true,
+      "fills": "The picture",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "look",
+      "type": "choice",
+      "required": false,
+      "fills": "cut: full-frame pictures one after another · stack: photo cards dealt on top of each other",
+      "values": [
+        "cut",
+        "stack"
+      ],
+      "default": "cut"
+    },
+    {
+      "path": "transition",
+      "type": "choice",
+      "required": false,
+      "fills": "How one full-frame picture changes to the next (cut look)",
+      "values": [
+        "cut",
+        "fade",
+        "slide",
+        "zoom"
+      ],
+      "default": "cut"
+    },
+    {
+      "path": "counter",
+      "type": "choice",
+      "required": false,
+      "fills": "Show \"2 / 5\" in the corner",
+      "values": [
+        "off",
+        "on"
+      ],
+      "default": "off"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "Behind the cards (stack look)",
+      "values": [
+        "theme",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.images.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of label of the picture (px, largest; shrinks only if it would not fit)",
+      "limits": "26–44 px",
+      "default": 44
+    },
+    {
+      "path": "font_sizes.images.date",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of date chip (px, largest; shrinks only if it would not fit)",
+      "limits": "20–30 px",
+      "default": 30
+    },
+    {
+      "path": "font_sizes.images.value",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of big value in the corner (px, largest; shrinks only if it would not fit)",
+      "limits": "36–72 px",
+      "default": 72
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "slow movement inside each picture",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.captions",
+      "type": "animation",
+      "required": false,
+      "fills": "label / date / value of each picture",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_up",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "the last picture and its caption",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: image 1 → image 2 → image 3 → image 4 → image 5 → image 6 → image 7 → image 8",
+      "limits": "seconds from the template start, increasing; One cue per picture: the moment it appears."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "VO-07 Image Montage",
+    "type": "object",
+    "properties": {
+      "images": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 40,
+              "description": "Label of the picture. 1–7 words, longest word 18 letters. What is shown."
+            },
+            "date": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 16,
+              "description": "Date chip. 1–3 words, longest word 12 letters. \"1991\", \"Aug 2016\"."
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "description": "Big value in the corner. 1–3 words, longest word 14 letters. A number for this picture: \"₹45\", \"1.2 crore\"."
+            },
+            "image_url": {
+              "type": "string",
+              "format": "uri",
+              "description": "The picture"
+            }
+          },
+          "required": [
+            "image_url"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Pictures in the order they appear"
+      },
+      "look": {
+        "type": "string",
+        "enum": [
+          "cut",
+          "stack"
+        ],
+        "default": "cut",
+        "description": "cut: full-frame pictures one after another · stack: photo cards dealt on top of each other"
+      },
+      "transition": {
+        "type": "string",
+        "enum": [
+          "cut",
+          "fade",
+          "slide",
+          "zoom"
+        ],
+        "default": "cut",
+        "description": "How one full-frame picture changes to the next (cut look)"
+      },
+      "counter": {
+        "type": "string",
+        "enum": [
+          "off",
+          "on"
+        ],
+        "default": "off",
+        "description": "Show \"2 / 5\" in the corner"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "Behind the cards (stack look)"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "images.label": {
+            "type": "number",
+            "minimum": 26,
+            "maximum": 44,
+            "default": 44,
+            "description": "Label of the picture"
+          },
+          "images.date": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 30,
+            "default": 30,
+            "description": "Date chip"
+          },
+          "images.value": {
+            "type": "number",
+            "minimum": 36,
+            "maximum": 72,
+            "default": 72,
+            "description": "Big value in the corner"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "slow movement inside each picture"
+          },
+          "captions": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_up",
+            "description": "label / date / value of each picture"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "the last picture and its caption"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 8,
+        "description": "Seconds from the template start when each element appears, in order: image 1, image 2, image 3, image 4, image 5, image 6, image 7, image 8. One cue per picture: the moment it appears. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "images"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "images": [
+      {
+        "image_url": "https://example.com/1991.jpg",
+        "date": "1991",
+        "label": "Before liberalisation"
+      },
+      {
+        "image_url": "https://example.com/2001.jpg",
+        "date": "2001",
+        "label": "The IT boom"
+      },
+      {
+        "image_url": "https://example.com/2016.jpg",
+        "date": "2016",
+        "label": "UPI launches"
+      },
+      {
+        "image_url": "https://example.com/2025.jpg",
+        "date": "2025",
+        "label": "Payments everywhere"
+      }
+    ],
+    "look": "cut",
+    "transition": "fade"
+  }
+}

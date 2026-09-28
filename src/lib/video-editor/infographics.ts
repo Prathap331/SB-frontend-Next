@@ -1,7 +1,7 @@
 import { EDITOR_FPS, framesToSeconds, secondsToFrame } from './fps';
 import { frameWindowSeconds, toSceneLocalSeconds } from './timings';
 import { iconNamesFromContentBinding, readIconNames } from '@/remotion/props';
-import { inferAnimationTypeFromCompositionId, resolveAnimationType } from '@/remotion/animationTypes';
+import { inferAnimationTypeFromCompositionId, isStorybitAnimationType, resolveAnimationType } from '@/remotion/animationTypes';
 import {
   defaultOverlayGeometry,
   fitOverlayBoxForIcons,
@@ -588,8 +588,6 @@ const VISUAL_ONLY_ANIMATION_TYPES = new Set([
   'multi_panel_grid',
   'pip_video',
   'pip_video_frame',
-  'image_pip',
-  'image_split_screen',
   'speed_ramp_indicator',
   'arrow_highlight',
   'emoji_reaction',
@@ -599,13 +597,6 @@ const VISUAL_ONLY_ANIMATION_TYPES = new Set([
   'avatar_overlay_placeholder',
   'mascot_animation',
   'mascot_animation_placeholder',
-  'particle_snow',
-  'ink_spread_transition',
-  'loop_grid_wave',
-  'pixel_mosaic_transition',
-  'pixel_waterfall_cycle',
-  'transition_circle_wipe',
-  'fireworks_burst',
 ]);
 
 function asOverlayId(value: unknown): string | undefined {
@@ -704,7 +695,7 @@ export function parseRemotionInfographic(raw: unknown): RemotionInfographicSpec 
   const isIconAnim = typeKey.startsWith('icon_');
   const visualOnly =
     VISUAL_ONLY_ANIMATION_TYPES.has(typeKey) || VISUAL_ONLY_ANIMATION_TYPES.has(resolveAnimationType(typeKey));
-  if (!hasCopy && !isIconAnim && !visualOnly) {
+  if (!hasCopy && !isIconAnim && !visualOnly && !isStorybitAnimationType(typeKey)) {
     const fallbackLabel = asString(obj.animation_type)?.replace(/_/g, ' ').trim();
     if (fallbackLabel) props.title = fallbackLabel;
   }

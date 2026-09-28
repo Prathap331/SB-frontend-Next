@@ -1,279 +1,152 @@
 'use client';
 
-import type { ComponentType } from 'react';
+/**
+ * Storybit template lookup by exact backend `animation_type`.
+ * Overlay taxonomy names stay in taxonomyVisuals — similar names are not aliases
+ * (`fs_title_card` ≠ `full_screen_title_card`, `vo_lower_third` ≠ `lower_third`).
+ */
+import { Component, type ComponentType, type ReactNode } from 'react';
 import type { TemplateProps } from '../../types';
-import { BarChart } from './charts/BarChart';
-import { LineChart } from './charts/LineChart';
-import { PieChart } from './charts/PieChart';
-import { DonutChart } from './charts/DonutChart';
-import { AreaChart } from './charts/AreaChart';
-import { ProgressBars } from './charts/ProgressBars';
-import { StatCounter } from './charts/StatCounter';
-import { ComparisonChart } from './charts/ComparisonChart';
-import { CircularProgress } from './charts/CircularProgress';
-import { AnimatedText } from './text/AnimatedText';
-import { BounceText } from './text/BounceText';
-import { BubblePopText } from './text/BubblePopText';
-import { FloatingTextChip } from './text/FloatingTextChip';
-import { GlitchText } from './text/GlitchText';
-import { PoppingScaleText } from './text/PoppingScaleText';
-import { PulsingText } from './text/PulsingText';
-import { SlideText } from './text/SlideText';
-import { TypewriterSubtitle } from './text/TypewriterSubtitle';
-import { AnimatedList } from './content/AnimatedList';
-import { CardFlip } from './content/CardFlip';
-import { CountdownTimer } from './content/CountdownTimer';
-import { NotificationPop } from './content/NotificationPop';
-import { ParticleExplosion } from './content/ParticleExplosion';
-import { ProgressSteps } from './content/ProgressSteps';
-import { RotatingCarousel } from './content/RotatingCarousel';
-import { SoundWave } from './content/SoundWave';
-import { TextHighlight } from './content/TextHighlight';
-import {
-  BokehCircles,
-  GeometricPatterns,
-  GradientShift,
-  GridPulse,
-  LiquidWave,
-  MatrixRain,
-  NoiseGrain,
-  PixelTransition,
-  Starfield,
-} from './backgrounds/Backgrounds';
-import {
-  CameraShake,
-  FilmBurn,
-  KenBurns,
-  LetterboxReveal,
-  ParallaxPan,
-  SpotlightReveal,
-  VignettePulse,
-  WhipPan,
-  ZoomPulse,
-} from './cinematic/Cinematic';
-import {
-  BlindsTransition,
-  ClockWipe,
-  CrossDissolve,
-  FadeThroughBlack,
-  IrisTransition,
-  MorphTransition,
-  PushTransition,
-  SlideWipe,
-  ZoomThrough,
-} from './transitions/Transitions';
-import {
-  LogoBlurReveal,
-  LogoBounceDrop,
-  LogoFadeReveal,
-  LogoGlitchReveal,
-  LogoScaleRotate,
-  LogoSpinReveal,
-  LogoSplitReveal,
-  LogoStrokeDraw,
-  LogoTypewriter,
-} from './branding/LogoReveal';
-import {
-  ChapterTitle,
-  CinematicTitleIntro,
-  CountdownIntro,
-  CreditsRoll,
-  EndCard,
-  IntroLowerThird,
-  QuoteCardIntro,
-  SubscribeReminder,
-  TitleSplit,
-} from './intro/Intros';
-import {
-  GalleryGrid,
-  ImageCarousel,
-  ImageComparisonSlider,
-  ImageZoomReveal,
-  MasonryGallery,
-  PhotoStack,
-  PictureInPicture,
-  PolaroidFrame,
-  SplitScreen,
-} from './media/Media';
-import {
-  ChartAnimation,
-  FloatingBubbleText,
-  FullScreenTransition,
-  ImagePip,
-  KenBurnsPanZoom,
-  ParallaxLayering,
-  PipVideo,
-  PoppingText,
-  QuoteCardTemplate,
-  ShakeImpact,
-  SplitScreenPanels,
-} from './unique/UniqueNames';
-import {
-  BarChartAnim,
-  BounceInHeadline,
-  BrushStrokeReveal,
-  CardFlipTransition,
-  CharacterJumping,
-  CommunityChat,
-  EyeReveal,
-  FireworksBurst,
-  FlipPageTransition,
-  FourToneMonoTitler,
-  GradientTextSweep,
-  InkSpreadTransition,
-  KineticWordStack,
-  KpiCounter,
-  LineChartAnim,
-  LogoMaskWipe,
-  LoopGridWave,
-  LowerThirdGlassCard,
-  NeonSign,
-  ParticleSnow,
-  PencilDraw,
-  PixelCandlestickOhlc,
-  PixelMosaicTransition,
-  PixelTypewriterQuote,
-  PixelWaterfallCycle,
-  PouroverDripFillGauge,
-  RacingChart,
-  ScrambleText,
-  ShatterReveal,
-  SocialReel,
-  TextMaskReveal,
-  ThinkingBubble,
-  TransitionCircleWipe,
-  TypewriterMachine,
-  WaveHello,
-  WaveText,
-} from './rendercomp/RenderComp';
+
+import { FS01TitleCard } from './storybit/FS01TitleCard';
+import { FS03TitleMetadata } from './storybit/FS03TitleMetadata';
+import { FS04BigNumber } from './storybit/FS04BigNumber';
+import { FS06NumberComparison } from './storybit/FS06NumberComparison';
+import { FS08QuoteCard } from './storybit/FS08QuoteCard';
+import { FS11KeyStatement } from './storybit/FS11KeyStatement';
+import { FS14StructuredList } from './storybit/FS14StructuredList';
+import { FS20ComparisonColumns } from './storybit/FS20ComparisonColumns';
+import { DV01BarChart } from './storybit/DV01BarChart';
+import { DV04LineChart } from './storybit/DV04LineChart';
+import { DV08PieDonut } from './storybit/DV08PieDonut';
+import { DV12Gauge } from './storybit/DV12Gauge';
+import { DV14Leaderboard } from './storybit/DV14Leaderboard';
+import { DV27IconArray } from './storybit/DV27IconArray';
+import { TL02Timeline } from './storybit/TL02Timeline';
+import { TL11Roadmap } from './storybit/TL11Roadmap';
+import { DG01LinearProcess } from './storybit/DG01LinearProcess';
+import { DG05Relationship } from './storybit/DG05Relationship';
+import { DG09DecisionTree } from './storybit/DG09DecisionTree';
+import { DG10Funnel } from './storybit/DG10Funnel';
+import { DG14Hierarchy } from './storybit/DG14Hierarchy';
+import { DG17Architecture } from './storybit/DG17Architecture';
+import { DG23ProsCons } from './storybit/DG23ProsCons';
+import { DG24VsFaceOff } from './storybit/DG24VsFaceOff';
+import { DG25MythFact } from './storybit/DG25MythFact';
+import { PE01PersonIntro } from './storybit/PE01PersonIntro';
+import { PE10ProfileCard } from './storybit/PE10ProfileCard';
+import { VO01ImageCaption } from './storybit/VO01ImageCaption';
+import { VO06ImageGrid } from './storybit/VO06ImageGrid';
+import { VO07ImageMontage } from './storybit/VO07ImageMontage';
+import { VO10BeforeAfter } from './storybit/VO10BeforeAfter';
+import { VO12LocationTag } from './storybit/VO12LocationTag';
+import { VO16LowerThird } from './storybit/VO16LowerThird';
+import { VO19StatOverlay } from './storybit/VO19StatOverlay';
+import { VO21Callout } from './storybit/VO21Callout';
+import { VO29SourceCitation } from './storybit/VO29SourceCitation';
+import { KT02PunchWord } from './storybit/KT02PunchWord';
+import { KT03StackedText } from './storybit/KT03StackedText';
+import { KT08QuestionHook } from './storybit/KT08QuestionHook';
+import { KT10Captions } from './storybit/KT10Captions';
+import { NV01ChapterCard } from './storybit/NV01ChapterCard';
+import { NV03ProgressTracker } from './storybit/NV03ProgressTracker';
+import { NV04RankReveal } from './storybit/NV04RankReveal';
+import { NV05SubscribeReminder } from './storybit/NV05SubscribeReminder';
+import { NV07EndScreen } from './storybit/NV07EndScreen';
+import { UI01SocialPost } from './storybit/UI01SocialPost';
+import { UI04ChatConversation } from './storybit/UI04ChatConversation';
+import { UI06NewsHeadline } from './storybit/UI06NewsHeadline';
+import { UI07NewspaperClipping } from './storybit/UI07NewspaperClipping';
+import { UI08SearchBar } from './storybit/UI08SearchBar';
+import { UI12NotificationPop } from './storybit/UI12NotificationPop';
+import { DC01DocumentHighlight } from './storybit/DC01DocumentHighlight';
+import { DC04InvestigationBoard } from './storybit/DC04InvestigationBoard';
+import { DC05CaseFile } from './storybit/DC05CaseFile';
+import { DC08ArchivePhoto } from './storybit/DC08ArchivePhoto';
+import { DC09StickyNotes } from './storybit/DC09StickyNotes';
+import { MP11GlobeZoom } from './storybit/MP11GlobeZoom';
+import { MP12RadiusRange } from './storybit/MP12RadiusRange';
+import { MP13TravelRoute } from './storybit/MP13TravelRoute';
+import { EM04ScribbleAnnotation } from './storybit/EM04ScribbleAnnotation';
+import { HC02FloatingCard } from './storybit/HC02FloatingCard';
 
 export const TEMPLATE_RENDERERS: Record<string, ComponentType<TemplateProps>> = {
-  bar_chart: BarChart,
-  chart_animation: ChartAnimation,
-  line_chart: LineChart,
-  pie_chart: PieChart,
-  donut_chart: DonutChart,
-  area_chart: AreaChart,
-  progress_bars: ProgressBars,
-  stat_counter: StatCounter,
-  comparison_chart: ComparisonChart,
-  circular_progress: CircularProgress,
-  animated_text: AnimatedText,
-  bounce_text: BounceText,
-  bubble_pop_text: BubblePopText,
-  floating_text_chip: FloatingTextChip,
-  floating_bubble_text: FloatingBubbleText,
-  glitch_text: GlitchText,
-  popping_scale_text: PoppingScaleText,
-  popping_text: PoppingText,
-  pulsing_text: PulsingText,
-  slide_text: SlideText,
-  typewriter_subtitle: TypewriterSubtitle,
-  animated_list: AnimatedList,
-  card_flip: CardFlip,
-  countdown_timer: CountdownTimer,
-  notification_pop: NotificationPop,
-  particle_explosion: ParticleExplosion,
-  progress_steps: ProgressSteps,
-  rotating_carousel: RotatingCarousel,
-  sound_wave: SoundWave,
-  text_highlight: TextHighlight,
-  bokeh_circles: BokehCircles,
-  geometric_patterns: GeometricPatterns,
-  gradient_shift: GradientShift,
-  grid_pulse: GridPulse,
-  liquid_wave: LiquidWave,
-  matrix_rain: MatrixRain,
-  noise_grain: NoiseGrain,
-  pixel_transition: PixelTransition,
-  starfield: Starfield,
-  camera_shake: CameraShake,
-  film_burn: FilmBurn,
-  ken_burns: KenBurns,
-  ken_burns_pan_zoom: KenBurnsPanZoom,
-  letterbox_reveal: LetterboxReveal,
-  parallax_pan: ParallaxPan,
-  parallax_layering: ParallaxLayering,
-  spotlight_reveal: SpotlightReveal,
-  vignette_pulse: VignettePulse,
-  whip_pan: WhipPan,
-  zoom_pulse: ZoomPulse,
-  shake_impact: ShakeImpact,
-  blinds_transition: BlindsTransition,
-  clock_wipe: ClockWipe,
-  cross_dissolve: CrossDissolve,
-  fade_through_black: FadeThroughBlack,
-  iris_transition: IrisTransition,
-  morph_transition: MorphTransition,
-  push_transition: PushTransition,
-  slide_wipe: SlideWipe,
-  zoom_through: ZoomThrough,
-  full_screen_transition: FullScreenTransition,
-  logo_blur_reveal: LogoBlurReveal,
-  logo_bounce_drop: LogoBounceDrop,
-  logo_fade_reveal: LogoFadeReveal,
-  logo_glitch_reveal: LogoGlitchReveal,
-  logo_scale_rotate: LogoScaleRotate,
-  logo_spin_reveal: LogoSpinReveal,
-  logo_split_reveal: LogoSplitReveal,
-  logo_stroke_draw: LogoStrokeDraw,
-  logo_typewriter: LogoTypewriter,
-  chapter_title: ChapterTitle,
-  cinematic_title_intro: CinematicTitleIntro,
-  countdown_intro: CountdownIntro,
-  credits_roll: CreditsRoll,
-  end_card: EndCard,
-  intro_lower_third: IntroLowerThird,
-  intro_quote_card: QuoteCardIntro,
-  quote_card: QuoteCardTemplate,
-  subscribe_reminder: SubscribeReminder,
-  title_split: TitleSplit,
-  gallery_grid: GalleryGrid,
-  image_carousel: ImageCarousel,
-  image_comparison_slider: ImageComparisonSlider,
-  image_zoom_reveal: ImageZoomReveal,
-  masonry_gallery: MasonryGallery,
-  photo_stack: PhotoStack,
-  picture_in_picture: PictureInPicture,
-  image_pip: ImagePip,
-  polaroid_frame: PolaroidFrame,
-  split_screen: SplitScreenPanels,
-  image_split_screen: SplitScreen,
-  pip_video: PipVideo,
-  bar_chart_anim: BarChartAnim,
-  bounce_in_headline: BounceInHeadline,
-  brush_stroke_reveal: BrushStrokeReveal,
-  card_flip_transition: CardFlipTransition,
-  character_jumping: CharacterJumping,
-  community_chat: CommunityChat,
-  eye_reveal: EyeReveal,
-  fireworks_burst: FireworksBurst,
-  flip_page_transition: FlipPageTransition,
-  four_tone_mono_titler: FourToneMonoTitler,
-  gradient_text_sweep: GradientTextSweep,
-  ink_spread_transition: InkSpreadTransition,
-  kinetic_word_stack: KineticWordStack,
-  kpi_counter: KpiCounter,
-  line_chart_anim: LineChartAnim,
-  logo_mask_wipe: LogoMaskWipe,
-  loop_grid_wave: LoopGridWave,
-  lower_third_glass_card: LowerThirdGlassCard,
-  neon_sign: NeonSign,
-  particle_snow: ParticleSnow,
-  pencil_draw: PencilDraw,
-  pixel_candlestick_ohlc: PixelCandlestickOhlc,
-  pixel_mosaic_transition: PixelMosaicTransition,
-  pixel_typewriter_quote: PixelTypewriterQuote,
-  pixel_waterfall_cycle: PixelWaterfallCycle,
-  pourover_drip_fill_gauge: PouroverDripFillGauge,
-  racing_chart: RacingChart,
-  scramble_text: ScrambleText,
-  shatter_reveal: ShatterReveal,
-  social_reel: SocialReel,
-  text_mask_reveal: TextMaskReveal,
-  thinking_bubble: ThinkingBubble,
-  transition_circle_wipe: TransitionCircleWipe,
-  typewriter: TypewriterMachine,
-  wave_hello: WaveHello,
-  wave_text: WaveText,
+  fs_title_card: FS01TitleCard,
+  fs_title_metadata: FS03TitleMetadata,
+  fs_big_number: FS04BigNumber,
+  fs_number_comparison: FS06NumberComparison,
+  fs_quote_card: FS08QuoteCard,
+  fs_key_statement: FS11KeyStatement,
+  fs_structured_list: FS14StructuredList,
+  fs_comparison_columns: FS20ComparisonColumns,
+  dv_bar_chart: DV01BarChart,
+  dv_line_chart: DV04LineChart,
+  dv_pie_donut: DV08PieDonut,
+  dv_gauge: DV12Gauge,
+  dv_leaderboard: DV14Leaderboard,
+  dv_icon_array: DV27IconArray,
+  tl_timeline: TL02Timeline,
+  tl_roadmap: TL11Roadmap,
+  dg_linear_process: DG01LinearProcess,
+  dg_relationship: DG05Relationship,
+  dg_decision_tree: DG09DecisionTree,
+  dg_funnel: DG10Funnel,
+  dg_hierarchy: DG14Hierarchy,
+  dg_architecture: DG17Architecture,
+  dg_pros_cons: DG23ProsCons,
+  dg_vs_faceoff: DG24VsFaceOff,
+  dg_myth_fact: DG25MythFact,
+  pe_person_intro: PE01PersonIntro,
+  pe_profile_card: PE10ProfileCard,
+  vo_image_caption: VO01ImageCaption,
+  vo_image_grid: VO06ImageGrid,
+  vo_image_montage: VO07ImageMontage,
+  vo_before_after: VO10BeforeAfter,
+  vo_location_tag: VO12LocationTag,
+  vo_lower_third: VO16LowerThird,
+  vo_stat_overlay: VO19StatOverlay,
+  vo_callout: VO21Callout,
+  vo_source_citation: VO29SourceCitation,
+  kt_punch_word: KT02PunchWord,
+  kt_stacked_text: KT03StackedText,
+  kt_question_hook: KT08QuestionHook,
+  kt_captions: KT10Captions,
+  nv_chapter_card: NV01ChapterCard,
+  nv_progress_tracker: NV03ProgressTracker,
+  nv_rank_reveal: NV04RankReveal,
+  nv_subscribe: NV05SubscribeReminder,
+  nv_end_screen: NV07EndScreen,
+  ui_social_post: UI01SocialPost,
+  ui_chat: UI04ChatConversation,
+  ui_news_headline: UI06NewsHeadline,
+  ui_newspaper_clipping: UI07NewspaperClipping,
+  ui_search_bar: UI08SearchBar,
+  ui_notification: UI12NotificationPop,
+  dc_document_highlight: DC01DocumentHighlight,
+  dc_investigation_board: DC04InvestigationBoard,
+  dc_case_file: DC05CaseFile,
+  dc_archive_photo: DC08ArchivePhoto,
+  dc_sticky_notes: DC09StickyNotes,
+  mp_globe_zoom: MP11GlobeZoom,
+  mp_radius_range: MP12RadiusRange,
+  mp_travel_route: MP13TravelRoute,
+  em_scribble: EM04ScribbleAnnotation,
+  hc_floating_card: HC02FloatingCard,
 };
+
+export function getTemplateRenderer(type: string): ComponentType<TemplateProps> | undefined {
+  return TEMPLATE_RENDERERS[type];
+}
+
+export class TemplateErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    if (this.state.failed) return null;
+    return this.props.children;
+  }
+}

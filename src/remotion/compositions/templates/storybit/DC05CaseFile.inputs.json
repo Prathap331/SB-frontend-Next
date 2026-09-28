@@ -1,0 +1,757 @@
+{
+  "template": "DC-05",
+  "name": "Case File",
+  "animation_type": "dc_case_file",
+  "pick_when": "Introducing a case, a suspect, an accused company or an investigation in true-crime / scam stories.",
+  "placement": "full",
+  "frame": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "safe_margin_px": 100,
+    "safe_box": [
+      1720,
+      880
+    ]
+  },
+  "duration": {
+    "frames": [
+      90,
+      240
+    ],
+    "seconds": [
+      3,
+      8
+    ],
+    "default_frames": 180,
+    "note": "Length comes from the voice beat (clock.durationInFrames), not from props."
+  },
+  "rules": [
+    "Stay within every limit below; longer text is shortened at a word boundary, too-short or missing required fields are errors.",
+    "Numbers are raw values (no commas, units or currency symbols) — the template formats and animates them.",
+    "Only real, sourced facts, quotes and figures. Label invented example numbers as illustrative.",
+    "Icons are Lucide names from the repository icon map; unknown names render as a circle."
+  ],
+  "inputs": [
+    {
+      "path": "subject",
+      "type": "text",
+      "required": true,
+      "fills": "Big name at the top of the page",
+      "limits": "2–34 chars · 1–6 words · longest word 18 · max 2 lines",
+      "hint": "Whose / what case this is.",
+      "example": "The Example Bank Fraud"
+    },
+    {
+      "path": "case_no",
+      "type": "text",
+      "required": false,
+      "fills": "Text on the folder tab",
+      "limits": "2–22 chars · 1–4 words · longest word 16 · max 1 line",
+      "hint": "\"Case 2018/CBI/14\" or \"File No. 7\".",
+      "example": "Case No. 2018/14"
+    },
+    {
+      "path": "stamp",
+      "type": "text",
+      "required": false,
+      "fills": "Rubber stamp on the page",
+      "limits": "2–16 chars · 1–2 words · longest word 14 · max 1 line",
+      "hint": "Default \"CONFIDENTIAL\": \"CLOSED\", \"WANTED\", \"CONVICTED\", \"UNSOLVED\".",
+      "example": "CONFIDENTIAL"
+    },
+    {
+      "path": "fields[]",
+      "type": "list",
+      "required": true,
+      "fills": "Typed fact rows",
+      "limits": "2–6 items"
+    },
+    {
+      "path": "fields[].label",
+      "type": "text",
+      "required": true,
+      "fills": "Row label",
+      "limits": "2–16 chars · 1–3 words · longest word 14 · max 1 line",
+      "hint": "\"Accused\", \"Amount\", \"Status\"."
+    },
+    {
+      "path": "fields[].value",
+      "type": "text",
+      "required": true,
+      "fills": "Row value",
+      "limits": "1–44 chars · 1–8 words · longest word 18 · max 2 lines",
+      "hint": "The fact."
+    },
+    {
+      "path": "fields[].redacted",
+      "type": "number",
+      "required": false,
+      "fills": "1 = show the value as a black bar",
+      "limits": "integer · ≥ 0 · ≤ 1"
+    },
+    {
+      "path": "image_url",
+      "type": "image",
+      "required": false,
+      "fills": "Full-bleed background (used when background = \"image\")",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "photo_url",
+      "type": "image",
+      "required": false,
+      "fills": "Photo clipped to the file (person, building, evidence)",
+      "limits": "https URL or asset URL"
+    },
+    {
+      "path": "background",
+      "type": "choice",
+      "required": false,
+      "fills": "Behind the folder (a desk photo works well)",
+      "values": [
+        "theme",
+        "image",
+        "transparent"
+      ],
+      "default": "theme"
+    },
+    {
+      "path": "style.heading_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for bold text (weight ≥ 700: titles, numbers, headings)",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins"
+    },
+    {
+      "path": "style.body_font",
+      "type": "choice",
+      "required": false,
+      "fills": "Font for all other text",
+      "values": [
+        "poppins",
+        "inter",
+        "montserrat",
+        "dm_sans",
+        "space_grotesk",
+        "oswald",
+        "bebas_neue",
+        "playfair_display",
+        "roboto_slab",
+        "lora",
+        "baloo_2",
+        "mukta",
+        "hind",
+        "kalam"
+      ],
+      "default": "poppins (or the heading font)"
+    },
+    {
+      "path": "style.background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "style.background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "style.scrim_color",
+      "type": "color",
+      "required": false,
+      "fills": "Dark overlay behind text on images and footage",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#080A1C"
+    },
+    {
+      "path": "style.text_color",
+      "type": "color",
+      "required": false,
+      "fills": "Main text (titles, labels, numbers)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#FFF6E6"
+    },
+    {
+      "path": "style.muted_color",
+      "type": "color",
+      "required": false,
+      "fills": "Secondary text (subtitles, descriptions, context)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#C9CDE8"
+    },
+    {
+      "path": "style.accent_color",
+      "type": "color",
+      "required": false,
+      "fills": "Accent lines, highlights, kicker, units",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F5A524"
+    },
+    {
+      "path": "style.negative_color",
+      "type": "color",
+      "required": false,
+      "fills": "Bad change (down arrows, losses)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#F87171"
+    },
+    {
+      "path": "background_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background (gradient start, or solid) — same as style.background_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#141A45"
+    },
+    {
+      "path": "background_2_color",
+      "type": "color",
+      "required": false,
+      "fills": "Theme background gradient end (set equal to background for a solid colour) — same as style.background_2_color; used when background is \"theme\"",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "#0C1030"
+    },
+    {
+      "path": "font_sizes.subject",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of big name at the top of the page (px, largest; shrinks only if it would not fit)",
+      "limits": "34–56 px",
+      "default": 56
+    },
+    {
+      "path": "font_sizes.case_no",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of text on the folder tab (px, largest; shrinks only if it would not fit)",
+      "limits": "18–26 px",
+      "default": 26
+    },
+    {
+      "path": "font_sizes.stamp",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of rubber stamp on the page (px, largest; shrinks only if it would not fit)",
+      "limits": "30–56 px",
+      "default": 56
+    },
+    {
+      "path": "font_sizes.fields.label",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of row label (px, largest; shrinks only if it would not fit)",
+      "limits": "16–24 px",
+      "default": 24
+    },
+    {
+      "path": "font_sizes.fields.value",
+      "type": "number",
+      "required": false,
+      "fills": "Font size of row value (px, largest; shrinks only if it would not fit)",
+      "limits": "20–30 px",
+      "default": 30
+    },
+    {
+      "path": "animations.folder",
+      "type": "animation",
+      "required": false,
+      "fills": "the folder",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "slide_up",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.photo",
+      "type": "animation",
+      "required": false,
+      "fills": "clipped photo",
+      "values": [
+        "pop",
+        "slide_up",
+        "slide_left",
+        "fade",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "pop: Pops in with a small overshoot; slide_up: Slides up while fading in; slide_left: Slides in from the left; fade: Fades in; none: Appears instantly"
+    },
+    {
+      "path": "animations.fields",
+      "type": "animation",
+      "required": false,
+      "fills": "each typed row",
+      "values": [
+        "rise",
+        "fade_up",
+        "fade",
+        "blur_in",
+        "scale_in",
+        "slam",
+        "slide_left",
+        "slide_right",
+        "none",
+        "word_fade",
+        "word_pop",
+        "typewriter",
+        "letter_rise"
+      ],
+      "default": "typewriter",
+      "hint": "rise: Line rises out of a mask; fade_up: Fades in while moving up; fade: Fades in; blur_in: Sharpens from a blur; scale_in: Grows from 85% while fading in; slam: Slams in from big to normal size with a bounce; slide_left: Slides in from the left; slide_right: Slides in from the right; none: Appears instantly; word_fade: Words fade up one after another; word_pop: Words pop in one after another; typewriter: Letters are typed out; letter_rise: Letters rise one after another"
+    },
+    {
+      "path": "animations.stamp",
+      "type": "animation",
+      "required": false,
+      "fills": "rubber stamp",
+      "values": [
+        "grow",
+        "fade",
+        "pop",
+        "none"
+      ],
+      "default": "pop",
+      "hint": "grow: Draws out from its start; fade: Fades in; pop: Pops in with a small overshoot; none: Appears instantly"
+    },
+    {
+      "path": "animations.image_motion",
+      "type": "animation",
+      "required": false,
+      "fills": "background image",
+      "values": [
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "drift",
+        "static"
+      ],
+      "default": "push_in",
+      "hint": "push_in: Slow zoom in (1.00 → 1.08); pull_out: Slow zoom out (1.08 → 1.00); pan_left: Slow pan towards the left; pan_right: Slow pan towards the right; drift: Slow zoom with a slight rotation; static: No movement"
+    },
+    {
+      "path": "animations.image_entry",
+      "type": "animation",
+      "required": false,
+      "fills": "background (first 12 frames)",
+      "values": [
+        "fade",
+        "blur_in",
+        "wipe",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade: Fades in; blur_in: Sharpens from a blur; wipe: Revealed left to right; cut: No transition"
+    },
+    {
+      "path": "animations.exit",
+      "type": "animation",
+      "required": false,
+      "fills": "the folder",
+      "values": [
+        "fade_up",
+        "fade",
+        "slide_down",
+        "scale_down",
+        "cut"
+      ],
+      "default": "fade",
+      "hint": "fade_up: Fades out while moving up; fade: Fades out; slide_down: Moves down while fading out; scale_down: Shrinks slightly while fading out; cut: Disappears instantly at the cut"
+    },
+    {
+      "path": "cue_times",
+      "type": "cues",
+      "required": false,
+      "fills": "When elements appear: file → fact 1 → fact 2 → fact 3 → fact 4 → fact 5 → fact 6 → stamp",
+      "limits": "seconds from the template start, increasing; Fixed slots: file → fact 1…6 → stamp. Send null for slots you do not use."
+    }
+  ],
+  "json_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DC-05 Case File",
+    "type": "object",
+    "properties": {
+      "subject": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 34,
+        "description": "Big name at the top of the page. 1–6 words, longest word 18 letters. Whose / what case this is."
+      },
+      "case_no": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 22,
+        "description": "Text on the folder tab. 1–4 words, longest word 16 letters. \"Case 2018/CBI/14\" or \"File No. 7\"."
+      },
+      "stamp": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 16,
+        "description": "Rubber stamp on the page. 1–2 words, longest word 14 letters. Default \"CONFIDENTIAL\": \"CLOSED\", \"WANTED\", \"CONVICTED\", \"UNSOLVED\"."
+      },
+      "fields": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 16,
+              "description": "Row label. 1–3 words, longest word 14 letters. \"Accused\", \"Amount\", \"Status\"."
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 44,
+              "description": "Row value. 1–8 words, longest word 18 letters. The fact."
+            },
+            "redacted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "1 = show the value as a black bar. Raw number, no units or commas."
+            }
+          },
+          "required": [
+            "label",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Typed fact rows"
+      },
+      "image_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Full-bleed background (used when background = \"image\")"
+      },
+      "photo_url": {
+        "type": "string",
+        "format": "uri",
+        "description": "Photo clipped to the file (person, building, evidence)"
+      },
+      "background": {
+        "type": "string",
+        "enum": [
+          "theme",
+          "image",
+          "transparent"
+        ],
+        "default": "theme",
+        "description": "Behind the folder (a desk photo works well)"
+      },
+      "background_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background (gradient start, or solid) (same as style.background_color; wins over it)"
+      },
+      "background_2_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Theme background gradient end (set equal to background for a solid colour) (same as style.background_2_color; wins over it)"
+      },
+      "style": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fonts and colours. Omit any key to use the default.",
+        "properties": {
+          "heading_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "default": "poppins",
+            "description": "Font for weight ≥ 700 text"
+          },
+          "body_font": {
+            "type": "string",
+            "enum": [
+              "poppins",
+              "inter",
+              "montserrat",
+              "dm_sans",
+              "space_grotesk",
+              "oswald",
+              "bebas_neue",
+              "playfair_display",
+              "roboto_slab",
+              "lora",
+              "baloo_2",
+              "mukta",
+              "hind",
+              "kalam"
+            ],
+            "description": "Font for other text"
+          },
+          "background_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background (gradient start, or solid)",
+            "default": "#141A45"
+          },
+          "background_2_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Theme background gradient end (set equal to background for a solid colour)",
+            "default": "#0C1030"
+          },
+          "scrim_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Dark overlay behind text on images and footage",
+            "default": "#080A1C"
+          },
+          "text_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Main text (titles, labels, numbers)",
+            "default": "#FFF6E6"
+          },
+          "muted_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Secondary text (subtitles, descriptions, context)",
+            "default": "#C9CDE8"
+          },
+          "accent_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Accent lines, highlights, kicker, units",
+            "default": "#F5A524"
+          },
+          "negative_color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Bad change (down arrows, losses)",
+            "default": "#F87171"
+          }
+        }
+      },
+      "font_sizes": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Largest font size per element in px. The template still shrinks text that would not fit.",
+        "properties": {
+          "subject": {
+            "type": "number",
+            "minimum": 34,
+            "maximum": 56,
+            "default": 56,
+            "description": "Big name at the top of the page"
+          },
+          "case_no": {
+            "type": "number",
+            "minimum": 18,
+            "maximum": 26,
+            "default": 26,
+            "description": "Text on the folder tab"
+          },
+          "stamp": {
+            "type": "number",
+            "minimum": 30,
+            "maximum": 56,
+            "default": 56,
+            "description": "Rubber stamp on the page"
+          },
+          "fields.label": {
+            "type": "number",
+            "minimum": 16,
+            "maximum": 24,
+            "default": 24,
+            "description": "Row label"
+          },
+          "fields.value": {
+            "type": "number",
+            "minimum": 20,
+            "maximum": 30,
+            "default": 30,
+            "description": "Row value"
+          }
+        }
+      },
+      "animations": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Animation preset per element. Omit a key to use its default.",
+        "properties": {
+          "folder": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "slide_up",
+            "description": "the folder"
+          },
+          "photo": {
+            "type": "string",
+            "enum": [
+              "pop",
+              "slide_up",
+              "slide_left",
+              "fade",
+              "none"
+            ],
+            "default": "pop",
+            "description": "clipped photo"
+          },
+          "fields": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fade_up",
+              "fade",
+              "blur_in",
+              "scale_in",
+              "slam",
+              "slide_left",
+              "slide_right",
+              "none",
+              "word_fade",
+              "word_pop",
+              "typewriter",
+              "letter_rise"
+            ],
+            "default": "typewriter",
+            "description": "each typed row"
+          },
+          "stamp": {
+            "type": "string",
+            "enum": [
+              "grow",
+              "fade",
+              "pop",
+              "none"
+            ],
+            "default": "pop",
+            "description": "rubber stamp"
+          },
+          "image_motion": {
+            "type": "string",
+            "enum": [
+              "push_in",
+              "pull_out",
+              "pan_left",
+              "pan_right",
+              "drift",
+              "static"
+            ],
+            "default": "push_in",
+            "description": "background image"
+          },
+          "image_entry": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "blur_in",
+              "wipe",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "background (first 12 frames)"
+          },
+          "exit": {
+            "type": "string",
+            "enum": [
+              "fade_up",
+              "fade",
+              "slide_down",
+              "scale_down",
+              "cut"
+            ],
+            "default": "fade",
+            "description": "the folder"
+          }
+        }
+      },
+      "cue_times": {
+        "type": "array",
+        "items": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxItems": 8,
+        "description": "Seconds from the template start when each element appears, in order: file, fact 1, fact 2, fact 3, fact 4, fact 5, fact 6, stamp. Fixed slots: file → fact 1…6 → stamp. Send null for slots you do not use. Compute as (spoken word time − beat start time) from WhisperX."
+      }
+    },
+    "required": [
+      "subject",
+      "fields"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "subject": "The Example Bank Fraud",
+    "case_no": "Case No. 2018/14",
+    "fields": [
+      {
+        "label": "Accused",
+        "value": "Replace with the real name"
+      },
+      {
+        "label": "Amount",
+        "value": "₹13,000 crore (illustrative)"
+      },
+      {
+        "label": "Filed by",
+        "value": "Replace with the agency"
+      },
+      {
+        "label": "Status",
+        "value": "Trial ongoing"
+      }
+    ],
+    "stamp": "CONFIDENTIAL",
+    "background": "theme"
+  }
+}
