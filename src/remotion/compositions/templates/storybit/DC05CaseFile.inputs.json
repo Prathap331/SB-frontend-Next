@@ -91,6 +91,14 @@
       "limits": "integer · ≥ 0 · ≤ 1"
     },
     {
+      "path": "fields[].bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Background colour of this row (like a highlighter over the line) (to highlight it)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "theme card colour"
+    },
+    {
       "path": "image_url",
       "type": "image",
       "required": false,
@@ -441,6 +449,11 @@
               "minimum": 0,
               "maximum": 1,
               "description": "1 = show the value as a black bar. Raw number, no units or commas."
+            },
+            "bg_color": {
+              "type": "string",
+              "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+              "description": "Background colour of this row (like a highlighter over the line), hex e.g. #1E3A8A (optional — highlights it)"
             }
           },
           "required": [

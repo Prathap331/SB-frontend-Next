@@ -22,8 +22,9 @@ import { fitText, sharedFont, linesAt, words, type Line, type Measure } from './
 import { cardStyle, easeOutBack, exitStyle, progress, textAnimFrames } from './core/motion';
 import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
-import { fontStack, readStyle, styleVars, withAlpha } from './core/style';
+import { fontStack, readStyle, styleVars, withAlpha, readHex } from './core/style';
 import { AnimatedText, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const TYPE_FONT = fontStack('roboto_slab');
 
@@ -47,6 +48,7 @@ export const DC05_SPEC: TemplateSpec = {
       fills: 'Typed fact rows',
       minItems: 2,
       maxItems: 6,
+      bgColor: 'this row (like a highlighter over the line)',
       fields: {
         label: { label: 'Label', required: true, minChars: 2, maxChars: 16, minWords: 1, maxWords: 3, maxWordChars: 14, maxLines: 1, fontMax: 24, fontMin: 16, weight: 700, lineHeight: 1.3, hint: '"Accused", "Amount", "Status".', fills: 'Row label' },
         value: { label: 'Value', required: true, minChars: 1, maxChars: 44, minWords: 1, maxWords: 8, maxWordChars: 18, maxLines: 2, fontMax: 30, fontMin: 20, weight: 500, lineHeight: 1.3, hint: 'The fact.', fills: 'Row value' },
@@ -80,12 +82,12 @@ export const DC05_SPEC: TemplateSpec = {
   },
 };
 
-type Field = { label: string; value: string; redacted: boolean };
+type Field = { label: string; value: string; redacted: boolean; bg?: string };
 export const FOLDER_W = 1440;
 export const FOLDER_H = 800;
 export const TAB_H = 56;
 export const PAGE_PAD = 44;
-export type FileLayout = { subject: Line[]; caseNo?: Line; stamp: Line; photo: number; textW: number; labelW: number; rows: { label: Line; value: Line[] }[]; rowH: number[] };
+export type FileLayout = { folderW: number; folderH: number; subject: Line[]; caseNo?: Line; stamp: Line; photo: number; textW: number; labelW: number; rows: { label: Line; value: Line[] }[]; rowH: number[] };
 
 export function layoutFile(input: { subject: string; caseNo: string; stamp: string; fields: Field[]; hasPhoto: boolean }, measure: Measure, spec: TemplateSpec = DC05_SPEC): FileLayout {
   const T = spec.text;
@@ -105,7 +107,17 @@ export function layoutFile(input: { subject: string; caseNo: string; stamp: stri
     const vf = sharedFont(input.fields.map((f) => f.value), F.value, valueW, measure, cap);
     const rows = input.fields.map((f) => ({ label: { text: f.label.toLocaleUpperCase(), size: lf }, value: linesAt(f.value, vf, F.value, valueW, measure) }));
     const rowH = rows.map((r) => Math.max(r.label.size, r.value.length * r.value[0].size) * 1.3 + 14);
-    if (rowH.reduce((a, b) => a + b, 0) <= avail || cap <= F.value.fontMin) return { subject, caseNo, stamp, photo, textW, labelW, rows, rowH };
+    if (rowH.reduce((a, b) => a + b, 0) <= avail || cap <= F.value.fontMin) {
+      // the folder hugs what is written in it, keeping room for the stamp in the lower-right corner
+      const used = Math.ceil(Math.max(...subject.map((l) => measure(l.text, l.size, 800)), labelW + Math.max(...rows.flatMap((r) => r.value.map((l) => measure(l.text, l.size, F.value.weight))), 0), 420)) + 8;
+      const tw = Math.min(textW, used);
+      const textH = subject.length * subject[0].size * 1.1 + 39 + rowH.reduce((a, b) => a + b, 0);
+      const bodyH = Math.max(textH, photo ? photo * 1.2 : 0);
+      const stampRoom = stamp.size + 70;
+      const folderW = Math.max(900, 40 + PAGE_PAD * 2 + (photo ? photo + 48 : 0) + tw);
+      const folderH = Math.min(FOLDER_H, Math.max(420, TAB_H + 32 + PAGE_PAD * 2 + bodyH + stampRoom));
+      return { folderW, folderH, subject, caseNo, stamp, photo, textW: tw, labelW, rows, rowH };
+    }
     cap -= 2;
   }
 }
@@ -136,7 +148,7 @@ export function prepareDC05(props: Record<string, unknown>, durationInFrames: nu
       const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
       const label = normaliseText(typeof o.label === 'string' ? o.label : '', F.label);
       const value = normaliseText(typeof o.value === 'string' ? o.value : typeof o.value === 'number' ? String(o.value) : '', F.value);
-      return label && value ? { label, value, redacted: o.redacted === 1 || o.redacted === true } : null;
+      return label && value ? { label, value, redacted: o.redacted === 1 || o.redacted === true, bg: readHex(o.bg_color) } : null;
     })
     .filter((x): x is Field => x !== null)
     .slice(0, 6);
@@ -147,7 +159,7 @@ export function prepareDC05(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, fields, photo, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function DC05CaseFile({ data, clock }: TemplateProps) {
+function DC05CaseFileBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, fields, photo, L, plan, imageUrl, bg, debug } = prepareDC05(props, durationInFrames);
@@ -156,8 +168,8 @@ export function DC05CaseFile({ data, clock }: TemplateProps) {
   const ink = '#1F1B16';
   const red = style.custom.has('negative') ? style.colors.negative : '#C62828';
   const exit = exitStyle(A('exit'), progress(frame, plan.exit.start, plan.exit.dur));
-  const left = (SAFE_W - FOLDER_W) / 2;
-  const top = (SAFE_H - FOLDER_H) / 2;
+  const left = (SAFE_W - L.folderW) / 2;
+  const top = (SAFE_H - L.folderH) / 2;
   const sp = progress(frame, w.stamp.start, w.stamp.dur);
   const stampScale = A('stamp') === 'none' ? (sp > 0 ? 1 : 0) : A('stamp') === 'fade' ? 1 : 1 + 0.9 * (1 - easeOutBack(sp));
   const stampOpacity = A('stamp') === 'fade' ? sp : sp > 0 ? Math.min(1, sp * 3) : 0;
@@ -166,13 +178,13 @@ export function DC05CaseFile({ data, clock }: TemplateProps) {
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', ...styleVars(style) }}>
       <StoryBackground mode={bg} imageUrl={imageUrl} align="center" accent={style.colors.accent} frame={frame} durationInFrames={durationInFrames} colors={style.colors} motion={A('image_motion')} entry={A('image_entry')} />
       <SafeArea debug={debug}>
-        <div style={{ position: 'absolute', left, top, width: FOLDER_W, height: FOLDER_H, ...exit, ...cardStyle(A('folder'), progress(frame, w.file.start, w.file.dur)) }}>
+        <div style={{ position: 'absolute', left, top, width: L.folderW, height: L.folderH, ...exit, ...cardStyle(A('folder'), progress(frame, w.file.start, w.file.dur)) }}>
           {/* folder back + tab */}
           <div style={{ position: 'absolute', left: 0, top: 0, width: 520, height: TAB_H + 20, borderRadius: '16px 16px 0 0', background: '#C9A46A' }} />
           {L.caseNo && <span {...leaf('case-no', 'case_no')} style={{ position: 'absolute', left: 28, top: (TAB_H - L.caseNo.size * 1.2) / 2 + 4, fontFamily: TYPE_FONT, fontWeight: 700, fontSize: L.caseNo.size, lineHeight: 1.2, color: '#3B2A12', whiteSpace: 'nowrap' }}>{L.caseNo.text}</span>}
-          <div style={{ position: 'absolute', left: 0, top: TAB_H, width: FOLDER_W, height: FOLDER_H - TAB_H, borderRadius: '0 16px 16px 16px', background: 'linear-gradient(180deg, #D9B77E 0%, #C99F5E 100%)' }} />
+          <div style={{ position: 'absolute', left: 0, top: TAB_H, width: L.folderW, height: L.folderH - TAB_H, borderRadius: '0 16px 16px 16px', background: 'linear-gradient(180deg, #D9B77E 0%, #C99F5E 100%)' }} />
           {/* the page */}
-          <div style={{ position: 'absolute', left: 20, top: TAB_H + 16, width: FOLDER_W - 40, height: FOLDER_H - TAB_H - 32, background: '#FAF7F0', boxSizing: 'border-box', padding: PAGE_PAD, display: 'flex', gap: 48 }}>
+          <div style={{ position: 'absolute', left: 20, top: TAB_H + 16, width: L.folderW - 40, height: L.folderH - TAB_H - 32, background: '#FAF7F0', boxSizing: 'border-box', padding: PAGE_PAD, display: 'flex', gap: 48 }}>
             {L.photo > 0 && photo && (
               <div {...leaf('photo', 'photo_url')} style={{ position: 'relative', width: L.photo, height: L.photo * 1.2, flexShrink: 0, background: '#FFFFFF', padding: 12, boxSizing: 'border-box', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', ...cardStyle(A('photo'), progress(frame, w.photo.start, w.photo.dur)) }}>
                 <Img src={photo} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(0.4) contrast(1.05)' }} />
@@ -190,7 +202,7 @@ export function DC05CaseFile({ data, clock }: TemplateProps) {
                 const rowTop = y;
                 y += L.rowH[i];
                 return (
-                  <div key={i} style={{ display: 'flex', minHeight: L.rowH[i], borderBottom: `1px dashed ${withAlpha(ink, 0.25)}`, alignItems: 'flex-start', paddingTop: 7, boxSizing: 'border-box' }} data-row={rowTop}>
+                  <div key={i} style={{ display: 'flex', minHeight: L.rowH[i], borderBottom: `1px dashed ${withAlpha(ink, 0.25)}`, alignItems: 'flex-start', paddingTop: 7, boxSizing: 'border-box', background: f.bg ? withAlpha(f.bg, 0.55) : undefined, borderRadius: f.bg ? 6 : undefined }} data-row={rowTop}>
                     <span {...leaf(`label-${i}`, `fields[${i}].label`)} style={{ width: L.labelW, flexShrink: 0, fontFamily: TYPE_FONT, fontWeight: 700, fontSize: r.label.size, lineHeight: 1.3, color: withAlpha(ink, 0.7), whiteSpace: 'nowrap', opacity: progress(frame, fw.start, 6) }}>{r.label.text}</span>
                     {f.redacted ? (
                       <div {...leaf(`value-${i}`, `fields[${i}].value (redacted)`)} style={{ height: r.value[0].size * 1.1, marginTop: r.value[0].size * 0.1, width: Math.min(L.textW - L.labelW, r.value[0].text.length * r.value[0].size * 0.55) * progress(frame, fw.start, fw.dur), background: '#111111' }} />
@@ -211,3 +223,6 @@ export function DC05CaseFile({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DC05CaseFile = withAutoFit(DC05CaseFileBase);

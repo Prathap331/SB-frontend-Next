@@ -24,6 +24,7 @@ import { numberAnimState } from './core/numberRow';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, mutedFor, readStyle, seriesColor, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec                                                         */
@@ -414,7 +415,7 @@ export function prepareDV08(props: Record<string, unknown>, durationInFrames: nu
 /* Renderer                                                             */
 /* ================================================================== */
 
-export function DV08PieDonut({ data, clock }: TemplateProps) {
+function DV08PieDonutBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, input, imageUrl, bg, debug, L, plan } = prepareDV08(props, durationInFrames);
@@ -513,3 +514,6 @@ export function DV08PieDonut({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DV08PieDonut = withAutoFit(DV08PieDonutBase);

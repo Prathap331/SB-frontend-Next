@@ -25,6 +25,7 @@ import { NumberRow, fitNumberRows, measureNumberRow, numberAnimFrames, numberAni
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec                                                         */
@@ -452,7 +453,7 @@ export function prepareDV01(props: Record<string, unknown>, durationInFrames: nu
 /* Renderer                                                             */
 /* ================================================================== */
 
-export function DV01BarChart({ data, clock }: TemplateProps) {
+function DV01BarChartBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, input, imageUrl, bg, debug, L, plan } = prepareDV01(props, durationInFrames);
@@ -718,3 +719,6 @@ export function DV01BarChart({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DV01BarChart = withAutoFit(DV01BarChartBase);

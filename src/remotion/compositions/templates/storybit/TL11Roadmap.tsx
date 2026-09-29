@@ -20,8 +20,9 @@ import { exitStyle, iconStyle, lineStyle, progress, shapeState, textAnimFrames }
 import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { readNumber } from './core/numbers';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
-import { fontFor, mutedFor, readStyle, seriesColor, styleVars, withAlpha } from './core/style';
+import { fontFor, mutedFor, readStyle, seriesColor, styleVars, withAlpha, readHex } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const TL11_SPEC: TemplateSpec = {
   id: 'TL-11',
@@ -42,6 +43,7 @@ export const TL11_SPEC: TemplateSpec = {
       fills: 'Rows top to bottom',
       minItems: 2,
       maxItems: 8,
+      bgColor: 'this task’s row band',
       fields: {
         label: { label: 'Label', required: true, minChars: 2, maxChars: 28, minWords: 1, maxWords: 5, maxWordChars: 16, maxLines: 2, fontMax: 32, fontMin: 20, weight: 600, lineHeight: 1.2, hint: 'Phase or task name.', fills: 'Row label' },
       },
@@ -93,7 +95,7 @@ export const TL11_SPEC: TemplateSpec = {
   },
 };
 
-export type Task = { label: string; start: number; end: number; highlight: boolean };
+export type Task = { label: string; start: number; end: number; highlight: boolean; bg?: string };
 export const LABEL_GAP = 28;
 export const AXIS_GAP = 14;
 export type RoadLayout = { title: Line[]; titleH: number; labelW: number; labels: Line[][]; rowH: number; barH: number; plotX: number; plotW: number; top: number; min: number; max: number; ticks: { x: number; text: string; left: number; w: number }[]; axisFont: number; todayLabel?: Line; todayW: number };
@@ -171,7 +173,7 @@ export function prepareTL11(props: Record<string, unknown>, durationInFrames: nu
       if (!label || s === undefined) return null;
       if (e === undefined) e = s;
       if (e < s) [s, e] = [e, s];
-      return { label, start: s, end: e, highlight: o.highlight === 1 };
+      return { label, start: s, end: e, highlight: o.highlight === 1, bg: readHex(o.bg_color) };
     })
     .filter((t): t is Task => t !== null)
     .slice(0, 8);
@@ -183,7 +185,7 @@ export function prepareTL11(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, tasks, today, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function TL11Roadmap({ data, clock }: TemplateProps) {
+function TL11RoadmapBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, tasks, today, L, plan, imageUrl, bg, debug } = prepareTL11(props, durationInFrames);
@@ -223,7 +225,7 @@ export function TL11Roadmap({ data, clock }: TemplateProps) {
             const milestone = t.end === t.start;
             return (
               <div key={i}>
-                {i % 2 === 0 && <div style={{ position: 'absolute', left: 0, top: cy - L.rowH / 2, width: SAFE_W, height: L.rowH, background: withAlpha(style.colors.text, 0.035), borderRadius: 10 }} />}
+                {(t.bg || i % 2 === 0) && <div style={{ position: 'absolute', left: 0, top: cy - L.rowH / 2, width: SAFE_W, height: L.rowH, background: t.bg ?? withAlpha(style.colors.text, 0.035), borderRadius: 10 }} />}
                 <AnimatedText lines={L.labels[i]} anim={A('labels')} start={lw.start} dur={lw.dur} frame={frame} weight={F.weight} lineHeight={F.lineHeight} color={t.highlight ? style.colors.text : anyHi ? muted : style.colors.text} shadow={shadow} align="right" group={`label-${i}`} input={`tasks[${i}].label`} style={{ position: 'absolute', left: 0, width: L.labelW, top: cy - lh / 2 }} />
                 {milestone ? (
                   <div {...leaf(`milestone-${i}`, `tasks[${i}].start`)} style={{ position: 'absolute', left: x(t.start) - L.barH * 0.62, top: cy - L.barH * 0.62, width: L.barH * 1.24, height: L.barH * 1.24, display: 'flex', alignItems: 'center', justifyContent: 'center', ...iconStyle(A('milestones'), progress(frame, tw.start, tw.dur)) }}>
@@ -255,3 +257,6 @@ export function TL11Roadmap({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const TL11Roadmap = withAutoFit(TL11RoadmapBase);

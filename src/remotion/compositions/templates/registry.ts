@@ -49,7 +49,6 @@ import { KT03StackedText } from './storybit/KT03StackedText';
 import { KT08QuestionHook } from './storybit/KT08QuestionHook';
 import { KT10Captions } from './storybit/KT10Captions';
 import { NV01ChapterCard } from './storybit/NV01ChapterCard';
-import { NV03ProgressTracker } from './storybit/NV03ProgressTracker';
 import { NV04RankReveal } from './storybit/NV04RankReveal';
 import { NV05SubscribeReminder } from './storybit/NV05SubscribeReminder';
 import { NV07EndScreen } from './storybit/NV07EndScreen';
@@ -112,7 +111,6 @@ export const TEMPLATE_RENDERERS: Record<string, ComponentType<TemplateProps>> = 
   kt_question_hook: KT08QuestionHook,
   kt_captions: KT10Captions,
   nv_chapter_card: NV01ChapterCard,
-  nv_progress_tracker: NV03ProgressTracker,
   nv_rank_reveal: NV04RankReveal,
   nv_subscribe: NV05SubscribeReminder,
   nv_end_screen: NV07EndScreen,

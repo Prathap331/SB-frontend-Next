@@ -26,6 +26,7 @@ import { planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_MARGIN } from './core/safeArea';
 import { fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const NV07_SPEC: TemplateSpec = {
   id: 'NV-07',
@@ -122,7 +123,7 @@ export function prepareNV07(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, L, plan, layout, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function NV07EndScreen({ data, clock }: TemplateProps) {
+function NV07EndScreenBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, L, plan, layout, imageUrl, bg, debug } = prepareNV07(props, durationInFrames);
@@ -179,3 +180,6 @@ export function NV07EndScreen({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const NV07EndScreen = withAutoFit(NV07EndScreenBase);

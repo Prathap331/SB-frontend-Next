@@ -25,6 +25,7 @@ import { numberAnimState } from './core/numberRow';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const DG10_SPEC: TemplateSpec = {
   id: 'DG-10',
@@ -170,7 +171,7 @@ export function prepareDG10(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, stages, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function DG10Funnel({ data, clock }: TemplateProps) {
+function DG10FunnelBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, stages, L, plan, imageUrl, bg, debug } = prepareDG10(props, durationInFrames);
@@ -224,3 +225,6 @@ export function DG10Funnel({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DG10Funnel = withAutoFit(DG10FunnelBase);

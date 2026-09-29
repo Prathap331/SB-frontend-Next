@@ -56,6 +56,13 @@
       "limits": "2–22 chars"
     },
     {
+      "path": "layers[].bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Background colour of this layer column (to highlight it)",
+      "limits": "hex #RRGGBB"
+    },
+    {
       "path": "layers[].nodes[]",
       "type": "list",
       "required": true,
@@ -448,6 +455,10 @@
               "type": "string",
               "minLength": 2,
               "maxLength": 22
+            },
+            "bg_color": {
+              "type": "string",
+              "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
             },
             "nodes": {
               "type": "array",

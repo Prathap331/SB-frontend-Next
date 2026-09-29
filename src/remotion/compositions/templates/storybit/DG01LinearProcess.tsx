@@ -30,6 +30,7 @@ import { cardColors, fontFor, mutedFor, readStyle, styleVars, withAlpha } from '
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { FOOTAGE_SHADOW, AnimatedText, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
 import { blockHeight, fitText, linesAt, sharedFont, type Line, type Measure, words } from './core/fit';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec, layout and timing                                     */
@@ -406,7 +407,7 @@ export function prepareDG01(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, F, heading, steps, orientation, markerProp, useIcons, highlight, imageUrl, bg, accent, debug, A, L, plan };
 }
 
-export function DG01LinearProcess({ data, clock }: TemplateProps) {
+function DG01LinearProcessBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, F, steps, useIcons, highlight, imageUrl, bg, accent, debug, A, L, plan } = prepareDG01(props, durationInFrames);
@@ -589,3 +590,6 @@ export function DG01LinearProcess({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DG01LinearProcess = withAutoFit(DG01LinearProcessBase);

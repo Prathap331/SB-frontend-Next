@@ -21,6 +21,7 @@ import { readNumber } from './core/numbers';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const NV01_SPEC: TemplateSpec = {
   id: 'NV-01',
@@ -125,7 +126,7 @@ export function prepareNV01(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, n, total, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function NV01ChapterCard({ data, clock }: TemplateProps) {
+function NV01ChapterCardBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, n, total, L, plan, imageUrl, bg, debug } = prepareNV01(props, durationInFrames);
@@ -186,3 +187,6 @@ export function NV01ChapterCard({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const NV01ChapterCard = withAutoFit(NV01ChapterCardBase);

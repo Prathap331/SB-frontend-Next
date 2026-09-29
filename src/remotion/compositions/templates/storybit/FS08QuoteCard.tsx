@@ -22,6 +22,7 @@ import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } fr
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst, highlightWords } from './core/shared';
+import { withAutoFit } from './core/autofit';
 import { Img } from 'remotion';
 
 /* ================================================================== */
@@ -335,7 +336,7 @@ function QuoteMark({ size, color }: { size: number; color: string }) {
   );
 }
 
-export function FS08QuoteCard({ data, clock }: TemplateProps) {
+function FS08QuoteCardBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, S, A, highlight, portrait, align, shape, imageUrl, bg, debug, L, plan } = prepareFS08(props, durationInFrames);
@@ -478,3 +479,6 @@ export function FS08QuoteCard({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const FS08QuoteCard = withAutoFit(FS08QuoteCardBase);

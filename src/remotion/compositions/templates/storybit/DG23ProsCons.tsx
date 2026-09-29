@@ -19,8 +19,9 @@ import { blockHeight, fitText, linesAt, sharedFont, type Line, type Measure } fr
 import { cardStyle, exitStyle, iconStyle, progress } from './core/motion';
 import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
-import { cardColors, fontFor, readStyle, styleVars, withAlpha } from './core/style';
+import { cardColors, fontFor, readStyle, styleVars, withAlpha, readHex } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 const POINT: TextSpec = { label: 'Point', required: true, minChars: 2, maxChars: 60, minWords: 1, maxWords: 11, maxWordChars: 16, maxLines: 2, fontMax: 34, fontMin: 20, weight: 600, lineHeight: 1.25, fills: 'One point' };
 
@@ -41,6 +42,16 @@ export const DG23_SPEC: TemplateSpec = {
   lists: {
     pros: { label: 'Pro', fills: 'Good points', minItems: 1, maxItems: 5, fields: { text: POINT } },
     cons: { label: 'Con', fills: 'Bad points', minItems: 1, maxItems: 5, fields: { text: POINT } },
+  },
+  custom: {
+    inputs: [
+      { path: 'pros_bg_color', type: 'color', required: false, fills: 'Background colour of the Pros column panel (to highlight it)', limits: 'hex #RRGGBB (or #RRGGBBAA)', default: 'theme card colour' },
+      { path: 'cons_bg_color', type: 'color', required: false, fills: 'Background colour of the Cons column panel', limits: 'hex #RRGGBB (or #RRGGBBAA)', default: 'theme card colour' },
+    ],
+    schema: {
+      pros_bg_color: { type: 'string', pattern: '^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$', description: 'Background colour of the Pros column panel, hex e.g. #0F3D2E' },
+      cons_bg_color: { type: 'string', pattern: '^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$', description: 'Background colour of the Cons column panel, hex e.g. #3D0F14' },
+    },
   },
   options: {
     order: { label: 'Reveal order', values: ['alternate', 'columns'], default: 'alternate', fills: 'pro, con, pro, con… or all pros then all cons' },
@@ -92,7 +103,14 @@ export function layoutPros(input: { title: string; pros: string[]; cons: string[
     const pts: [Line[][], Line[][]] = [input.pros.map((t) => linesAt(t, f, POINT, textW, measure)), input.cons.map((t) => linesAt(t, f, POINT, textW, measure))];
     const rowH: [number[], number[]] = [pts[0].map((l) => Math.max(mark, blockHeight(l, POINT.lineHeight))), pts[1].map((l) => Math.max(mark, blockHeight(l, POINT.lineHeight)))];
     const need = Math.max(...rowH.map((r) => r.reduce((a, b) => a + b, 0) + ROW_GAP * (r.length - 1))) + HEAD_H + PAD * 2;
-    if (need <= colH || cap <= POINT.fontMin) return { title, titleH, colW, colTop, colH: Math.min(colH, Math.max(need, colH * 0.6)), heads, points: pts, rowH, mark, verdict };
+    if (need <= colH || cap <= POINT.fontMin) {
+      // columns hug their content (no empty band on the right of short points, no empty space below them)
+      const pw = (l: Line) => measure(l.text, l.size, POINT.weight);
+      const contentW = Math.max(...pts.flat(2).map(pw), 0) + mark + 16;
+      const headW = Math.max(...heads.map((h) => measure(h.text, h.size, 800) * 1.1)) + 52;
+      const cw = Math.min(colW, Math.ceil(Math.max(contentW, headW, 360)) + PAD * 2);
+      return { title, titleH, colW: cw, colTop, colH: Math.min(colH, need), heads, points: pts, rowH, mark, verdict };
+    }
     cap -= 2;
   }
 }
@@ -136,13 +154,13 @@ export function prepareDG23(props: Record<string, unknown>, durationInFrames: nu
   const L = layoutPros({ title: normaliseText(readFirst(props, ['title']), S.title), pros, cons, verdict: normaliseText(readFirst(props, ['verdict']), S.verdict), pl: normaliseText(readFirst(props, ['pros_label']), S.pros_label) || 'Pros', cl: normaliseText(readFirst(props, ['cons_label']), S.cons_label) || 'Cons' }, measure, sized.spec);
   const plan = planPros(pros.length, cons.length, opt(props, 'order', ['alternate', 'columns'] as const, 'alternate') === 'alternate', L.title.length > 0, L.verdict.length > 0, durationInFrames, readCues(props));
   const imageUrl = readImageUrl(props);
-  return { style, sized, A, pros, cons, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
+  return { style, sized, A, pros, cons, colBg: [readHex(props.pros_bg_color), readHex(props.cons_bg_color)] as (string | undefined)[], L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function DG23ProsCons({ data, clock }: TemplateProps) {
+function DG23ProsConsBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
-  const { style, A, pros, cons, L, plan, imageUrl, bg, debug } = prepareDG23(props, durationInFrames);
+  const { style, A, pros, cons, colBg, L, plan, imageUrl, bg, debug } = prepareDG23(props, durationInFrames);
   const w = plan.windows;
   const S = DG23_SPEC.text;
   const onFootage = bg !== 'theme';
@@ -158,12 +176,12 @@ export function DG23ProsCons({ data, clock }: TemplateProps) {
         <div style={{ position: 'absolute', inset: 0, ...exit }}>
           {L.title.length > 0 && w.title && <AnimatedText lines={L.title} anim={A('title')} start={w.title.start} dur={w.title.dur} frame={frame} weight={800} lineHeight={1.05} shadow={shadow} align="center" group="title" input="title" style={{ position: 'absolute', left: 0, width: SAFE_W, top: 0 }} />}
           {[0, 1].map((c) => {
-            const x = c * (L.colW + COL_GAP);
+            const x = (SAFE_W - (L.colW * 2 + COL_GAP)) / 2 + c * (L.colW + COL_GAP);
             const col = colColor[c];
             let y = L.colTop + PAD + HEAD_H;
             return (
               <div key={c}>
-                <div style={{ position: 'absolute', left: x, top: L.colTop, width: L.colW, height: L.colH, borderRadius: 26, background: card.fill, border: `2px solid ${withAlpha(col, 0.5)}`, ...cardStyle(A('columns'), progress(frame, w.columns.start, w.columns.dur)) }} />
+                <div style={{ position: 'absolute', left: x, top: L.colTop, width: L.colW, height: L.colH, borderRadius: 26, background: colBg[c] ?? card.fill, border: `2px solid ${withAlpha(col, 0.5)}`, ...cardStyle(A('columns'), progress(frame, w.columns.start, w.columns.dur)) }} />
                 <div style={{ position: 'absolute', left: x + PAD, top: L.colTop + PAD, height: HEAD_H - 16, display: 'flex', alignItems: 'center', gap: 12, opacity: progress(frame, w.columns.start, w.columns.dur) }}>
                   <div style={{ width: 40, height: 40, borderRadius: 12, background: col, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <LucideIconView name={c ? 'thumbs-down' : 'thumbs-up'} size={24} color="#FFFFFF" />
@@ -194,3 +212,6 @@ export function DG23ProsCons({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DG23ProsCons = withAutoFit(DG23ProsConsBase);

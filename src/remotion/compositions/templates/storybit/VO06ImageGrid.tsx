@@ -21,6 +21,7 @@ import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } fr
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const VO06_SPEC: TemplateSpec = {
   id: 'VO-06',
@@ -170,7 +171,7 @@ export function prepareVO06(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, tiles, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function VO06ImageGrid({ data, clock }: TemplateProps) {
+function VO06ImageGridBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, tiles, L, plan, imageUrl, bg, debug } = prepareVO06(props, durationInFrames);
@@ -207,3 +208,6 @@ export function VO06ImageGrid({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const VO06ImageGrid = withAutoFit(VO06ImageGridBase);

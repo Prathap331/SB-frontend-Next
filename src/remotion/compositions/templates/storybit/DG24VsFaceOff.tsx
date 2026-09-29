@@ -22,8 +22,9 @@ import { fitText, sharedFont, linesAt, type Line, type Measure } from './core/fi
 import { cardStyle, easeOutBack, exitStyle, progress } from './core/motion';
 import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
-import { cardColors, fontFor, mutedFor, readStyle, seriesColor, styleVars, withAlpha } from './core/style';
+import { cardColors, fontFor, mutedFor, readStyle, seriesColor, styleVars, withAlpha, readHex } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 const NAME: TextSpec = { label: 'Name', required: true, minChars: 1, maxChars: 24, minWords: 1, maxWords: 4, maxWordChars: 16, maxLines: 1, fontMax: 48, fontMin: 28, weight: 800, lineHeight: 1.15, fills: 'Contender name' };
 const SUB: TextSpec = { label: 'Tag', required: false, minChars: 2, maxChars: 30, minWords: 1, maxWords: 5, maxWordChars: 16, maxLines: 1, fontMax: 26, fontMin: 18, weight: 600, lineHeight: 1.2, fills: 'Small line under the name' };
@@ -50,17 +51,19 @@ export const DG24_SPEC: TemplateSpec = {
       { path: 'a.sub', type: 'text', required: false, fills: 'Tag line', limits: '2–30 chars' },
       { path: 'a.image_url', type: 'image', required: false, fills: 'Picture (face, product, logo)' },
       { path: 'a.icon', type: 'icon', required: false, fills: 'Icon when there is no picture' },
-      { path: 'b', type: 'list', required: true, fills: 'Right contender — same fields as a' },
+      { path: 'a.bg_color', type: 'color', required: false, fills: 'Background colour of the left column (to highlight it)', limits: 'hex #RRGGBB' },
+      { path: 'b', type: 'list', required: true, fills: 'Right contender — same fields as a (incl. bg_color)' },
       { path: 'rows[]', type: 'list', required: true, fills: 'Measures compared, top to bottom', limits: '2–5 rows' },
       { path: 'rows[].label', type: 'text', required: true, fills: 'What is compared', limits: '2–20 chars' },
       { path: 'rows[].a', type: 'text', required: true, fills: 'Value for the left side', limits: '1–20 chars' },
       { path: 'rows[].b', type: 'text', required: true, fills: 'Value for the right side', limits: '1–20 chars' },
+      { path: 'rows[].bg_color', type: 'color', required: false, fills: 'Background colour of this row', limits: 'hex #RRGGBB' },
       { path: 'rows[].winner', type: 'choice', required: false, fills: 'Which side is better on this row', values: ['a', 'b'] },
     ],
     schema: {
-      a: { type: 'object', additionalProperties: false, required: ['name'], properties: { name: { type: 'string', minLength: 1, maxLength: 24 }, sub: { type: 'string', minLength: 2, maxLength: 30 }, image_url: { type: 'string', format: 'uri' }, icon: { type: 'string' } } },
-      b: { type: 'object', additionalProperties: false, required: ['name'], properties: { name: { type: 'string', minLength: 1, maxLength: 24 }, sub: { type: 'string', minLength: 2, maxLength: 30 }, image_url: { type: 'string', format: 'uri' }, icon: { type: 'string' } } },
-      rows: { type: 'array', minItems: 2, maxItems: 5, items: { type: 'object', additionalProperties: false, required: ['label', 'a', 'b'], properties: { label: { type: 'string', minLength: 2, maxLength: 20 }, a: { type: 'string', minLength: 1, maxLength: 20 }, b: { type: 'string', minLength: 1, maxLength: 20 }, winner: { type: 'string', enum: ['a', 'b'] } } } },
+      a: { type: 'object', additionalProperties: false, required: ['name'], properties: { name: { type: 'string', minLength: 1, maxLength: 24 }, sub: { type: 'string', minLength: 2, maxLength: 30 }, image_url: { type: 'string', format: 'uri' }, icon: { type: 'string' }, bg_color: { type: 'string', pattern: '^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$' } } },
+      b: { type: 'object', additionalProperties: false, required: ['name'], properties: { name: { type: 'string', minLength: 1, maxLength: 24 }, sub: { type: 'string', minLength: 2, maxLength: 30 }, image_url: { type: 'string', format: 'uri' }, icon: { type: 'string' }, bg_color: { type: 'string', pattern: '^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$' } } },
+      rows: { type: 'array', minItems: 2, maxItems: 5, items: { type: 'object', additionalProperties: false, required: ['label', 'a', 'b'], properties: { label: { type: 'string', minLength: 2, maxLength: 20 }, a: { type: 'string', minLength: 1, maxLength: 20 }, b: { type: 'string', minLength: 1, maxLength: 20 }, winner: { type: 'string', enum: ['a', 'b'] }, bg_color: { type: 'string', pattern: '^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$' } } } },
     },
     required: ['a', 'b', 'rows'],
   },
@@ -92,11 +95,11 @@ export const DG24_SPEC: TemplateSpec = {
   },
 };
 
-type Side = { name: string; sub: string; image?: string; icon?: string };
-type Row = { label: string; a: string; b: string; winner?: 'a' | 'b' };
+type Side = { name: string; sub: string; image?: string; icon?: string; bg?: string };
+type Row = { label: string; a: string; b: string; winner?: 'a' | 'b'; bg?: string };
 export const SIDE_W = 560;
 export const MEDIA = 180;
-export type VsLayout = { title: Line[]; titleH: number; names: [Line, Line]; subs: [Line | undefined, Line | undefined]; rowLabel: Line[]; rowA: Line[]; rowB: Line[]; rowH: number; rowsTop: number; headerH: number; media: number; verdict?: Line };
+export type VsLayout = { contentW: number; title: Line[]; titleH: number; names: [Line, Line]; subs: [Line | undefined, Line | undefined]; rowLabel: Line[]; rowA: Line[]; rowB: Line[]; rowH: number; rowsTop: number; headerH: number; media: number; verdict?: Line };
 
 export function layoutVs(input: { title: string; a: Side; b: Side; rows: Row[]; verdict: string }, measure: Measure): VsLayout {
   const title = input.title ? fitText(input.title, DG24_SPEC.text.title, SAFE_W, measure, false).lines : [];
@@ -118,7 +121,11 @@ export function layoutVs(input: { title: string; a: Side; b: Side; rows: Row[]; 
   const rowA = input.rows.map((r) => linesAt(r.a, vf, ROW_VALUE, 440, measure, false)[0]);
   const rowB = input.rows.map((r) => linesAt(r.b, vf, ROW_VALUE, 440, measure, false)[0]);
   const rowsTop = titleH + headerH + 30;
-  return { title, titleH, names, subs, rowLabel, rowA, rowB, rowH, rowsTop, headerH, media, verdict };
+  // the face-off is only as wide as it needs to be (no empty gap between short values and the middle)
+  const valW = Math.max(0, ...rowA.map((l) => measure(l.text, l.size, 800)), ...rowB.map((l) => measure(l.text, l.size, 800))) + 32;
+  const sideNeed = Math.max(...names.map((l) => measure(l.text, l.size, 800)), ...subs.map((l) => (l ? measure(l.text, l.size, 600) : 0)), media) + 20;
+  const contentW = Math.min(SAFE_W, Math.ceil(Math.max(2 * Math.max(sideNeed, 300) + 200, 2 * (valW + 24 + 40) + 400)));
+  return { contentW, title, titleH, names, subs, rowLabel, rowA, rowB, rowH, rowsTop, headerH, media, verdict };
 }
 
 export function planVs(n: number, hasTitle: boolean, hasVerdict: boolean, duration: number, cueTimes?: number[]): Plan {
@@ -141,7 +148,7 @@ export function prepareDG24(props: Record<string, unknown>, durationInFrames: nu
   const measure = measureFor(style);
   const side = (v: unknown): Side => {
     const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
-    return { name: normaliseText(typeof o.name === 'string' ? o.name : '', NAME) || '—', sub: normaliseText(typeof o.sub === 'string' ? o.sub : '', SUB), image: typeof o.image_url === 'string' ? o.image_url : undefined, icon: typeof o.icon === 'string' ? o.icon : undefined };
+    return { name: normaliseText(typeof o.name === 'string' ? o.name : '', NAME) || '—', sub: normaliseText(typeof o.sub === 'string' ? o.sub : '', SUB), image: typeof o.image_url === 'string' ? o.image_url : undefined, icon: typeof o.icon === 'string' ? o.icon : undefined, bg: readHex(o.bg_color) };
   };
   const a = side(props.a);
   const b = side(props.b);
@@ -149,7 +156,7 @@ export function prepareDG24(props: Record<string, unknown>, durationInFrames: nu
   const rows: Row[] = (Array.isArray(props.rows) ? props.rows : [])
     .map((x) => {
       const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
-      return { label: normaliseText(str(o.label), ROW_LABEL), a: normaliseText(str(o.a), ROW_VALUE) || '—', b: normaliseText(str(o.b), ROW_VALUE) || '—', winner: o.winner === 'a' || o.winner === 'b' ? (o.winner as 'a' | 'b') : undefined };
+      return { label: normaliseText(str(o.label), ROW_LABEL), a: normaliseText(str(o.a), ROW_VALUE) || '—', b: normaliseText(str(o.b), ROW_VALUE) || '—', winner: o.winner === 'a' || o.winner === 'b' ? (o.winner as 'a' | 'b') : undefined, bg: readHex(o.bg_color) };
     })
     .filter((r) => r.label)
     .slice(0, 5);
@@ -159,7 +166,7 @@ export function prepareDG24(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, a, b, rows, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function DG24VsFaceOff({ data, clock }: TemplateProps) {
+function DG24VsFaceOffBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, a, b, rows, L, plan, imageUrl, bg, debug } = prepareDG24(props, durationInFrames);
@@ -172,7 +179,9 @@ export function DG24VsFaceOff({ data, clock }: TemplateProps) {
   const exit = exitStyle(A('exit'), progress(frame, plan.exit.start, plan.exit.dur));
   const sides: [Side, Side] = [a, b];
   const cols = [accent, colB];
-  const sideX = [0, SAFE_W - SIDE_W];
+  const ox = (SAFE_W - L.contentW) / 2;
+  const sideW = Math.min(SIDE_W, L.contentW / 2 - 70);
+  const sideX = [ox, ox + L.contentW - sideW];
   const sw = w.sides;
   const vsp = progress(frame, w.vs.start, w.vs.dur);
   return (
@@ -182,7 +191,7 @@ export function DG24VsFaceOff({ data, clock }: TemplateProps) {
         <div style={{ position: 'absolute', inset: 0, ...exit }}>
           {L.title.length > 0 && w.title && <AnimatedText lines={L.title} anim={A('title')} start={w.title.start} dur={w.title.dur} frame={frame} weight={800} lineHeight={1.05} shadow={shadow} align="center" group="title" input="title" style={{ position: 'absolute', left: 0, width: SAFE_W, top: 0 }} />}
           {sides.map((s, i) => (
-            <div key={i} style={{ position: 'absolute', left: sideX[i], top: L.titleH, width: SIDE_W, height: L.headerH, display: 'flex', flexDirection: 'column', alignItems: 'center', ...cardStyle(A('sides'), progress(frame, sw.start + i * 4, sw.dur)) }}>
+            <div key={i} style={{ position: 'absolute', left: sideX[i], top: L.titleH, width: sideW, height: L.headerH, display: 'flex', flexDirection: 'column', alignItems: 'center', background: s.bg, borderRadius: s.bg ? 24 : undefined, ...cardStyle(A('sides'), progress(frame, sw.start + i * 4, sw.dur)) }}>
               <div {...leaf(`media-${i}`, i ? 'b.image_url / icon' : 'a.image_url / icon')} style={{ width: L.media, height: L.media, borderRadius: '50%', overflow: 'hidden', border: `6px solid ${cols[i]}`, boxSizing: 'border-box', background: style.colors.icon_bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {s.image ? <Img src={s.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <LucideIconView name={s.icon ?? 'user'} size={Math.round(L.media * 0.45)} color={cols[i]} />}
               </div>
@@ -196,16 +205,16 @@ export function DG24VsFaceOff({ data, clock }: TemplateProps) {
           {rows.map((r, i) => {
             const rw = w[`row${i}`];
             const top = L.rowsTop + i * L.rowH;
-            const cellW = (SAFE_W - 400) / 2;
+            const cellW = (L.contentW - 400) / 2;
             const winStyle = (side: 'a' | 'b') => (r.winner === side ? { background: withAlpha(side === 'a' ? accent : colB, 0.18), border: `2px solid ${side === 'a' ? accent : colB}` } : { background: 'transparent', border: '2px solid transparent' });
             return (
-              <div key={i} style={{ position: 'absolute', left: 0, top, width: SAFE_W, height: L.rowH - 8, display: 'flex', alignItems: 'center', ...cardStyle(A('rows'), progress(frame, rw.start, rw.dur)) }}>
-                <div style={{ position: 'absolute', inset: 0, borderRadius: 14, background: i % 2 ? 'transparent' : card.fill }} />
-                <div style={{ position: 'relative', width: cellW, display: 'flex', justifyContent: 'flex-end', paddingRight: 24, boxSizing: 'border-box' }}>
+              <div key={i} style={{ position: 'absolute', left: ox, top, width: L.contentW, height: L.rowH - 8, display: 'flex', alignItems: 'center', ...cardStyle(A('rows'), progress(frame, rw.start, rw.dur)) }}>
+                <div style={{ position: 'absolute', inset: 0, borderRadius: 14, background: r.bg ?? (i % 2 ? 'transparent' : card.fill) }} />
+                <div style={{ position: 'relative', width: cellW, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 24, boxSizing: 'border-box', background: a.bg, borderRadius: a.bg ? 14 : undefined }}>
                   <span {...leaf(`row-${i}-a`, `rows[${i}].a`)} style={{ padding: '4px 16px', borderRadius: 10, fontFamily: fontFor(800), fontWeight: 800, fontSize: L.rowA[i].size, lineHeight: 1.2, color: r.winner === 'a' ? accent : style.colors.text, whiteSpace: 'nowrap', ...winStyle('a') }}>{L.rowA[i].text}</span>
                 </div>
                 <span {...leaf(`row-${i}-label`, `rows[${i}].label`)} style={{ position: 'relative', width: 400, textAlign: 'center', fontFamily: fontFor(700), fontWeight: 700, fontSize: L.rowLabel[i].size, lineHeight: 1.2, color: mutedFor(style, onFootage), whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{L.rowLabel[i].text}</span>
-                <div style={{ position: 'relative', width: cellW, display: 'flex', justifyContent: 'flex-start', paddingLeft: 24, boxSizing: 'border-box' }}>
+                <div style={{ position: 'relative', width: cellW, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: 24, boxSizing: 'border-box', background: b.bg, borderRadius: b.bg ? 14 : undefined }}>
                   <span {...leaf(`row-${i}-b`, `rows[${i}].b`)} style={{ padding: '4px 16px', borderRadius: 10, fontFamily: fontFor(800), fontWeight: 800, fontSize: L.rowB[i].size, lineHeight: 1.2, color: r.winner === 'b' ? colB : style.colors.text, whiteSpace: 'nowrap', ...winStyle('b') }}>{L.rowB[i].text}</span>
                 </div>
               </div>
@@ -217,3 +226,6 @@ export function DG24VsFaceOff({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DG24VsFaceOff = withAutoFit(DG24VsFaceOffBase);

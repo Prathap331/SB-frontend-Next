@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
+import { useAutoFit } from './autofit';
 
 /**
  * Storybit frame rules — every template follows these.
@@ -25,8 +26,12 @@ export function SafeArea({
   debug?: boolean;
   style?: CSSProperties;
 }) {
+  // auto-fit (core/autofit.tsx): one translate + scale for everything inside, so small content fills the box
+  const fit = useAutoFit();
+  const grown = fit && fit.s !== 1;
   return (
     <div
+      data-sb-safe=""
       style={{
         position: 'absolute',
         left: SAFE_MARGIN,
@@ -37,7 +42,11 @@ export function SafeArea({
         ...style,
       }}
     >
-      {children}
+      {grown ? (
+        <div style={{ position: 'absolute', left: 0, top: 0, width: SAFE_W, height: SAFE_H, transform: `translate(${fit.dx}px, ${fit.dy}px) scale(${fit.s})`, transformOrigin: '0 0' }}>{children}</div>
+      ) : (
+        children
+      )}
     </div>
   );
 }

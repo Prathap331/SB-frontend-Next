@@ -636,7 +636,8 @@
       }
     },
     "required": [
-      "caption"
+      "caption",
+      "image_url"
     ],
     "additionalProperties": false
   },

@@ -24,6 +24,7 @@ import { planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { cardColors, fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, highlightWords, leaf, readBgMode, readFirst, type HighlightStyle } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec                                                         */
@@ -271,7 +272,7 @@ export function prepareFS11(props: Record<string, unknown>, durationInFrames: nu
 /* Renderer                                                             */
 /* ================================================================== */
 
-export function FS11KeyStatement({ data, clock }: TemplateProps) {
+function FS11KeyStatementBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, S, A, icon, align, emphasis, highlight, imageUrl, bg, debug, L, plan } = prepareFS11(props, durationInFrames);
@@ -408,3 +409,6 @@ export function FS11KeyStatement({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const FS11KeyStatement = withAutoFit(FS11KeyStatementBase);

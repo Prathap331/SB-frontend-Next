@@ -24,6 +24,7 @@ import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } fr
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec                                                         */
@@ -294,7 +295,7 @@ export function prepareTL02(props: Record<string, unknown>, durationInFrames: nu
 /* Renderer                                                             */
 /* ================================================================== */
 
-export function TL02Timeline({ data, clock }: TemplateProps) {
+function TL02TimelineBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, events, focus, imageUrl, bg, debug, L, plan } = prepareTL02(props, durationInFrames);
@@ -433,3 +434,6 @@ export function TL02Timeline({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const TL02Timeline = withAutoFit(TL02TimelineBase);

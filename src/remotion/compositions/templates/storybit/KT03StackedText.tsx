@@ -21,6 +21,7 @@ import { OVERLAY_DURATION } from './core/overlay';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { readStyle, styleVars } from './core/style';
 import { AnimatedText, StoryBackground, readBgMode } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const KT03_SPEC: TemplateSpec = {
   id: 'KT-03',
@@ -123,7 +124,7 @@ export function prepareKT03(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, lines, L, plan, imageUrl, bg, align: opt(props, 'align', ['center', 'left'] as const, 'center'), debug: props.show_safe_area === true };
 }
 
-export function KT03StackedText({ data, clock }: TemplateProps) {
+function KT03StackedTextBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, lines, L, plan, imageUrl, bg, align, debug } = prepareKT03(props, durationInFrames);
@@ -160,3 +161,6 @@ export function KT03StackedText({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const KT03StackedText = withAutoFit(KT03StackedTextBase);

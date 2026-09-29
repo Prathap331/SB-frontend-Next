@@ -23,6 +23,7 @@ import { planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { cardColors, fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec                                                         */
@@ -259,7 +260,7 @@ export function prepareDG05(props: Record<string, unknown>, durationInFrames: nu
 /* Renderer                                                             */
 /* ================================================================== */
 
-export function DG05Relationship({ data, clock }: TemplateProps) {
+function DG05RelationshipBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, nodes, kind, imageUrl, bg, debug, L, plan } = prepareDG05(props, durationInFrames);
@@ -397,3 +398,6 @@ export function DG05Relationship({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DG05Relationship = withAutoFit(DG05RelationshipBase);

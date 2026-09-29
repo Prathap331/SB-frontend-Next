@@ -21,6 +21,7 @@ import { OVERLAY_DURATION } from './core/overlay';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, mutedFor, readStyle, styleVars } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, highlightWords, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const KT08_SPEC: TemplateSpec = {
   id: 'KT-08',
@@ -119,7 +120,7 @@ export function prepareKT08(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, L, plan, mark, align, highlight, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function KT08QuestionHook({ data, clock }: TemplateProps) {
+function KT08QuestionHookBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, L, plan, mark, align, highlight, imageUrl, bg, debug } = prepareKT08(props, durationInFrames);
@@ -154,3 +155,6 @@ export function KT08QuestionHook({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const KT08QuestionHook = withAutoFit(KT08QuestionHookBase);

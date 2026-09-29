@@ -62,8 +62,8 @@
     {
       "path": "image_url",
       "type": "image",
-      "required": false,
-      "fills": "The photo, full frame (omit to overlay the label / caption on footage)",
+      "required": true,
+      "fills": "The photo, full frame",
       "limits": "https URL or asset URL"
     },
     {
@@ -406,7 +406,7 @@
       "image_url": {
         "type": "string",
         "format": "uri",
-        "description": "The photo, full frame (omit to overlay the label / caption on footage)"
+        "description": "The photo, full frame"
       },
       "position": {
         "type": "string",
@@ -692,7 +692,9 @@
         "description": "Seconds from the template start when each element appears, in order: label, caption. label → caption. Missing elements are skipped. Compute as (spoken word time − beat start time) from WhisperX."
       }
     },
-    "required": [],
+    "required": [
+      "image_url"
+    ],
     "additionalProperties": false
   },
   "example": {

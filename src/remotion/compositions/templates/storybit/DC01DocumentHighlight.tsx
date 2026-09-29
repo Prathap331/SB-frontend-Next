@@ -22,6 +22,7 @@ import { planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H } from './core/safeArea';
 import { fontStack, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, StoryBackground, highlightWords, leaf, readBgMode, readFirst, type HighlightStyle } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const DC01_SPEC: TemplateSpec = {
   id: 'DC-01',
@@ -122,7 +123,7 @@ export function prepareDC01(props: Record<string, unknown>, durationInFrames: nu
 
 const MARKERS = { yellow: '#FFE24A', green: '#7CF0A0', pink: '#FF9BD2' } as const;
 
-export function DC01DocumentHighlight({ data, clock }: TemplateProps) {
+function DC01DocumentHighlightBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, L, plan, highlight, imageUrl, bg, marker, focus, cream, debug } = prepareDC01(props, durationInFrames);
@@ -158,3 +159,6 @@ export function DC01DocumentHighlight({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DC01DocumentHighlight = withAutoFit(DC01DocumentHighlightBase);

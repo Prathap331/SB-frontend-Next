@@ -22,6 +22,7 @@ import { readNumber } from './core/numbers';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { mutedFor, readStyle, styleVars } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const NV04_SPEC: TemplateSpec = {
   id: 'NV-04',
@@ -99,7 +100,7 @@ export function prepareNV04(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, L, plan, picture, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function NV04RankReveal({ data, clock }: TemplateProps) {
+function NV04RankRevealBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, L, plan, picture, imageUrl, bg, debug } = prepareNV04(props, durationInFrames);
@@ -130,3 +131,6 @@ export function NV04RankReveal({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const NV04RankReveal = withAutoFit(NV04RankRevealBase);

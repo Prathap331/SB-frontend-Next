@@ -23,8 +23,9 @@ import { blockHeight, fitText, linesAt, sharedFont, words, type Line, type Measu
 import { cardStyle, exitStyle, iconStyle, progress, shapeState, textAnimFrames } from './core/motion';
 import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
-import { cardColors, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
+import { cardColors, mutedFor, readStyle, styleVars, withAlpha, readHex } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec                                                         */
@@ -81,6 +82,7 @@ export const FS20_SPEC: TemplateSpec = {
       maxItems: 3,
       icon: { required: false, fallback: 'none' },
       image: { required: false, fills: 'Picture above the column name (circle)' },
+      bgColor: 'this column’s background panel',
       fields: {
         name: {
           label: 'Name',
@@ -185,7 +187,7 @@ export const FS20_SPEC: TemplateSpec = {
 /* Layout                                                               */
 /* ================================================================== */
 
-export type Column = { name: string; icon?: string; image?: string };
+export type Column = { name: string; icon?: string; image?: string; bg?: string };
 export type Row = { label: string; cells: string[]; best?: number };
 export type CellKind = 'yes' | 'no' | 'dash' | 'text';
 
@@ -351,7 +353,7 @@ function readTable(props: Record<string, unknown>): { columns: Column[]; rows: R
       if (!c || typeof c !== 'object') return null;
       const o = c as Record<string, unknown>;
       const name = str(o, ['name', 'title', 'label']);
-      return name ? { name, icon: str(o, ['icon', 'icon_name']), image: str(o, ['image_url', 'image']) } : null;
+      return name ? { name, icon: str(o, ['icon', 'icon_name']), image: str(o, ['image_url', 'image']), bg: readHex(o.bg_color) } : null;
     })
     .filter((c): c is Column => c !== null)
     .slice(0, CS.maxItems)
@@ -395,7 +397,7 @@ export function prepareFS20(props: Record<string, unknown>, durationInFrames: nu
 /* Renderer                                                             */
 /* ================================================================== */
 
-export function FS20ComparisonColumns({ data, clock }: TemplateProps) {
+function FS20ComparisonColumnsBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, table, highlightCol, imageUrl, bg, debug, L, plan } = prepareFS20(props, durationInFrames);
@@ -450,23 +452,29 @@ export function FS20ComparisonColumns({ data, clock }: TemplateProps) {
           )}
 
           <div style={{ position: 'relative', width: SAFE_W, height: tableH }}>
-            {/* highlighted column band (behind everything, inside the column's box) */}
-            {highlightCol >= 0 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: L.labelW + highlightCol * L.colW + 6,
-                  top: 0,
-                  width: L.colW - 12,
-                  height: tableH,
-                  borderRadius: 24,
-                  background: withAlpha(accent, 0.1),
-                  border: `2px solid ${withAlpha(accent, 0.5)}`,
-                  boxSizing: 'border-box',
-                  ...cardStyle('fade', progress(frame, w.header.start, w.header.dur)),
-                }}
-              />
-            )}
+            {/* a background panel behind every column: bg_color when given, otherwise a soft card tint;
+                the highlighted column also gets the accent outline */}
+            {table.columns.map((c, j) => {
+              const hl = j === highlightCol;
+              const fillC = c.bg ?? (hl ? withAlpha(accent, 0.1) : withAlpha(style.colors.text, 0.04));
+              return (
+                <div
+                  key={`band${j}`}
+                  style={{
+                    position: 'absolute',
+                    left: L.labelW + j * L.colW + 6,
+                    top: 0,
+                    width: L.colW - 12,
+                    height: tableH,
+                    borderRadius: 24,
+                    background: fillC,
+                    border: hl ? `2px solid ${withAlpha(accent, 0.5)}` : `1px solid ${withAlpha(style.colors.text, 0.06)}`,
+                    boxSizing: 'border-box',
+                    ...cardStyle('fade', progress(frame, w.header.start, w.header.dur)),
+                  }}
+                />
+              );
+            })}
 
             {/* column heads */}
             <div style={{ position: 'absolute', left: L.labelW, top: 0, width: SAFE_W - L.labelW, height: L.headerH, display: 'flex' }}>
@@ -586,3 +594,6 @@ export function FS20ComparisonColumns({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const FS20ComparisonColumns = withAutoFit(FS20ComparisonColumnsBase);

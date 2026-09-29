@@ -55,6 +55,8 @@ export type ListSpec = {
   icon?: { required: boolean; fallback: string };
   /** Item carries an image URL (prop `image_url` on each item). */
   image?: { required: boolean; fills: string };
+  /** Item can carry its own background colour (prop `bg_color`, hex) — what it fills, e.g. "this column's panel". */
+  bgColor?: string;
   fills?: string;
 };
 
@@ -191,6 +193,9 @@ export function validateProps(props: Record<string, unknown>, spec: TemplateSpec
       for (const [fk, n] of Object.entries(l.numbers ?? {})) checkNumber(`${k}[${i}].${fk}`, o[fk], { ...n, label: `${l.label} ${i + 1} ${n.label.toLowerCase()}` });
     });
   }
+  const hasUrl = (v: unknown) => typeof v === 'string' && v.trim() !== '';
+  if (spec.image?.required && !hasUrl(props.image_url)) issues.push({ field: 'image_url', level: 'error', message: `${spec.image.label ?? 'Image'} is required` });
+  for (const [k, im] of Object.entries(spec.images ?? {})) if (im.required && !hasUrl(props[k])) issues.push({ field: k, level: 'error', message: `${im.label} is required` });
   for (const [k, ic] of Object.entries(spec.icons ?? {}))
     if (ic.required && typeof props[k] !== 'string') issues.push({ field: k, level: 'warning', message: `${ic.label}: no icon — "${ic.fallback}" is used` });
   const bag = props.animations && typeof props.animations === 'object' ? (props.animations as Record<string, unknown>) : {};
@@ -327,6 +332,8 @@ export function buildInputs(spec: TemplateSpec): InputDef[] {
       out.push({ path: `${k}[].icon`, type: 'icon', required: l.icon.required, fills: `${l.label} icon`, limits: 'Lucide icon name', fallback: l.icon.fallback });
     if (l.image)
       out.push({ path: `${k}[].image_url`, type: 'image', required: l.image.required, fills: l.image.fills, limits: 'https URL or asset URL' });
+    if (l.bgColor)
+      out.push({ path: `${k}[].bg_color`, type: 'color', required: false, fills: `Background colour of ${l.bgColor} (to highlight it)`, limits: 'hex #RRGGBB (or #RRGGBBAA)', default: 'theme card colour' });
   }
   if (spec.custom) out.push(...spec.custom.inputs);
   if (spec.image) out.push({ path: 'image_url', type: 'image', required: spec.image.required, fills: spec.image.fills, limits: 'https URL or asset URL' });
@@ -403,6 +410,7 @@ export function toJsonSchema(spec: TemplateSpec): Json {
       ip.image_url = { type: 'string', format: 'uri', description: l.image.fills };
       if (l.image.required) ir.push('image_url');
     }
+    if (l.bgColor) ip.bg_color = { type: 'string', pattern: HEX.source, description: `Background colour of ${l.bgColor}, hex e.g. #1E3A8A (optional — highlights it)` };
     properties[k] = {
       type: 'array',
       minItems: l.minItems,
@@ -416,7 +424,10 @@ export function toJsonSchema(spec: TemplateSpec): Json {
     Object.assign(properties, spec.custom.schema);
     required.push(...(spec.custom.required ?? []));
   }
-  if (spec.image) properties.image_url = { type: 'string', format: 'uri', description: spec.image.fills };
+  if (spec.image) {
+    properties.image_url = { type: 'string', format: 'uri', description: spec.image.fills };
+    if (spec.image.required) required.push('image_url');
+  }
   for (const [k, im] of Object.entries(spec.images ?? {})) {
     properties[k] = { type: 'string', format: 'uri', description: im.fills };
     if (im.required) required.push(k);

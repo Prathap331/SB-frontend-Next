@@ -33,7 +33,7 @@ export const VO01_SPEC: TemplateSpec = {
   name: 'Image + Label / Caption',
   pickWhen: 'Showing a specific photo that needs a name or one line of explanation (a place, an object, an archive picture).',
   placement: 'both',
-  image: { label: 'Image', required: false, fills: 'The photo, full frame (omit to overlay the label / caption on footage)' },
+  image: { label: 'Image', required: true, fills: 'The photo, full frame' },
   duration: { min: 90, default: 150, max: 240 },
   text: {
     label: { label: 'Label', required: false, minChars: 2, maxChars: 30, minWords: 1, maxWords: 5, maxWordChars: 18, maxLines: 1, fontMax: 44, fontMin: 28, weight: 800, lineHeight: 1.15, hint: 'What it is: "Gateway of India, 1924".', fills: 'Label tag', example: 'Howrah Bridge, Kolkata' },

@@ -21,6 +21,7 @@ import { planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { cardColors, fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const DG25_SPEC: TemplateSpec = {
   id: 'DG-25',
@@ -124,7 +125,7 @@ export function prepareDG25(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function DG25MythFact({ data, clock }: TemplateProps) {
+function DG25MythFactBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, L, plan, imageUrl, bg, debug } = prepareDG25(props, durationInFrames);
@@ -180,3 +181,6 @@ export function DG25MythFact({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DG25MythFact = withAutoFit(DG25MythFactBase);

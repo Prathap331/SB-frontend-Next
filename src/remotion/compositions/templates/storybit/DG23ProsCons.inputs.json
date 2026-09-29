@@ -94,6 +94,22 @@
       "limits": "2–60 chars · 1–11 words · longest word 16 · max 2 lines"
     },
     {
+      "path": "pros_bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Background colour of the Pros column panel (to highlight it)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "theme card colour"
+    },
+    {
+      "path": "cons_bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Background colour of the Cons column panel",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "theme card colour"
+    },
+    {
       "path": "image_url",
       "type": "image",
       "required": false,
@@ -528,6 +544,16 @@
           "additionalProperties": false
         },
         "description": "Bad points"
+      },
+      "pros_bg_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Background colour of the Pros column panel, hex e.g. #0F3D2E"
+      },
+      "cons_bg_color": {
+        "type": "string",
+        "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+        "description": "Background colour of the Cons column panel, hex e.g. #3D0F14"
       },
       "image_url": {
         "type": "string",

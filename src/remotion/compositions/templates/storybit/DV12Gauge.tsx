@@ -24,6 +24,7 @@ import { axisFormatter } from './core/chart';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 const ZONE_LABEL: TextSpec = { label: 'Zone label', required: false, minChars: 2, maxChars: 14, minWords: 1, maxWords: 2, maxWordChars: 12, maxLines: 1, fontMax: 24, fontMin: 16, weight: 700, lineHeight: 1.2, fills: 'Name of a zone' };
 
@@ -186,7 +187,7 @@ export function prepareDV12(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, value, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function DV12Gauge({ data, clock }: TemplateProps) {
+function DV12GaugeBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, value, L, plan, imageUrl, bg, debug } = prepareDV12(props, durationInFrames);
@@ -258,3 +259,6 @@ export function DV12Gauge({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DV12Gauge = withAutoFit(DV12GaugeBase);

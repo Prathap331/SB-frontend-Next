@@ -22,6 +22,7 @@ import { planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontStack, readStyle, styleVars } from './core/style';
 import { AnimatedText, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const UI07_SPEC: TemplateSpec = {
   id: 'UI-07',
@@ -113,7 +114,7 @@ export function prepareUI07(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, L, plan, photo, imageUrl, bg: readBgMode(props, imageUrl), aged: opt(props, 'paper', ['aged', 'clean'] as const, 'aged') === 'aged', tilt: opt(props, 'tilt', ['left', 'none', 'right'] as const, 'left'), debug: props.show_safe_area === true };
 }
 
-export function UI07NewspaperClipping({ data, clock }: TemplateProps) {
+function UI07NewspaperClippingBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, L, plan, photo, imageUrl, bg, aged, tilt, debug } = prepareUI07(props, durationInFrames);
@@ -171,3 +172,6 @@ export function UI07NewspaperClipping({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const UI07NewspaperClipping = withAutoFit(UI07NewspaperClippingBase);

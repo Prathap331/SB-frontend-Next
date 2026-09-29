@@ -22,8 +22,9 @@ import { blockHeight, fitText, linesAt, sharedFont, words, type Line, type Measu
 import { cardStyle, exitStyle, iconStyle, progress, textAnimFrames } from './core/motion';
 import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
-import { cardColors, fontFor, mutedFor, readStyle, styleVars } from './core/style';
+import { cardColors, fontFor, mutedFor, readStyle, styleVars, readHex } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec                                                         */
@@ -64,6 +65,7 @@ export const FS14_SPEC: TemplateSpec = {
       maxItems: 6,
       icon: { required: false, fallback: 'number' },
       image: { required: false, fills: 'Item picture (thumbnail in list layout, card top in cards layout)' },
+      bgColor: 'this item’s row / card',
       fields: {
         text: {
           label: 'Text',
@@ -147,7 +149,7 @@ export const FS14_SPEC: TemplateSpec = {
 /* ================================================================== */
 
 export type Marker = 'bullet' | 'number' | 'icon' | 'check' | 'image';
-export type ListItem = { text: string; sub?: string; icon?: string; image?: string };
+export type ListItem = { text: string; sub?: string; icon?: string; image?: string; bg?: string };
 
 export const HEADING_GAP = 44;
 export const LIST_CENTER_W = 1400;
@@ -363,7 +365,7 @@ function readItems(props: Record<string, unknown>): ListItem[] {
       if (!it || typeof it !== 'object') return null;
       const o = it as Record<string, unknown>;
       const text = str(o, ['text', 'title', 'label']);
-      return text ? { text, sub: str(o, ['sub', 'desc', 'description']), icon: str(o, ['icon', 'icon_name']), image: str(o, ['image_url', 'image']) } : null;
+      return text ? { text, sub: str(o, ['sub', 'desc', 'description']), icon: str(o, ['icon', 'icon_name']), image: str(o, ['image_url', 'image']), bg: readHex(o.bg_color) } : null;
     })
     .filter((x): x is ListItem => x !== null)
     .slice(0, spec.maxItems)
@@ -396,7 +398,7 @@ export function prepareFS14(props: Record<string, unknown>, durationInFrames: nu
 /* Renderer                                                             */
 /* ================================================================== */
 
-export function FS14StructuredList({ data, clock }: TemplateProps) {
+function FS14StructuredListBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, items, align, focus, imageUrl, bg, debug, L, plan } = prepareFS14(props, durationInFrames);
@@ -508,8 +510,10 @@ export function FS14StructuredList({ data, clock }: TemplateProps) {
           return (
             <div
               key={i}
-              style={{ height: L.items[i].h, display: 'flex', alignItems: 'center', gap: MARKER_GAP, ...cs, opacity: ((cs.opacity as number | undefined) ?? 1) * dimmed(i) }}
+              style={{ position: 'relative', zIndex: 0, height: L.items[i].h, display: 'flex', alignItems: 'center', gap: MARKER_GAP, ...cs, opacity: ((cs.opacity as number | undefined) ?? 1) * dimmed(i) }}
             >
+              {/* row background band: bg_color when given (a highlighted row) */}
+              {items[i].bg && <div style={{ position: 'absolute', zIndex: -1, left: 0, right: 0, top: -Math.min(10, L.rowGap / 2), bottom: -Math.min(10, L.rowGap / 2), borderRadius: 16, background: items[i].bg }} />}
               <div style={{ width: L.mediaW, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>{marker(i, L.markerSize, L.marker)}</div>
               <div style={{ width: L.textW, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>{itemText(i, 'left')}</div>
             </div>
@@ -529,7 +533,7 @@ export function FS14StructuredList({ data, clock }: TemplateProps) {
                 boxSizing: 'border-box',
                 borderRadius: 28,
                 overflow: 'hidden',
-                background: card.fill,
+                background: items[i].bg ?? card.fill,
                 border: `1.5px solid ${card.border}`,
                 display: 'flex',
                 flexDirection: 'column',
@@ -611,3 +615,6 @@ export function FS14StructuredList({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const FS14StructuredList = withAutoFit(FS14StructuredListBase);

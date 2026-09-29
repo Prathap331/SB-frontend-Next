@@ -155,3 +155,8 @@ export function cardColors(style: Style, onFootage: boolean) {
     border: style.custom.has('card_border') ? style.colors.card_border : onFootage ? 'rgba(255,255,255,0.22)' : style.colors.card_border,
   };
 }
+
+/** A hex colour from props, or undefined (used for per-row / per-column background colours). */
+export function readHex(v: unknown): string | undefined {
+  return typeof v === 'string' && HEX.test(v.trim()) ? v.trim() : undefined;
+}

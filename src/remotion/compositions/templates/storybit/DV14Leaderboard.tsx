@@ -24,8 +24,9 @@ import { FORMAT_HELP, NUMBER_FORMATS, readNumber, type NumberFormat } from './co
 import { axisFormatter } from './core/chart';
 import { numberAnimState } from './core/numberRow';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
-import { cardColors, fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
+import { cardColors, fontFor, mutedFor, readStyle, styleVars, withAlpha, readHex } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec                                                         */
@@ -53,6 +54,7 @@ export const DV14_SPEC: TemplateSpec = {
       maxItems: 10,
       icon: { required: false, fallback: 'none' },
       image: { required: false, fills: 'Circle picture next to the rank (logo, face, flag)' },
+      bgColor: 'this row',
       fields: {
         label: { label: 'Name', required: true, minChars: 1, maxChars: 28, minWords: 1, maxWords: 5, maxWordChars: 16, maxLines: 1, fontMax: 44, fontMin: 20, weight: 700, lineHeight: 1.2, hint: 'Who / what is ranked.', fills: 'Row name' },
         sub: { label: 'Sub-line', required: false, minChars: 2, maxChars: 40, minWords: 1, maxWords: 7, maxWordChars: 16, maxLines: 1, fontMax: 26, fontMin: 16, weight: 500, lineHeight: 1.25, hint: 'Small detail: company, city, category.', fills: 'Line under the name' },
@@ -107,7 +109,7 @@ export const DV14_SPEC: TemplateSpec = {
 /* Layout                                                               */
 /* ================================================================== */
 
-export type RankItem = { label: string; sub?: string; value?: number; icon?: string; image?: string };
+export type RankItem = { label: string; sub?: string; value?: number; icon?: string; image?: string; bg?: string };
 export const HEADING_GAP = 36;
 export const SOURCE_GAP = 22;
 export const ROW_GAP = 12;
@@ -236,7 +238,7 @@ export function prepareDV14(props: Record<string, unknown>, durationInFrames: nu
     .map((it): RankItem | null => {
       const o = (it && typeof it === 'object' ? it : {}) as Record<string, unknown>;
       const label = s(o, ['label', 'name', 'title']);
-      return label ? { label: normaliseText(label, IS.fields.label), sub: normaliseText(s(o, ['sub', 'detail']), IS.fields.sub) || undefined, value: readNumber(o.value), icon: s(o, ['icon', 'icon_name']), image: s(o, ['image_url', 'image']) } : null;
+      return label ? { label: normaliseText(label, IS.fields.label), sub: normaliseText(s(o, ['sub', 'detail']), IS.fields.sub) || undefined, value: readNumber(o.value), icon: s(o, ['icon', 'icon_name']), image: s(o, ['image_url', 'image']), bg: readHex(o.bg_color) } : null;
     })
     .filter((x): x is RankItem => x !== null && Boolean(x.label))
     .slice(0, IS.maxItems);
@@ -272,7 +274,7 @@ export function prepareDV14(props: Record<string, unknown>, durationInFrames: nu
 
 const MEDALS = ['#F5C542', '#C9D1DB', '#D38B4F'];
 
-export function DV14Leaderboard({ data, clock }: TemplateProps) {
+function DV14LeaderboardBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, input, medal, highlight, imageUrl, bg, debug, L, plan } = prepareDV14(props, durationInFrames);
@@ -309,7 +311,7 @@ export function DV14Leaderboard({ data, clock }: TemplateProps) {
             const labelBlockH = L.labels[i].size * F.label.lineHeight + (L.subs[i] ? L.subs[i]!.size * F.sub.lineHeight : 0);
             return (
               <div key={i} style={{ position: 'absolute', left: 0, top, width: SAFE_W, height: L.rowH, ...cardStyle(A('rows'), progress(frame, rw.start, rw.dur)) }}>
-                <div style={{ position: 'absolute', inset: 0, borderRadius: 20, background: card.fill, border: `2px solid ${isTop ? withAlpha(accent, 0.8) : card.border}`, boxSizing: 'border-box' }} />
+                <div style={{ position: 'absolute', inset: 0, borderRadius: 20, background: it.bg ?? card.fill, border: `2px solid ${isTop ? withAlpha(accent, 0.8) : card.border}`, boxSizing: 'border-box' }} />
                 {L.barMaxW > 0 && bar && (
                   <div {...leaf(`bar-${i}`, `items[${i}].value (bar)`)} style={{ position: 'absolute', left: L.barX, top: L.rowH * 0.3, height: L.rowH * 0.4, width: L.barMaxW * L.barFrac[i] * bar.length, borderRadius: 8, background: i === 0 && isTop ? accent : withAlpha(accent, 0.55), ...bar.style }} />
                 )}
@@ -356,3 +358,6 @@ export function DV14Leaderboard({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DV14Leaderboard = withAutoFit(DV14LeaderboardBase);

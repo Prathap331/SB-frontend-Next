@@ -20,8 +20,9 @@ import { blockHeight, fitText, linesAt, sharedFont, words, type Line, type Measu
 import { cardStyle, exitStyle, imageMotionStyle, progress, textAnimFrames } from './core/motion';
 import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
-import { cardColors, fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
+import { cardColors, fontFor, mutedFor, readStyle, styleVars, withAlpha, readHex } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 const FACT_LABEL: TextSpec = { label: 'Fact label', required: true, minChars: 2, maxChars: 18, minWords: 1, maxWords: 3, maxWordChars: 14, maxLines: 1, fontMax: 22, fontMin: 15, weight: 700, lineHeight: 1.2, fills: 'What the fact is' };
 const FACT_VALUE: TextSpec = { label: 'Fact value', required: true, minChars: 1, maxChars: 40, minWords: 1, maxWords: 7, maxWordChars: 18, maxLines: 2, fontMax: 34, fontMin: 20, weight: 700, lineHeight: 1.2, fills: 'The fact' };
@@ -34,14 +35,14 @@ export const PE10_SPEC: TemplateSpec = {
   pickWhen: 'Introducing a person with the key facts about them: a founder, politician, athlete, accused.',
   placement: 'full',
   image: BACKGROUND_IMAGE,
-  images: { portrait_url: { label: 'Portrait', required: false, fills: 'Photo of the person (initials if missing)' } },
+  images: { portrait_url: { label: 'Portrait', required: true, fills: 'Photo of the person (initials are shown only if it fails to load)' } },
   duration: { min: 90, default: 180, max: 240 },
   text: {
     name: { label: 'Name', required: true, minChars: 2, maxChars: 34, minWords: 1, maxWords: 5, maxWordChars: 18, maxLines: 2, fontMax: 72, fontMin: 40, weight: 800, lineHeight: 1.05, fills: 'Full name', example: 'Sample Person' },
     role: { label: 'Role', required: false, minChars: 2, maxChars: 50, minWords: 1, maxWords: 9, maxWordChars: 18, maxLines: 2, fontMax: 34, fontMin: 22, weight: 600, lineHeight: 1.25, fills: 'Role / what they are known for', example: 'Founder & CEO, Example Ltd' },
   },
   lists: {
-    facts: { label: 'Fact', fills: 'Key facts', minItems: 2, maxItems: 6, fields: { label: FACT_LABEL, value: FACT_VALUE } },
+    facts: { label: 'Fact', fills: 'Key facts', minItems: 2, maxItems: 6, bgColor: 'this fact’s panel', fields: { label: FACT_LABEL, value: FACT_VALUE } },
     tags: { label: 'Tag', fills: 'Short tags under the facts', minItems: 1, maxItems: 4, optional: true, fields: { text: TAG } },
   },
   options: {
@@ -63,6 +64,7 @@ export const PE10_SPEC: TemplateSpec = {
   example: {
     name: 'Sample Person',
     role: 'Founder & CEO, Example Ltd',
+    portrait_url: 'https://example.com/portrait.jpg',
     facts: [
       { label: 'Born', value: '1975, Pune' },
       { label: 'Education', value: 'B.Tech, IIT Bombay' },
@@ -76,7 +78,7 @@ export const PE10_SPEC: TemplateSpec = {
 
 export const CARD_PAD = 48;
 export const GAP = 48;
-export type ProfileLayout = { photoW: number; photoH: number; textW: number; name: Line[]; role: Line[]; factCols: number; factW: number; labels: Line[]; values: Line[][]; factH: number; tags: Line[]; tagW: number[]; cardH: number };
+export type ProfileLayout = { cardW: number; photoW: number; photoH: number; textW: number; name: Line[]; role: Line[]; factCols: number; factW: number; labels: Line[]; values: Line[][]; factH: number; tags: Line[]; tagW: number[]; cardH: number };
 
 export function layoutProfile(input: { name: string; role: string; facts: { label: string; value: string }[]; tags: string[] }, measure: Measure, spec: TemplateSpec = PE10_SPEC): ProfileLayout {
   const T = spec.text;
@@ -106,7 +108,16 @@ export function layoutProfile(input: { name: string; role: string; facts: { labe
     const tagW = tags.map((t) => Math.ceil(measure(t.text, t.size, 700)) + 32);
     const textH = blockHeight(name, T.name.lineHeight) + (role.length ? 10 + blockHeight(role, T.role.lineHeight) : 0) + 30 + rows * factH + (tags.length ? 18 + tagsH0 : 0);
     const cardH = Math.max(textH + CARD_PAD * 2, 560);
-    if (cardH <= SAFE_H || cap <= T.name.fontMin) return { photoW, photoH: Math.min(SAFE_H, cardH) - CARD_PAD * 2, textW, name, role, factCols, factW, labels, values, factH, tags, tagW, cardH: Math.min(SAFE_H, cardH) };
+    if (cardH <= SAFE_H || cap <= T.name.fontMin) {
+      // the card hugs its content: no empty band on the right when the text is short
+      const w = (l: Line, wt: number) => measure(l.text, l.size, wt);
+      const factNeed = Math.max(0, ...labels.map((l) => w(l, FACT_LABEL.weight) * 1.12), ...values.flat().map((l) => w(l, FACT_VALUE.weight)));
+      const used = Math.ceil(Math.max(...name.map((l) => w(l, T.name.weight)), ...role.map((l) => w(l, T.role.weight)), factCols * factNeed + (factCols - 1) * 32, tagW.reduce((a, b) => a + b, 0) + 12 * Math.max(0, tagW.length - 1), 360)) + 8;
+      const tw = Math.min(textW, used);
+      const fw = (tw - (factCols - 1) * 32) / factCols;
+      const ch = Math.min(SAFE_H, cardH);
+      return { cardW: CARD_PAD * 2 + photoW + GAP + tw, photoW, photoH: ch - CARD_PAD * 2, textW: tw, name, role, factCols, factW: fw, labels, values, factH, tags, tagW, cardH: ch };
+    }
     cap -= 4;
   }
 }
@@ -142,7 +153,7 @@ export function preparePE10(props: Record<string, unknown>, durationInFrames: nu
   const facts = (Array.isArray(props.facts) ? props.facts : [])
     .map((x) => {
       const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
-      return { label: normaliseText(str(o.label), FACT_LABEL), value: normaliseText(str(o.value), FACT_VALUE) };
+      return { label: normaliseText(str(o.label), FACT_LABEL), value: normaliseText(str(o.value), FACT_VALUE), bg: readHex(o.bg_color) };
     })
     .filter((f) => f.label && f.value)
     .slice(0, 6);
@@ -150,13 +161,13 @@ export function preparePE10(props: Record<string, unknown>, durationInFrames: nu
   const L = layoutProfile({ name: normaliseText(readFirst(props, ['name']), S.name), role: normaliseText(readFirst(props, ['role', 'title']), S.role), facts, tags }, measure, sized.spec);
   const plan = planProfile(L, { name: A('name') }, durationInFrames, readCues(props));
   const imageUrl = readImageUrl(props);
-  return { style, sized, A, L, plan, portrait: readFirst(props, ['portrait_url', 'photo_url']), right: opt(props, 'side', ['left', 'right'] as const, 'left') === 'right', imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
+  return { style, sized, A, L, plan, factBg: facts.map((f) => f.bg), portrait: readFirst(props, ['portrait_url', 'photo_url']), right: opt(props, 'side', ['left', 'right'] as const, 'left') === 'right', imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function PE10ProfileCard({ data, clock }: TemplateProps) {
+function PE10ProfileCardBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
-  const { style, A, L, plan, portrait, right, imageUrl, bg, debug } = preparePE10(props, durationInFrames);
+  const { style, A, L, plan, factBg, portrait, right, imageUrl, bg, debug } = preparePE10(props, durationInFrames);
   const w = plan.windows;
   const S = PE10_SPEC.text;
   const accent = style.colors.accent;
@@ -165,14 +176,14 @@ export function PE10ProfileCard({ data, clock }: TemplateProps) {
   const card = cardColors(style, onFootage);
   const exit = exitStyle(A('exit'), progress(frame, plan.exit.start, plan.exit.dur));
   const top = (SAFE_H - L.cardH) / 2;
-  const photoX = right ? SAFE_W - CARD_PAD - L.photoW : CARD_PAD;
+  const photoX = right ? L.cardW - CARD_PAD - L.photoW : CARD_PAD;
   const textX = right ? CARD_PAD : CARD_PAD + L.photoW + GAP;
   const initials = L.name.map((l) => l.text).join(' ').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', ...styleVars(style) }}>
       <StoryBackground mode={bg} imageUrl={imageUrl} align="center" accent={accent} frame={frame} durationInFrames={durationInFrames} colors={style.colors} motion={A('image_motion')} entry={A('image_entry')} />
       <SafeArea debug={debug}>
-        <div style={{ position: 'absolute', left: 0, top, width: SAFE_W, height: L.cardH, ...exit }}>
+        <div style={{ position: 'absolute', left: (SAFE_W - L.cardW) / 2, top, width: L.cardW, height: L.cardH, ...exit }}>
           <div style={{ position: 'absolute', inset: 0, borderRadius: 32, background: card.fill, border: `2px solid ${card.border}`, ...cardStyle(A('card'), progress(frame, w.card.start, w.card.dur)) }} />
           <div {...leaf('portrait', 'portrait_url')} style={{ position: 'absolute', left: photoX, top: CARD_PAD, width: L.photoW, height: L.photoH, borderRadius: 22, overflow: 'hidden', background: withAlpha(accent, 0.2), display: 'flex', alignItems: 'center', justifyContent: 'center', ...cardStyle(A('card'), progress(frame, w.card.start + 4, w.card.dur)) }}>
             {portrait ? <Img src={portrait} style={{ width: '100%', height: '100%', objectFit: 'cover', ...imageMotionStyle(A('portrait_motion'), frame / Math.max(1, durationInFrames)) }} /> : <span style={{ fontFamily: fontFor(800), fontWeight: 800, fontSize: 160, color: accent }}>{initials || '?'}</span>}
@@ -186,7 +197,9 @@ export function PE10ProfileCard({ data, clock }: TemplateProps) {
               {L.values.map((v, i) => {
                 const fw = w[`fact${i}`];
                 return (
-                  <div key={i} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', ...cardStyle(A('facts'), progress(frame, fw.start, fw.dur)) }}>
+                  <div key={i} style={{ position: 'relative', zIndex: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', ...cardStyle(A('facts'), progress(frame, fw.start, fw.dur)) }}>
+                    {/* a panel behind every fact: bg_color when given, otherwise a soft tint */}
+                    <div style={{ position: 'absolute', zIndex: -1, left: -14, right: -14, top: 3, bottom: 3, borderRadius: 14, background: factBg[i] ?? withAlpha(style.colors.text, 0.045) }} />
                     <span {...leaf(`fact-${i}-label`, `facts[${i}].label`)} style={{ fontFamily: fontFor(700), fontWeight: 700, fontSize: L.labels[i].size, lineHeight: 1.2, color: mutedFor(style, onFootage), letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{L.labels[i].text}</span>
                     <AnimatedText lines={v} anim="none" start={fw.start} dur={1} frame={frame} weight={FACT_VALUE.weight} lineHeight={FACT_VALUE.lineHeight} shadow={shadow} group={`fact-${i}-value`} input={`facts[${i}].value`} style={{ marginTop: 6 }} />
                   </div>
@@ -208,3 +221,6 @@ export function PE10ProfileCard({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const PE10ProfileCard = withAutoFit(PE10ProfileCardBase);

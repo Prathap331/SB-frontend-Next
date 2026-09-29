@@ -25,6 +25,7 @@ import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { flattenDepth, treeLayout } from './core/tree';
 import { cardColors, fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const DG14_SPEC: TemplateSpec = {
   id: 'DG-14',
@@ -162,7 +163,7 @@ export function prepareDG14(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, nodes: flattenDepth(nodes, 4), L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function DG14Hierarchy({ data, clock }: TemplateProps) {
+function DG14HierarchyBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, nodes, L, plan, imageUrl, bg, debug } = prepareDG14(props, durationInFrames);
@@ -214,3 +215,6 @@ export function DG14Hierarchy({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DG14Hierarchy = withAutoFit(DG14HierarchyBase);

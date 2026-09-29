@@ -25,6 +25,7 @@ import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { overlaps, type Box } from './core/placement';
 import { fontFor, readStyle, styleVars } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 const LINK_LABEL: TextSpec = { label: 'Link label', required: false, minChars: 2, maxChars: 18, minWords: 1, maxWords: 3, maxWordChars: 14, maxLines: 1, fontMax: 22, fontMin: 16, weight: 700, lineHeight: 1.2, fills: 'Words on the string' };
 
@@ -133,7 +134,7 @@ export function layoutBoard(input: { title: string; items: Item[]; links: Link[]
   const maxCols = Math.max(...rows);
   const availH = (board.h - 2 * BOARD_PAD - 40 * (rows.length - 1)) / rows.length - 40;
   // card = square photo + caption; sized to fit both the widest row and the rows' height
-  const cardW = Math.floor(Math.min(300, (board.w - 2 * BOARD_PAD - 80 * (maxCols - 1)) / maxCols - 20, availH - 70));
+  const cardW = Math.floor(Math.min(380, (board.w - 2 * BOARD_PAD - 80 * (maxCols - 1)) / maxCols - 20, availH - 70));
   const photo = cardW - 28;
   const cardH = Math.round(photo + 14 + 44 + 26);
   const inner = cardW - 24;
@@ -179,7 +180,13 @@ export function layoutBoard(input: { title: string; items: Item[]; links: Link[]
     }
     return null;
   });
-  return { title, titleH, board, cardW, photo, cardH, cards, linkLabels, linkBoxes };
+  // the board hugs the pinned cards (plus a margin) instead of always filling the frame
+  const minX = Math.min(...cards.map((c) => c.box.x)) - BOARD_PAD - 12;
+  const maxX = Math.max(...cards.map((c) => c.box.x + c.box.w)) + BOARD_PAD + 12;
+  const minY = Math.min(...cards.map((c) => c.box.y)) - BOARD_PAD - 12;
+  const maxY = Math.max(...cards.map((c) => c.box.y + c.box.h)) + BOARD_PAD + 12;
+  const hugged = cards.length ? { x: Math.max(board.x, minX), y: Math.max(board.y, minY), w: Math.min(board.x + board.w, maxX) - Math.max(board.x, minX), h: Math.min(board.y + board.h, maxY) - Math.max(board.y, minY) } : board;
+  return { title, titleH, board: hugged, cardW, photo, cardH, cards, linkLabels, linkBoxes };
 }
 
 export function planBoard(nItems: number, nLinks: number, hasTitle: boolean, duration: number, cueTimes?: number[]): Plan {
@@ -233,7 +240,7 @@ export function prepareDC04(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, items, links, L, plan, imageUrl, bg: readBgMode(props, imageUrl), board: opt(props, 'board', ['cork', 'dark'] as const, 'cork'), debug: props.show_safe_area === true };
 }
 
-export function DC04InvestigationBoard({ data, clock }: TemplateProps) {
+function DC04InvestigationBoardBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, items, links, L, plan, imageUrl, bg, board, debug } = prepareDC04(props, durationInFrames);
@@ -298,3 +305,6 @@ export function DC04InvestigationBoard({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DC04InvestigationBoard = withAutoFit(DC04InvestigationBoardBase);

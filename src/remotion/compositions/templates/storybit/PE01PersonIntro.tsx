@@ -14,7 +14,7 @@
 import { Img } from 'remotion';
 import type { TemplateProps } from '../../../types';
 import { readImageUrl, readNonEmptyString } from '../../../props';
-import { BACKGROUND_IMAGE, applySizes, normaliseText, readAnim, type TemplateSpec } from './core/contentSpec';
+import { BACKGROUND_IMAGE, applySizes, normaliseText, readAnim, type Issue, type TemplateSpec } from './core/contentSpec';
 import { measureFor } from './core/measure';
 import { blockHeight, fitText, words, type Line, type Measure } from './core/fit';
 import { cardStyle, exitStyle, imageMotionStyle, progress, shapeState, textAnimFrames } from './core/motion';
@@ -22,6 +22,7 @@ import { planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W, SAFE_MARGIN, FRAME_W, FRAME_H } from './core/safeArea';
 import { mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec                                                         */
@@ -34,7 +35,7 @@ export const PE01_SPEC: TemplateSpec = {
   pickWhen: 'The first time an important person is named: who they are, in one card.',
   placement: 'both',
   image: BACKGROUND_IMAGE,
-  images: { portrait_url: { label: 'Portrait', required: false, fills: 'Photo of the person (portrait layouts)' } },
+  images: { portrait_url: { label: 'Portrait', required: false, fills: 'Photo of the person — required for the portrait_left / portrait_right / full_bleed layouts' } },
   duration: { min: 90, default: 120, max: 240 },
   text: {
     kicker: { label: 'Kicker', required: false, minChars: 2, maxChars: 24, minWords: 1, maxWords: 4, maxWordChars: 16, maxLines: 1, fontMax: 30, fontMin: 22, weight: 700, lineHeight: 1.2, hint: 'Small label above the name: "Meet", "The founder".', fills: 'Small label above the name', example: 'Meet' },
@@ -63,6 +64,14 @@ export const PE01_SPEC: TemplateSpec = {
   },
   cues: { description: 'name → role → tagline. Missing elements are skipped.', units: ['name', 'role', 'tagline'] },
   colors: [],
+  // the portrait is mandatory whenever the chosen layout shows one
+  validate: (props) => {
+    const issues: Issue[] = [];
+    const layout = typeof props.layout === 'string' ? props.layout : 'auto';
+    const hasPortrait = typeof props.portrait_url === 'string' && props.portrait_url.trim() !== '';
+    if (['portrait_left', 'portrait_right', 'full_bleed'].includes(layout) && !hasPortrait) issues.push({ field: 'portrait_url', level: 'error', message: `portrait_url is required for the ${layout} layout (or use text_only)` });
+    return issues;
+  },
   example: { kicker: 'Meet', name: 'Dr. A. P. J. Abdul Kalam', role: '11th President of India', tagline: 'Led India’s missile programme before becoming President', layout: 'auto', background: 'theme' },
 };
 
@@ -166,7 +175,7 @@ export function preparePE01(props: Record<string, unknown>, durationInFrames: nu
 /* Renderer                                                             */
 /* ================================================================== */
 
-export function PE01PersonIntro({ data, clock }: TemplateProps) {
+function PE01PersonIntroBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, portrait, align, shape, imageUrl, bg, debug, L, plan } = preparePE01(props, durationInFrames);
@@ -249,3 +258,6 @@ export function PE01PersonIntro({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const PE01PersonIntro = withAutoFit(PE01PersonIntroBase);

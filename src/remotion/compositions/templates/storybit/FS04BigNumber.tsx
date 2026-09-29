@@ -33,6 +33,7 @@ import {
 import { planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { FORMAT_HELP, NUMBER_FORMATS, decimalsFor, formatDigits, pickScale, readNumber, type NumberFormat, type Scale } from './core/numbers';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
+import { withAutoFit } from './core/autofit';
 import {
   AnimatedText,
   FOOTAGE_SHADOW,
@@ -442,7 +443,7 @@ export function prepareFS04(props: Record<string, unknown>, durationInFrames: nu
 /* ================================================================== */
 
 
-export function FS04BigNumber({ data, clock }: TemplateProps) {
+function FS04BigNumberBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, S, A, input, icon, imageUrl, bg, align, accent, debug, L, plan, direction, good } = prepareFS04(props, durationInFrames);
@@ -626,3 +627,6 @@ export function FS04BigNumber({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const FS04BigNumber = withAutoFit(FS04BigNumberBase);

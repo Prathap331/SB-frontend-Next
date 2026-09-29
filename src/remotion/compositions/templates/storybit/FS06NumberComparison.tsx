@@ -26,6 +26,7 @@ import { NUMBER_LH, NumberRow, fitNumberRows, measureNumberRow, numberAnimFrames
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { cardColors, fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec                                                         */
@@ -475,7 +476,7 @@ export function prepareFS06(props: Record<string, unknown>, durationInFrames: nu
 /* Renderer                                                             */
 /* ================================================================== */
 
-export function FS06NumberComparison({ data, clock }: TemplateProps) {
+function FS06NumberComparisonBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, S, A, input, iconA, iconB, imageUrl, bg, debug, L, plan, good, highlight } = prepareFS06(props, durationInFrames);
@@ -774,3 +775,6 @@ export function FS06NumberComparison({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const FS06NumberComparison = withAutoFit(FS06NumberComparisonBase);

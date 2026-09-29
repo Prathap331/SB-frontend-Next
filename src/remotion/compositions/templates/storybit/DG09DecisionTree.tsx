@@ -27,6 +27,7 @@ import { overlaps, type Box } from './core/placement';
 import { flattenDepth, treeLayout } from './core/tree';
 import { cardColors, fontFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 const BRANCH = { label: 'Branch', required: false, minChars: 1, maxChars: 14, minWords: 1, maxWords: 3, maxWordChars: 12, maxLines: 1, fontMax: 22, fontMin: 15, weight: 800, lineHeight: 1.2, fills: 'Words on the branch into this node' };
 
@@ -176,7 +177,7 @@ export function prepareDG09(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, nodes: flat, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function DG09DecisionTree({ data, clock }: TemplateProps) {
+function DG09DecisionTreeBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, nodes, L, plan, imageUrl, bg, debug } = prepareDG09(props, durationInFrames);
@@ -233,3 +234,6 @@ export function DG09DecisionTree({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DG09DecisionTree = withAutoFit(DG09DecisionTreeBase);

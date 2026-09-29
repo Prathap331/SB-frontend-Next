@@ -73,6 +73,14 @@
       "limits": "https URL or asset URL"
     },
     {
+      "path": "columns[].bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Background colour of this column’s background panel (to highlight it)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "theme card colour"
+    },
+    {
       "path": "rows[]",
       "type": "list",
       "required": true,
@@ -586,6 +594,11 @@
               "type": "string",
               "format": "uri",
               "description": "Picture above the column name (circle)"
+            },
+            "bg_color": {
+              "type": "string",
+              "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+              "description": "Background colour of this column’s background panel, hex e.g. #1E3A8A (optional — highlights it)"
             }
           },
           "required": [

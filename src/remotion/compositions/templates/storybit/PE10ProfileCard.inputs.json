@@ -71,6 +71,14 @@
       "limits": "1–40 chars · 1–7 words · longest word 18 · max 2 lines"
     },
     {
+      "path": "facts[].bg_color",
+      "type": "color",
+      "required": false,
+      "fills": "Background colour of this fact’s panel (to highlight it)",
+      "limits": "hex #RRGGBB (or #RRGGBBAA)",
+      "default": "theme card colour"
+    },
+    {
       "path": "tags[]",
       "type": "list",
       "required": false,
@@ -94,8 +102,8 @@
     {
       "path": "portrait_url",
       "type": "image",
-      "required": false,
-      "fills": "Photo of the person (initials if missing)",
+      "required": true,
+      "fills": "Photo of the person (initials are shown only if it fails to load)",
       "limits": "https URL or asset URL"
     },
     {
@@ -459,6 +467,11 @@
               "minLength": 1,
               "maxLength": 40,
               "description": "The fact. 1–7 words, longest word 18 letters."
+            },
+            "bg_color": {
+              "type": "string",
+              "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+              "description": "Background colour of this fact’s panel, hex e.g. #1E3A8A (optional — highlights it)"
             }
           },
           "required": [
@@ -498,7 +511,7 @@
       "portrait_url": {
         "type": "string",
         "format": "uri",
-        "description": "Photo of the person (initials if missing)"
+        "description": "Photo of the person (initials are shown only if it fails to load)"
       },
       "side": {
         "type": "string",
@@ -792,13 +805,15 @@
     },
     "required": [
       "name",
-      "facts"
+      "facts",
+      "portrait_url"
     ],
     "additionalProperties": false
   },
   "example": {
     "name": "Sample Person",
     "role": "Founder & CEO, Example Ltd",
+    "portrait_url": "https://example.com/portrait.jpg",
     "facts": [
       {
         "label": "Born",

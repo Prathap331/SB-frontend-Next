@@ -25,6 +25,7 @@ import { cardColors, readStyle, styleVars } from './core/style';
 import { SafeArea, SAFE_W, SAFE_H } from './core/safeArea';
 import { FOOTAGE_SHADOW, AnimatedText, StoryBackground, leaf, readAlign, readBgMode, readFirst } from './core/shared';
 import { blockHeight, fitText, sharedFont, linesAt, type Line, type Measure, words } from './core/fit';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec, layout and timing                                     */
@@ -304,7 +305,7 @@ export function prepareFS03(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, title, meta, stacked, imageUrl, bg, align, accent, debug, A, L, plan };
 }
 
-export function FS03TitleMetadata({ data, clock }: TemplateProps) {
+function FS03TitleMetadataBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, imageUrl, bg, align, accent, debug, A, L, plan } = prepareFS03(props, durationInFrames);
@@ -418,3 +419,6 @@ export function FS03TitleMetadata({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const FS03TitleMetadata = withAutoFit(FS03TitleMetadataBase);

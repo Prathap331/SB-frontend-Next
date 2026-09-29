@@ -24,6 +24,7 @@ import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } fr
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, readStyle, styleVars, withAlpha } from './core/style';
 import { StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const UI04_SPEC: TemplateSpec = {
   id: 'UI-04',
@@ -187,7 +188,7 @@ const LOOKS = {
   neutral: { header: '#1B1E27', chat: '#12141B', inBg: '#262A36', outBg: '#3A4152', inInk: '#F1F2F6', outInk: '#F1F2F6', meta: '#9AA0AE' },
 } as const;
 
-export function UI04ChatConversation({ data, clock }: TemplateProps) {
+function UI04ChatConversationBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, messages, L, plan, avatar, look, imageUrl, bg, debug } = prepareUI04(props, durationInFrames);
@@ -279,3 +280,6 @@ export function UI04ChatConversation({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const UI04ChatConversation = withAutoFit(UI04ChatConversationBase);

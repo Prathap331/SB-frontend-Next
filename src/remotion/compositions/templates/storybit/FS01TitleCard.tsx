@@ -24,6 +24,7 @@ import { readCues, planTimeline, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readAlign, readBgMode, readFirst } from './core/shared';
 import { blockHeight, fitText, type Line, type Measure, words } from './core/fit';
+import { withAutoFit } from './core/autofit';
 
 /* ================================================================== */
 /* Content spec, layout and timing                                     */
@@ -197,7 +198,7 @@ export function prepareFS01(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, S, A, title, subtitle, kicker, imageUrl, bg, align, accent, debug, L, plan };
 }
 
-export function FS01TitleCard({ data, clock }: TemplateProps) {
+function FS01TitleCardBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, S, A, imageUrl, bg, align, accent, debug, L, plan } = prepareFS01(props, durationInFrames);
@@ -301,3 +302,6 @@ export function FS01TitleCard({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const FS01TitleCard = withAutoFit(FS01TitleCardBase);

@@ -20,6 +20,7 @@ import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } fr
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontStack, readStyle, styleVars } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const DC09_SPEC: TemplateSpec = {
   id: 'DC-09',
@@ -117,7 +118,7 @@ export function prepareDC09(props: Record<string, unknown>, durationInFrames: nu
 const COLORS = ['#FFE66D', '#FFB3C7', '#A7D8FF', '#B8F0B0', '#FFC98B'];
 const TILT = [-2.4, 1.8, -1.2, 2.6, -2, 1.4];
 
-export function DC09StickyNotes({ data, clock }: TemplateProps) {
+function DC09StickyNotesBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, notes, L, plan, imageUrl, bg, board, debug } = prepareDC09(props, durationInFrames);
@@ -167,3 +168,6 @@ export function DC09StickyNotes({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DC09StickyNotes = withAutoFit(DC09StickyNotesBase);

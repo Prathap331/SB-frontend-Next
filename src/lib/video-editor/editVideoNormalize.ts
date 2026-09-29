@@ -52,7 +52,6 @@ const TEMPLATE_NAME_TO_TYPE: Record<string, string> = {
   'Radius / Range': 'mp_radius_range',
   'Travel Route Map': 'mp_travel_route',
   'Chapter Card': 'nv_chapter_card',
-  'Progress Tracker': 'nv_progress_tracker',
   'Countdown Rank Reveal': 'nv_rank_reveal',
   'Subscribe Reminder': 'nv_subscribe',
   'End Screen': 'nv_end_screen',

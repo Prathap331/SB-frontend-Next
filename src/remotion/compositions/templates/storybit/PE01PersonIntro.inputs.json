@@ -80,7 +80,7 @@
       "path": "portrait_url",
       "type": "image",
       "required": false,
-      "fills": "Photo of the person (portrait layouts)",
+      "fills": "Photo of the person — required for the portrait_left / portrait_right / full_bleed layouts",
       "limits": "https URL or asset URL"
     },
     {
@@ -500,7 +500,7 @@
       "portrait_url": {
         "type": "string",
         "format": "uri",
-        "description": "Photo of the person (portrait layouts)"
+        "description": "Photo of the person — required for the portrait_left / portrait_right / full_bleed layouts"
       },
       "layout": {
         "type": "string",

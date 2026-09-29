@@ -23,6 +23,7 @@ import { readNumber } from './core/numbers';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, readStyle, styleVars, withAlpha } from './core/style';
 import { StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 const SUGGESTION: TextSpec = { label: 'Suggestion', required: true, minChars: 2, maxChars: 60, minWords: 1, maxWords: 11, maxWordChars: 20, maxLines: 1, fontMax: 34, fontMin: 22, weight: 500, lineHeight: 1.2, fills: 'One suggestion' };
 
@@ -115,7 +116,7 @@ export function prepareUI08(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, L, plan, pick, dark: opt(props, 'theme_style', ['light', 'dark'] as const, 'light') === 'dark', imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function UI08SearchBar({ data, clock }: TemplateProps) {
+function UI08SearchBarBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, L, plan, pick, dark, imageUrl, bg, debug } = prepareUI08(props, durationInFrames);
@@ -178,3 +179,6 @@ export function UI08SearchBar({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const UI08SearchBar = withAutoFit(UI08SearchBarBase);

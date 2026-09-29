@@ -22,8 +22,9 @@ import { cardStyle, easeInOutCubic, exitStyle, progress } from './core/motion';
 import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { overlaps, type Box } from './core/placement';
-import { cardColors, fontFor, mutedFor, readStyle, seriesColor, styleVars, withAlpha } from './core/style';
+import { cardColors, fontFor, mutedFor, readStyle, seriesColor, styleVars, withAlpha, readHex } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 const LAYER: TextSpec = { label: 'Layer name', required: true, minChars: 2, maxChars: 22, minWords: 1, maxWords: 4, maxWordChars: 16, maxLines: 1, fontMax: 26, fontMin: 16, weight: 800, lineHeight: 1.2, fills: 'Layer heading' };
 const NODE: TextSpec = { label: 'Component', required: true, minChars: 2, maxChars: 24, minWords: 1, maxWords: 4, maxWordChars: 16, maxLines: 2, fontMax: 28, fontMin: 16, weight: 700, lineHeight: 1.15, fills: 'Component name' };
@@ -46,6 +47,7 @@ export const DG17_SPEC: TemplateSpec = {
     inputs: [
       { path: 'layers[]', type: 'list', required: true, fills: 'Columns left to right', limits: '2–4 layers' },
       { path: 'layers[].name', type: 'text', required: true, fills: 'Layer heading ("Your phone", "Switch", "Banks")', limits: '2–22 chars' },
+      { path: 'layers[].bg_color', type: 'color', required: false, fills: 'Background colour of this layer column (to highlight it)', limits: 'hex #RRGGBB' },
       { path: 'layers[].nodes[]', type: 'list', required: true, fills: 'Components in this layer, top to bottom', limits: '1–4 per layer' },
       { path: 'layers[].nodes[].label', type: 'text', required: true, fills: 'Component name (links refer to it)', limits: '2–24 chars · unique' },
       { path: 'layers[].nodes[].sub', type: 'text', required: false, fills: 'Small detail line', limits: '2–28 chars' },
@@ -66,6 +68,7 @@ export const DG17_SPEC: TemplateSpec = {
           required: ['name', 'nodes'],
           properties: {
             name: { type: 'string', minLength: 2, maxLength: 22 },
+            bg_color: { type: 'string', pattern: '^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$' },
             nodes: { type: 'array', minItems: 1, maxItems: 4, items: { type: 'object', additionalProperties: false, required: ['label'], properties: { label: { type: 'string', minLength: 2, maxLength: 24 }, sub: { type: 'string', minLength: 2, maxLength: 28 }, icon: { type: 'string' } } } },
           },
         },
@@ -132,12 +135,15 @@ export function layoutArch(input: { title: string; layers: { name: string; nodes
   const nf = sharedFont(input.nodes.map((n) => n.label), NODE, inner, measure, Math.min(NODE.fontMax, Math.round(nodeH * 0.24)));
   const sf = sharedFont(input.nodes.map((n) => n.sub || ' '), NODE_SUB, inner, measure, Math.min(NODE_SUB.fontMax, Math.round(nf * 0.75)));
   const hf = sharedFont(input.layers.map((l) => l.name), LAYER, colW - 32, measure);
-  const cols = input.layers.map((l, i) => ({ x: i * (colW + COL_GAP), name: linesAt(l.name, hf, LAYER, colW - 32, measure, false)[0], y: titleH, h: colH }));
+  // layer boxes are as tall as their tallest stack of components (no empty band above / below)
+  const usedH = Math.min(colH, HEAD_H + 20 + maxNodes * nodeH + (maxNodes - 1) * NODE_GAP + 20);
+  const top0 = titleH + (colH - usedH) / 2;
+  const cols = input.layers.map((l, i) => ({ x: i * (colW + COL_GAP), name: linesAt(l.name, hf, LAYER, colW - 32, measure, false)[0], y: top0, h: usedH }));
   const boxes = input.nodes.map((n) => {
     const idx = input.layers[n.layer].nodes.indexOf(n);
     const cnt = input.layers[n.layer].nodes.length;
     const blockH = cnt * nodeH + (cnt - 1) * NODE_GAP;
-    const top = titleH + HEAD_H + 10 + (colH - HEAD_H - 20 - blockH) / 2;
+    const top = top0 + HEAD_H + 10 + (usedH - HEAD_H - 20 - blockH) / 2;
     return { x: cols[n.layer].x + PADX, y: top + idx * (nodeH + NODE_GAP), w: colW - PADX * 2, h: nodeH, label: linesAt(n.label, nf, NODE, inner, measure), sub: n.sub ? linesAt(n.sub, sf, NODE_SUB, inner, measure, false)[0] : undefined };
   });
   // arrow labels at the middle of each arrow, where they do not cover a component or another label
@@ -190,7 +196,7 @@ export function prepareDG17(props: Record<string, unknown>, durationInFrames: nu
   const sized = applySizes(DG17_SPEC, props);
   const measure = measureFor(style);
   const s = (o: Record<string, unknown>, k: string) => (typeof o[k] === 'string' && (o[k] as string).trim() ? (o[k] as string) : undefined);
-  const layers: { name: string; nodes: Node[] }[] = (Array.isArray(props.layers) ? props.layers : [])
+  const layers: { name: string; nodes: Node[]; bg?: string }[] = (Array.isArray(props.layers) ? props.layers : [])
     .slice(0, 4)
     .map((x, li) => {
       const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
@@ -201,7 +207,7 @@ export function prepareDG17(props: Record<string, unknown>, durationInFrames: nu
           return { label: normaliseText(s(q, 'label'), NODE), sub: normaliseText(s(q, 'sub'), NODE_SUB), icon: s(q, 'icon'), layer: li };
         })
         .filter((n) => n.label);
-      return { name: normaliseText(s(o, 'name'), LAYER) || `Layer ${li + 1}`, nodes };
+      return { name: normaliseText(s(o, 'name'), LAYER) || `Layer ${li + 1}`, nodes, bg: readHex(o.bg_color) };
     })
     .filter((l) => l.nodes.length);
   layers.forEach((l, li) => l.nodes.forEach((n) => (n.layer = li)));
@@ -222,7 +228,7 @@ export function prepareDG17(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, layers, nodes, links, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function DG17Architecture({ data, clock }: TemplateProps) {
+function DG17ArchitectureBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, layers, nodes, links, L, plan, imageUrl, bg, debug } = prepareDG17(props, durationInFrames);
@@ -257,7 +263,7 @@ export function DG17Architecture({ data, clock }: TemplateProps) {
             const col = seriesColor(style.colors, li % 4);
             return (
               <div key={li} style={{ position: 'absolute', left: c.x, top: c.y, width: L.colW, height: c.h, ...cardStyle(A('layers'), progress(frame, lw.start, lw.dur)) }}>
-                <div style={{ position: 'absolute', inset: 0, borderRadius: 22, border: `2px dashed ${withAlpha(col, 0.55)}`, background: withAlpha(col, 0.06) }} />
+                <div style={{ position: 'absolute', inset: 0, borderRadius: 22, border: `2px dashed ${withAlpha(col, 0.55)}`, background: l.bg ?? withAlpha(col, 0.06) }} />
                 <div style={{ position: 'absolute', left: 16, top: 12, height: HEAD_H - 16, display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 10, height: 10, borderRadius: 5, background: col }} />
                   <span {...leaf(`layer-${li}`, `layers[${li}].name`)} style={{ fontFamily: fontFor(800), fontWeight: 800, fontSize: c.name.size, lineHeight: 1.2, color: col, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{c.name.text}</span>
@@ -314,3 +320,6 @@ export function DG17Architecture({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DG17Architecture = withAutoFit(DG17ArchitectureBase);

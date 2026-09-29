@@ -23,6 +23,7 @@ import { OVERLAY_DURATION } from './core/overlay';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const KT02_SPEC: TemplateSpec = {
   id: 'KT-02',
@@ -97,7 +98,7 @@ export function prepareKT02(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, L, plan, look, imageUrl, bg, impact: opt(props, 'impact', ['shake', 'flash', 'both', 'none'] as const, 'both'), position: opt(props, 'position', ['center', 'lower', 'upper'] as const, 'center'), debug: props.show_safe_area === true };
 }
 
-export function KT02PunchWord({ data, clock }: TemplateProps) {
+function KT02PunchWordBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, L, plan, look, imageUrl, bg, impact, position, debug } = prepareKT02(props, durationInFrames);
@@ -147,3 +148,6 @@ export function KT02PunchWord({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const KT02PunchWord = withAutoFit(KT02PunchWordBase);

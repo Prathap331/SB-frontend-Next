@@ -22,6 +22,7 @@ import { MIN_HOLD, exitFrames, planTimeline, readCues, type Plan, type Unit } fr
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, StoryBackground, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const UI06_SPEC: TemplateSpec = {
   id: 'UI-06',
@@ -100,7 +101,15 @@ export function layoutNews(input: { items: NewsItem[]; look: 'cards' | 'band'; l
     const dates = input.items.map((i) => (i.date ? fitText(i.date, F.date, textW * 0.35, measure, false).lines[0] : undefined));
     const need = Math.max(...heads.map((h, k) => blockHeight(h, F.headline.lineHeight) + pubs[k].size * 1.2 + 14)) + CARD_PAD * 2;
     if (need <= (n === 1 ? SAFE_H * 0.7 : cardH) || cap <= F.headline.fontMin) {
-      return { look: 'cards', labelW: 0, cardW, cardH: n === 1 ? Math.max(need, img ? Math.round(img * 9 / 16) + CARD_PAD * 2 : 0) : cardH, img, pubs, heads, dates, bandH: 0 };
+      // cards hug their content (no empty band under short headlines); a picture keeps its 16:9 height
+      const hug = Math.max(need, img ? Math.round(img * 9 / 16) + CARD_PAD * 2 : 0);
+      // …and their width hugs the widest line too, so short headlines do not leave an empty band on the right
+      const textUsed = Math.max(
+        ...heads.map((h) => Math.max(...h.map((l) => measure(l.text, l.size, F.headline.weight)))),
+        ...pubs.map((p, k) => measure(p.text.toLocaleUpperCase(), p.size, 800) * 1.1 + (dates[k] ? 18 + measure(dates[k]!.text, dates[k]!.size, 500) : 0)),
+      );
+      const hugW = Math.min(cardW, Math.max(560, Math.ceil(textUsed) + CARD_PAD * 2 + (img ? img + 32 : 0) + 8));
+      return { look: 'cards', labelW: 0, cardW: hugW, cardH: n === 1 ? hug : Math.min(cardH, hug), img, pubs, heads, dates, bandH: 0 };
     }
     cap -= 2;
   }
@@ -150,7 +159,7 @@ export function prepareUI06(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, items, L, plan, imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function UI06NewsHeadline({ data, clock }: TemplateProps) {
+function UI06NewsHeadlineBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, items, L, plan, imageUrl, bg, debug } = prepareUI06(props, durationInFrames);
@@ -181,7 +190,7 @@ export function UI06NewsHeadline({ data, clock }: TemplateProps) {
     );
   }
   const n = items.length || 1;
-  const totalH = n === 1 ? L.cardH : SAFE_H;
+  const totalH = n * L.cardH + (n - 1) * CARD_GAP;
   const top0 = (SAFE_H - totalH) / 2;
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', ...styleVars(style) }}>
@@ -214,3 +223,6 @@ export function UI06NewsHeadline({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const UI06NewsHeadline = withAutoFit(UI06NewsHeadlineBase);

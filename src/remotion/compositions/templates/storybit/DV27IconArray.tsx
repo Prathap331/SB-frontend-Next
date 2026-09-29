@@ -23,6 +23,7 @@ import { readNumber } from './core/numbers';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, guide, leaf, readBgMode, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const DV27_SPEC: TemplateSpec = {
   id: 'DV-27',
@@ -125,7 +126,7 @@ export function prepareDV27(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, total, hi, L, plan, icon: readFirst(props, ['icon']) ?? 'user', imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function DV27IconArray({ data, clock }: TemplateProps) {
+function DV27IconArrayBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, total, hi, L, plan, icon, imageUrl, bg, debug } = prepareDV27(props, durationInFrames);
@@ -180,3 +181,6 @@ export function DV27IconArray({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DV27IconArray = withAutoFit(DV27IconArrayBase);

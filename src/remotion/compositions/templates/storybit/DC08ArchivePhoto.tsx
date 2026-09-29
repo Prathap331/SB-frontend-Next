@@ -22,6 +22,7 @@ import { planTimeline, readCues, type Plan, type Unit } from './core/timeline';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontStack, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readFirst } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const TYPE_FONT = fontStack('roboto_slab');
 
@@ -130,7 +131,7 @@ function Aging({ frame, id }: { frame: number; id: string }) {
   );
 }
 
-export function DC08ArchivePhoto({ data, clock }: TemplateProps) {
+function DC08ArchivePhotoBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, L, plan, imageUrl, treatment, bg, debug } = prepareDC08(props, durationInFrames);
@@ -186,3 +187,6 @@ export function DC08ArchivePhoto({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const DC08ArchivePhoto = withAutoFit(DC08ArchivePhotoBase);

@@ -46,7 +46,6 @@ export const STORYBIT_ANIMATION_TYPES = [
   'kt_question_hook',
   'kt_captions',
   'nv_chapter_card',
-  'nv_progress_tracker',
   'nv_rank_reveal',
   'nv_subscribe',
   'nv_end_screen',

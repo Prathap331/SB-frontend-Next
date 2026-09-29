@@ -25,6 +25,7 @@ import { formatDigits, pickScale, readNumber } from './core/numbers';
 import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { fontFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, StoryBackground, highlightWords, leaf, readBgMode, readFirst, type HighlightStyle } from './core/shared';
+import { withAutoFit } from './core/autofit';
 
 export const UI01_SPEC: TemplateSpec = {
   id: 'UI-01',
@@ -159,7 +160,7 @@ export function prepareUI01(props: Record<string, unknown>, durationInFrames: nu
   return { style, sized, A, L, plan, highlight, postImage, avatar: readFirst(props, ['avatar_url']), verified: opt(props, 'verified', ['off', 'on'] as const, 'off') === 'on', light: opt(props, 'theme_style', ['dark', 'light'] as const, 'dark') === 'light', imageUrl, bg: readBgMode(props, imageUrl), debug: props.show_safe_area === true };
 }
 
-export function UI01SocialPost({ data, clock }: TemplateProps) {
+function UI01SocialPostBase({ data, clock }: TemplateProps) {
   const props = data.props ?? {};
   const { frame, durationInFrames } = clock;
   const { style, A, L, plan, highlight, postImage, avatar, verified, light, imageUrl, bg, debug } = prepareUI01(props, durationInFrames);
@@ -225,3 +226,6 @@ export function UI01SocialPost({ data, clock }: TemplateProps) {
     </div>
   );
 }
+
+/** Grows to fill the safe box when the content is small (core/autofit.tsx). */
+export const UI01SocialPost = withAutoFit(UI01SocialPostBase);
