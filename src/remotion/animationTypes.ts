@@ -49,6 +49,7 @@ export const STORYBIT_ANIMATION_TYPES = [
   'nv_rank_reveal',
   'nv_subscribe',
   'nv_end_screen',
+  'nv_thank_you',
   'ui_social_post',
   'ui_chat',
   'ui_news_headline',

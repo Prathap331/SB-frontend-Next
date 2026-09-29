@@ -17,6 +17,7 @@ import { loadFont as baloo2 } from '@remotion/google-fonts/Baloo2';
 import { loadFont as mukta } from '@remotion/google-fonts/Mukta';
 import { loadFont as hind } from '@remotion/google-fonts/Hind';
 import { loadFont as kalam } from '@remotion/google-fonts/Kalam';
+import { loadFont as notoEmoji } from '@remotion/google-fonts/NotoColorEmoji';
 import { loadFont as notoDevanagari } from '@remotion/google-fonts/NotoSansDevanagari';
 import { loadFont as notoTelugu } from '@remotion/google-fonts/NotoSansTelugu';
 import { loadFont as notoTamil } from '@remotion/google-fonts/NotoSansTamil';
@@ -37,6 +38,8 @@ export function loadStorybitFonts(): Promise<unknown> {
     mukta('normal', { weights: ['500', '600', '700', '800'] }),
     hind('normal', { weights: ['500', '600', '700'] }),
     kalam('normal', { weights: ['400', '700'] }),
+    // colour emoji for templates that draw emojis (NV-08); render servers often have no emoji font
+    notoEmoji('normal'),
     notoDevanagari('normal', { weights: ['500', '600', '700', '800'] }),
     notoTelugu('normal', { weights: ['500', '600', '700', '800'] }),
     notoTamil('normal', { weights: ['500', '600', '700', '800'] }),

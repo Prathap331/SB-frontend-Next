@@ -55,6 +55,7 @@ const TEMPLATE_NAME_TO_TYPE: Record<string, string> = {
   'Countdown Rank Reveal': 'nv_rank_reveal',
   'Subscribe Reminder': 'nv_subscribe',
   'End Screen': 'nv_end_screen',
+  'Thank You Outro': 'nv_thank_you',
   'Person Intro Card': 'pe_person_intro',
   'Profile Card': 'pe_profile_card',
   Timeline: 'tl_timeline',

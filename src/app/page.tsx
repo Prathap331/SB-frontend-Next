@@ -132,17 +132,17 @@ export default function Home() {
         <div className="relative max-w-4xl mx-auto text-center">
 
           <div className='flex flex-wrap sm:gap-2 mx-auto justify-center'>
-            <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
+            <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-black text-md font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              2000+ Digital creators
+              Faceless Videos
             </div>
-            <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
+            <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-black text-md font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              40K+ Script Generated
+              2000+ Content Creators
             </div>
-            <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#6e6e73] text-xs font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
+            <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-black text-md font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              Your AI Script Assistant
+              40K+ Scripts Generated
             </div>
           </div>
 
@@ -150,7 +150,7 @@ export default function Home() {
             className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold tracking-tight text-[#1d1d1f] mb-4 sm:mb-6 leading-[1.08] sm:leading-[1.05]"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
           >
-            Generate Your YouTube Video Content
+            Generate Your YouTube Video 
             <br className="hidden xs:block" />
             {' '} in{' '}
             <span className="text-[#1d1d1f]">2 minutes.</span>
@@ -161,7 +161,7 @@ export default function Home() {
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
           >
             AI that transforms your ideas into engaging, factual,
-            research-backed YouTube Content.
+            research-backed Youtube Video.
           </p>
 
           {/* Search bar */}
@@ -170,7 +170,7 @@ export default function Home() {
               <Search className="absolute left-4 sm:left-5 w-4 h-4 sm:w-5 sm:h-5 text-[#6e6e73] pointer-events-none flex-shrink-0" />
               <input
                 type="text"
-                placeholder="Describe your search using at least 4 words for the best AI results."
+                placeholder="Describe your search using at least 4 words for the best Youtube Videos."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);

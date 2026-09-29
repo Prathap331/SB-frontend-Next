@@ -52,6 +52,7 @@ import { NV01ChapterCard } from './storybit/NV01ChapterCard';
 import { NV04RankReveal } from './storybit/NV04RankReveal';
 import { NV05SubscribeReminder } from './storybit/NV05SubscribeReminder';
 import { NV07EndScreen } from './storybit/NV07EndScreen';
+import { NV08ThankYou } from './storybit/NV08ThankYou';
 import { UI01SocialPost } from './storybit/UI01SocialPost';
 import { UI04ChatConversation } from './storybit/UI04ChatConversation';
 import { UI06NewsHeadline } from './storybit/UI06NewsHeadline';
@@ -114,6 +115,7 @@ export const TEMPLATE_RENDERERS: Record<string, ComponentType<TemplateProps>> = 
   nv_rank_reveal: NV04RankReveal,
   nv_subscribe: NV05SubscribeReminder,
   nv_end_screen: NV07EndScreen,
+  nv_thank_you: NV08ThankYou,
   ui_social_post: UI01SocialPost,
   ui_chat: UI04ChatConversation,
   ui_news_headline: UI06NewsHeadline,

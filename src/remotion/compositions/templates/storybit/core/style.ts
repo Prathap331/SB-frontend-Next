@@ -160,3 +160,6 @@ export function cardColors(style: Style, onFootage: boolean) {
 export function readHex(v: unknown): string | undefined {
   return typeof v === 'string' && HEX.test(v.trim()) ? v.trim() : undefined;
 }
+
+/** Font stack for emoji glyphs (loaded by loadStorybitFonts). */
+export const EMOJI_FONT = '"Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
