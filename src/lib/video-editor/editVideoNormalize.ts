@@ -94,6 +94,11 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function asId(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function asFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim()) {
@@ -282,7 +287,11 @@ function convertDirectionScene(raw: Record<string, unknown>, index: number): {
   const infographics: EditVideoInfographicListItem[] = [];
 
   directions.forEach((dir, di) => {
-    const beatId = asString(dir.beat_id) || `${sceneId}-d${di + 1}`;
+    const beatId =
+      asId(dir.beat_id) ||
+      asId(dir.beatId) ||
+      asId(dir.id) ||
+      `${sceneId}-d${di + 1}`;
     const dirStart = asFiniteNumber(dir.start) ?? 0;
     const dirEnd = Math.max(dirStart + 0.1, asFiniteNumber(dir.end) ?? dirStart + 1);
     const kind = asString(dir.type).toLowerCase();

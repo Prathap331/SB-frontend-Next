@@ -165,7 +165,7 @@ export function seededTextFromOverlayItem(raw: unknown): SeededTextOverlay | nul
     asOverlayId(obj.id) ?? asOverlayId(obj.overlay_id) ?? asOverlayId(obj.text_id) ?? asOverlayId(obj.track_id);
   return {
     ...(overlayId ? { overlayId } : {}),
-    beatId: asString(obj.beat_id),
+    beatId: asId(obj.beat_id),
     text,
     start: window.start,
     duration: window.duration,
@@ -181,6 +181,12 @@ export function seededTextFromOverlayItem(raw: unknown): SeededTextOverlay | nul
 function asString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   return value;
+}
+
+function asId(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return undefined;
 }
 
 /** `display_text` / `icon_name` is a string or a list of strings. */
@@ -326,7 +332,7 @@ export function mergeOverlayTrackOntoItem(
   sceneId?: string,
 ): Record<string, unknown> {
   const itemRec = asRecord(item) ?? {};
-  const beatId = asString(itemRec.beat_id);
+  const beatId = asId(itemRec.beat_id);
   const sid = sceneId ?? asString(itemRec.scene_id);
   if (!beatId) return itemRec;
   const track = tracks
@@ -334,7 +340,7 @@ export function mergeOverlayTrackOntoItem(
     .find(
       (t) =>
         t &&
-        asString(t.beat_id) === beatId &&
+        asId(t.beat_id) === beatId &&
         (!sid || !asString(t.scene_id) || asString(t.scene_id) === sid),
     );
   if (!track) return itemRec;
@@ -727,7 +733,7 @@ export function parseRemotionInfographic(raw: unknown): RemotionInfographicSpec 
     ...(overlayId ? { overlayId } : {}),
     ...(window ? { startSeconds: window.start } : {}),
     ...(colorHint ? { colorHint } : {}),
-    ...(asString(obj.beat_id) ? { beatId: asString(obj.beat_id) } : {}),
+    ...(asId(obj.beat_id) ? { beatId: asId(obj.beat_id) } : {}),
   };
 }
 
@@ -819,7 +825,7 @@ export function kenBurnsFromTrack(raw: unknown): KenBurnsMotion | null {
   const isKen =
     animationType.includes('ken_burns') || category === 'transition' || layer === 'background';
   if (!isKen) return null;
-  const beatId = asString(obj.beat_id);
+  const beatId = asId(obj.beat_id);
   if (!beatId) return null;
   const motion = asRecord(obj.motion);
   const start = Array.isArray(motion?.start_xy_px) ? motion.start_xy_px : [0, 0];

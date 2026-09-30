@@ -6,6 +6,7 @@ import { enrichRemotionFromSpecs, type RemotionInfographicSpec } from '@/lib/vid
 import { clipRemotionToInfographicData } from '@/remotion/data';
 import { InfographicVisual } from '@/remotion/compositions/DataDrivenInfographic';
 import { readIconNames } from '@/remotion/props';
+import { InfographicInPlaceTextEditor } from '@/components/studio/video-timeline/InfographicInPlaceTextEditor';
 
 const DESIGN_W = 1920;
 const DESIGN_H = 1080;
@@ -16,6 +17,9 @@ type Props = {
   width: number;
   height: number;
   overlaySpecs?: RemotionInfographicSpec[];
+  isPlaying?: boolean;
+  onTextCommit?: (path: string, value: string) => void;
+  onRequestPause?: () => void;
 };
 
 /**
@@ -28,6 +32,9 @@ export function TimelineOverlayPreview({
   width,
   height,
   overlaySpecs = [],
+  isPlaying = false,
+  onTextCommit,
+  onRequestPause,
 }: Props) {
   const remotion = clip.remotion
     ? enrichRemotionFromSpecs(clip.remotion, overlaySpecs, clip)
@@ -53,6 +60,7 @@ export function TimelineOverlayPreview({
   return (
     <div className="pointer-events-none absolute inset-0 z-[4] overflow-hidden">
       <div
+        data-sb-preview-edit=""
         style={{
           position: 'absolute',
           top: 0,
@@ -68,6 +76,15 @@ export function TimelineOverlayPreview({
           icon_name={iconNames.length === 1 ? iconNames[0] : iconNames.length ? iconNames : undefined}
           clock={{ frame, fps: EDITOR_FPS, durationInFrames }}
         />
+        {onTextCommit ? (
+          <InfographicInPlaceTextEditor
+            enabled
+            isPlaying={isPlaying}
+            props={data.props ?? {}}
+            onCommit={onTextCommit}
+            onRequestPause={onRequestPause}
+          />
+        ) : null}
       </div>
     </div>
   );

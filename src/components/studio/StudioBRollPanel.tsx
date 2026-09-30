@@ -299,13 +299,13 @@ export function StudioBRollPanel({
       if (itemKind !== session.kind) return;
 
       const preview = pickPreviewFile(item);
-      const picked = brollMediaToPick(item, session, preview?.link ?? null);
+      const picked = brollMediaToPick(item, session, preview?.link ?? null, query.trim());
       enqueuePickedBroll(picked);
       clearBrollPickSession();
       setPickSession(null);
       onReturnToVideoEditing?.();
     },
-    [pickSession, onReturnToVideoEditing],
+    [pickSession, onReturnToVideoEditing, query],
   );
 
   const toggleSection = (key: string) =>

@@ -1,5 +1,6 @@
 import catalogJson from './storybitEditorCatalog.json';
 import { resolveAnimationType } from '@/remotion/animationTypes';
+import { COLOR_SLOTS, type ColorSlot } from '@/remotion/compositions/templates/storybit/core/style';
 
 export type StorybitEditorField = {
   path: string;
@@ -271,13 +272,144 @@ export function itemFieldKey(path: string): string {
   return after.replace(/\[\]$/, '');
 }
 
+export function isBackgroundColorField(field: StorybitEditorField): boolean {
+  const path = field.path.toLowerCase();
+  return (
+    path.includes('background_color') ||
+    path.includes('background_2') ||
+    path.includes('scrim_color') ||
+    path.endsWith('bg_color') ||
+    path.includes('.bg_color')
+  );
+}
+
+export function isTextColorField(field: StorybitEditorField): boolean {
+  return /(^|\.)text_color$/.test(field.path);
+}
+
+/** Colour slots shown in the infographic Colours block, in editor order. */
+export const EDITOR_COLOR_SLOT_ORDER: ColorSlot[] = [
+  'text',
+  'muted',
+  'accent',
+  'negative',
+  'positive',
+  'background',
+  'background_2',
+  'scrim',
+  'icon',
+  'icon_bg',
+];
+
+const EDITOR_COLOR_SLOT_SET = new Set<ColorSlot>(EDITOR_COLOR_SLOT_ORDER);
+
+export function styleColorPath(slot: ColorSlot): string {
+  return `style.${slot}_color`;
+}
+
+export function styleColorSlotFromPath(path: string): ColorSlot | null {
+  const match = path.match(/^style\.([a-z0-9_]+)_color$/i);
+  if (!match) return null;
+  const slot = match[1].toLowerCase() as ColorSlot;
+  return slot in COLOR_SLOTS ? slot : null;
+}
+
+export function isEditorStyleColorField(field: StorybitEditorField): boolean {
+  const slot = styleColorSlotFromPath(field.path);
+  return slot != null && EDITOR_COLOR_SLOT_SET.has(slot);
+}
+
+export function editorColorFieldLabel(field: StorybitEditorField): string {
+  const slot = styleColorSlotFromPath(field.path);
+  if (slot) return COLOR_SLOTS[slot].label;
+  return fieldLabel(field);
+}
+
+export function editorColorLabelFromPath(path: string): string | null {
+  const slot = styleColorSlotFromPath(path);
+  return slot ? COLOR_SLOTS[slot].label : null;
+}
+
+export function resolveStyleSlotColor(props: Record<string, unknown>, slot: ColorSlot): string {
+  const bag = props.style && typeof props.style === 'object' && !Array.isArray(props.style)
+    ? (props.style as Record<string, unknown>)
+    : {};
+  for (const value of [props[`${slot}_color`], bag[`${slot}_color`]]) {
+    if (typeof value === 'string' && !isPlaceholderDefault(value)) {
+      return colorToInputValue(value, COLOR_SLOTS[slot].default ?? '#ffffff');
+    }
+  }
+  const fallback = COLOR_SLOTS[slot].default;
+  if (typeof fallback === 'string') return fallback;
+  if (slot === 'icon' || slot === 'icon_bg') return resolveStyleSlotColor(props, 'accent');
+  return '#ffffff';
+}
+
+export function styleColorPickerFallback(path: string, props: Record<string, unknown>): string {
+  const slot = styleColorSlotFromPath(path);
+  if (slot) return resolveStyleSlotColor(props, slot);
+  return typeof props.colorHint === 'string' ? props.colorHint : '#ffffff';
+}
+
+/** Which style colour category a text field is drawn with in the template. */
+export function textColorSlotForField(field: StorybitEditorField, listKey?: string): ColorSlot {
+  const item = itemFieldKey(field.path).toLowerCase();
+  const last = (item || field.path.replace(/\[\]$/, '').split('.').pop() || '').toLowerCase();
+  const list = (listKey ?? listKeyFromPath(field.path) ?? '').toLowerCase();
+
+  if (
+    last === 'cons_label' ||
+    last === 'myth_label' ||
+    last === 'against' ||
+    last.endsWith('_cons') ||
+    (list === 'cons' && last === 'label')
+  ) {
+    return 'negative';
+  }
+  if (last === 'pros_label' || last === 'fact_label' || (list === 'pros' && last === 'label')) {
+    return 'positive';
+  }
+  if (
+    last === 'kicker' ||
+    last === 'eyebrow' ||
+    last === 'rank' ||
+    last === 'role' ||
+    last === 'date' ||
+    last === 'unit' ||
+    last === 'units' ||
+    last === 'suffix' ||
+    last === 'figure' ||
+    last === 'badge' ||
+    last === 'number' ||
+    list === 'tags'
+  ) {
+    return 'accent';
+  }
+  if (
+    last === 'subtitle' ||
+    last === 'sub' ||
+    last === 'tagline' ||
+    last === 'caption' ||
+    last === 'source' ||
+    last === 'description' ||
+    last === 'desc' ||
+    last === 'context' ||
+    last === 'footnote'
+  ) {
+    return 'muted';
+  }
+  return 'text';
+}
+
 export function groupStorybitFields(inputs: StorybitEditorField[]): {
   content: StorybitFieldGroup[];
+  colors: StorybitEditorField[];
   appearance: StorybitEditorField[];
 } {
   const lists = new Map<string, { list?: StorybitEditorField; items: StorybitEditorField[] }>();
   const listOrder: string[] = [];
   const contentScalars: StorybitEditorField[] = [];
+  const colors: StorybitEditorField[] = [];
   const appearance: StorybitEditorField[] = [];
 
   for (const field of inputs) {
@@ -289,11 +421,16 @@ export function groupStorybitFields(inputs: StorybitEditorField[]): {
       }
       const group = lists.get(key)!;
       if (field.path === `${key}[]`) group.list = field;
-      else group.items.push(field);
+      else if (!isBackgroundColorField(field) && !isTextColorField(field)) group.items.push(field);
       continue;
     }
-    if (field.path.startsWith('style.')) appearance.push(field);
-    else contentScalars.push(field);
+    if (isEditorStyleColorField(field)) {
+      colors.push(field);
+      continue;
+    }
+    if (isBackgroundColorField(field) || isTextColorField(field)) continue;
+    if (field.path === 'style.heading_font' || field.path === 'style.body_font') appearance.push(field);
+    else if (!field.path.startsWith('style.')) contentScalars.push(field);
   }
 
   const content: StorybitFieldGroup[] = [
@@ -308,7 +445,14 @@ export function groupStorybitFields(inputs: StorybitEditorField[]): {
       };
     }),
   ];
-  return { content, appearance };
+  colors.sort((a, b) => {
+    const slotA = styleColorSlotFromPath(a.path);
+    const slotB = styleColorSlotFromPath(b.path);
+    const indexA = slotA ? EDITOR_COLOR_SLOT_ORDER.indexOf(slotA) : 99;
+    const indexB = slotB ? EDITOR_COLOR_SLOT_ORDER.indexOf(slotB) : 99;
+    return (indexA < 0 ? 99 : indexA) - (indexB < 0 ? 99 : indexB);
+  });
+  return { content, colors, appearance };
 }
 
 export function listBounds(limits?: string): { min: number; max: number } {

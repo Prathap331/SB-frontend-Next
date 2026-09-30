@@ -105,15 +105,30 @@ import {
   type PickedBrollItem,
 } from '@/lib/video-editor/broll-pick';
 import type { TimelineState, TimelineClip } from '@/lib/video-editor/types';
-import { readInfographicFromEditScene, parseRemotionInfographic, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, seededTextFromOverlayItem, kenBurnsFromTrack, mergeOverlayTrackOntoItem, rebaseOverlaySpec, rebaseSeededText, isOverlayGraphicTrack, collectSceneGraphicsOverlays, displayTextPayloadFromEditor, overlayGeometryFromClip, placementToPreviewOffsets, translateOverlayMotion, type RemotionInfographicSpec, type SeededTextOverlay } from '@/lib/video-editor/infographics';
+import { readInfographicFromEditScene, parseRemotionInfographic, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, seededTextFromOverlayItem, kenBurnsFromTrack, mergeOverlayTrackOntoItem, rebaseOverlaySpec, rebaseSeededText, isOverlayGraphicTrack, collectSceneGraphicsOverlays, displayTextPayloadFromEditor, placementToPreviewOffsets, type RemotionInfographicSpec, type SeededTextOverlay } from '@/lib/video-editor/infographics';
 import { audioWindowSeconds, frameWindowSeconds, toSceneLocalSeconds } from '@/lib/video-editor/timings';
 import { TimelinePanel, TimelinePreview, TimelineClipView } from '@/components/studio/video-timeline';
 import { TRACK_ROW_HEIGHT } from '@/components/studio/video-timeline/trackLayout';
 import { InfographicClipEditor } from '@/components/studio/InfographicPropsEditor';
 import { RemotionInfographicPreview } from '@/remotion/RemotionInfographicPreview';
-import { colorToInputValue, getByPath, setByPath, storybitHeadline, syncStorybitEditorProps } from '@/lib/video-editor/storybitEditorFields';
+import {
+  colorToInputValue,
+  editorColorLabelFromPath,
+  getByPath,
+  setByPath,
+  storybitHeadline,
+  styleColorPickerFallback,
+  syncStorybitEditorProps,
+} from '@/lib/video-editor/storybitEditorFields';
+import {
+  beatAddMediaPayload,
+  beatColorEditPayload,
+  beatTextEditPayload,
+  isBeatColorPath,
+  type BeatAddMediaPayload,
+} from '@/lib/video-editor/beatEdits';
 import { LucideIconView } from '@/remotion/icons';
-import { placementFromPreviewOffsets, placementToDesignPx, previewOffsetsFromGeometryPx, type OverlayGeometryPx } from '@/remotion/placement';
+import { placementToDesignPx } from '@/remotion/placement';
 import { formatTimecode, formatTimecodeShort } from '@/lib/video-editor/timecode';
 import { EDITOR_FPS } from '@/lib/video-editor/fps';
 import {
@@ -194,11 +209,15 @@ type Suggestion = {
   previewUrl?: string | null;
   /** Full asset played/shown in the preview popup */
   assetUrl?: string | null;
-  /** Pexels asset id — present for AI-suggested media, used to persist the pick via PATCH .../broll */
+  /** Pexels asset id — sent as `media_id` on /add-media. */
   assetId?: number | null;
   source?: 'video' | 'image' | null;
-  /** True when the user picked this from Pexels via Find more — persist via POST .../broll/insert. */
+  /** True when the user picked this from the B-roll tab or Find more. */
   fromPexels?: boolean;
+  query?: string;
+  width?: number;
+  height?: number;
+  photographer?: string;
   /** Backend beat id when this card was previously on the timeline and then removed. */
   beatId?: string;
   /** Lucide names from infographics_list — shown on the card thumbnail. */
@@ -221,6 +240,11 @@ type PendingDelete = {
   contentType?: 'video' | 'image';
 };
 
+type PendingAddMedia = {
+  beatId: string;
+  payload: BeatAddMediaPayload;
+};
+
 /** Local edits accumulated per scene. Persistence will use new edit endpoints later. */
 type PendingSceneEdits = {
   captionStyle?: boolean;
@@ -229,6 +253,7 @@ type PendingSceneEdits = {
   brollClipIds?: string[];
   trim?: { start: number; end: number };
   splits?: PendingSplit[];
+  addMedia?: PendingAddMedia[];
 };
 
 type LibraryTab = 'broll-videos' | 'broll-images' | 'infographics' | 'text' | 'captions';
@@ -266,6 +291,36 @@ function clipMatchesSuggestion(clip: TimelineClip, item: Suggestion): boolean {
   if (itemUrls.some((iu) => clipUrls.some((cu) => urlsMatch(iu, cu)))) return true;
   if (item.label && (clip.name === item.label || clip.beatId === item.label)) return true;
   return false;
+}
+
+function suggestionMediaPatch(item: Suggestion): Partial<TimelineClip> {
+  const mediaKind = item.mediaKind === 'image' ? 'image' : 'video';
+  return {
+    name: item.label,
+    sourceUrl: item.assetUrl || item.previewUrl || undefined,
+    thumbnailUrl: item.previewUrl || undefined,
+    mediaKind,
+    assetId: item.assetId ?? null,
+    fromPexels: Boolean(item.fromPexels),
+    mediaQuery: item.query,
+    mediaWidth: item.width,
+    mediaHeight: item.height,
+    photographer: item.photographer,
+  };
+}
+
+function addMediaPayloadFromSuggestion(item: Suggestion) {
+  return beatAddMediaPayload({
+    mediaId: item.assetId,
+    mediaType: item.mediaKind || item.source || 'video',
+    mediaUrl: item.assetUrl || item.previewUrl,
+    query: item.query,
+    width: item.width,
+    height: item.height,
+    duration: item.dur,
+    photographer: item.photographer,
+    meta: item.meta,
+  });
 }
 
 const LIBRARY_TABS: { id: LibraryTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -310,10 +365,38 @@ const CAPTION_ANIMATIONS: { id: EditVideoCaptionAnimationType; label: string }[]
   { id: 'word_pop', label: 'Word pop' },
 ];
 
-/** Builds a b-roll "beat" id: `s{sceneNum}_b{nth}` — the nth b-roll clip in that scene. */
+/** Builds a b-roll "beat" id: `s{sceneNum}_b{nth}` — local only, never sent to /edit. */
 function makeBrollBeatId(sceneNum: string, nth: number): string {
   const n = parseInt(sceneNum, 10) || 1;
   return `s${n}_b${nth}`;
+}
+
+function isFabricatedBeatId(id?: string | null): boolean {
+  if (!id) return true;
+  return /^s\d+_b\d+$/i.test(id) || /^s\d+_(txt|gfx)_/i.test(id) || /^s_b\d+$/i.test(id);
+}
+
+/** Same beat id string /text and /color use — the backend direction id, not `s1_b5`. */
+function backendBeatIdForBroll(
+  scene: Scene,
+  timeline: TimelineState,
+  time: number,
+  preferred?: string | null,
+): string | undefined {
+  if (preferred && !isFabricatedBeatId(preferred)) return preferred;
+  const covers = (clip: TimelineClip) =>
+    Boolean(clip.beatId) &&
+    !isFabricatedBeatId(clip.beatId) &&
+    (!clip.sceneId || clip.sceneId === scene.id) &&
+    time >= clip.start - 0.05 &&
+    time < clip.start + Math.max(clip.duration, 0.05);
+  for (const track of timeline.tracks) {
+    const clip = track.clips.find(covers);
+    if (clip?.beatId) return clip.beatId;
+  }
+  const beat = scene.beats?.find((b) => time >= b.start - 0.05 && time < b.end);
+  if (beat?.beatId && !isFabricatedBeatId(beat.beatId)) return beat.beatId;
+  return scene.beats?.find((b) => b.beatId && !isFabricatedBeatId(b.beatId))?.beatId;
 }
 
 function makeTextBeatId(sceneNum: string): string {
@@ -623,6 +706,10 @@ function mapEditVideoResponse(res: EditVideoResponse): {
         assetUrl: pickVideoAssetUrl(r.video_files, r.url),
         assetId: r.id,
         source: 'video',
+        query: keywords[ri] || keywords[0] || '',
+        width: r.width,
+        height: r.height,
+        photographer: r.user?.name ?? '',
       }));
     }
 
@@ -639,6 +726,10 @@ function mapEditVideoResponse(res: EditVideoResponse): {
         assetUrl: r.src?.large2x || r.src?.large || r.src?.original || r.url,
         assetId: r.id,
         source: 'image',
+        query: keywords[ri] || keywords[0] || '',
+        width: r.width,
+        height: r.height,
+        photographer: r.photographer?.name ?? '',
       }));
     }
 
@@ -664,6 +755,9 @@ function mapEditVideoResponse(res: EditVideoResponse): {
             assetUrl: asset.file_url,
             assetId: asset.asset_id,
             source: 'video' as const,
+            query: (b.keywords ?? []).join(' '),
+            width: asset.width,
+            height: asset.height,
           };
         });
       }
@@ -682,6 +776,9 @@ function mapEditVideoResponse(res: EditVideoResponse): {
             assetUrl: asset.file_url,
             assetId: asset.asset_id,
             source: 'image' as const,
+            query: (b.keywords ?? []).join(' '),
+            width: asset.width,
+            height: asset.height,
           };
         });
       }
@@ -1355,7 +1452,7 @@ export function StudioVideoEditingPanel({
       if (nextId === selectedIdRef.current) return;
       setIsPlaying(false);
       const currentId = selectedIdRef.current;
-      // Scene being left — flush any queued style/infographic edits.
+      // Scene being left — send queued add-media and drop other pending flags.
       if (currentId) {
         flushSceneEditsRef.current?.(currentId);
       }
@@ -1433,6 +1530,9 @@ export function StudioVideoEditingPanel({
   const [manualBrollImages, setManualBrollImages] = useState<Suggestion[]>([]);
   /** video_id returned by /edit-video. */
   const [videoId, setVideoId] = useState<string | null>(null);
+  const videoIdRef = useRef<string | null>(null);
+  videoIdRef.current = videoId;
+  const beatTextTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const restoredCacheRef = useRef(false);
   const restoreIdentityRef = useRef('');
 
@@ -1511,6 +1611,24 @@ export function StudioVideoEditingPanel({
     pendingSceneEditsRef.current[sceneId] = { ...current, brollClipIds: [...ids] };
   }, []);
 
+  const persistBeatAddMedia = useCallback(
+    (clip: { sceneId?: string; beatId?: string }, item: Suggestion) => {
+      const sceneId = clip.sceneId || selectedIdRef.current;
+      const beatId = clip.beatId;
+      const mediaUrl = item.assetUrl || item.previewUrl || '';
+      const isRemote = /^https?:\/\//i.test(mediaUrl);
+      if (!sceneId || !beatId || isFabricatedBeatId(beatId)) return;
+      if (!isRemote && (item.assetId == null || !Number.isFinite(item.assetId))) return;
+      const payload = addMediaPayloadFromSuggestion(item);
+      const current = pendingSceneEditsRef.current[sceneId] ?? {};
+      pendingSceneEditsRef.current[sceneId] = {
+        ...current,
+        addMedia: [...(current.addMedia ?? []), { beatId, payload }],
+      };
+    },
+    [],
+  );
+
   const recordPendingTrim = useCallback((sceneId: string, trim: { start: number; end: number }) => {
     const current = pendingSceneEditsRef.current[sceneId] ?? {};
     pendingSceneEditsRef.current[sceneId] = { ...current, trim };
@@ -1580,10 +1698,22 @@ export function StudioVideoEditingPanel({
     [patchSceneClip, recordPendingCaption],
   );
 
-  /** Local pending edits — persistence will use new edit endpoints later. */
-  const flushSceneEdits = useCallback((sceneId: string) => {
-    delete pendingSceneEditsRef.current[sceneId];
-  }, []);
+  /** Flush queued add-media (and drop other local pending flags) when leaving a scene. */
+  const flushSceneEdits = useCallback(
+    (sceneId: string) => {
+      const pending = pendingSceneEditsRef.current[sceneId];
+      delete pendingSceneEditsRef.current[sceneId];
+      const ops = pending?.addMedia ?? [];
+      const videoId = videoIdRef.current;
+      if (!videoId || !ops.length) return;
+      for (const op of ops) {
+        enqueueRequest(async () => {
+          await ApiService.editBeatAddMedia(videoId, sceneId, op.beatId, op.payload);
+        });
+      }
+    },
+    [enqueueRequest],
+  );
   flushSceneEditsRef.current = flushSceneEdits;
 
   const flushPendingDeletes = useCallback(() => {
@@ -1891,6 +2021,10 @@ export function StudioVideoEditingPanel({
         source: kind,
         fromPexels: clip.fromPexels ?? match?.fromPexels,
         beatId: clip.beatId,
+        query: match?.query ?? clip.mediaQuery,
+        width: match?.width ?? clip.mediaWidth,
+        height: match?.height ?? clip.mediaHeight,
+        photographer: match?.photographer ?? clip.photographer,
       };
     },
     [selected, sceneBrollImageSuggestions, sceneBrollVideoSuggestions],
@@ -2020,6 +2154,10 @@ export function StudioVideoEditingPanel({
       assetId: picked.assetId ?? null,
       source: picked.kind === 'image' ? 'image' : 'video',
       fromPexels: true,
+      query: picked.query,
+      width: picked.width,
+      height: picked.height,
+      photographer: picked.photographer,
     }),
     [selected?.title],
   );
@@ -2236,6 +2374,7 @@ export function StudioVideoEditingPanel({
       syncedBeatIdsRef.current = synced.beats;
       syncedOverlayIdsRef.current = synced.overlays;
       pendingDeletesRef.current = [];
+      pendingSceneEditsRef.current = {};
       setDetachedBrollCards({});
       setStage('editor');
       queueMicrotask(() => {
@@ -2469,6 +2608,7 @@ export function StudioVideoEditingPanel({
       syncedBeatIdsRef.current = synced.beats;
       syncedOverlayIdsRef.current = synced.overlays;
       pendingDeletesRef.current = [];
+      pendingSceneEditsRef.current = {};
       setDetachedBrollCards({});
       setStage('editor');
       setSetupOpen(false);
@@ -2819,9 +2959,16 @@ export function StudioVideoEditingPanel({
     if (type === 'infographic') return; // Remotion infographics use insertRemotionInfographic
 
     const trackId = DEFAULT_TRACK_IDS.broll;
+    const selectedBroll =
+      timelineApi.selectedClip?.type === 'broll' &&
+      (!timelineApi.selectedClip.sceneId || timelineApi.selectedClip.sceneId === target.id)
+        ? timelineApi.selectedClip
+        : null;
     const alreadyOnTimeline = timelineApi.timeline.tracks
       .find((t) => t.id === trackId)
-      ?.clips.some((c) => clipMatchesSuggestion(c, item));
+      ?.clips.some(
+        (c) => clipMatchesSuggestion(c, item) && (!selectedBroll || c.id !== selectedBroll.id),
+      );
     if (alreadyOnTimeline) {
       showToast('Already on the timeline');
       return;
@@ -2843,22 +2990,50 @@ export function StudioVideoEditingPanel({
       }),
     );
 
+    const mediaPatch = suggestionMediaPatch(item);
+
+    if (selectedBroll) {
+      const beatId =
+        backendBeatIdForBroll(
+          target,
+          timelineApi.timeline,
+          selectedBroll.start,
+          selectedBroll.beatId || item.beatId,
+        ) || selectedBroll.beatId;
+      timelineApi.updateClip(selectedBroll.id, {
+        ...mediaPatch,
+        ...(beatId ? { beatId } : {}),
+      });
+      cancelPendingDelete({ beatId: selectedBroll.beatId || item.beatId });
+      setDetachedBrollCards((prev) => {
+        const list = prev[target.id] ?? [];
+        const next = list.filter((s) => {
+          if (item.beatId && s.beatId === item.beatId) return false;
+          if (urlsMatch(s.assetUrl, item.assetUrl) || urlsMatch(s.previewUrl, item.previewUrl)) return false;
+          return true;
+        });
+        if (next.length === list.length) return prev;
+        return { ...prev, [target.id]: next };
+      });
+      persistBeatAddMedia({ sceneId: target.id, beatId }, item);
+      recordPendingBroll(target.id, selectedBroll.id);
+      showToast(`Replaced b-roll on ${target.title}`);
+      return;
+    }
+
     const start = Math.max(0, Math.min(timelineApi.timeline.currentTime, Math.max(0, totalDuration - 0.1)));
     const dur = Math.min(item.dur, Math.max(0.5, totalDuration - start));
 
     const brollTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll);
     const existingForScene = brollTrack?.clips.filter((c) => c.sceneId === target.id).length ?? 0;
-    const beatId = item.beatId || makeBrollBeatId(target.num, existingForScene + 1);
+    const beatId =
+      backendBeatIdForBroll(target, timelineApi.timeline, start, item.beatId) ||
+      makeBrollBeatId(target.num, existingForScene + 1);
     const clipId = `br-${Date.now()}`;
-    const assetId = item.assetId ?? Math.floor(Math.random() * 1_000_000_000);
 
     timelineApi.addClip(DEFAULT_TRACK_IDS.broll, {
       id: clipId,
       type: 'broll',
-      name: item.label,
-      sourceUrl: item.assetUrl || item.previewUrl || undefined,
-      thumbnailUrl: item.previewUrl || undefined,
-      mediaKind: item.mediaKind === 'image' ? 'image' : 'video',
       start,
       duration: dur,
       sourceStart: 0,
@@ -2866,8 +3041,8 @@ export function StudioVideoEditingPanel({
       originalSourceDuration: dur,
       sceneId: target.id,
       beatId,
-      assetId,
-      fromPexels: Boolean(item.fromPexels),
+      ...mediaPatch,
+      name: item.label,
     });
 
     cancelPendingDelete({ beatId: item.beatId });
@@ -2882,8 +3057,9 @@ export function StudioVideoEditingPanel({
       return { ...prev, [target.id]: next };
     });
 
-    showToast(`Inserted into ${target.title}`);
+    persistBeatAddMedia({ sceneId: target.id, beatId }, item);
     recordPendingBroll(target.id, clipId);
+    showToast(`Inserted into ${target.title}`);
   };
 
   /**
@@ -2908,6 +3084,10 @@ export function StudioVideoEditingPanel({
           beatId: newBeatId,
           assetId: clip.assetId,
           fromPexels: clip.fromPexels,
+          mediaQuery: clip.mediaQuery,
+          mediaWidth: clip.mediaWidth,
+          mediaHeight: clip.mediaHeight,
+          photographer: clip.photographer,
         });
       }
       recordPendingSplit(sceneId, {
@@ -3065,30 +3245,78 @@ export function StudioVideoEditingPanel({
     showToast('Text clip added');
   }, [timelineApi, selectedId, selected?.num, showToast, recordPendingOverlay]);
 
+  const persistBeatText = useCallback(
+    (clip: TimelineClip, path: string, props: Record<string, unknown>) => {
+      const videoId = videoIdRef.current;
+      const sceneId = clip.sceneId || selectedIdRef.current;
+      const beatId = clip.beatId;
+      if (!videoId || !sceneId || !beatId) return;
+      const payload = beatTextEditPayload(props, path);
+      if (!payload) return;
+      const key = `${clip.id}:${Object.keys(payload)[0]}`;
+      const timers = beatTextTimersRef.current;
+      if (timers[key]) clearTimeout(timers[key]);
+      timers[key] = setTimeout(() => {
+        delete timers[key];
+        enqueueRequest(async () => {
+          await ApiService.editBeatText(videoId, sceneId, beatId, payload);
+        });
+      }, 450);
+    },
+    [enqueueRequest],
+  );
+
+  const persistBeatColor = useCallback(
+    (clip: TimelineClip, path: string, hex: string, index?: number) => {
+      const videoId = videoIdRef.current;
+      const sceneId = clip.sceneId || selectedIdRef.current;
+      const beatId = clip.beatId;
+      if (!videoId || !sceneId || !beatId || !hex) return;
+      const payload = beatColorEditPayload(path, hex, index);
+      enqueueRequest(async () => {
+        await ApiService.editBeatColor(videoId, sceneId, beatId, payload);
+      });
+    },
+    [enqueueRequest],
+  );
+
+  useEffect(() => {
+    const timers = beatTextTimersRef.current;
+    return () => {
+      for (const key of Object.keys(timers)) {
+        clearTimeout(timers[key]);
+        delete timers[key];
+      }
+    };
+  }, []);
+
   const applyInfographicDisplayText = useCallback(
     (clip: TimelineClip, value: string) => {
       const previous = clip.remotion?.props.displayText ?? clip.remotion?.props.display_text;
       const payload = displayTextPayloadFromEditor(value, previous);
       const first = Array.isArray(payload) ? payload[0] : payload;
       const label = (first || 'Infographic').slice(0, 48);
+      const nextProps = clip.remotion
+        ? {
+            ...clip.remotion.props,
+            displayText: payload,
+            ...(typeof payload === 'string' ? { title: payload } : {}),
+          }
+        : {};
       timelineApi.updateClip(clip.id, {
         text: Array.isArray(payload) ? payload.join('\n') : payload,
         name: label,
-        remotion: clip.remotion
-          ? {
-              ...clip.remotion,
-              props: {
-                ...clip.remotion.props,
-                displayText: payload,
-                ...(typeof payload === 'string' ? { title: payload } : {}),
-              },
-            }
-          : clip.remotion,
+        remotion: clip.remotion ? { ...clip.remotion, props: nextProps } : clip.remotion,
       });
       const sceneId = clip.sceneId || selectedIdRef.current;
       if (sceneId) recordPendingOverlay(sceneId, clip.id);
+      persistBeatText(
+        { ...clip, remotion: clip.remotion ? { ...clip.remotion, props: nextProps } : clip.remotion },
+        Array.isArray(payload) ? 'display_text' : 'title',
+        Array.isArray(payload) ? { ...nextProps, display_text: payload } : nextProps,
+      );
     },
-    [timelineApi, recordPendingOverlay],
+    [timelineApi, recordPendingOverlay, persistBeatText],
   );
 
   const applyInfographicPlacement = useCallback(
@@ -3120,68 +3348,26 @@ export function StudioVideoEditingPanel({
     [timelineApi, recordPendingOverlay],
   );
 
-  const applyOverlayGeometry = useCallback(
-    (clipId: string, geometry: OverlayGeometryPx, fontSize: number) => {
-      const clip = findTimelineClip(timelineApi.timeline, clipId);
-      if (!clip) return;
-      const previous = overlayGeometryFromClip(clip);
-      const dx = geometry.x - previous.x;
-      const dy = geometry.y - previous.y;
-      const offsets = previewOffsetsFromGeometryPx(geometry);
-      const placement = placementFromPreviewOffsets(offsets.offsetX, offsets.offsetY);
-      const remotion = clip.remotion;
-      const motion = remotion ? translateOverlayMotion(remotion.props.motion, dx, dy) : undefined;
-      timelineApi.updateClip(clip.id, {
-        placement,
-        offsetX: offsets.offsetX,
-        offsetY: offsets.offsetY,
-        remotion: remotion
-          ? {
-              ...remotion,
-              placement,
-              props: {
-                ...remotion.props,
-                geometryPx: geometry,
-                fontSize,
-                font_size: fontSize,
-                ...(motion ? { motion } : {}),
-              },
-            }
-          : remotion,
-      });
-      if (clip.type === 'text') {
-        setTextStyle((t) => ({
-          ...t,
-          fontSize,
-          offsetX: offsets.offsetX,
-          offsetY: offsets.offsetY,
-        }));
-      }
-      const sceneId = clip.sceneId || selectedIdRef.current;
-      if (sceneId) recordPendingOverlay(sceneId, clip.id);
-    },
-    [timelineApi, recordPendingOverlay],
-  );
-
   const applyInfographicColor = useCallback(
     (clip: TimelineClip, hex: string) => {
+      const nextProps = clip.remotion
+        ? syncStorybitEditorProps(
+            setByPath({ ...clip.remotion.props, colorHint: hex, color: hex }, 'style.text_color', hex),
+          )
+        : {};
       timelineApi.updateClip(clip.id, {
         textColor: hex,
-        remotion: clip.remotion
-          ? {
-              ...clip.remotion,
-              props: { ...clip.remotion.props, colorHint: hex, color: hex },
-            }
-          : clip.remotion,
+        remotion: clip.remotion ? { ...clip.remotion, props: nextProps } : clip.remotion,
       });
       const sceneId = clip.sceneId || selectedIdRef.current;
       if (sceneId) recordPendingOverlay(sceneId, clip.id);
+      persistBeatColor(clip, 'style.text_color', hex);
     },
-    [timelineApi, recordPendingOverlay],
+    [timelineApi, recordPendingOverlay, persistBeatColor],
   );
 
   const applyInfographicProps = useCallback(
-    (clipId: string, nextProps: Record<string, unknown>) => {
+    (clipId: string, nextProps: Record<string, unknown>, changedPath?: string, listIndex?: number) => {
       const clip = findTimelineClip(timelineRef.current, clipId);
       if (!clip?.remotion) return;
       const synced = syncStorybitEditorProps(nextProps);
@@ -3192,8 +3378,29 @@ export function StudioVideoEditingPanel({
       });
       const sceneId = clip.sceneId || selectedIdRef.current;
       if (sceneId) recordPendingOverlay(sceneId, clip.id);
+      if (!changedPath) return;
+      const nextClip = { ...clip, remotion: { ...clip.remotion, props: synced } };
+      if (isBeatColorPath(changedPath)) {
+        const raw = getByPath(synced, changedPath, listIndex);
+        if (typeof raw === 'string' && raw.trim()) persistBeatColor(nextClip, changedPath, raw, listIndex);
+        return;
+      }
+      persistBeatText(nextClip, changedPath, synced);
     },
-    [timelineApi, recordPendingOverlay],
+    [timelineApi, recordPendingOverlay, persistBeatColor, persistBeatText],
+  );
+
+  const commitInfographicPreviewText = useCallback(
+    (clipId: string, path: string, value: string) => {
+      const clip = findTimelineClip(timelineRef.current, clipId);
+      if (!clip?.remotion) return;
+      const prev = getByPath(clip.remotion.props, path);
+      const nextValue: unknown = Array.isArray(prev)
+        ? value.split(/\n/).map((part) => part.trim()).filter(Boolean)
+        : value;
+      applyInfographicProps(clipId, setByPath({ ...clip.remotion.props }, path, nextValue), path);
+    },
+    [applyInfographicProps],
   );
 
   useEffect(() => {
@@ -3237,6 +3444,10 @@ export function StudioVideoEditingPanel({
           source: kind,
           fromPexels: clip.fromPexels ?? match?.fromPexels,
           beatId: clip.beatId,
+          query: match?.query ?? clip.mediaQuery,
+          width: match?.width ?? clip.mediaWidth,
+          height: match?.height ?? clip.mediaHeight,
+          photographer: match?.photographer ?? clip.photographer,
         };
         setDetachedBrollCards((prev) => {
           const list = prev[sceneId] ?? [];
@@ -3763,7 +3974,7 @@ export function StudioVideoEditingPanel({
     timelineApi.selectedClip?.type === 'infographic' ? (
       <InfographicClipEditor
         clip={timelineApi.selectedClip}
-        onPropsChange={(next) => applyInfographicProps(timelineApi.selectedClip!.id, next)}
+        onPropsChange={(next, path) => applyInfographicProps(timelineApi.selectedClip!.id, next, path)}
         onPlacement={(placement) => applyInfographicPlacement(timelineApi.selectedClip!, placement)}
         onPickColor={(path, listIndex) => {
           setInfographicColorPath(path);
@@ -4122,15 +4333,12 @@ export function StudioVideoEditingPanel({
                 horizontalPosition: horizontalPositionFromOffsetX(x),
               });
             }}
-            onTextResize={(fontSize) => {
-              setTextStyle((t) => ({ ...t, fontSize }));
-              if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
-            }}
-            onOverlayTransform={applyOverlayGeometry}
             onTextEdit={(clipId, text) => {
               timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' });
               if (selected) recordPendingOverlay(selected.id, clipId);
             }}
+            onInfographicTextCommit={commitInfographicPreviewText}
+            onRequestPause={() => setIsPlaying(false)}
           />
         </div>
 
@@ -4737,15 +4945,12 @@ export function StudioVideoEditingPanel({
                 horizontalPosition: horizontalPositionFromOffsetX(x),
               });
             }}
-            onTextResize={(fontSize) => {
-              setTextStyle((t) => ({ ...t, fontSize }));
-              if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
-            }}
-            onOverlayTransform={applyOverlayGeometry}
             onTextEdit={(clipId, text) => {
               timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' });
               if (selected) recordPendingOverlay(selected.id, clipId);
             }}
+            onInfographicTextCommit={commitInfographicPreviewText}
+            onRequestPause={() => setIsPlaying(false)}
           />
         </div>
 
@@ -5307,7 +5512,7 @@ export function StudioVideoEditingPanel({
                 ? 'Outline colour'
                 : colorPickerTarget === 'info-color'
                   ? infographicColorPath
-                    ? 'Infographic colour'
+                    ? editorColorLabelFromPath(infographicColorPath) ?? 'Infographic colour'
                     : 'Colour hint'
                   : 'Background colour'
           }
@@ -5328,9 +5533,10 @@ export function StudioVideoEditingPanel({
                               infographicColorPath,
                               infographicColorIndex,
                             ),
-                            typeof timelineApi.selectedClip.remotion.props.colorHint === 'string'
-                              ? timelineApi.selectedClip.remotion.props.colorHint
-                              : '#ffffff',
+                            styleColorPickerFallback(
+                              infographicColorPath,
+                              timelineApi.selectedClip.remotion.props,
+                            ),
                           )
                         : (typeof timelineApi.selectedClip?.remotion?.props.colorHint === 'string'
                             ? timelineApi.selectedClip.remotion.props.colorHint
@@ -5375,6 +5581,8 @@ export function StudioVideoEditingPanel({
                     hex,
                     infographicColorIndex,
                   ),
+                  infographicColorPath,
+                  infographicColorIndex,
                 );
               } else {
                 applyInfographicColor(timelineApi.selectedClip, hex);

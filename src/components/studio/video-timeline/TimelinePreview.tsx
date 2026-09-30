@@ -54,6 +54,9 @@ type Props = {
   onOverlayTransform?: (clipId: string, geometry: OverlayGeometryPx, fontSize: number) => void;
   /** Fired when the inline-edited text is changed — receives the clip id being edited. */
   onTextEdit?: (clipId: string, text: string) => void;
+  /** Fired when infographic / Storybit copy is edited in place on the preview. */
+  onInfographicTextCommit?: (clipId: string, path: string, value: string) => void;
+  onRequestPause?: () => void;
   /** Library-card specs — used to restore `icon_name` the timeline clip may have dropped. */
   overlaySpecs?: RemotionInfographicSpec[];
 };
@@ -156,11 +159,29 @@ export function TimelinePreview({
   onTextResize,
   onOverlayTransform,
   onTextEdit,
+  onInfographicTextCommit,
+  onRequestPause,
   overlaySpecs = [],
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [editingText, setEditingText] = useState(false);
   const [frameSize, setFrameSize] = useState({ w: 0, h: 0 });
+  const textEditRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (!editingText) return;
+    const node = textEditRef.current;
+    if (!node) return;
+    node.innerText = node.getAttribute('data-edit-seed') ?? '';
+    node.focus({ preventScroll: true });
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }, [editingText]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -206,7 +227,10 @@ export function TimelinePreview({
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       // A tap with no drag — edit the text in place instead of moving it.
-      if (!moved && onTextEdit) setEditingText(true);
+      if (!moved && onTextEdit) {
+        onRequestPause?.();
+        setEditingText(true);
+      }
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -846,16 +870,30 @@ export function TimelinePreview({
           width={frameSize.w}
           height={frameSize.h}
           overlaySpecs={overlaySpecs}
+          isPlaying={isPlaying}
+          onTextCommit={
+            onInfographicTextCommit
+              ? (path, value) => onInfographicTextCommit(remotionInfoClip.id, path, value)
+              : undefined
+          }
+          onRequestPause={onRequestPause}
         />
       ) : null}
 
-      {remotionTextClip?.remotion && !editingText ? (
+      {remotionTextClip?.remotion ? (
         <TimelineOverlayPreview
           clip={remotionTextClip}
           currentTime={timeline.currentTime}
           width={frameSize.w}
           height={frameSize.h}
           overlaySpecs={overlaySpecs}
+          isPlaying={isPlaying}
+          onTextCommit={
+            onInfographicTextCommit
+              ? (path, value) => onInfographicTextCommit(remotionTextClip.id, path, value)
+              : undefined
+          }
+          onRequestPause={onRequestPause}
         />
       ) : null}
 
@@ -962,7 +1000,7 @@ export function TimelinePreview({
         </div>
       )}
 
-      {textClip && overlayScale > 0 && (textClip.text || editingText) && (!remotionTextClip || editingText) && (
+      {textClip && overlayScale > 0 && (textClip.text || editingText) && !remotionTextClip && (
         <div
           key={textClip.id}
           onPointerDown={beginDragText}
@@ -992,37 +1030,35 @@ export function TimelinePreview({
           }}
         >
           <style>{TEXT_ANIMATION_KEYFRAMES}</style>
-          {editingText ? (
-            <textarea
-              autoFocus
-              value={textClip.text ?? ''}
-              onChange={(e) => onTextEdit?.(textClip.id, e.target.value)}
-              onFocus={(e) => e.currentTarget.select()}
-              onBlur={() => setEditingText(false)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') setEditingText(false);
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              rows={Math.max(1, (textClip.text ?? '').split('\n').length)}
-              className="min-w-[80px] resize-none whitespace-pre-wrap border-none bg-transparent text-center leading-snug font-semibold outline-none"
-              style={{
-                fontSize: `${scaleDesignPx(textStyle.fontSize)}px`,
-                color: textClip.textColor || textStyle.textColor,
-                fontFamily: textStyle.fontStyle,
-              }}
-            />
-          ) : (
-            <p
-              className="whitespace-pre-wrap leading-snug font-semibold"
-              style={{
-                fontSize: `${scaleDesignPx(textStyle.fontSize)}px`,
-                color: textClip.textColor || textStyle.textColor,
-                fontFamily: textStyle.fontStyle,
-              }}
-            >
-              {textClip.text}
-            </p>
-          )}
+          <p
+            ref={textEditRef}
+            key={editingText ? `edit-${textClip.id}` : `view-${textClip.id}`}
+            contentEditable={editingText}
+            suppressContentEditableWarning
+            data-edit-seed={textClip.text ?? ''}
+            className="m-0 whitespace-pre-wrap leading-snug font-semibold outline-none"
+            style={{
+              fontSize: `${scaleDesignPx(textStyle.fontSize)}px`,
+              color: textClip.textColor || textStyle.textColor,
+              fontFamily: textStyle.fontStyle,
+            }}
+            onPointerDown={(e) => {
+              if (editingText) e.stopPropagation();
+            }}
+            onBlur={(e) => {
+              if (!editingText) return;
+              onTextEdit?.(textClip.id, e.currentTarget.innerText.replace(/\u00a0/g, ' '));
+              setEditingText(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
+          >
+            {editingText ? null : textClip.text}
+          </p>
 
           {!editingText && onTextResize && (
             <>

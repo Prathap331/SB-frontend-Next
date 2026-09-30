@@ -2071,6 +2071,69 @@ export class ApiService {
   }
 
   /**
+   * POST /edit/{videoId}/{sceneId}/{beatId}/text
+   * Body is the changed template field: `{ name: "Alex" }` or a whole list `{ tags: [...] }`.
+   */
+  static async editBeatText(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    payload: Record<string, unknown>,
+  ): Promise<unknown> {
+    const url = `${this.BASE_URL}/edit/${encodeURIComponent(videoId)}/${encodeURIComponent(sceneId)}/${encodeURIComponent(beatId)}/text`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow(response, 'Edit beat text');
+  }
+
+  /**
+   * POST /edit/{videoId}/{sceneId}/{beatId}/color
+   * Body uses the style slot name: `{ "text_color": "#FFF6E6" }`.
+   */
+  static async editBeatColor(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    payload: Record<string, unknown>,
+  ): Promise<unknown> {
+    const url = `${this.BASE_URL}/edit/${encodeURIComponent(videoId)}/${encodeURIComponent(sceneId)}/${encodeURIComponent(beatId)}/color`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow(response, 'Edit beat colour');
+  }
+
+  /**
+   * POST /edit/{videoId}/{sceneId}/{beatId}/add-media
+   * Attach or replace a b-roll video/image on that beat.
+   */
+  static async editBeatAddMedia(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    payload: {
+      media_id: number;
+      media_type: string;
+      media_url: string;
+      query: string;
+      width: number;
+      height: number;
+      duration: number;
+      photographer: string;
+    },
+  ): Promise<unknown> {
+    const url = `${this.BASE_URL}/edit/${encodeURIComponent(videoId)}/${encodeURIComponent(sceneId)}/${encodeURIComponent(beatId)}/add-media`;
+    const response = await this.authorizedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow(response, 'Add beat media');
+  }
+
+  /**
    * Scan an arbitrary render payload for the finished video URL.
    * The response shape isn't fully pinned down, so this checks the common field
    * names (video_url, url, render_url, output_url, ...) at the top level and one

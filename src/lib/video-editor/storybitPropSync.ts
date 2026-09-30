@@ -28,10 +28,15 @@ export function syncStorybitEditorProps(props: Record<string, unknown>): Record<
   }
   const style = next.style;
   if (style && typeof style === 'object' && !Array.isArray(style)) {
-    const textColor = (style as Record<string, unknown>).text_color;
+    const rec = style as Record<string, unknown>;
+    const textColor = rec.text_color;
     if (typeof textColor === 'string' && textColor.trim()) {
       next.colorHint = textColor;
       next.color = textColor;
+    }
+    const background = rec.background_color;
+    if (typeof background === 'string' && background.trim()) {
+      next.background_color = background;
     }
   }
   return next;

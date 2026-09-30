@@ -36,10 +36,14 @@ export type TimelineClip = {
   beatId?: string;
   /** Backend overlay id for infographics (from infographics_list/text_list) or customized text (from style `text_id`). */
   overlayId?: string;
-  /** Pexels / library asset id — used when flushing b-roll select/insert. */
+  /** Pexels / library asset id — sent as `media_id` on /add-media. */
   assetId?: number | null;
-  /** True when this clip came from Find more (POST .../broll/insert). */
+  /** True when this clip came from the B-roll tab or Find more library. */
   fromPexels?: boolean;
+  mediaQuery?: string;
+  mediaWidth?: number;
+  mediaHeight?: number;
+  photographer?: string;
 
   zIndex?: number;
   volume?: number;

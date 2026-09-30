@@ -17,8 +17,12 @@ export type PickedBrollItem = {
   previewUrl: string | null;
   assetUrl: string | null;
   durationSeconds: number;
-  /** Real Pexels photo/video id — sent as `asset_id` on POST .../broll/insert. */
+  /** Real Pexels photo/video id — sent as `media_id` on add-media. */
   assetId?: number;
+  width?: number;
+  height?: number;
+  photographer?: string;
+  query?: string;
 };
 
 const SESSION_KEY = 'storio_broll_pick_session_v1';
@@ -116,11 +120,13 @@ export function brollMediaToPick(
   item: BrollMediaItem,
   session: BrollPickSession,
   previewLink: string | null,
+  query = '',
 ): PickedBrollItem {
   const kind: BrollPickKind = item.kind === 'photo' ? 'image' : 'video';
+  const photographer = item.user?.name?.trim() || '';
   const label =
     (item.alt && item.alt.trim()) ||
-    `${kind === 'video' ? 'Video' : 'Image'} by ${item.user?.name || 'creator'}`;
+    `${kind === 'video' ? 'Video' : 'Image'}${photographer ? ` by ${photographer}` : ''}`;
   const dur = item.duration && item.duration > 0 ? item.duration : 5;
   const assetUrl =
     kind === 'video'
@@ -140,5 +146,9 @@ export function brollMediaToPick(
     assetUrl,
     durationSeconds: dur,
     assetId: Number.isFinite(item.id) ? item.id : undefined,
+    width: item.width,
+    height: item.height,
+    photographer,
+    query: query.trim(),
   };
 }

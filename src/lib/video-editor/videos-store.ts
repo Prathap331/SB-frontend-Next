@@ -141,6 +141,11 @@ function str(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+function idStr(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return typeof value === 'string' ? value : '';
+}
+
 function clipsFromBrollTracks(
   sceneId: string,
   tracks: EditVideoTimelineTrack[],
@@ -154,7 +159,7 @@ function clipsFromBrollTracks(
       const asset = asRecord(t.selected_asset);
       const fileUrl = str(asset?.file_url);
       const source = str(asset?.source) === 'image' ? 'image' : 'video';
-      const beatId = str(t.beat_id) || `s_b${i + 1}`;
+      const beatId = idStr(t.beat_id) || `s_b${i + 1}`;
       const frameWin = frameWindowSeconds(t);
       const absStart = frameWin?.start ?? num(t.beat_start_sec) ?? 0;
       const absEnd = frameWin?.end ?? num(t.beat_end_sec) ?? absStart + 1;
@@ -181,6 +186,9 @@ function clipsFromBrollTracks(
         originalSourceDuration: dur,
         sceneId,
         beatId,
+        assetId: typeof asset?.asset_id === 'number' ? asset.asset_id : undefined,
+        mediaWidth: typeof asset?.width === 'number' ? asset.width : undefined,
+        mediaHeight: typeof asset?.height === 'number' ? asset.height : undefined,
       });
     })
     .filter((c) => Boolean(c.sourceUrl));
