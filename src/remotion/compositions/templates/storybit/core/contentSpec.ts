@@ -448,6 +448,36 @@ export function toJsonSchema(spec: TemplateSpec): Json {
     maxItems: spec.cues.units.length,
     description: `Seconds from the template start when each element appears, in order: ${spec.cues.units.join(', ')}. ${spec.cues.description} Compute as (spoken word time − beat start time) from WhisperX.`,
   };
+  // editor overrides (core/editable.tsx) — written by the video-editing frontend, not by the LLM
+  const HEXS = { type: 'string', pattern: HEX.source };
+  const ANIM = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      entrance: { type: 'object', properties: { type: { enum: ['none', 'fade', 'slide_up', 'slide_down', 'slide_left', 'slide_right', 'pop', 'zoom_in', 'blur_in', 'drop', 'spin_in'] }, start: { type: 'number' }, duration: { type: 'number' }, easing: { enum: ['linear', 'ease_in', 'ease_out', 'ease_in_out', 'back_out'] }, distance: { type: 'number' } } },
+      exit: { type: 'object', properties: { type: { enum: ['none', 'fade', 'slide_up', 'slide_down', 'slide_left', 'slide_right', 'zoom_out', 'blur_out', 'shrink'] }, start: { type: 'number' }, duration: { type: 'number' }, easing: { enum: ['linear', 'ease_in', 'ease_out', 'ease_in_out', 'back_out'] }, distance: { type: 'number' } } },
+      emphasis: { type: 'object', properties: { type: { enum: ['none', 'pulse', 'shake', 'wiggle', 'bounce', 'float', 'glow'] }, start: { type: 'number' }, period: { type: 'number' }, intensity: { type: 'number' } } },
+    },
+  };
+  properties.elements = {
+    type: 'object',
+    description: 'Editor edits per element id (see element_manifest.json): position, style, visibility and animation.',
+    additionalProperties: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        visible: { type: 'boolean' }, offset_x: { type: 'number' }, offset_y: { type: 'number' }, scale: { type: 'number', minimum: 0.2, maximum: 4 }, rotation: { type: 'number' }, opacity: { type: 'number', minimum: 0, maximum: 1 }, z_index: { type: 'number' },
+        font_family: { type: 'string' }, font_weight: { type: 'number' }, text_color: HEXS, letter_spacing: { type: 'number' }, text_case: { enum: ['none', 'upper', 'lower', 'title'] }, text_align: { enum: ['left', 'center', 'right'] }, italic: { type: 'boolean' }, underline: { type: 'boolean' },
+        fill: HEXS, border: { type: 'object', properties: { color: HEXS, width: { type: 'number' }, radius: { type: 'number' } } }, shadow: { type: 'object', properties: { color: HEXS, blur: { type: 'number' }, offset_x: { type: 'number' }, offset_y: { type: 'number' } } },
+        blend_mode: { enum: ['normal', 'multiply', 'screen', 'overlay', 'lighten', 'darken'] }, animation: ANIM,
+      },
+    },
+  };
+  properties.groups = {
+    type: 'array',
+    description: 'Editor groups: move / fade / hide / animate several elements together.',
+    items: { type: 'object', additionalProperties: false, required: ['id', 'members'], properties: { id: { type: 'string' }, members: { type: 'array', items: { type: 'string' } }, visible: { type: 'boolean' }, offset_x: { type: 'number' }, offset_y: { type: 'number' }, opacity: { type: 'number', minimum: 0, maximum: 1 }, animation: ANIM } },
+  };
   return {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     title: `${spec.id} ${spec.name}`,
@@ -582,8 +612,19 @@ export function styleSchema(spec: TemplateSpec): Record<string, unknown> {
   };
 }
 
-export function validateStyle(props: Record<string, unknown>, spec: TemplateSpec): Issue[] {
-  const issues: Issue[] = [];
+/** Beat length vs the template's allowed range (spec.duration, in frames at 30 fps). */
+export function validateDuration(spec: TemplateSpec, durationInFrames: number): Issue[] {
+  const { min, max } = spec.duration;
+  const sec = (f: number) => Math.round((f / 30) * 10) / 10;
+  if (durationInFrames > max) return [{ field: 'duration', level: 'error', message: `Beat is ${sec(durationInFrames)}s but ${spec.id} allows ${sec(min)}–${sec(max)}s — split the beat or pick a longer template` }];
+  if (durationInFrames < min) return [{ field: 'duration', level: 'error', message: `Beat is ${sec(durationInFrames)}s but ${spec.id} needs at least ${sec(min)}s` }];
+  return [];
+}
+
+export function validateStyle(props: Record<string, unknown>, spec: TemplateSpec, durationInFrames?: number): Issue[] {
+  const issues: Issue[] = durationInFrames !== undefined ? validateDuration(spec, durationInFrames) : [];
+  for (const k of ['background_color', 'background_2_color'])
+    if (props[k] !== undefined && !(typeof props[k] === 'string' && HEX.test((props[k] as string).trim()))) issues.push({ field: k, level: 'warning', message: `${k} must be a hex colour like #141A45 — default used` });
   const st = props.style && typeof props.style === 'object' ? (props.style as Record<string, unknown>) : {};
   for (const f of ['heading_font', 'body_font'])
     if (st[f] !== undefined && !(typeof st[f] === 'string' && (st[f] as string) in FONT_CHOICES))

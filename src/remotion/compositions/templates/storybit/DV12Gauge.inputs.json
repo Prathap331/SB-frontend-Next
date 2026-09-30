@@ -749,6 +749,369 @@
         },
         "maxItems": 4,
         "description": "Seconds from the template start when each element appears, in order: gauge, needle, label, source. gauge → needle (value is said) → label → source. Compute as (spoken word time − beat start time) from WhisperX."
+      },
+      "elements": {
+        "type": "object",
+        "description": "Editor edits per element id (see element_manifest.json): position, style, visibility and animation.",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "visible": {
+              "type": "boolean"
+            },
+            "offset_x": {
+              "type": "number"
+            },
+            "offset_y": {
+              "type": "number"
+            },
+            "scale": {
+              "type": "number",
+              "minimum": 0.2,
+              "maximum": 4
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "z_index": {
+              "type": "number"
+            },
+            "font_family": {
+              "type": "string"
+            },
+            "font_weight": {
+              "type": "number"
+            },
+            "text_color": {
+              "type": "string",
+              "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "letter_spacing": {
+              "type": "number"
+            },
+            "text_case": {
+              "enum": [
+                "none",
+                "upper",
+                "lower",
+                "title"
+              ]
+            },
+            "text_align": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ]
+            },
+            "italic": {
+              "type": "boolean"
+            },
+            "underline": {
+              "type": "boolean"
+            },
+            "fill": {
+              "type": "string",
+              "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "border": {
+              "type": "object",
+              "properties": {
+                "color": {
+                  "type": "string",
+                  "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                },
+                "width": {
+                  "type": "number"
+                },
+                "radius": {
+                  "type": "number"
+                }
+              }
+            },
+            "shadow": {
+              "type": "object",
+              "properties": {
+                "color": {
+                  "type": "string",
+                  "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                },
+                "blur": {
+                  "type": "number"
+                },
+                "offset_x": {
+                  "type": "number"
+                },
+                "offset_y": {
+                  "type": "number"
+                }
+              }
+            },
+            "blend_mode": {
+              "enum": [
+                "normal",
+                "multiply",
+                "screen",
+                "overlay",
+                "lighten",
+                "darken"
+              ]
+            },
+            "animation": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "entrance": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "none",
+                        "fade",
+                        "slide_up",
+                        "slide_down",
+                        "slide_left",
+                        "slide_right",
+                        "pop",
+                        "zoom_in",
+                        "blur_in",
+                        "drop",
+                        "spin_in"
+                      ]
+                    },
+                    "start": {
+                      "type": "number"
+                    },
+                    "duration": {
+                      "type": "number"
+                    },
+                    "easing": {
+                      "enum": [
+                        "linear",
+                        "ease_in",
+                        "ease_out",
+                        "ease_in_out",
+                        "back_out"
+                      ]
+                    },
+                    "distance": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "exit": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "none",
+                        "fade",
+                        "slide_up",
+                        "slide_down",
+                        "slide_left",
+                        "slide_right",
+                        "zoom_out",
+                        "blur_out",
+                        "shrink"
+                      ]
+                    },
+                    "start": {
+                      "type": "number"
+                    },
+                    "duration": {
+                      "type": "number"
+                    },
+                    "easing": {
+                      "enum": [
+                        "linear",
+                        "ease_in",
+                        "ease_out",
+                        "ease_in_out",
+                        "back_out"
+                      ]
+                    },
+                    "distance": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "emphasis": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "none",
+                        "pulse",
+                        "shake",
+                        "wiggle",
+                        "bounce",
+                        "float",
+                        "glow"
+                      ]
+                    },
+                    "start": {
+                      "type": "number"
+                    },
+                    "period": {
+                      "type": "number"
+                    },
+                    "intensity": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "groups": {
+        "type": "array",
+        "description": "Editor groups: move / fade / hide / animate several elements together.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "members"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "visible": {
+              "type": "boolean"
+            },
+            "offset_x": {
+              "type": "number"
+            },
+            "offset_y": {
+              "type": "number"
+            },
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "animation": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "entrance": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "none",
+                        "fade",
+                        "slide_up",
+                        "slide_down",
+                        "slide_left",
+                        "slide_right",
+                        "pop",
+                        "zoom_in",
+                        "blur_in",
+                        "drop",
+                        "spin_in"
+                      ]
+                    },
+                    "start": {
+                      "type": "number"
+                    },
+                    "duration": {
+                      "type": "number"
+                    },
+                    "easing": {
+                      "enum": [
+                        "linear",
+                        "ease_in",
+                        "ease_out",
+                        "ease_in_out",
+                        "back_out"
+                      ]
+                    },
+                    "distance": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "exit": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "none",
+                        "fade",
+                        "slide_up",
+                        "slide_down",
+                        "slide_left",
+                        "slide_right",
+                        "zoom_out",
+                        "blur_out",
+                        "shrink"
+                      ]
+                    },
+                    "start": {
+                      "type": "number"
+                    },
+                    "duration": {
+                      "type": "number"
+                    },
+                    "easing": {
+                      "enum": [
+                        "linear",
+                        "ease_in",
+                        "ease_out",
+                        "ease_in_out",
+                        "back_out"
+                      ]
+                    },
+                    "distance": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "emphasis": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "none",
+                        "pulse",
+                        "shake",
+                        "wiggle",
+                        "bounce",
+                        "float",
+                        "glow"
+                      ]
+                    },
+                    "start": {
+                      "type": "number"
+                    },
+                    "period": {
+                      "type": "number"
+                    },
+                    "intensity": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "required": [

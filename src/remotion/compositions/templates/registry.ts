@@ -69,8 +69,9 @@ import { MP12RadiusRange } from './storybit/MP12RadiusRange';
 import { MP13TravelRoute } from './storybit/MP13TravelRoute';
 import { EM04ScribbleAnnotation } from './storybit/EM04ScribbleAnnotation';
 import { HC02FloatingCard } from './storybit/HC02FloatingCard';
+import { withEditable } from './storybit/core/editable';
 
-export const TEMPLATE_RENDERERS: Record<string, ComponentType<TemplateProps>> = {
+const STORYBIT_RENDERERS: Record<string, ComponentType<TemplateProps>> = {
   fs_title_card: FS01TitleCard,
   fs_title_metadata: FS03TitleMetadata,
   fs_big_number: FS04BigNumber,
@@ -133,6 +134,11 @@ export const TEMPLATE_RENDERERS: Record<string, ComponentType<TemplateProps>> = 
   em_scribble: EM04ScribbleAnnotation,
   hc_floating_card: HC02FloatingCard,
 };
+
+/** `props.elements` / `props.groups` apply per-element position, style, and extra animation. */
+export const TEMPLATE_RENDERERS: Record<string, ComponentType<TemplateProps>> = Object.fromEntries(
+  Object.entries(STORYBIT_RENDERERS).map(([type, Comp]) => [type, withEditable(Comp)]),
+);
 
 export function getTemplateRenderer(type: string): ComponentType<TemplateProps> | undefined {
   return TEMPLATE_RENDERERS[type];

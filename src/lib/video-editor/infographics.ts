@@ -2,6 +2,7 @@ import { EDITOR_FPS, framesToSeconds, secondsToFrame } from './fps';
 import { frameWindowSeconds, toSceneLocalSeconds } from './timings';
 import { iconNamesFromContentBinding, readIconNames } from '@/remotion/props';
 import { inferAnimationTypeFromCompositionId, isStorybitAnimationType, resolveAnimationType } from '@/remotion/animationTypes';
+import { storybitHeadline, templatePropsFromRemotionProps } from './storybitPropSync';
 import {
   defaultOverlayGeometry,
   fitOverlayBoxForIcons,
@@ -1135,6 +1136,20 @@ export function buildBeatAnimationUpdate(
   if (remotion?.renderEngineHint) payload.render_engine_hint = remotion.renderEngineHint;
   const motion = motionToBeatUpdate(props.motion);
   if (motion) payload.motion = motion;
+  if (isStorybitAnimationType(animationType)) {
+    const templateProps = templatePropsFromRemotionProps(props);
+    if (Object.keys(templateProps).length) payload.template_props = templateProps;
+    if (payload.display_text == null || payload.display_text === '') {
+      const headline = storybitHeadline(props);
+      if (headline) payload.display_text = headline;
+    }
+    if (!payload.icon_name && typeof props.icon === 'string' && props.icon.trim()) {
+      payload.icon_name = props.icon.trim();
+    }
+    const style = asRecord(props.style);
+    const textColor = typeof style?.text_color === 'string' ? style.text_color.trim() : '';
+    if (textColor) payload.color_hint = textColor;
+  }
   return payload;
 }
 

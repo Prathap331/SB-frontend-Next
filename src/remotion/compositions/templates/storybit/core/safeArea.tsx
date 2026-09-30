@@ -1,7 +1,8 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import { useId, type CSSProperties, type ReactNode } from 'react';
 import { useAutoFit } from './autofit';
+import { editsCss, useEdits } from './editable';
 
 /**
  * Storybit frame rules — every template follows these.
@@ -28,10 +29,15 @@ export function SafeArea({
 }) {
   // auto-fit (core/autofit.tsx): one translate + scale for everything inside, so small content fills the box
   const fit = useAutoFit();
+  // editor overrides (props.elements / props.groups), resolved for this frame
+  const edits = useEdits();
+  const scope = useId().replace(/[^A-Za-z0-9_-]/g, '');
+  const css = edits.length ? editsCss(edits, fit?.s ?? 1, scope) : '';
   const grown = fit && fit.s !== 1;
   return (
     <div
       data-sb-safe=""
+      data-sb-scope={scope}
       style={{
         position: 'absolute',
         left: SAFE_MARGIN,
@@ -42,6 +48,7 @@ export function SafeArea({
         ...style,
       }}
     >
+      {css ? <style>{css}</style> : null}
       {grown ? (
         <div style={{ position: 'absolute', left: 0, top: 0, width: SAFE_W, height: SAFE_H, transform: `translate(${fit.dx}px, ${fit.dy}px) scale(${fit.s})`, transformOrigin: '0 0' }}>{children}</div>
       ) : (

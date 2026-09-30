@@ -278,7 +278,7 @@ export interface EditVideoScene {
 
 /** A full-screen/callout text overlay suggested for one scene (distinct from a graphic infographic). */
 export interface EditVideoTextListItem {
-  /** Overlay id — used by DELETE /timeline/{video_id}/overlay/{id}. */
+  /** Overlay id from the edit-video payload. */
   id?: string | number;
   scene_id: string;
   beat_id?: string;
@@ -309,7 +309,7 @@ export interface EditVideoTextListItem {
 
 /** A Remotion-style graphic infographic suggested for one scene. */
 export interface EditVideoInfographicListItem {
-  /** Overlay id — used by DELETE /timeline/{video_id}/overlay/{id}. */
+  /** Overlay id from the edit-video payload. */
   id?: string | number;
   scene_id: string;
   beat_id?: string;
@@ -410,7 +410,7 @@ export interface SceneStyleUpdateResponse {
   background_color?: string | null;
   timeline: EditVideoTimeline;
   needs_render: boolean;
-  /** Overlay id for the customized text — used by DELETE /timeline/{video_id}/overlay/{id}. */
+  /** Overlay id for the customized text. */
   text_id?: string | number;
 }
 
@@ -470,7 +470,7 @@ export type BeatAnimationMotion = {
   motion_style?: string;
 };
 
-/** PATCH /timeline/{video_id}/scene/{scene_id}/beat/{beat_id}/animation — text & infographic overlays. */
+/** Beat animation payload for text & infographic overlays. */
 export interface BeatAnimationUpdate {
   animation_type?: string | null;
   placement?: string | null;
@@ -489,6 +489,8 @@ export interface BeatAnimationUpdate {
   highlight_target_text?: string | null;
   render_prompt?: string | null;
   render_engine_hint?: string | null;
+  /** Full Storybit template props (`title`, `icon`, `style`, lists, …). */
+  template_props?: Record<string, unknown> | null;
 }
 
 export interface BeatAnimationUpdateResponse {
@@ -2066,151 +2068,6 @@ export class ApiService {
     const data = await this.parseJsonOrThrow<unknown>(response, 'Edit video');
     const { normalizeEditVideoPayload } = await import('@/lib/video-editor/editVideoNormalize');
     return normalizeEditVideoPayload(data);
-  }
-
-  /** Update caption styling and/or scene background color via PATCH .../scene/{scene_id}/style. */
-  static async updateSceneStyle(
-    videoId: string,
-    sceneId: string,
-    payload: SceneStyleUpdate,
-  ): Promise<SceneStyleUpdateResponse> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/style`;
-    const response = await this.authorizedFetch(url, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-    return this.parseJsonOrThrow<SceneStyleUpdateResponse>(response, 'Update scene style');
-  }
-
-  /** Trim a scene's audio/caption window via PATCH .../scene/{scene_id}/trim. `start`/`end` are seconds relative to that scene's original clip. */
-  static async trimScene(
-    videoId: string,
-    sceneId: string,
-    payload: SceneTrimUpdate,
-  ): Promise<SceneTrimUpdateResponse> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/trim`;
-    const response = await this.authorizedFetch(url, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-    return this.parseJsonOrThrow<SceneTrimUpdateResponse>(response, 'Trim scene');
-  }
-
-  /** Change a scene's infographic/animation treatment via PATCH .../scene/{scene_id}/infographic. */
-  static async updateSceneInfographic(
-    videoId: string,
-    sceneId: string,
-    payload: SceneInfographicUpdate,
-  ): Promise<SceneInfographicUpdateResponse> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/infographic`;
-    const response = await this.authorizedFetch(url, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-    return this.parseJsonOrThrow<SceneInfographicUpdateResponse>(response, 'Update scene infographic');
-  }
-
-  /**
-   * Create or edit a text / infographic overlay via PATCH .../beat/{beat_id}/animation.
-   * At least one field is required; `animation_type` is required when creating a new overlay.
-   */
-  static async updateBeatAnimation(
-    videoId: string,
-    sceneId: string,
-    beatId: string,
-    payload: BeatAnimationUpdate,
-  ): Promise<BeatAnimationUpdateResponse> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/beat/${encodeURIComponent(beatId)}/animation`;
-    const response = await this.authorizedFetch(url, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-    return this.parseJsonOrThrow<BeatAnimationUpdateResponse>(response, 'Update beat animation');
-  }
-
-  /**
-   * Pick a specific b-roll candidate for a scene via PATCH .../scene/{scene_id}/broll.
-   * `asset_id` must already exist in that scene's media.videos/images results.
-   */
-  static async selectSceneBroll(
-    videoId: string,
-    sceneId: string,
-    payload: SceneBrollSelectUpdate,
-  ): Promise<SceneBrollSelectResponse> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/broll`;
-    const response = await this.authorizedFetch(url, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-    return this.parseJsonOrThrow<SceneBrollSelectResponse>(response, 'Select scene b-roll');
-  }
-
-  /** Split a b-roll "beat" into two clips via POST .../scene/{scene_id}/beat/{beat_id}/split. */
-  static async splitSceneBeat(
-    videoId: string,
-    sceneId: string,
-    beatId: string,
-    payload: SceneBeatSplitUpdate,
-  ): Promise<SceneBeatSplitResponse> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/beat/${encodeURIComponent(beatId)}/split`;
-    const response = await this.authorizedFetch(url, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    return this.parseJsonOrThrow<SceneBeatSplitResponse>(response, 'Split scene beat');
-  }
-
-  /** Register the boundaries of a beat's newly split-off second clip via POST .../scene/{scene_id}/beat/{beat_id}/insert. */
-  static async insertSceneBeat(
-    videoId: string,
-    sceneId: string,
-    beatId: string,
-    payload: SceneBeatInsertUpdate,
-  ): Promise<SceneBeatInsertResponse> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/beat/${encodeURIComponent(beatId)}/insert`;
-    const response = await this.authorizedFetch(url, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    return this.parseJsonOrThrow<SceneBeatInsertResponse>(response, 'Insert scene beat');
-  }
-
-  /**
-   * Insert a Pexels (Find more) asset onto the timeline via POST .../broll/insert.
-   * Unlike selectSceneBroll, the asset does not need to already exist in the scene's media list.
-   */
-  static async insertTimelineBroll(
-    videoId: string,
-    payload: TimelineBrollInsert,
-  ): Promise<TimelineBrollInsertResponse> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/broll/insert`;
-    const response = await this.authorizedFetch(url, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    return this.parseJsonOrThrow<TimelineBrollInsertResponse>(response, 'Insert b-roll');
-  }
-
-  /** Remove a video or image beat via DELETE .../scene/{scene_id}/content?content_type=&beat_id=. */
-  static async deleteSceneContent(
-    videoId: string,
-    sceneId: string,
-    params: { content_type: TimelineContentType; beat_id: string },
-  ): Promise<unknown> {
-    const query = new URLSearchParams({
-      content_type: params.content_type,
-      beat_id: params.beat_id,
-    });
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/scene/${encodeURIComponent(sceneId)}/content?${query.toString()}`;
-    const response = await this.authorizedFetch(url, { method: 'DELETE' });
-    return this.parseJsonOrThrow<unknown>(response, 'Delete scene content');
-  }
-
-  /** Remove an infographic or customized-text overlay via DELETE .../overlay/{id}. */
-  static async deleteTimelineOverlay(videoId: string, overlayId: string): Promise<unknown> {
-    const url = `${this.BASE_URL}/timeline/${encodeURIComponent(videoId)}/overlay/${encodeURIComponent(overlayId)}`;
-    const response = await this.authorizedFetch(url, { method: 'DELETE' });
-    return this.parseJsonOrThrow<unknown>(response, 'Delete overlay');
   }
 
   /**
