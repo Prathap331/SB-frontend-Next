@@ -6,6 +6,7 @@ import {
   wrapEnglishScript,
   type ScriptLanguageMap,
 } from '@/lib/script-data';
+import { DEFAULT_SCRIPT_LANGUAGE, scriptLanguageKey } from '@/lib/script-languages';
 
 function normalizeScriptForMatch(raw: unknown): string {
   return getScriptTextFromMap(parseScriptLanguageMap(raw)).replace(/\s+/g, ' ').trim();
@@ -17,6 +18,120 @@ export const THUMBNAIL_GENERATED_COLUMN = 'thumbnail-generated';
 /** Select list for script rows — hyphenated column must be quoted for PostgREST */
 export const SCRIPT_ROW_SELECT =
   `id, title, topic, description, script, youtube_metadata, thumbnail, metrics, sources, books, structure, category, sub_category, script_audio, "${THUMBNAIL_GENERATED_COLUMN}"`;
+
+export const DUPLICATE_DURATION_LANGUAGE_MESSAGE =
+  'A script already exists for the same duration and language.';
+
+type ScriptDuplicateRow = {
+  id?: string | number | null;
+  title?: string | null;
+  metrics?: { videoLength?: unknown; language?: unknown } | null;
+  script?: unknown;
+};
+
+function durationMinutesFromMetrics(metrics: ScriptDuplicateRow['metrics']): number | null {
+  const n = Number(metrics?.videoLength);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n);
+}
+
+function languagesOnScriptRow(row: ScriptDuplicateRow): Set<string> {
+  const keys = new Set<string>();
+  const fromMetrics = String(row.metrics?.language ?? '').trim();
+  if (fromMetrics) keys.add(scriptLanguageKey(fromMetrics));
+  const map = parseScriptLanguageMap(row.script);
+  for (const key of Object.keys(map)) keys.add(scriptLanguageKey(key));
+  if (keys.size === 0) keys.add(DEFAULT_SCRIPT_LANGUAGE);
+  return keys;
+}
+
+export function scriptRowMatchesDurationAndLanguage(
+  row: ScriptDuplicateRow,
+  opts: { title: string; durationMinutes: number; language: string },
+): boolean {
+  const rowTitle = (row.title || '').trim().toLowerCase();
+  if (!rowTitle || rowTitle !== opts.title.trim().toLowerCase()) return false;
+  const duration = durationMinutesFromMetrics(row.metrics);
+  if (duration == null || duration !== Math.round(opts.durationMinutes)) return false;
+  return languagesOnScriptRow(row).has(scriptLanguageKey(opts.language));
+}
+
+async function fetchDuplicateCandidateRows(opts: {
+  userId: string;
+  authHeader?: string | null;
+}): Promise<ScriptDuplicateRow[]> {
+  const authHeader = opts.authHeader?.trim();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (authHeader && supabaseUrl && anonKey) {
+    const headers: HeadersInit = {
+      Accept: 'application/json',
+      apikey: anonKey,
+      Authorization: authHeader,
+    };
+    const query = `userId=eq.${encodeURIComponent(opts.userId)}&select=id,title,metrics,script&limit=400`;
+    const [universalRes, assignedRes] = await Promise.all([
+      fetch(`${supabaseUrl}/rest/v1/scripts_universal?${query}`, { headers }),
+      fetch(`${supabaseUrl}/rest/v1/scripts_assigned?${query}`, { headers }),
+    ]);
+    const universal = universalRes.ok ? await universalRes.json().catch(() => []) : [];
+    const assigned = assignedRes.ok ? await assignedRes.json().catch(() => []) : [];
+    return [
+      ...(Array.isArray(universal) ? universal : []),
+      ...(Array.isArray(assigned) ? assigned : []),
+    ];
+  }
+
+  const [universal, assigned] = await Promise.all([
+    supabase
+      .from('scripts_universal')
+      .select('id, title, metrics')
+      .eq('userId', opts.userId)
+      .order('created_at', { ascending: false })
+      .limit(400),
+    supabase
+      .from('scripts_assigned')
+      .select('id, title, metrics, script')
+      .eq('userId', opts.userId)
+      .order('created_at', { ascending: false })
+      .limit(400),
+  ]);
+  if (universal.error) console.error('[scripts_universal duplicate lookup]', universal.error.message);
+  if (assigned.error) console.error('[scripts_assigned duplicate lookup]', assigned.error.message);
+  return [...(universal.data ?? []), ...(assigned.data ?? [])] as ScriptDuplicateRow[];
+}
+
+/** True when this user already has a generated script for the same idea title, minutes, and language. */
+export async function findDuplicateGeneratedScript(opts: {
+  userId: string;
+  title: string;
+  durationMinutes: number;
+  language: string;
+  authHeader?: string | null;
+}): Promise<boolean> {
+  const title = opts.title.trim();
+  const durationMinutes = Math.round(opts.durationMinutes);
+  if (!opts.userId || !title || !Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+    return false;
+  }
+  try {
+    const rows = await fetchDuplicateCandidateRows({
+      userId: opts.userId,
+      authHeader: opts.authHeader,
+    });
+    return rows.some((row) =>
+      scriptRowMatchesDurationAndLanguage(row, {
+        title,
+        durationMinutes,
+        language: opts.language,
+      }),
+    );
+  } catch (err) {
+    console.error('[duplicate script lookup]', err);
+    return false;
+  }
+}
 
 function asTrimmedString(value: unknown): string {
   if (value == null) return '';
@@ -300,6 +415,10 @@ export async function saveScriptToUniversal(
   data: GeneratedScriptData,
   opts: { title?: string; topic?: string; description?: string; userId: string },
 ): Promise<string | null> {
+  if (!String(data.script ?? '').trim()) {
+    console.error('[scripts_universal insert] skipped: script is null/empty');
+    return null;
+  }
   const row = buildScriptTableRow(data, opts);
   const { data: inserted, error } = await supabase
     .from('scripts_universal')

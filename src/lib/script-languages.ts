@@ -31,6 +31,16 @@ export const SCRIPT_LANGUAGES: ScriptLanguageOption[] = VOICE_CLONE_LANGUAGES.ma
 
 export const DEFAULT_SCRIPT_LANGUAGE = 'english';
 
+/** Normalize picker value, API name, or stored key → jsonb key (`english`). */
+export function scriptLanguageKey(value: string): string {
+  const raw = (value || DEFAULT_SCRIPT_LANGUAGE).trim().toLowerCase();
+  if (!raw) return DEFAULT_SCRIPT_LANGUAGE;
+  if (SCRIPT_LANGUAGES.some((lang) => lang.value === raw)) return raw;
+  const byLabel = SCRIPT_LANGUAGES.find((lang) => lang.label.toLowerCase() === raw);
+  if (byLabel) return byLabel.value;
+  return raw.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || DEFAULT_SCRIPT_LANGUAGE;
+}
+
 /** ISO-ish codes for /generate-speech langCode (keyed by script jsonb language) */
 const SCRIPT_LANGUAGE_CODES: Record<string, string> = {
   ...Object.fromEntries(

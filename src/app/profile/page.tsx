@@ -1265,7 +1265,7 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
             {activeTab === 'thumbnails' && (
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
                 <div className="px-6 py-5 border-b border-gray-100">
-                  <h2 className={`${embedded ? 'text-lg sm:text-xl' : 'text-sm'} font-semibold text-[#1d1d1f]`}>Thumbnail Photos</h2>
+                  <h2 className={`${embedded ? 'text-lg sm:text-xl' : 'text-sm'} font-semibold text-[#1d1d1f]`}>Your Photos on Thumbnail</h2>
                   <p className={`${embedded ? 'text-sm mt-1' : 'text-[11px] mt-0.5'} text-[#6e6e73] font-light`}>Upload and manage photos for your video thumbnails</p>
                 </div>
 

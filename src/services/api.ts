@@ -929,6 +929,8 @@ export interface ProcessTopicResponse {
   ideas: string[];
   descriptions: string[];
   topic_summary?: string | null;
+  /** Topic-level category from /generate-ideas — sent to /save-ideas as `category` */
+  topic_category?: string | null;
   similar_past_ideas?: SimilarPastIdea[];
   sources?: string[];
   books?: BookReference[];
@@ -948,6 +950,8 @@ export interface UnusedIdeasPayload {
   topic: string;
   /** Required by /save-ideas — use "" when no summary is available */
   topic_summary: string;
+  /** From /generate-ideas `topic_category` */
+  category?: string;
   sources: IdeaSourceReference[];
   books: BookReference[];
   ideas: UnusedIdea[];
@@ -973,6 +977,19 @@ export function normalizeSourcesForSave(
       return null;
     })
     .filter((s): s is IdeaSourceReference => !!s);
+}
+
+/** /generate-ideas `topic_category` → /save-ideas `category` string */
+export function normalizeTopicCategory(raw: unknown): string {
+  if (typeof raw === 'string') return raw.trim();
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const obj = raw as Record<string, unknown>;
+    for (const key of ['name', 'label', 'category', 'topic_category', 'value']) {
+      const value = obj[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+  }
+  return '';
 }
 
 export interface SignUpRequest {
@@ -1111,6 +1128,8 @@ export type GeneratedScriptData = {
     researchFacts?: number;
     lawsIncluded?: number;
     keywords?: string[];
+    /** Language key used at generation time, e.g. "english" */
+    language?: string;
   };
   /** New SEO section from /generate-script */
   youtube_metadata?: YoutubeMetadata;
@@ -1531,6 +1550,7 @@ export class ApiService {
         ideas,
         descriptions,
         topic_summary: data?.topic_summary ?? null,
+        topic_category: normalizeTopicCategory(data?.topic_category) || null,
         similar_past_ideas: Array.isArray(data?.similar_past_ideas)
           ? data.similar_past_ideas
           : [],
@@ -1544,6 +1564,7 @@ export class ApiService {
       ideas: rawIdeas,
       descriptions: Array.isArray(data?.descriptions) ? data.descriptions : [],
       topic_summary: data?.topic_summary ?? null,
+      topic_category: normalizeTopicCategory(data?.topic_category) || null,
       similar_past_ideas: Array.isArray(data?.similar_past_ideas)
         ? data.similar_past_ideas
         : [],
@@ -1611,7 +1632,7 @@ export class ApiService {
    * Fire-and-forget keepalive POST of unused ideas to /save-ideas.
    * Synchronous so it survives page unload (tab close / SPA navigation).
    * The payload mirrors the /generate-ideas response shape plus userId:
-   * { topic, topic_summary, sources, books, ideas: [{ title, description }], userId }.
+   * { topic, topic_summary, category, sources, books, ideas: [{ title, description }], userId }.
    */
   static sendUnusedIdeasKeepalive(
     payload: UnusedIdeasPayload,
@@ -1626,6 +1647,7 @@ export class ApiService {
       ...payload,
       topic_summary:
         typeof payload.topic_summary === 'string' ? payload.topic_summary : '',
+      category: typeof payload.category === 'string' ? payload.category : '',
       sources: normalizeSourcesForSave(payload.sources),
       books: Array.isArray(payload.books) ? payload.books : [],
     };
@@ -1672,6 +1694,7 @@ export class ApiService {
       topic: payload.topic,
       topic_summary:
         typeof payload.topic_summary === 'string' ? payload.topic_summary : '',
+      category: typeof payload.category === 'string' ? payload.category : '',
       sources: normalizeSourcesForSave(payload.sources),
       books: Array.isArray(payload.books) ? payload.books : [],
       ideas: payload.ideas,
@@ -1722,6 +1745,16 @@ export class ApiService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        let apiError = '';
+        try {
+          const parsed = JSON.parse(errorText) as { error?: unknown };
+          if (typeof parsed.error === 'string' && parsed.error.trim()) {
+            apiError = parsed.error.trim();
+          }
+        } catch {
+          /* not json */
+        }
+        if (apiError) throw new Error(apiError);
         if (response.status === 405) throw new Error('Method Not Allowed (405).');
         if (response.status === 502) throw new Error('Server temporarily unavailable (502 Bad Gateway).');
         if (response.status === 404) throw new Error('API endpoint not found (404).');

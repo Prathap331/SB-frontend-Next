@@ -50,6 +50,11 @@ export type LegacySceneLike = {
     end: number;
     assetUrl: string;
     source: 'video' | 'image';
+    assetId?: number;
+    width?: number;
+    height?: number;
+    photographer?: string;
+    query?: string;
     motionType?: string;
     kenBurns?: TimelineClip['kenBurns'];
   }[];
@@ -169,6 +174,11 @@ function buildBrollClipsFromBeats(scene: LegacySceneLike): TimelineClip[] {
       originalSourceDuration: dur,
       sceneId: scene.id,
       beatId: beat.beatId,
+      assetId: beat.assetId,
+      mediaQuery: beat.query,
+      mediaWidth: beat.width,
+      mediaHeight: beat.height,
+      photographer: beat.photographer,
       kenBurns: beat.kenBurns,
     });
   });

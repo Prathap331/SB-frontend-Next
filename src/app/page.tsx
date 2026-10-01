@@ -120,7 +120,7 @@ export default function Home() {
       <Header />
 
       {/* ── Hero ── */}
-      <section className="relative h-[91vh] flex items-center justify-center overflow-hidden bg-[#f5f5f7] pt-10 pb-4 sm:pt-10 sm:pb-6 md:pt-14 md:pb-16 px-5 sm:px-8">
+      <section className="relative h-[91vh] flex items-center justify-center overflow-hidden bg-[#f5f5f7]  pb-4  sm:pb-6 md:pb-16 px-5 sm:px-8">
         {/* subtle radial glow */}
         <div
           aria-hidden
@@ -129,7 +129,7 @@ export default function Home() {
           <div className="w-[min(800px,100vw)] h-[400px] rounded-full " />
         </div>
 
-        <div className="relative max-w-4xl mx-auto text-center">
+        <div className="relative max-w-4xl  text-center">
 
           <div className='flex flex-wrap sm:gap-2 mx-auto justify-center'>
             <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 text-black text-md font-medium px-3.5 py-1 rounded-full my-2 sm:my-4 shadow-sm">

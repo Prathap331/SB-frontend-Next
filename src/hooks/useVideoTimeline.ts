@@ -166,13 +166,15 @@ export function useVideoTimeline(initial?: TimelineState) {
     });
   }, [commit]);
 
-  const duplicateSelected = useCallback(() => {
+  const duplicateSelected = useCallback((patch?: Partial<TimelineClip>): TimelineClip | null => {
+    let created: TimelineClip | null = null;
     commit((prev) => {
       const id = prev.selectedClipIds[0];
       if (!id) return prev;
       const found = findClip(prev, id);
       if (!found || found.track.locked) return prev;
-      const dup = duplicateClip(found.clip, uid('dup'));
+      const dup: TimelineClip = { ...duplicateClip(found.clip, uid('dup')), ...patch };
+      created = dup;
       const tracks = prev.tracks.map((t) =>
         t.id === found.track.id ? { ...t, clips: [...t.clips, dup] } : t,
       );
@@ -183,6 +185,7 @@ export function useVideoTimeline(initial?: TimelineState) {
         duration: recomputeTimelineDuration(tracks, prev.duration),
       };
     });
+    return created;
   }, [commit]);
 
   const splitSelectedAtPlayhead = useCallback(() => {

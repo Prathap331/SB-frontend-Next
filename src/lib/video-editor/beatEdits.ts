@@ -68,6 +68,29 @@ function parseWxH(meta?: string | null): { width: number; height: number } {
   };
 }
 
+/** Pull Pexels id / dimensions out of a file URL when the clip never stored them. */
+export function pexelsMediaMetaFromUrl(url?: string | null): {
+  mediaId?: number;
+  width?: number;
+  height?: number;
+} {
+  const value = (url || '').trim();
+  if (!value) return {};
+  const videoFile = value.match(/\/video-files\/(\d+)\/[^/?#]*_(\d+)_(\d+)_/i);
+  if (videoFile) {
+    return {
+      mediaId: Number(videoFile[1]),
+      width: Number(videoFile[2]),
+      height: Number(videoFile[3]),
+    };
+  }
+  const photos = value.match(/\/photos\/(\d+)\//i);
+  if (photos) return { mediaId: Number(photos[1]) };
+  const slug = value.match(/pexels\.com\/(?:video|photo)\/[^/?#]*-(\d+)\/?$/i);
+  if (slug) return { mediaId: Number(slug[1]) };
+  return {};
+}
+
 /** Body for POST /edit/{videoId}/{sceneId}/{beatId}/add-media. */
 export function beatAddMediaPayload(input: {
   mediaId?: number | null;
@@ -81,15 +104,16 @@ export function beatAddMediaPayload(input: {
   meta?: string | null;
 }): BeatAddMediaPayload {
   const parsed = parseWxH(input.meta);
+  const fromUrl = pexelsMediaMetaFromUrl(input.mediaUrl);
   const mediaType = (input.mediaType || '').trim().toLowerCase();
   const isImage = mediaType === 'image' || mediaType === 'photo';
   return {
-    media_id: finiteNumber(input.mediaId, 0),
+    media_id: finiteNumber(input.mediaId, 0) || fromUrl.mediaId || 0,
     media_type: isImage ? 'photo' : 'video',
     media_url: (input.mediaUrl || '').trim(),
     query: (input.query || '').trim(),
-    width: finiteNumber(input.width, parsed.width),
-    height: finiteNumber(input.height, parsed.height),
+    width: finiteNumber(input.width, parsed.width) || fromUrl.width || 0,
+    height: finiteNumber(input.height, parsed.height) || fromUrl.height || 0,
     duration: isImage ? 0 : finiteNumber(input.duration, 0),
     photographer: (input.photographer || '').trim(),
   };

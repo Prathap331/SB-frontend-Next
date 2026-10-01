@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import { ApiService, normalizeSourcesForSave, type GeneratedScriptData } from '@/services/api';
+import { ApiService, normalizeSourcesForSave, normalizeTopicCategory, type GeneratedScriptData } from '@/services/api';
 import { normalizeScriptData } from '@/lib/script-data';
 import { SCRIPT_ROW_SELECT } from '@/lib/script-persistence';
 import { SCRIPT_ROW_SELECT_LOCKED, lockedScriptPlaceholder } from '@/lib/script-security';
@@ -35,8 +35,12 @@ export type TopicWorkspace = {
   ideas: MergedIdea[];
   createdAt: string | null;
   topicSummary?: string | null;
+  /** Topic-level category from /generate-ideas (`topic_category` → saved as `category`) */
+  category?: string | null;
   sources?: string[];
   books?: { title: string; author: string }[];
+  /** True when ideas were loaded from another user's saved_ideas topic */
+  shared?: boolean;
 };
 
 /**
@@ -51,6 +55,7 @@ type SavedIdeaRow = {
   ideas: unknown;
   userId: string | null;
   topic_summary?: string | null;
+  category?: string | null;
   sources?: string[] | null;
   books?: { title: string; author: string }[] | null;
 };
@@ -85,7 +90,7 @@ function coerceIdeasRaw(raw: unknown): unknown {
   return raw;
 }
 
-function normalizeIdeasJson(raw: unknown): ScriptIdeaBase[] {
+export function normalizeIdeasJson(raw: unknown): ScriptIdeaBase[] {
   const parsed = coerceIdeasRaw(raw);
   if (!Array.isArray(parsed) || parsed.length === 0) return [];
 
@@ -269,6 +274,7 @@ export async function saveTopicIdeasToDb(
   ideas: ScriptIdeaBase[],
   opts?: {
     topicSummary?: string | null;
+    category?: string | null;
     userId?: string | null;
     sources?: string[] | null;
     books?: { title: string; author: string }[] | null;
@@ -288,6 +294,7 @@ export async function saveTopicIdeasToDb(
       topic: trimmed,
       topic_summary:
         typeof opts?.topicSummary === 'string' ? opts.topicSummary : '',
+      category: typeof opts?.category === 'string' ? opts.category : '',
       sources: normalizeSourcesForSave(opts?.sources),
       books: Array.isArray(opts?.books) ? opts.books : [],
       userId,
@@ -454,13 +461,30 @@ export async function loadTopicWorkspace(
   const uid = await resolveUserId(userId);
   if (!trimmed || !uid) return null;
 
-  const { data, error } = await supabase
+  const SAVED_IDEAS_SELECT =
+    'id, created_at, topic, ideas, userId, topic_summary, category, sources, books';
+  const SAVED_IDEAS_SELECT_FALLBACK =
+    'id, created_at, topic, ideas, userId, topic_summary, sources, books';
+
+  let { data, error } = await supabase
     .from('saved_ideas')
-    .select('id, created_at, topic, ideas, userId, topic_summary, sources, books')
+    .select(SAVED_IDEAS_SELECT)
     .eq('userId', uid)
     .eq('topic', trimmed)
     .order('created_at', { ascending: false })
     .limit(1);
+
+  if (error) {
+    const retry = await supabase
+      .from('saved_ideas')
+      .select(SAVED_IDEAS_SELECT_FALLBACK)
+      .eq('userId', uid)
+      .eq('topic', trimmed)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) {
     console.error('[saved_ideas load]', error.message, error);
@@ -472,17 +496,26 @@ export async function loadTopicWorkspace(
     // Case-insensitive fallback: topic strings may differ in casing
     const { data: allForUser, error: listErr } = await supabase
       .from('saved_ideas')
-      .select('id, created_at, topic, ideas, userId, topic_summary, sources, books')
+      .select(SAVED_IDEAS_SELECT)
       .eq('userId', uid)
       .order('created_at', { ascending: false })
       .limit(100);
 
-    if (listErr) {
-      console.error('[saved_ideas load fallback]', listErr.message);
+    const list = listErr
+      ? await supabase
+          .from('saved_ideas')
+          .select(SAVED_IDEAS_SELECT_FALLBACK)
+          .eq('userId', uid)
+          .order('created_at', { ascending: false })
+          .limit(100)
+      : { data: allForUser, error: listErr };
+
+    if (list.error) {
+      console.error('[saved_ideas load fallback]', list.error.message);
       return null;
     }
 
-    const match = ((allForUser ?? []) as SavedIdeaRow[]).find(
+    const match = ((list.data ?? []) as SavedIdeaRow[]).find(
       (r) => (r.topic || '').trim().toLowerCase() === trimmed.toLowerCase(),
     );
     if (!match) return null;
@@ -499,6 +532,7 @@ export async function loadTopicWorkspace(
       void saveTopicIdeasToDb(match.topic.trim(), merged, {
         userId: uid,
         topicSummary: match.topic_summary ?? '',
+        category: normalizeTopicCategory(match.category),
         sources: Array.isArray(match.sources) ? match.sources : [],
         books: Array.isArray(match.books) ? match.books : [],
       });
@@ -508,6 +542,7 @@ export async function loadTopicWorkspace(
       ideas: merged,
       createdAt: match.created_at ?? null,
       topicSummary: match.topic_summary ?? null,
+      category: normalizeTopicCategory(match.category) || null,
       sources: normalizeSavedSources(match.sources),
       books: normalizeSavedBooks(match.books),
     };
@@ -525,6 +560,7 @@ export async function loadTopicWorkspace(
     void saveTopicIdeasToDb(trimmed, merged, {
       userId: uid,
       topicSummary: row.topic_summary ?? '',
+      category: normalizeTopicCategory(row.category),
       sources: Array.isArray(row.sources) ? row.sources : [],
       books: Array.isArray(row.books) ? row.books : [],
     });
@@ -535,6 +571,7 @@ export async function loadTopicWorkspace(
     ideas: merged,
     createdAt: row.created_at ?? null,
     topicSummary: row.topic_summary ?? null,
+    category: normalizeTopicCategory(row.category) || null,
     sources: normalizeSavedSources(row.sources),
     books: normalizeSavedBooks(row.books),
   };

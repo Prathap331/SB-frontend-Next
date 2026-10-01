@@ -146,6 +146,11 @@ function idStr(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+function asPositiveInt(value: unknown): number | undefined {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : undefined;
+}
+
 function clipsFromBrollTracks(
   sceneId: string,
   tracks: EditVideoTimelineTrack[],
@@ -186,9 +191,10 @@ function clipsFromBrollTracks(
         originalSourceDuration: dur,
         sceneId,
         beatId,
-        assetId: typeof asset?.asset_id === 'number' ? asset.asset_id : undefined,
-        mediaWidth: typeof asset?.width === 'number' ? asset.width : undefined,
-        mediaHeight: typeof asset?.height === 'number' ? asset.height : undefined,
+        assetId: asPositiveInt(asset?.asset_id),
+        mediaWidth: asPositiveInt(asset?.width),
+        mediaHeight: asPositiveInt(asset?.height),
+        photographer: str(asset?.photographer) || undefined,
       });
     })
     .filter((c) => Boolean(c.sourceUrl));

@@ -95,6 +95,13 @@ export function mergeScriptLanguage(
   return { ...map, [key]: value };
 }
 
+export const SCRIPT_NULL_RETRY_ERROR = 'the script came null please try again';
+
+/** True when the generator returned no usable script body (null, empty, or blank map). */
+export function isGeneratedScriptEmpty(raw: unknown): boolean {
+  return !extractScriptText(raw).trim();
+}
+
 export function extractScriptText(raw: any): string {
   if (!raw) return '';
   if (typeof raw === 'object' && !Array.isArray(raw)) {

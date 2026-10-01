@@ -21,6 +21,7 @@ import {
 import {
   VOICE_CLONE_LANGUAGES,
   getVoiceCloneLanguage,
+  isVoiceCloneLanguageAvailable,
   isVoiceCloneRtl,
 } from '@/lib/voice-clone-languages';
 import { convertBlobToWav } from '@/lib/audio-wav';
@@ -95,13 +96,19 @@ export function VoiceCloneModal({
     [savedSamples],
   );
   const recordedCount = savedSamples.length + (currentTakeReady ? 1 : 0);
-  const canRecordAnotherLanguage =
-    currentTakeReady && savedSamples.length < VOICE_CLONE_MAX_LANGUAGES - 1;
 
   const availableLanguages = useMemo(
     () => VOICE_CLONE_LANGUAGES.filter((lang) => !savedCodes.has(lang.code)),
     [savedCodes],
   );
+  const selectableLanguages = useMemo(
+    () => availableLanguages.filter((lang) => isVoiceCloneLanguageAvailable(lang.code)),
+    [availableLanguages],
+  );
+  const canRecordAnotherLanguage =
+    currentTakeReady &&
+    savedSamples.length < VOICE_CLONE_MAX_LANGUAGES - 1 &&
+    selectableLanguages.length > 0;
 
   const filteredLanguages = useMemo(() => {
     const q = langSearch.trim().toLowerCase();
@@ -261,6 +268,7 @@ export function VoiceCloneModal({
   const selectLanguage = useCallback(
     (code: string) => {
       if (isRecording || cloneBusy) return;
+      if (!isVoiceCloneLanguageAvailable(code)) return;
       setSelectedCode(code);
       setLangMenuOpen(false);
       setLangSearch('');
@@ -451,25 +459,39 @@ export function VoiceCloneModal({
                   </li>
                 ) : (
                   filteredLanguages.map((lang) => {
+                    const available = isVoiceCloneLanguageAvailable(lang.code);
                     const isActive = lang.code === selectedCode;
                     return (
-                      <li key={lang.code}>
+                      <li
+                        key={lang.code}
+                        role="option"
+                        aria-selected={isActive}
+                        aria-disabled={!available}
+                      >
                         <button
                           type="button"
-                          role="option"
-                          aria-selected={isActive}
-                          onClick={() => selectLanguage(lang.code)}
-                          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-[#f5f5f7]"
+                          disabled={!available}
+                          onClick={() => {
+                            if (!available) return;
+                            selectLanguage(lang.code);
+                          }}
+                          className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm ${
+                            available
+                              ? `text-[#1d1d1f] hover:bg-[#f5f5f7] ${isActive ? 'font-semibold' : ''}`
+                              : 'cursor-not-allowed text-[#86868b]'
+                          }`}
                         >
-                          <span className="text-sm text-[#1d1d1f] font-medium min-w-0 truncate">
-                            {lang.name}
-                          </span>
-                          <span className="flex items-center gap-2 flex-shrink-0">
-                            <span className="text-[11px] font-mono text-[#6e6e73] bg-[#f5f5f7] border border-gray-100 rounded-md px-2 py-0.5">
-                              {lang.code}
+                          <span className="min-w-0 truncate">{lang.name}</span>
+                          {available ? (
+                            <span className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-[11px] font-mono text-[#6e6e73] bg-[#f5f5f7] border border-gray-100 rounded-md px-2 py-0.5">
+                                {lang.code}
+                              </span>
+                              {isActive && <Check className="w-4 h-4 text-[#1d1d1f]" />}
                             </span>
-                            {isActive && <Check className="w-4 h-4 text-[#1d1d1f]" />}
-                          </span>
+                          ) : (
+                            <span className="ml-auto flex-shrink-0 text-[11px] leading-none">🔜</span>
+                          )}
                         </button>
                       </li>
                     );

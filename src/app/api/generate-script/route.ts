@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBackendUrl } from '@/lib/backend';
-import { normalizeScriptData } from '@/lib/script-data';
-import { buildScriptTableRow } from '@/lib/script-persistence';
+import {
+  isGeneratedScriptEmpty,
+  normalizeScriptData,
+  SCRIPT_NULL_RETRY_ERROR,
+} from '@/lib/script-data';
+import {
+  buildScriptTableRow,
+  DUPLICATE_DURATION_LANGUAGE_MESSAGE,
+  findDuplicateGeneratedScript,
+} from '@/lib/script-persistence';
+import { DEFAULT_SCRIPT_LANGUAGE, scriptLanguageKey } from '@/lib/script-languages';
 import { redactGeneratedScriptForClient } from '@/lib/script-security';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +25,8 @@ async function persistUniversal(
     title?: string;
     description?: string;
     topic?: string;
+    time?: unknown;
+    language?: string;
   },
   authHeader: string | null,
 ): Promise<string | null> {
@@ -23,13 +34,30 @@ async function persistUniversal(
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!userId || !supabaseUrl || !anonKey || !authHeader) return null;
+  if (!String(data.script ?? '').trim()) return null;
 
-  const row = buildScriptTableRow(data, {
-    userId,
-    title: body.title || data.title,
-    topic: body.topic || body.title || data.title,
-    description: body.description,
-  });
+  const requestedMinutes = Number(body.time);
+  const existingLength = Number(data.metrics?.videoLength);
+  const metrics = {
+    ...(data.metrics && typeof data.metrics === 'object' ? data.metrics : {}),
+    videoLength:
+      existingLength > 0
+        ? existingLength
+        : Number.isFinite(requestedMinutes) && requestedMinutes > 0
+          ? requestedMinutes
+          : existingLength,
+    language: scriptLanguageKey(body.language || DEFAULT_SCRIPT_LANGUAGE),
+  };
+
+  const row = buildScriptTableRow(
+    { ...data, metrics },
+    {
+      userId,
+      title: body.title || data.title,
+      topic: body.topic || body.title || data.title,
+      description: body.description,
+    },
+  );
 
   try {
     const res = await fetch(`${supabaseUrl}/rest/v1/scripts_universal`, {
@@ -69,6 +97,29 @@ export async function POST(request: NextRequest) {
       Accept: 'application/json',
     };
     if (authHeader) headers['Authorization'] = authHeader;
+
+    const userId = typeof body.userId === 'string' ? body.userId.trim() : '';
+    const title = typeof body.title === 'string' ? body.title : '';
+    const durationMinutes = Number(body.time);
+    const language =
+      typeof body.language === 'string' && body.language.trim()
+        ? body.language
+        : DEFAULT_SCRIPT_LANGUAGE;
+    if (userId && title && Number.isFinite(durationMinutes) && durationMinutes > 0) {
+      const duplicate = await findDuplicateGeneratedScript({
+        userId,
+        title,
+        durationMinutes,
+        language,
+        authHeader,
+      });
+      if (duplicate) {
+        return NextResponse.json(
+          { error: DUPLICATE_DURATION_LANGUAGE_MESSAGE },
+          { status: 409 },
+        );
+      }
+    }
 
     controller = new AbortController();
     timeoutId = setTimeout(() => {
@@ -130,6 +181,9 @@ export async function POST(request: NextRequest) {
 
     // Full script stays on the server (persisted) — never forwarded to the browser
     const normalized = normalizeScriptData(data);
+    if (isGeneratedScriptEmpty(data) || !String(normalized.script ?? '').trim()) {
+      return NextResponse.json({ error: SCRIPT_NULL_RETRY_ERROR }, { status: 422 });
+    }
     const scriptRowId = await persistUniversal(
       normalized,
       {
@@ -137,6 +191,8 @@ export async function POST(request: NextRequest) {
         title: typeof body.title === 'string' ? body.title : undefined,
         description: typeof body.description === 'string' ? body.description : undefined,
         topic: typeof body.topic === 'string' ? body.topic : undefined,
+        time: body.time,
+        language: typeof body.language === 'string' ? body.language : undefined,
       },
       authHeader,
     );

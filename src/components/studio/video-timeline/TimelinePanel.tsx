@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import type { UseVideoTimelineReturn } from '@/hooks/useVideoTimeline';
 import type { TimelineClip } from '@/lib/video-editor/types';
 import { TimelineRuler } from './TimelineRuler';
@@ -21,14 +21,17 @@ type Props = {
   hiddenTrackIds?: string[];
   /** Fired right after a clip is split, with the pre-split clip and the split point (scene-local seconds). */
   onClipSplit?: (clip: TimelineClip, splitAt: number) => void;
+  /** Fired after a clip is duplicated so the editor can queue /add-media. */
+  onClipDuplicate?: (source: TimelineClip) => void;
   /** Replaces the default delete (e.g. to also sync deletions to the backend). */
   onDelete?: () => void;
-  /** Project time (seconds) at the left edge of this scene's timeline. */
+  /** 60fps clock from the preview — keeps the orange bar moving without a full re-render. */
+  visualTimeRef?: MutableRefObject<number>;
 };
 
 const LABEL_WIDTH = 148;
 
-export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sceneLabel, hiddenTrackIds, onClipSplit, onDelete }: Props) {
+export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sceneLabel, hiddenTrackIds, onClipSplit, onClipDuplicate, onDelete, visualTimeRef }: Props) {
   const {
     timeline,
     snapGuide,
@@ -54,6 +57,15 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
 
   /** One shared scroller keeps track labels and clip rows pixel-aligned. */
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rulerPlayheadRef = useRef<HTMLDivElement>(null);
+  const tracksPlayheadRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+  const ppsRef = useRef(timeline.pixelsPerSecond);
+  const durationRef = useRef(timeline.duration);
+  const timeRef = useRef(timeline.currentTime);
+  ppsRef.current = timeline.pixelsPerSecond;
+  durationRef.current = timeline.duration;
+  if (!isPlaying && !draggingRef.current) timeRef.current = timeline.currentTime;
 
   const contentWidth = useMemo(
     () => Math.max(640, timeline.duration * timeline.pixelsPerSecond + 120),
@@ -75,6 +87,13 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
     if (clip) onClipSplit?.(clip, splitAt);
   }, [timeline, splitSelectedAtPlayhead, onClipSplit]);
 
+  const handleDuplicate = useCallback(() => {
+    const id = timeline.selectedClipIds[0];
+    const source = id ? timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === id) : undefined;
+    duplicateSelected();
+    if (source) onClipDuplicate?.(source);
+  }, [timeline, duplicateSelected, onClipDuplicate]);
+
   const onPointerDelta = useCallback(
     (deltaPx: number, disableSnap: boolean) => {
       applyPointerDelta(deltaPx, { disableSnap });
@@ -82,47 +101,139 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
     [applyPointerDelta],
   );
 
+  const paintPlayhead = useCallback((time: number) => {
+    const x = `translate3d(${time * ppsRef.current}px, 0, 0)`;
+    if (rulerPlayheadRef.current) rulerPlayheadRef.current.style.transform = x;
+    if (tracksPlayheadRef.current) tracksPlayheadRef.current.style.transform = x;
+  }, []);
+
+  const keepPlayheadVisible = useCallback((time: number, instant = true) => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const visible = scroller.clientWidth - LABEL_WIDTH;
+    if (visible <= 0) return;
+    const playheadX = time * ppsRef.current;
+    const pad = 28;
+    const viewLeft = scroller.scrollLeft;
+    const viewRight = viewLeft + visible;
+    let dest = scroller.scrollLeft;
+    if (playheadX < viewLeft + pad) dest = Math.max(0, playheadX - pad);
+    else if (playheadX > viewRight - pad) {
+      dest = playheadX - visible + pad;
+    } else {
+      return;
+    }
+    const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+    dest = Math.min(maxScroll, Math.max(0, dest));
+    if (instant) scroller.scrollLeft = dest;
+    return dest;
+  }, []);
+
   const beginPlayheadDrag = useCallback(
     (e: React.PointerEvent) => {
       e.stopPropagation();
       e.preventDefault();
       const scroller = scrollRef.current;
       if (!scroller) return;
-      const move = (ev: PointerEvent) => {
+      draggingRef.current = true;
+      let pointerX = e.clientX;
+      let lastTs = performance.now();
+      let lastCommit = 0;
+      let raf = 0;
+
+      const apply = (now: number) => {
+        const dt = Math.min(0.032, Math.max(0, (now - lastTs) / 1000));
+        lastTs = now;
         const rect = scroller.getBoundingClientRect();
-        const x = ev.clientX - rect.left + scroller.scrollLeft - LABEL_WIDTH;
-        setCurrentTime(Math.max(0, x / timeline.pixelsPerSecond));
+        const localX = pointerX - rect.left;
+        const EDGE = 80;
+        const MAX_VEL = 1600;
+        let vel = 0;
+        if (localX < LABEL_WIDTH + EDGE) {
+          vel = -Math.min(2, Math.max(0, (LABEL_WIDTH + EDGE - localX) / EDGE)) * MAX_VEL;
+        } else if (localX > rect.width - EDGE) {
+          vel = Math.min(2, Math.max(0, (localX - (rect.width - EDGE)) / EDGE)) * MAX_VEL;
+        }
+        if (vel !== 0) {
+          const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+          scroller.scrollLeft = Math.max(0, Math.min(maxScroll, scroller.scrollLeft + vel * dt));
+        }
+
+        const clipLeft = LABEL_WIDTH + 2;
+        const clipRight = rect.width - 2;
+        const viewX = Math.min(clipRight, Math.max(clipLeft, localX));
+        const t = Math.max(
+          0,
+          Math.min(durationRef.current, (viewX + scroller.scrollLeft - LABEL_WIDTH) / ppsRef.current),
+        );
+        timeRef.current = t;
+        if (visualTimeRef) visualTimeRef.current = t;
+        paintPlayhead(t);
+        if (now - lastCommit > 40) {
+          lastCommit = now;
+          setCurrentTime(t);
+        }
+      };
+
+      const move = (ev: PointerEvent) => {
+        pointerX = ev.clientX;
+      };
+      const tick = (now: number) => {
+        if (!draggingRef.current) return;
+        apply(now);
+        raf = requestAnimationFrame(tick);
       };
       const up = () => {
+        draggingRef.current = false;
+        cancelAnimationFrame(raf);
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
+        setCurrentTime(timeRef.current);
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
-      move(e.nativeEvent);
+      apply(performance.now());
+      raf = requestAnimationFrame(tick);
     },
-    [setCurrentTime, timeline.pixelsPerSecond],
+    [paintPlayhead, setCurrentTime, visualTimeRef],
   );
 
-  /**
-   * Once the playhead passes the middle of the visible strip, hold it there and scroll
-   * the tracks underneath it instead of letting it run off the right edge.
-   * Only while playing, so scrubbing and manual scrolling are left alone.
-   */
   useEffect(() => {
-    if (!isPlaying) return;
-    const scroller = scrollRef.current;
-    if (!scroller) return;
-    const strip = scroller.clientWidth - LABEL_WIDTH;
-    if (strip <= 0) return;
+    if (!isPlaying || draggingRef.current) return;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+      last = now;
+      const t = visualTimeRef?.current ?? timeRef.current;
+      timeRef.current = t;
+      paintPlayhead(t);
 
-    const playheadX = timeline.currentTime * timeline.pixelsPerSecond;
-    const middle = strip / 2;
-    if (playheadX - scroller.scrollLeft <= middle) return;
+      const scroller = scrollRef.current;
+      if (scroller) {
+        const strip = scroller.clientWidth - LABEL_WIDTH;
+        if (strip > 0) {
+          const playheadX = t * ppsRef.current;
+          const dest = Math.min(
+            Math.max(0, scroller.scrollWidth - scroller.clientWidth),
+            Math.max(0, playheadX - strip / 2),
+          );
+          if (playheadX - scroller.scrollLeft > strip / 2) {
+            scroller.scrollLeft += (dest - scroller.scrollLeft) * (1 - Math.exp(-dt * 12));
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isPlaying, paintPlayhead, visualTimeRef]);
 
-    const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
-    scroller.scrollLeft = Math.min(maxScroll, Math.max(0, playheadX - middle));
-  }, [isPlaying, timeline.currentTime, timeline.pixelsPerSecond]);
+  useEffect(() => {
+    if (isPlaying || draggingRef.current) return;
+    paintPlayhead(timeline.currentTime);
+    keepPlayheadVisible(timeline.currentTime);
+  }, [isPlaying, keepPlayheadVisible, paintPlayhead, timeline.currentTime, timeline.pixelsPerSecond]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -182,7 +293,7 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
         onUndo={undo}
         onRedo={redo}
         onSplit={handleSplit}
-        onDuplicate={duplicateSelected}
+        onDuplicate={handleDuplicate}
         onDelete={handleDelete}
         onZoomIn={() => setPixelsPerSecond(timeline.pixelsPerSecond + 20)}
         onZoomOut={() => setPixelsPerSecond(timeline.pixelsPerSecond - 20)}
@@ -214,12 +325,20 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
           >
             Tracks
           </div>
-          <div className="flex-shrink-0" style={{ width: contentWidth, height: RULER_HEIGHT }}>
+          <div className="relative flex-shrink-0" style={{ width: contentWidth, height: RULER_HEIGHT }}>
             <TimelineRuler
               duration={timeline.duration}
               pixelsPerSecond={timeline.pixelsPerSecond}
               width={contentWidth}
                     onSeek={setCurrentTime}
+            />
+            <TimelinePlayhead
+              time={timeline.currentTime}
+              pixelsPerSecond={timeline.pixelsPerSecond}
+              height={RULER_HEIGHT}
+              onPointerDown={beginPlayheadDrag}
+              nodeRef={rulerPlayheadRef}
+              followProps={false}
             />
           </div>
         </div>
@@ -282,6 +401,8 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
               pixelsPerSecond={timeline.pixelsPerSecond}
               height={tracksHeight}
               onPointerDown={beginPlayheadDrag}
+              nodeRef={tracksPlayheadRef}
+              followProps={false}
             />
           </div>
         </div>

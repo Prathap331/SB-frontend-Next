@@ -5,7 +5,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigat
 import { Input } from '@/components/ui/input';
 import {
   Loader2, Search, Globe, Sparkles, Link2,
-  Check, FileText, AlertCircle, BookOpen, ExternalLink, X,
+  Check, ChevronDown, FileText, AlertCircle, BookOpen, ExternalLink, X,
 } from 'lucide-react';
 import {
   Youtube,
@@ -16,6 +16,7 @@ import { ApiService, TSSResponse, ECIResponse, SimilarPastIdea, GeneratedScriptD
 import GenerationProgressOverlay from '@/components/GenerationProgressOverlay';
 import { ApiFailCard } from '@/components/ApiFailCard';
 import { NewTopicPrompt } from '@/components/NewTopicPrompt';
+import { SuggestedSavedTopics } from '@/components/SuggestedSavedTopics';
 import { supabase as sbClient } from '@/lib/supabaseClient';
 import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 import StudioShell from '@/components/studio/StudioShell';
@@ -42,11 +43,14 @@ import {
   loadTopicWorkspace,
   type MergedIdea,
 } from '@/lib/recent-topics';
+import { loadSharedSavedIdeasTopic, markSuggestedTopicForUnusedIdeas, isSuggestedUnusedIdeasTopic, clearSuggestedUnusedIdeasTopic, filterIdeasWithoutGeneratedScripts } from '@/lib/suggested-saved-topics';
 import { normalizeScriptData } from '@/lib/script-data';
 import {
   normalizeGeneratedThumbnail,
   normalizeGeneratedThumbnailList,
   SCRIPT_ROW_SELECT,
+  DUPLICATE_DURATION_LANGUAGE_MESSAGE,
+  findDuplicateGeneratedScript,
 } from '@/lib/script-persistence';
 import {
   lockedScriptPlaceholder,
@@ -107,6 +111,7 @@ const resultsCache = new Map<string, {
   scriptIdeas: ScriptIdea[];
   similarPastIdeas: SimilarPastIdea[];
   topicSummary: string | null;
+  topicCategory?: string | null;
   sources: string[];
   books: BookReference[];
   error: string | null;
@@ -125,6 +130,7 @@ interface CacheItem {
   scriptIdeas: ScriptIdea[];
   similarPastIdeas: SimilarPastIdea[];
   topicSummary: string | null;
+  topicCategory?: string | null;
   sources: string[];
   books: BookReference[];
   error: string | null;
@@ -560,22 +566,68 @@ function ScriptLanguageSelect({
   className?: string;
   ariaLabel?: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selected = SCRIPT_LANGUAGES.find((lang) => lang.value === value) ?? SCRIPT_LANGUAGES[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={ariaLabel}
-      className={`h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-[#1d1d1f] outline-none focus:border-gray-400 ${className}`}
-    >
-      {SCRIPT_LANGUAGES.map((lang) => {
-        const available = lang.value === DEFAULT_SCRIPT_LANGUAGE;
-        return (
-          <option key={lang.value} value={lang.value} disabled={!available}>
-            {available ? lang.label : `${lang.label} 🔜`}
-          </option>
-        );
-      })}
-    </select>
+    <div ref={rootRef} className={`relative ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-2.5 text-sm text-[#1d1d1f] outline-none focus:border-gray-400"
+      >
+        <span className="min-w-0 truncate">{selected.label}</span>
+        <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-[#86868b]" />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label={ariaLabel}
+          className="absolute bottom-full left-0 z-[70] mb-1 max-h-56 w-max min-w-full overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg border border-gray-200 bg-white py-1 shadow-lg [scrollbar-width:thin]"
+        >
+          {SCRIPT_LANGUAGES.map((lang) => {
+            const available = lang.value === DEFAULT_SCRIPT_LANGUAGE;
+            const active = lang.value === value;
+            return (
+              <li key={lang.value} role="option" aria-selected={active} aria-disabled={!available}>
+                <button
+                  type="button"
+                  disabled={!available}
+                  onClick={() => {
+                    if (!available) return;
+                    onChange(lang.value);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between gap-3 px-2.5 py-1.5 text-left text-sm ${
+                    available
+                      ? `text-[#1d1d1f] hover:bg-[#f5f5f7] ${active ? 'font-semibold' : ''}`
+                      : 'cursor-not-allowed text-[#86868b]'
+                  }`}
+                >
+                  <span className="min-w-0 truncate">{lang.label}</span>
+                  {!available && (
+                    <span className="ml-auto flex-shrink-0 text-[11px] leading-none">🔜</span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -640,6 +692,7 @@ function SearchTopicPageInner() {
   const [scriptIdeas, setScriptIdeas] = useState<ScriptIdea[]>([]);
   const [similarPastIdeas, setSimilarPastIdeas] = useState<SimilarPastIdea[]>([]);
   const [topicSummary, setTopicSummary] = useState<string | null>(null);
+  const [topicCategory, setTopicCategory] = useState<string | null>(null);
   const [ideaSources, setIdeaSources] = useState<string[]>([]);
   const [ideaBooks, setIdeaBooks] = useState<BookReference[]>([]);
   const [ideasRefPanel, setIdeasRefPanel] = useState<'sources' | 'books' | null>(null);
@@ -1172,20 +1225,23 @@ useEffect(() => {
     sources: string[] = [],
     books: BookReference[] = [],
     topicOverride?: string | null,
+    categoryOverride?: string | null,
   ) => {
     const saveTopic = (topicOverride || effectiveTopic || topic).trim();
     if (!saveTopic || isStudioComposeTopic(saveTopic) || !ideas.length) return;
     const { data: { session } } = await sbClient.auth.getSession();
+    const category = (categoryOverride ?? topicCategory ?? '').trim();
     await saveTopicIdeasToDb(saveTopic, ideas, {
       // /save-ideas requires a string — never send null
       topicSummary: summary ?? '',
+      category,
       sources,
       books,
       userId: session?.user?.id ?? null,
     });
     // Keep idea cards; scripts will merge on next load from DB
     setSidebarRefresh((n) => n + 1);
-  }, [topic, effectiveTopic]);
+  }, [topic, effectiveTopic, topicCategory]);
 
   const newTopicParam = searchParams.get('new');
 
@@ -1256,6 +1312,30 @@ useEffect(() => {
 
     composeOnTopicRef.current = null;
     setIsComposingNew(false);
+    clearSuggestedUnusedIdeasTopic();
+    router.push(searchPath(trimmed));
+  };
+
+  const handleSuggestedTopicPick = async (picked: string) => {
+    const trimmed = picked.trim();
+    if (!trimmed) return;
+    setSearchWarning(null);
+
+    const { data: { session } } = await sbClient.auth.getSession();
+    if (!session) {
+      try {
+        localStorage.setItem(
+          'post_auth_redirect',
+          `${window.location.origin}${searchPath(trimmed)}`,
+        );
+      } catch { /* ignore */ }
+      router.push('/auth');
+      return;
+    }
+
+    composeOnTopicRef.current = null;
+    setIsComposingNew(false);
+    markSuggestedTopicForUnusedIdeas(trimmed);
     router.push(searchPath(trimmed));
   };
 
@@ -1328,6 +1408,7 @@ useEffect(() => {
         scriptIdeas: ScriptIdea[];
         similarPastIdeas?: SimilarPastIdea[];
         topicSummary?: string | null;
+        topicCategory?: string | null;
         sources?: string[];
         books?: BookReference[];
         error: string | null;
@@ -1335,14 +1416,16 @@ useEffect(() => {
         setScriptIdeas(cached.scriptIdeas);
         setSimilarPastIdeas(cached.similarPastIdeas ?? []);
         setTopicSummary(cached.topicSummary ?? null);
+        setTopicCategory(cached.topicCategory ?? null);
         setIdeaSources(cached.sources ?? []);
         setIdeaBooks(cached.books ?? []);
         setError(cached.error);
       };
 
       // Instant paint from in-memory cache (recent topics feel instant)
+      const unusedOnly = !isScriptViewerMode && isSuggestedUnusedIdeasTopic(ideasTopic);
       const memHit = resultsCache.get(ideasTopic);
-      if (memHit?.scriptIdeas?.length) {
+      if (!unusedOnly && memHit?.scriptIdeas?.length) {
         applyCached(memHit);
         finishLoading();
       } else if (!isScriptViewerMode) {
@@ -1374,15 +1457,32 @@ useEffect(() => {
           }
         : undefined;
 
-      // Always prefer Supabase: saved_ideas + scripts_universal/assigned (locked or unlocked)
-      const workspace = await loadTopicWorkspace(ideasTopic, userId);
+      // Suggested topic tags: only unused ideas (no row in scripts_universal / scripts_assigned).
+      // Own searches still load the full workspace.
+      let workspace = unusedOnly
+        ? await loadSharedSavedIdeasTopic(ideasTopic, userId)
+        : await loadTopicWorkspace(ideasTopic, userId);
+      if (unusedOnly && (!workspace || workspace.ideas.length === 0)) {
+        const own = await loadTopicWorkspace(ideasTopic, userId);
+        if (own?.ideas.length) {
+          const unused = await filterIdeasWithoutGeneratedScripts(own.ideas, ideasTopic);
+          workspace = { ...own, ideas: unused, shared: true };
+        }
+      } else if ((!workspace || workspace.ideas.length === 0) && userId) {
+        workspace = await loadSharedSavedIdeasTopic(ideasTopic, userId);
+      }
+      if (unusedOnly && workspace?.ideas.length) {
+        const unused = await filterIdeasWithoutGeneratedScripts(workspace.ideas, ideasTopic);
+        workspace = { ...workspace, ideas: unused, shared: true };
+      }
       if (cancelled) return;
 
-      if (workspace && workspace.ideas.length > 0) {
+      if (workspace && (workspace.ideas.length > 0 || workspace.shared)) {
         applyMergedIdeas(workspace.ideas, preserveOpts);
         const mem = resultsCache.get(ideasTopic);
         setSimilarPastIdeas(mem?.similarPastIdeas ?? []);
         setTopicSummary(workspace.topicSummary ?? mem?.topicSummary ?? null);
+        setTopicCategory(workspace.category ?? mem?.topicCategory ?? null);
         setIdeaSources(
           (workspace.sources?.length ? workspace.sources : null) ?? mem?.sources ?? [],
         );
@@ -1396,11 +1496,33 @@ useEffect(() => {
           })),
           similarPastIdeas: mem?.similarPastIdeas ?? [],
           topicSummary: workspace.topicSummary ?? mem?.topicSummary ?? null,
+          topicCategory: workspace.category ?? mem?.topicCategory ?? null,
           sources: (workspace.sources?.length ? workspace.sources : null) ?? mem?.sources ?? [],
           books: (workspace.books?.length ? workspace.books : null) ?? mem?.books ?? [],
           error: null,
           timestamp: Date.now(),
         });
+        if (workspace.shared && workspace.ideas.length > 0) {
+          void persistNewIdeas(
+            workspace.ideas.map(({ id, title, description, category }) => ({
+              id, title, description, category,
+            })),
+            workspace.topicSummary ?? null,
+            workspace.sources ?? [],
+            workspace.books ?? [],
+            ideasTopic,
+            workspace.category ?? null,
+          ).catch((persistErr) => {
+            console.error('[script-ideas] persist shared topic failed:', persistErr);
+          });
+        }
+        finishLoading();
+        return;
+      }
+
+      if (unusedOnly) {
+        applyMergedIdeas([], preserveOpts);
+        setError(null);
         finishLoading();
         return;
       }
@@ -1409,13 +1531,17 @@ useEffect(() => {
       if (inFlightIdeas.has(ideasTopic)) {
         await inFlightIdeas.get(ideasTopic);
         if (cancelled) return;
-        const again = await loadTopicWorkspace(ideasTopic, userId);
+        let again = await loadTopicWorkspace(ideasTopic, userId);
+        if ((!again || !again.ideas.length) && userId) {
+          again = await loadSharedSavedIdeasTopic(ideasTopic, userId);
+        }
         if (cancelled) return;
-        if (again?.ideas.length) {
+        if (again && (again.ideas.length || again.shared)) {
           applyMergedIdeas(again.ideas, preserveOpts);
           const mem = resultsCache.get(ideasTopic);
           setSimilarPastIdeas(mem?.similarPastIdeas ?? []);
           setTopicSummary(again.topicSummary ?? mem?.topicSummary ?? null);
+          setTopicCategory(again.category ?? mem?.topicCategory ?? null);
           setIdeaSources(
             (again.sources?.length ? again.sources : null) ?? mem?.sources ?? [],
           );
@@ -1423,6 +1549,20 @@ useEffect(() => {
             (again.books?.length ? again.books : null) ?? mem?.books ?? [],
           );
           setError(null);
+          if (again.shared && again.ideas.length > 0) {
+            void persistNewIdeas(
+              again.ideas.map(({ id, title, description, category }) => ({
+                id, title, description, category,
+              })),
+              again.topicSummary ?? null,
+              again.sources ?? [],
+              again.books ?? [],
+              ideasTopic,
+              again.category ?? null,
+            ).catch((persistErr) => {
+              console.error('[script-ideas] persist shared topic failed:', persistErr);
+            });
+          }
           finishLoading();
           return;
         }
@@ -1451,6 +1591,7 @@ useEffect(() => {
       setScriptIdeas([]);
       setSimilarPastIdeas([]);
       setTopicSummary(null);
+      setTopicCategory(null);
       setIdeaSources([]);
       setIdeaBooks([]);
       setIdeasRefPanel(null);
@@ -1471,6 +1612,7 @@ useEffect(() => {
         relatedIdeas: SimilarPastIdea[] = [],
         sources: string[] = [],
         books: BookReference[] = [],
+        category: string | null = null,
       ) => {
         // Surface /generate-ideas results immediately — never block the UI on /save-ideas
         if (!err) {
@@ -1478,6 +1620,7 @@ useEffect(() => {
             scriptIdeas: ideas,
             similarPastIdeas: relatedIdeas,
             topicSummary: summary,
+            topicCategory: category,
             sources,
             books,
             error: err,
@@ -1501,12 +1644,13 @@ useEffect(() => {
         setSimilarPastIdeas(relatedIdeas);
         setError(err);
         setTopicSummary(summary);
+        setTopicCategory(category);
         setIdeaSources(sources);
         setIdeaBooks(books);
         finishLoading();
 
         if (!err && ideas.length) {
-          void persistNewIdeas(ideas, summary, sources, books, ideasTopic).catch((persistErr) => {
+          void persistNewIdeas(ideas, summary, sources, books, ideasTopic, category).catch((persistErr) => {
             console.error('[script-ideas] persist after generate failed:', persistErr);
           });
         }
@@ -1532,6 +1676,7 @@ useEffect(() => {
             response.similar_past_ideas ?? [],
             response.sources ?? [],
             response.books ?? [],
+            response.topic_category ?? null,
           );
 
           return;
@@ -1642,6 +1787,17 @@ useEffect(() => {
       time: Math.min(Math.max(requested, minScriptMinutes), maxScriptMinutes),
       language: scriptLanguageApiName(language),
     };
+
+    const alreadyExists = await findDuplicateGeneratedScript({
+      userId: session.user.id,
+      title: idea.title,
+      durationMinutes: payload.time,
+      language,
+    });
+    if (alreadyExists) {
+      toast.error(DUPLICATE_DURATION_LANGUAGE_MESSAGE);
+      return;
+    }
 
     // Keep the full idea list in saved_ideas intact — never overwrite with a
     // partial "unused ideas" payload (that was dropping the generated idea).
@@ -1947,7 +2103,13 @@ useEffect(() => {
             <div className="flex-1 min-h-0 overflow-y-auto">
               <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
                 {studioTab === 'ideas' ? (
-                  <NewTopicPrompt onFocusSearch={() => searchInputRef.current?.focus()} />
+                  <NewTopicPrompt onFocusSearch={() => searchInputRef.current?.focus()}>
+                    <SuggestedSavedTopics
+                      onPickTopic={(picked) => {
+                        void handleSuggestedTopicPick(picked);
+                      }}
+                    />
+                  </NewTopicPrompt>
                 ) : studioTab === 'broll' ? (
                   <StudioBRollPanel onReturnToVideoEditing={() => setStudioTab('video-editing')} />
                 ) : studioTab === 'audio' ? (
@@ -2160,7 +2322,7 @@ useEffect(() => {
                                   onChange={(language) =>
                                     setScriptLanguages((prev) => ({ ...prev, [statement.id]: language }))
                                   }
-                                  className="w-32"
+                                  className="w-40"
                                 />
                               </div>
                               <button
@@ -2275,7 +2437,7 @@ useEffect(() => {
                                           onChange={(language) =>
                                             setScriptLanguages((prev) => ({ ...prev, [ideaId]: language }))
                                           }
-                                          className="w-32"
+                                          className="w-40"
                                         />
                                       </div>
                                       <button
@@ -2585,7 +2747,7 @@ useEffect(() => {
                 <ScriptLanguageSelect
                   value={lengthWarnLanguage}
                   onChange={setLengthWarnLanguage}
-                  className="w-full h-10 rounded-xl"
+                  className="w-full"
                 />
               </div>
               <button
