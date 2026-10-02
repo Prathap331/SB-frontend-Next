@@ -1449,7 +1449,7 @@ function ColorPickerPanel({
 
 /** How often a queued render is polled for completion. */
 /** GET /render/queue cadence — only while a render this session queued is in flight. */
-const RENDER_POLL_MS = 45_000;
+const RENDER_POLL_MS = 90_000;
 
 /** How often the videos table is checked while a /edit-video run is still going. */
 const GENERATION_POLL_MS = 10000;
@@ -1937,7 +1937,7 @@ export function StudioVideoEditingPanel({
       : renderStatus === 'failed'
         ? 'Render failed'
         : renderInFlight
-          ? 'Rendering…'
+          ? 'Processing…'
           : 'Render';
 
   const openRenderConfirm = useCallback(() => {
@@ -2025,7 +2025,7 @@ export function StudioVideoEditingPanel({
 
   /**
    * Watch a render that is in flight — queued from the Render button, or found still
-   * pending by the one check made when the editor opens. GET /render/queue every 45s
+   * pending by the one check made when the editor opens. GET /render/queue every 90s
    * until it settles.
    * Callbacks are read through a ref so re-renders never restart the 45s countdown.
    */
@@ -2041,17 +2041,13 @@ export function StudioVideoEditingPanel({
       try {
         let status: RenderQueueStatus = 'pending';
         let videoUrl: string | null = null;
-        const byVideo = videoId ? await ApiService.getRenderQueueForVideo(videoId) : null;
-        if (byVideo) {
-          status = byVideo.status;
-          videoUrl = byVideo.videoUrl;
-        } else if (renderQueueId !== videoId) {
-          // Only when the video's own entry wasn't found — not a second request every tick.
-          const byQueue = await ApiService.getRenderQueueStatus(renderQueueId);
-          if (byQueue.status !== 'pending' || byQueue.videoUrl) {
-            status = byQueue.status;
-            videoUrl = videoUrl ?? byQueue.videoUrl;
-          }
+        // One request per tick: the newest queue entry for this video.
+        const latest = videoId
+          ? await ApiService.getRenderQueueForVideo(videoId)
+          : await ApiService.getRenderQueueStatus(renderQueueId);
+        if (latest) {
+          status = latest.status;
+          videoUrl = latest.videoUrl;
         }
         if (cancelled) return;
         if (status === 'completed') {
@@ -2077,6 +2073,41 @@ export function StudioVideoEditingPanel({
       if (timer) clearTimeout(timer);
     };
   }, [renderQueueId]);
+
+  /** Video id restored from the videos table that still needs its one on-open render check. */
+  const openRenderCheckRef = useRef<string | null>(null);
+
+  /**
+   * One GET /render/queue when a saved project opens, to learn whether its render is done
+   * or still running. Completed / failed / never rendered → no further requests.
+   * Pending → show "Processing…" and hand it to the 90s poller above.
+   */
+  useEffect(() => {
+    if (!videoId || openRenderCheckRef.current !== videoId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const queue = await ApiService.getRenderQueueForVideo(videoId);
+        if (cancelled) return;
+        openRenderCheckRef.current = null;
+        if (!queue) return;
+        if (queue.status === 'completed') {
+          setRenderStatus('completed');
+          if (queue.videoUrl) setRenderedVideoUrl((prev) => prev ?? queue.videoUrl);
+        } else if (queue.status === 'failed') {
+          setRenderStatus('failed');
+        } else {
+          setRenderStatus('pending');
+          setRenderQueueId((prev) => prev ?? videoId);
+        }
+      } catch (err) {
+        console.warn('[render-queue on open]', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId]);
 
   const closeVideoPreview = useCallback(() => {
     previewVideoRef.current?.pause();
@@ -2569,6 +2600,10 @@ export function StudioVideoEditingPanel({
         const res = videosRowToEditVideoResponse(row);
         const mapped = mapEditVideoResponse(res);
         const maps = hydrateSceneTimelinesFromVideosRow(mapped.scenes, row);
+        // Render status is checked once by the on-open effect (keyed on videoId) — not
+        // here, where applyMapped's state updates re-ran this effect and cancelled the
+        // request, dropping a "pending" answer so the button still said "Render".
+        openRenderCheckRef.current = row.id;
         applyMapped(res, {
           script: row.script,
           voice: row.voice,
@@ -2579,27 +2614,7 @@ export function StudioVideoEditingPanel({
           brollVideoSuggestions: mapped.brollVideoSuggestions,
           brollImageSuggestions: mapped.brollImageSuggestions,
           skipEnsureBroll: true,
-        });
-
-        // One GET /render/queue on open to learn whether a render is done or still running.
-        // Completed / failed / nothing queued → no further requests. Pending → hand it to
-        // the 45s poller (keyed on the video id, since the queue id is gone after a reload).
-        try {
-          const queue = await ApiService.getRenderQueueForVideo(row.id);
-          if (cancelled || !queue) return;
-          if (queue.status === 'completed') {
-            setRenderStatus('completed');
-            if (!row.video_url && queue.videoUrl) setRenderedVideoUrl(queue.videoUrl);
-          } else if (queue.status === 'failed') {
-            setRenderStatus('failed');
-          } else {
-            setRenderStatus('pending');
-            setRenderQueueId(row.id);
-          }
-        } catch (err) {
-          console.warn('[render-queue on open]', err);
-        }
-        return;
+        });        return;
       }
     })().catch((err) => {
       console.error('[videos restore]', err);

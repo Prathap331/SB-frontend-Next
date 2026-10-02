@@ -2251,6 +2251,7 @@ export class ApiService {
     orientation?: RenderOrientation;
   }): Promise<{ queueId: string | null; raw: unknown }> {
     const url = `${this.BASE_URL}/render/queue`;
+    this.invalidateRenderQueueLookup(params.videoId);
     const response = await this.authorizedFetch(url, {
       method: 'POST',
       body: JSON.stringify({
@@ -2347,18 +2348,48 @@ export class ApiService {
     return { status: 'pending', videoUrl: null, raw: null };
   }
 
+  /** Minimum gap between GET /render/queue calls for one video (matches the editor's poll). */
+  static readonly RENDER_QUEUE_MIN_INTERVAL_MS = 90_000;
+
+  private static renderQueueLookups = new Map<
+    string,
+    {
+      at: number;
+      promise: Promise<{ status: RenderQueueStatus; videoUrl: string | null; raw: unknown } | null>;
+    }
+  >();
+
+  /** Forget the cached lookup so the next check after POST /render/queue is fresh. */
+  static invalidateRenderQueueLookup(videoId: string): void {
+    this.renderQueueLookups.delete(videoId.trim());
+  }
+
   /**
-   * Latest render for a video. Same lookups as getRenderQueueStatus — the list
-   * payload is `{ entries: [{ status, final_video_url, video_id }] }`.
+   * Latest render for a video: ONE request to GET /render/queue?video_id=…, whose payload is
+   * `{ entries: [{ id, video_id, status, final_video_url }] }`. A 200 with no entry for this
+   * video means "never rendered" (null). Calls for the same video within 90s share one result,
+   * so remounts / repeated effects can never put more load on the backend than the poll.
    */
   static async getRenderQueueForVideo(
     videoId: string,
   ): Promise<{ status: RenderQueueStatus; videoUrl: string | null; raw: unknown } | null> {
     const id = videoId.trim();
     if (!id) return null;
-    const result = await this.getRenderQueueStatus(id);
-    if (!result.videoUrl && result.status === 'pending' && !result.raw) return null;
-    return result;
+    const cached = this.renderQueueLookups.get(id);
+    if (cached && Date.now() - cached.at < this.RENDER_QUEUE_MIN_INTERVAL_MS) {
+      return cached.promise;
+    }
+    const promise = (async () => {
+      const data = await this.fetchRenderQueueJson(`/render/queue?video_id=${encodeURIComponent(id)}`);
+      if (data == null) return null;
+      const parsed = this.fromRenderQueuePayload(data, id);
+      if (!parsed.videoUrl && parsed.status === 'pending' && !parsed.queueId) return null;
+      return { status: parsed.status, videoUrl: parsed.videoUrl, raw: data };
+    })();
+    this.renderQueueLookups.set(id, { at: Date.now(), promise });
+    // A failed request must not block the next check for 90s.
+    promise.catch(() => this.renderQueueLookups.delete(id));
+    return promise;
   }
 
   /**
