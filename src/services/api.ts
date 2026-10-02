@@ -1,6 +1,10 @@
 // API service for StoryBit AI backend integration
 import { supabase } from '@/lib/supabaseClient';
-import { normalizeRenderStatus, type RenderQueueStatus } from '@/lib/renderStatus';
+import {
+  parseRenderQueuePayload,
+  renderQueueHasId,
+  type RenderQueueStatus,
+} from '@/lib/renderStatus';
 
 export interface ProcessTopicRequest {
   topic: string;
@@ -2221,13 +2225,19 @@ export class ApiService {
 
     const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
     const nested =
-      (obj.data && typeof obj.data === 'object' ? obj.data : null) ??
-      (obj.result && typeof obj.result === 'object' ? obj.result : null) ??
+      (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data) ? obj.data : null) ??
+      (obj.result && typeof obj.result === 'object' && !Array.isArray(obj.result) ? obj.result : null) ??
       (obj.render && typeof obj.render === 'object' ? obj.render : null) ??
       (obj.video && typeof obj.video === 'object' ? obj.video : null) ??
       {};
 
-    return pickUrl(obj) || pickUrl(nested) || pickUrl(obj.video) || pickUrl(obj.render) || null;
+    const fromEntries = Array.isArray(obj.entries)
+      ? this.pickRenderVideoUrl(obj.entries)
+      : Array.isArray(obj.items)
+        ? this.pickRenderVideoUrl(obj.items)
+        : null;
+
+    return pickUrl(obj) || pickUrl(nested) || fromEntries || pickUrl(obj.video) || pickUrl(obj.render) || null;
   }
 
   /**
@@ -2258,104 +2268,89 @@ export class ApiService {
 
     const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
     const nested = (obj.data && typeof obj.data === 'object' ? obj.data : {}) as Record<string, unknown>;
+    const parsed = parseRenderQueuePayload(data);
     const queueId =
+      parsed.queueId ??
       asId(obj.queue_id) ??
       asId(obj.queueId) ??
-      asId(obj.video_id) ??
-      asId(obj.videoId) ??
-      asId(obj.id) ??
       asId(nested.queue_id) ??
       asId(nested.queueId) ??
-      asId(nested.video_id) ??
-      asId(nested.videoId) ??
+      asId(obj.id) ??
       asId(nested.id) ??
+      asId(obj.video_id) ??
+      asId(nested.video_id) ??
       asId(data);
 
     return { queueId, raw: data };
   }
 
+  private static fromRenderQueuePayload(
+    data: unknown,
+    preferId?: string,
+  ): { status: RenderQueueStatus; videoUrl: string | null; queueId: string | null; raw: unknown } {
+    const parsed = parseRenderQueuePayload(data, preferId);
+    const videoUrl = parsed.videoUrl ?? this.pickRenderVideoUrl(data);
+    const status: RenderQueueStatus =
+      videoUrl && parsed.status === 'pending' ? 'completed' : parsed.status;
+    return { status, videoUrl, queueId: parsed.queueId, raw: data };
+  }
+
+  /** GET /render/queue — 404/empty returns null so callers can try the next shape. */
+  private static async fetchRenderQueueJson(pathAndQuery: string): Promise<unknown | null> {
+    try {
+      const response = await this.authorizedFetch(`${this.BASE_URL}${pathAndQuery}`, {
+        method: 'GET',
+      });
+      if (!response.ok) return null;
+      return await response.json().catch(() => null);
+    } catch {
+      return null;
+    }
+  }
+
   /**
-   * Poll one queued render via GET /render/queue/{queue_id}.
-   * `status` is normalized to pending / completed / failed so callers don't have to
-   * know every spelling the backend uses (queued, processing, done, success, error...).
+   * Read `status` + `final_video_url` from `{ entries: [...] }` (or a single row).
+   * Tries the list (`?video_id=` / `/render/queue`) first — that is the shape the
+   * backend actually returns — then GET /render/queue/{id}.
    */
   static async getRenderQueueStatus(
     queueId: string,
   ): Promise<{ status: RenderQueueStatus; videoUrl: string | null; raw: unknown }> {
-    const url = `${this.BASE_URL}/render/queue/${encodeURIComponent(queueId)}`;
-    const response = await this.authorizedFetch(url, { method: 'GET' });
-    const data = await this.parseJsonOrThrow<unknown>(response, 'Render status');
+    const id = queueId.trim();
+    if (!id) return { status: 'pending', videoUrl: null, raw: null };
 
-    const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
-    const nested = (obj.data && typeof obj.data === 'object' ? obj.data : {}) as Record<string, unknown>;
-    const asUrl = (v: unknown) => {
-      const s = typeof v === 'string' ? v.trim() : '';
-      return /^https?:\/\//i.test(s) ? s : null;
-    };
-    const videoUrl =
-      asUrl(obj.final_video_url) ??
-      asUrl(nested.final_video_url) ??
-      this.pickRenderVideoUrl(data);
-    // No status field but a URL is present — the render is done.
-    const status: RenderQueueStatus =
-      normalizeRenderStatus(obj.status ?? obj.state ?? nested.status ?? nested.state) ??
-      (videoUrl ? 'completed' : 'pending');
+    const attempts = [
+      `/render/queue?video_id=${encodeURIComponent(id)}`,
+      `/render/queue?id=${encodeURIComponent(id)}`,
+      `/render/queue/${encodeURIComponent(id)}`,
+      `/render/queue`,
+    ];
 
-    return { status, videoUrl, raw: data };
+    for (const path of attempts) {
+      const data = await this.fetchRenderQueueJson(path);
+      if (data == null) continue;
+      if (path === '/render/queue' && !renderQueueHasId(data, id)) continue;
+      const parsed = this.fromRenderQueuePayload(data, id);
+      if (parsed.videoUrl || parsed.status !== 'pending' || parsed.queueId) {
+        return { status: parsed.status, videoUrl: parsed.videoUrl, raw: data };
+      }
+    }
+
+    return { status: 'pending', videoUrl: null, raw: null };
   }
 
   /**
-   * Latest render for a video: GET /render/queue/{video_id}, then
-   * GET /render/queue?video_id= if the path lookup is empty.
-   * Reads `status` and `final_video_url`.
+   * Latest render for a video. Same lookups as getRenderQueueStatus — the list
+   * payload is `{ entries: [{ status, final_video_url, video_id }] }`.
    */
   static async getRenderQueueForVideo(
     videoId: string,
   ): Promise<{ status: RenderQueueStatus; videoUrl: string | null; raw: unknown } | null> {
     const id = videoId.trim();
     if (!id) return null;
-    const hasQueueFields = (raw: unknown) => {
-      const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
-      const nested = obj?.data && typeof obj.data === 'object' ? (obj.data as Record<string, unknown>) : null;
-      return Boolean(
-        obj?.status ??
-          obj?.state ??
-          obj?.final_video_url ??
-          nested?.status ??
-          nested?.state ??
-          nested?.final_video_url,
-      );
-    };
-    try {
-      const result = await this.getRenderQueueStatus(id);
-      if (result.videoUrl || hasQueueFields(result.raw)) return result;
-    } catch {
-      /* try list filter */
-    }
-    const url = `${this.BASE_URL}/render/queue?video_id=${encodeURIComponent(id)}`;
-    const response = await this.authorizedFetch(url, { method: 'GET' });
-    const data = await this.parseJsonOrThrow<unknown>(response, 'Render queue');
-    const rec = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
-    const list = Array.isArray(data)
-      ? data
-      : Array.isArray(rec?.items)
-        ? rec.items
-        : Array.isArray(rec?.results)
-          ? rec.results
-          : rec
-            ? [rec]
-            : [];
-    const latest = list[0];
-    if (!latest) return null;
-    const obj = (latest && typeof latest === 'object' ? latest : {}) as Record<string, unknown>;
-    const asUrl = (v: unknown) => {
-      const s = typeof v === 'string' ? v.trim() : '';
-      return /^https?:\/\//i.test(s) ? s : null;
-    };
-    const videoUrl = asUrl(obj.final_video_url) ?? this.pickRenderVideoUrl(latest);
-    const status: RenderQueueStatus =
-      normalizeRenderStatus(obj.status) ?? (videoUrl ? 'completed' : 'pending');
-    return { status, videoUrl, raw: data };
+    const result = await this.getRenderQueueStatus(id);
+    if (!result.videoUrl && result.status === 'pending' && !result.raw) return null;
+    return result;
   }
 
   /**

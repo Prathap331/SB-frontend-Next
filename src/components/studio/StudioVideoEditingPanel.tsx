@@ -1935,18 +1935,20 @@ export function StudioVideoEditingPanel({
     };
   }, [scriptRowId]);
 
-  const renderDisabled = !videoId || isRendering || Boolean(renderQueueId);
-  const renderBusy = queuedRequestCount > 0 || isRendering || Boolean(renderQueueId);
+  const renderInFlight =
+    renderStatus !== 'completed' && (Boolean(renderQueueId) || renderStatus === 'pending');
+  const renderDisabled = !videoId || isRendering || renderInFlight;
+  const renderBusy = queuedRequestCount > 0 || isRendering || renderInFlight;
   /** Name used in the "finished rendering" notification. */
   const renderVideoName = (ideaTitle || 'Your video').trim() || 'Your video';
   /** The render button carries the status itself — no separate chip repeating it. */
   const renderButtonLabel =
-    renderQueueId || renderStatus === 'pending'
-      ? 'Rendering…'
-      : renderStatus === 'completed'
-        ? 'Rendered'
-        : renderStatus === 'failed'
-          ? 'Render failed'
+    renderStatus === 'completed' || (Boolean(renderedVideoUrl) && !renderInFlight)
+      ? 'Rendered'
+      : renderStatus === 'failed'
+        ? 'Render failed'
+        : renderInFlight
+          ? 'Rendering…'
           : 'Render';
 
   const openRenderConfirm = useCallback(() => {
@@ -2040,7 +2042,22 @@ export function StudioVideoEditingPanel({
 
     const poll = async () => {
       try {
-        const { status, videoUrl } = await ApiService.getRenderQueueStatus(renderQueueId);
+        let status: RenderQueueStatus = 'pending';
+        let videoUrl: string | null = null;
+        if (videoId) {
+          const byVideo = await ApiService.getRenderQueueForVideo(videoId);
+          if (byVideo) {
+            status = byVideo.status;
+            videoUrl = byVideo.videoUrl;
+          }
+        }
+        if (status === 'pending') {
+          const byQueue = await ApiService.getRenderQueueStatus(renderQueueId);
+          if (byQueue.status !== 'pending' || byQueue.videoUrl) {
+            status = byQueue.status;
+            videoUrl = videoUrl ?? byQueue.videoUrl;
+          }
+        }
         if (cancelled) return;
         if (status === 'completed') {
           await finishRender(videoUrl, renderQueueId);
@@ -2053,19 +2070,18 @@ export function StudioVideoEditingPanel({
           return;
         }
       } catch (err) {
-        // A single failed poll (network blip) shouldn't end the watch — keep trying.
         console.warn('[render-queue]', err);
         if (cancelled) return;
       }
       timer = setTimeout(() => void poll(), RENDER_POLL_MS);
     };
 
-    timer = setTimeout(() => void poll(), RENDER_POLL_MS);
+    void poll();
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [renderQueueId, finishRender, showToast]);
+  }, [renderQueueId, videoId, finishRender, showToast]);
 
   /**
    * Pick a render back up from GET /render/queue (`status`, `final_video_url`) —
@@ -2097,12 +2113,39 @@ export function StudioVideoEditingPanel({
       timer = setTimeout(() => void poll(), RENDER_POLL_MS);
     };
 
-    timer = setTimeout(() => void poll(), RENDER_POLL_MS);
+    void poll();
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
   }, [renderQueueId, renderStatus, videoId, finishRender, showToast]);
+
+  /** Keep the button in sync with GET /render/queue `{ entries: [{ status, final_video_url }] }`. */
+  useEffect(() => {
+    if (!videoId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const queue = await ApiService.getRenderQueueForVideo(videoId);
+        if (cancelled || !queue) return;
+        if (queue.status === 'completed') {
+          setRenderQueueId(null);
+          setRenderStatus('completed');
+          if (queue.videoUrl) setRenderedVideoUrl(queue.videoUrl);
+          return;
+        }
+        if (queue.status === 'failed') {
+          setRenderQueueId(null);
+          setRenderStatus('failed');
+        }
+      } catch (err) {
+        console.warn('[render-queue sync]', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId]);
 
   const closeVideoPreview = useCallback(() => {
     previewVideoRef.current?.pause();
@@ -2461,6 +2504,8 @@ export function StudioVideoEditingPanel({
       setSceneTextOverlays({});
       setSceneGraphicsOverlays({});
       setRenderedVideoUrl(null);
+      setRenderQueueId(null);
+      setRenderStatus(null);
       replaceTimelineState(createEmptyTimeline(), false);
     }
     if (restoredCacheRef.current) return;
@@ -2509,10 +2554,13 @@ export function StudioVideoEditingPanel({
       setVideoId(res.video_id);
       if (extras?.finalVideoUrl) setRenderedVideoUrl(extras.finalVideoUrl);
       // Surface where the last render got to — and keep watching if it is still running.
-      setRenderStatus(
+      const restoredStatus =
         normalizeRenderStatus(extras?.renderStatus) ??
-          (extras?.finalVideoUrl ? 'completed' : null),
-      );
+        (extras?.finalVideoUrl ? 'completed' : null);
+      setRenderStatus(restoredStatus);
+      if (restoredStatus === 'completed' || restoredStatus === 'failed') {
+        setRenderQueueId(null);
+      }
 
       for (const scene of res.scenes ?? []) {
         if (scene.trim && scene.scene_id) {
@@ -2581,7 +2629,12 @@ export function StudioVideoEditingPanel({
         const res = videosRowToEditVideoResponse(row);
         const mapped = mapEditVideoResponse(res);
         const maps = hydrateSceneTimelinesFromVideosRow(mapped.scenes, row);
-        const queue = await ApiService.getRenderQueueForVideo(row.id);
+        let queue: { status: RenderQueueStatus; videoUrl: string | null } | null = null;
+        try {
+          queue = await ApiService.getRenderQueueForVideo(row.id);
+        } catch (err) {
+          console.warn('[render-queue restore]', err);
+        }
         if (cancelled) return;
         applyMapped(res, {
           script: row.script,
@@ -4620,7 +4673,7 @@ export function StudioVideoEditingPanel({
               title={
                 !videoId
                   ? 'Generate the video first'
-                  : renderQueueId
+                  : renderInFlight
                     ? 'Rendering in the queue — you will be notified when it is done'
                     : 'Render all scenes into one video'
               }
@@ -5105,7 +5158,7 @@ export function StudioVideoEditingPanel({
               title={
                 !videoId
                   ? 'Generate the video first'
-                  : renderQueueId
+                  : renderInFlight
                     ? 'Rendering in the queue — you will be notified when it is done'
                     : 'Render all scenes into one video'
               }
@@ -6106,7 +6159,7 @@ export function StudioVideoEditingPanel({
                 ) : (
                   <Film className="h-3.5 w-3.5" />
                 )}
-                {renderQueueId ? 'In queue' : 'Render'}
+                {renderInFlight ? 'In queue' : 'Render'}
               </button>
             </div>
           </div>

@@ -543,7 +543,8 @@ export async function fetchVideoRenderState(
 ): Promise<{ status: string | null; finalVideoUrl: string | null } | null> {
   if (!videoId.trim()) return null;
   try {
-    const result = await ApiService.getRenderQueueStatus(videoId);
+    const result = await ApiService.getRenderQueueForVideo(videoId);
+    if (!result) return null;
     return { status: result.status, finalVideoUrl: result.videoUrl };
   } catch (err) {
     console.warn('[render/queue]', err);
