@@ -2024,8 +2024,9 @@ export function StudioVideoEditingPanel({
   );
 
   /**
-   * Watch the render queued from the Render button. This is the only place that reads
-   * GET /render/queue: first check 45s after the click, then every 45s until it settles.
+   * Watch a render that is in flight — queued from the Render button, or found still
+   * pending by the one check made when the editor opens. GET /render/queue every 45s
+   * until it settles.
    * Callbacks are read through a ref so re-renders never restart the 45s countdown.
    */
   const renderPollDepsRef = useRef({ videoId, finishRender, showToast });
@@ -2571,8 +2572,7 @@ export function StudioVideoEditingPanel({
         applyMapped(res, {
           script: row.script,
           voice: row.voice,
-          // videos.video_url is the render of this row's own script. Opening the editor
-          // never calls /render/queue — that is polled only after the Render button.
+          // videos.video_url is the render of this row's own script.
           finalVideoUrl: row.video_url,
           renderStatus: row.video_url ? 'completed' : null,
           sceneTimelines: maps,
@@ -2580,6 +2580,25 @@ export function StudioVideoEditingPanel({
           brollImageSuggestions: mapped.brollImageSuggestions,
           skipEnsureBroll: true,
         });
+
+        // One GET /render/queue on open to learn whether a render is done or still running.
+        // Completed / failed / nothing queued → no further requests. Pending → hand it to
+        // the 45s poller (keyed on the video id, since the queue id is gone after a reload).
+        try {
+          const queue = await ApiService.getRenderQueueForVideo(row.id);
+          if (cancelled || !queue) return;
+          if (queue.status === 'completed') {
+            setRenderStatus('completed');
+            if (!row.video_url && queue.videoUrl) setRenderedVideoUrl(queue.videoUrl);
+          } else if (queue.status === 'failed') {
+            setRenderStatus('failed');
+          } else {
+            setRenderStatus('pending');
+            setRenderQueueId(row.id);
+          }
+        } catch (err) {
+          console.warn('[render-queue on open]', err);
+        }
         return;
       }
     })().catch((err) => {
