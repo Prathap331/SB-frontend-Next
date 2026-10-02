@@ -92,6 +92,7 @@ import {
   brollDisplayName,
   clipMediaKind,
   fetchVideoRenderState,
+  fetchVideoRowUrl,
   readPendingGeneration,
   writePendingGeneration,
   clearPendingGeneration,
@@ -1923,18 +1924,6 @@ export function StudioVideoEditingPanel({
     };
   }, []);
 
-  /** Load a previously rendered video (from an earlier session) so "Generated video" works right away. */
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const url = await getScriptVideoUrl(scriptRowId);
-      if (!cancelled && url) setRenderedVideoUrl(url);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [scriptRowId]);
-
   const renderInFlight =
     renderStatus !== 'completed' && (Boolean(renderQueueId) || renderStatus === 'pending');
   const renderDisabled = !videoId || isRendering || renderInFlight;
@@ -2006,6 +1995,9 @@ export function StudioVideoEditingPanel({
       let resolvedUrl = videoUrl;
       if (!resolvedUrl && videoId) {
         resolvedUrl = (await fetchVideoRenderState(videoId))?.finalVideoUrl ?? null;
+      }
+      if (!resolvedUrl && videoId) {
+        resolvedUrl = await fetchVideoRowUrl(videoId);
       }
       if (!resolvedUrl && scriptRowId) {
         resolvedUrl = await getScriptVideoUrl(scriptRowId);
@@ -2552,7 +2544,8 @@ export function StudioVideoEditingPanel({
 
       restoredCacheRef.current = true;
       setVideoId(res.video_id);
-      if (extras?.finalVideoUrl) setRenderedVideoUrl(extras.finalVideoUrl);
+      // This row's own render (or none) — never keep a URL left over from another script.
+      setRenderedVideoUrl(extras?.finalVideoUrl ?? null);
       // Surface where the last render got to — and keep watching if it is still running.
       const restoredStatus =
         normalizeRenderStatus(extras?.renderStatus) ??
@@ -2623,6 +2616,14 @@ export function StudioVideoEditingPanel({
         return;
       }
 
+      if (!row) {
+        // No videos row for this script: the URL saved on this script's own
+        // scripts_assigned row is the only record of an earlier render.
+        const saved = await getScriptVideoUrl(scriptRowId);
+        if (!cancelled && saved) setRenderedVideoUrl(saved);
+        return;
+      }
+
       if (row) {
         clearPendingGeneration();
         setPendingGeneration(null);
@@ -2639,8 +2640,9 @@ export function StudioVideoEditingPanel({
         applyMapped(res, {
           script: row.script,
           voice: row.voice,
-          finalVideoUrl: queue?.videoUrl ?? row.video_url,
-          renderStatus: queue?.status ?? (row.video_url ? 'completed' : null),
+          // videos.video_url is the render of this row's own script — it wins over the queue.
+          finalVideoUrl: row.video_url ?? queue?.videoUrl ?? null,
+          renderStatus: row.video_url ? 'completed' : (queue?.status ?? null),
           sceneTimelines: maps,
           brollVideoSuggestions: mapped.brollVideoSuggestions,
           brollImageSuggestions: mapped.brollImageSuggestions,

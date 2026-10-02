@@ -2289,7 +2289,15 @@ export class ApiService {
     preferId?: string,
   ): { status: RenderQueueStatus; videoUrl: string | null; queueId: string | null; raw: unknown } {
     const parsed = parseRenderQueuePayload(data, preferId);
-    const videoUrl = parsed.videoUrl ?? this.pickRenderVideoUrl(data);
+    // Loose URL scan only inside this video's own entry — scanning the whole list
+    // picked up whichever video was listed first.
+    const videoUrl =
+      parsed.videoUrl ??
+      (parsed.entry
+        ? this.pickRenderVideoUrl(parsed.entry)
+        : parsed.hasEntries
+          ? null
+          : this.pickRenderVideoUrl(data));
     const status: RenderQueueStatus =
       videoUrl && parsed.status === 'pending' ? 'completed' : parsed.status;
     return { status, videoUrl, queueId: parsed.queueId, raw: data };

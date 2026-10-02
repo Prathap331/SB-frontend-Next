@@ -587,5 +587,22 @@ export async function fetchVideosProject(
     .filter((row): row is VideosTableRow => Boolean(row && rowHasProjectScenes(row)));
   if (!rows.length) return null;
 
-  return rows.find((row) => scriptsMatch(row.script, wanted)) ?? null;
+  // Exact script first. The loose prefix match (first 80 chars) is only trusted when it
+  // points at a single row — scripts that open the same way otherwise loaded the newest
+  // row, so every script showed that row's rendered video.
+  const exact = rows.find((row) => scriptTextOf(row.script) === wanted);
+  if (exact) return exact;
+  const loose = rows.filter((row) => scriptsMatch(row.script, wanted));
+  return loose.length === 1 ? loose[0] : null;
+}
+
+/** `videos.video_url` for one row — the rendered video of that row's own script. */
+export async function fetchVideoRowUrl(videoId: string): Promise<string | null> {
+  if (!videoId.trim()) return null;
+  const { data, error } = await supabase.from('videos').select('video_url').eq('id', videoId).maybeSingle();
+  if (error) {
+    console.warn('[videos video_url]', error.message);
+    return null;
+  }
+  return asHttpUrl((data as { video_url?: unknown } | null)?.video_url);
 }

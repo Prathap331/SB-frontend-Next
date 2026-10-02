@@ -82,10 +82,19 @@ function newestFirst(entries: Record<string, unknown>[]): Record<string, unknown
   return [...entries].sort((a, b) => entryTime(b) - entryTime(a));
 }
 
+function hasAnyId(row: Record<string, unknown>): boolean {
+  return Boolean(asId(row.id) ?? asId(row.video_id) ?? asId(row.queue_id));
+}
+
 function pickEntry(entries: Record<string, unknown>[], preferId?: string): Record<string, unknown> | null {
   if (!entries.length) return null;
-  const scoped = preferId ? entries.filter((row) => renderQueueEntryMatches(row, preferId)) : [];
-  if (scoped.length) return newestFirst(scoped)[0];
+  if (preferId) {
+    const scoped = entries.filter((row) => renderQueueEntryMatches(row, preferId));
+    if (scoped.length) return newestFirst(scoped)[0];
+    // A lone id-less record is the answer to a by-id request (GET /render/queue/{id}).
+    // Anything else belongs to another video — never borrow its render (A and B both showed Z).
+    return entries.length === 1 && !hasAnyId(entries[0]) ? entries[0] : null;
+  }
   const byTime = newestFirst(entries);
   return (
     byTime.find((row) => normalizeRenderStatus(row.status) === 'completed' && asHttpUrl(row.final_video_url)) ??
@@ -97,16 +106,27 @@ function pickEntry(entries: Record<string, unknown>[], preferId?: string): Recor
 export function parseRenderQueuePayload(
   data: unknown,
   preferId?: string,
-): { status: RenderQueueStatus; videoUrl: string | null; queueId: string | null } {
+): {
+  status: RenderQueueStatus;
+  videoUrl: string | null;
+  queueId: string | null;
+  /** The queue row the result was read from (null when none belongs to `preferId`). */
+  entry: Record<string, unknown> | null;
+  hasEntries: boolean;
+} {
   const entries = renderQueueEntries(data);
   const entry = pickEntry(entries, preferId);
+  // Scoped to a video but no entry is its own: report nothing rather than the
+  // payload's top-level fields, which may describe a different video.
+  const scopedMiss = Boolean(preferId) && !entry && entries.length > 0;
+  const top = scopedMiss ? null : asRecord(data);
   const videoUrl =
     asHttpUrl(entry?.final_video_url) ??
     asHttpUrl(entry?.finalVideoUrl) ??
     asHttpUrl(entry?.video_url) ??
-    asHttpUrl(asRecord(data)?.final_video_url);
+    asHttpUrl(top?.final_video_url);
   const status =
-    normalizeRenderStatus(entry?.status ?? asRecord(data)?.status) ?? (videoUrl ? 'completed' : 'pending');
-  const queueId = asId(entry?.id) ?? asId(entry?.queue_id) ?? asId(asRecord(data)?.id);
-  return { status, videoUrl, queueId };
+    normalizeRenderStatus(entry?.status ?? top?.status) ?? (videoUrl ? 'completed' : 'pending');
+  const queueId = asId(entry?.id) ?? asId(entry?.queue_id) ?? asId(top?.id);
+  return { status, videoUrl, queueId, entry, hasEntries: entries.length > 0 };
 }
