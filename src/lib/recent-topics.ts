@@ -466,13 +466,15 @@ export async function loadTopicWorkspace(
   const SAVED_IDEAS_SELECT_FALLBACK =
     'id, created_at, topic, ideas, userId, topic_summary, sources, books';
 
-  let { data, error } = await supabase
+  let data: SavedIdeaRow[] | null = null;
+  let { data: firstRows, error } = await supabase
     .from('saved_ideas')
     .select(SAVED_IDEAS_SELECT)
     .eq('userId', uid)
     .eq('topic', trimmed)
     .order('created_at', { ascending: false })
     .limit(1);
+  data = (firstRows ?? null) as SavedIdeaRow[] | null;
 
   if (error) {
     const retry = await supabase
@@ -482,7 +484,7 @@ export async function loadTopicWorkspace(
       .eq('topic', trimmed)
       .order('created_at', { ascending: false })
       .limit(1);
-    data = retry.data;
+    data = (retry.data ?? null) as SavedIdeaRow[] | null;
     error = retry.error;
   }
 
