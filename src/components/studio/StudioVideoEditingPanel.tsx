@@ -92,6 +92,8 @@ import {
   brollDisplayName,
   clipMediaKind,
   fetchVideoRowUrl,
+  fetchVideoRenderState,
+  invalidateVideoRenderState,
   readPendingGeneration,
   writePendingGeneration,
   clearPendingGeneration,
@@ -1964,6 +1966,7 @@ export function StudioVideoEditingPanel({
         videoId,
         orientation: 'landscape',
       });
+      invalidateVideoRenderState(videoId);
       if (!queueId) {
         showToast('Render queued, but no queue id was returned');
         return;
@@ -2025,8 +2028,8 @@ export function StudioVideoEditingPanel({
 
   /**
    * Watch a render that is in flight — queued from the Render button, or found still
-   * pending by the one check made when the editor opens. GET /render/queue every 90s
-   * until it settles.
+   * pending by the one check made when the editor opens. Reads the Supabase
+   * `render_queue.status` every 90s until it settles (never GET /render/queue).
    * Callbacks are read through a ref so re-renders never restart the 45s countdown.
    */
   const renderPollDepsRef = useRef({ videoId, finishRender, showToast });
@@ -2041,13 +2044,11 @@ export function StudioVideoEditingPanel({
       try {
         let status: RenderQueueStatus = 'pending';
         let videoUrl: string | null = null;
-        // One request per tick: the newest queue entry for this video.
-        const latest = videoId
-          ? await ApiService.getRenderQueueForVideo(videoId)
-          : await ApiService.getRenderQueueStatus(renderQueueId);
+        // One Supabase read per tick: the newest render_queue row for this video.
+        const latest = videoId ? await fetchVideoRenderState(videoId) : null;
         if (latest) {
           status = latest.status;
-          videoUrl = latest.videoUrl;
+          videoUrl = latest.finalVideoUrl;
         }
         if (cancelled) return;
         if (status === 'completed') {
@@ -2078,7 +2079,7 @@ export function StudioVideoEditingPanel({
   const openRenderCheckRef = useRef<string | null>(null);
 
   /**
-   * One GET /render/queue when a saved project opens, to learn whether its render is done
+   * One read of the Supabase render_queue table when a saved project opens, to learn whether its render is done
    * or still running. Completed / failed / never rendered → no further requests.
    * Pending → show "Processing…" and hand it to the 90s poller above.
    */
@@ -2087,13 +2088,13 @@ export function StudioVideoEditingPanel({
     let cancelled = false;
     void (async () => {
       try {
-        const queue = await ApiService.getRenderQueueForVideo(videoId);
+        const queue = await fetchVideoRenderState(videoId);
         if (cancelled) return;
         openRenderCheckRef.current = null;
         if (!queue) return;
         if (queue.status === 'completed') {
           setRenderStatus('completed');
-          if (queue.videoUrl) setRenderedVideoUrl((prev) => prev ?? queue.videoUrl);
+          if (queue.finalVideoUrl) setRenderedVideoUrl((prev) => prev ?? queue.finalVideoUrl);
         } else if (queue.status === 'failed') {
           setRenderStatus('failed');
         } else {

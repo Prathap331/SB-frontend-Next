@@ -1,10 +1,6 @@
 // API service for StoryBit AI backend integration
 import { supabase } from '@/lib/supabaseClient';
-import {
-  parseRenderQueuePayload,
-  renderQueueHasId,
-  type RenderQueueStatus,
-} from '@/lib/renderStatus';
+import { parseRenderQueuePayload } from '@/lib/renderStatus';
 
 export interface ProcessTopicRequest {
   topic: string;
@@ -2171,79 +2167,9 @@ export class ApiService {
   }
 
   /**
-   * Scan an arbitrary render payload for the finished video URL.
-   * The response shape isn't fully pinned down, so this checks the common field
-   * names (video_url, url, render_url, output_url, ...) at the top level and one
-   * level down, the same way generateSpeech does for its audio URL.
-   */
-  private static pickRenderVideoUrl(data: unknown): string | null {
-    const asStr = (v: unknown) => {
-      if (v == null) return '';
-      if (typeof v === 'string') return v.trim();
-      if (typeof v === 'number' || typeof v === 'bigint') return String(v).trim();
-      return '';
-    };
-
-    const pickUrl = (v: unknown): string | null => {
-      const direct = asStr(v);
-      if (/^https?:\/\//i.test(direct)) return direct;
-      if (v && typeof v === 'object' && !Array.isArray(v)) {
-        const obj = v as Record<string, unknown>;
-        for (const key of [
-          'final_video_url',
-          'finalVideoUrl',
-          'video_url',
-          'videoUrl',
-          'render_url',
-          'renderUrl',
-          'output_url',
-          'outputUrl',
-          'mp4_url',
-          'mp4Url',
-          'file_url',
-          'fileUrl',
-          'public_url',
-          'publicUrl',
-          'url',
-          'href',
-        ]) {
-          const found = asStr(obj[key]);
-          if (/^https?:\/\//i.test(found)) return found;
-        }
-      }
-      return null;
-    };
-
-    if (typeof data === 'string') return pickUrl(data);
-    if (Array.isArray(data)) {
-      for (const item of data) {
-        const found = pickUrl(item);
-        if (found) return found;
-      }
-      return null;
-    }
-
-    const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
-    const nested =
-      (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data) ? obj.data : null) ??
-      (obj.result && typeof obj.result === 'object' && !Array.isArray(obj.result) ? obj.result : null) ??
-      (obj.render && typeof obj.render === 'object' ? obj.render : null) ??
-      (obj.video && typeof obj.video === 'object' ? obj.video : null) ??
-      {};
-
-    const fromEntries = Array.isArray(obj.entries)
-      ? this.pickRenderVideoUrl(obj.entries)
-      : Array.isArray(obj.items)
-        ? this.pickRenderVideoUrl(obj.items)
-        : null;
-
-    return pickUrl(obj) || pickUrl(nested) || fromEntries || pickUrl(obj.video) || pickUrl(obj.render) || null;
-  }
-
-  /**
    * Queue a full-video render via POST /render/queue.
    * Payload: { video_id, orientation }
-   * Returns the queue id to poll with getRenderQueueStatus — the backend may name it
+   * Returns the queue id (status is then read from the Supabase render_queue table) — the backend may name it
    * `queue_id`, `video_id` or plain `id`, so all are accepted.
    */
   static async queueRenderVideo(params: {
@@ -2251,7 +2177,6 @@ export class ApiService {
     orientation?: RenderOrientation;
   }): Promise<{ queueId: string | null; raw: unknown }> {
     const url = `${this.BASE_URL}/render/queue`;
-    this.invalidateRenderQueueLookup(params.videoId);
     const response = await this.authorizedFetch(url, {
       method: 'POST',
       body: JSON.stringify({
@@ -2283,113 +2208,6 @@ export class ApiService {
       asId(data);
 
     return { queueId, raw: data };
-  }
-
-  private static fromRenderQueuePayload(
-    data: unknown,
-    preferId?: string,
-  ): { status: RenderQueueStatus; videoUrl: string | null; queueId: string | null; raw: unknown } {
-    const parsed = parseRenderQueuePayload(data, preferId);
-    // Loose URL scan only inside this video's own entry — scanning the whole list
-    // picked up whichever video was listed first.
-    const videoUrl =
-      parsed.videoUrl ??
-      (parsed.entry
-        ? this.pickRenderVideoUrl(parsed.entry)
-        : parsed.hasEntries
-          ? null
-          : this.pickRenderVideoUrl(data));
-    const status: RenderQueueStatus =
-      videoUrl && parsed.status === 'pending' ? 'completed' : parsed.status;
-    return { status, videoUrl, queueId: parsed.queueId, raw: data };
-  }
-
-  /** GET /render/queue — 404/empty returns null so callers can try the next shape. */
-  private static async fetchRenderQueueJson(pathAndQuery: string): Promise<unknown | null> {
-    try {
-      const response = await this.authorizedFetch(`${this.BASE_URL}${pathAndQuery}`, {
-        method: 'GET',
-      });
-      if (!response.ok) return null;
-      return await response.json().catch(() => null);
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Read `status` + `final_video_url` from `{ entries: [...] }` (or a single row).
-   * Tries the list (`?video_id=` / `/render/queue`) first — that is the shape the
-   * backend actually returns — then GET /render/queue/{id}.
-   */
-  static async getRenderQueueStatus(
-    queueId: string,
-  ): Promise<{ status: RenderQueueStatus; videoUrl: string | null; raw: unknown }> {
-    const id = queueId.trim();
-    if (!id) return { status: 'pending', videoUrl: null, raw: null };
-
-    const attempts = [
-      `/render/queue?video_id=${encodeURIComponent(id)}`,
-      `/render/queue?id=${encodeURIComponent(id)}`,
-      `/render/queue/${encodeURIComponent(id)}`,
-      `/render/queue`,
-    ];
-
-    for (const path of attempts) {
-      const data = await this.fetchRenderQueueJson(path);
-      if (data == null) continue;
-      if (path === '/render/queue' && !renderQueueHasId(data, id)) continue;
-      const parsed = this.fromRenderQueuePayload(data, id);
-      if (parsed.videoUrl || parsed.status !== 'pending' || parsed.queueId) {
-        return { status: parsed.status, videoUrl: parsed.videoUrl, raw: data };
-      }
-    }
-
-    return { status: 'pending', videoUrl: null, raw: null };
-  }
-
-  /** Minimum gap between GET /render/queue calls for one video (matches the editor's poll). */
-  static readonly RENDER_QUEUE_MIN_INTERVAL_MS = 90_000;
-
-  private static renderQueueLookups = new Map<
-    string,
-    {
-      at: number;
-      promise: Promise<{ status: RenderQueueStatus; videoUrl: string | null; raw: unknown } | null>;
-    }
-  >();
-
-  /** Forget the cached lookup so the next check after POST /render/queue is fresh. */
-  static invalidateRenderQueueLookup(videoId: string): void {
-    this.renderQueueLookups.delete(videoId.trim());
-  }
-
-  /**
-   * Latest render for a video: ONE request to GET /render/queue?video_id=…, whose payload is
-   * `{ entries: [{ id, video_id, status, final_video_url }] }`. A 200 with no entry for this
-   * video means "never rendered" (null). Calls for the same video within 90s share one result,
-   * so remounts / repeated effects can never put more load on the backend than the poll.
-   */
-  static async getRenderQueueForVideo(
-    videoId: string,
-  ): Promise<{ status: RenderQueueStatus; videoUrl: string | null; raw: unknown } | null> {
-    const id = videoId.trim();
-    if (!id) return null;
-    const cached = this.renderQueueLookups.get(id);
-    if (cached && Date.now() - cached.at < this.RENDER_QUEUE_MIN_INTERVAL_MS) {
-      return cached.promise;
-    }
-    const promise = (async () => {
-      const data = await this.fetchRenderQueueJson(`/render/queue?video_id=${encodeURIComponent(id)}`);
-      if (data == null) return null;
-      const parsed = this.fromRenderQueuePayload(data, id);
-      if (!parsed.videoUrl && parsed.status === 'pending' && !parsed.queueId) return null;
-      return { status: parsed.status, videoUrl: parsed.videoUrl, raw: data };
-    })();
-    this.renderQueueLookups.set(id, { at: Date.now(), promise });
-    // A failed request must not block the next check for 90s.
-    promise.catch(() => this.renderQueueLookups.delete(id));
-    return promise;
   }
 
   /**

@@ -1,8 +1,8 @@
 import { getScriptTextFromMap, parseScriptLanguageMap } from '@/lib/script-data';
 import { supabase } from '@/lib/supabaseClient';
+import { normalizeRenderStatus, type RenderQueueStatus } from '@/lib/renderStatus';
 import { isDirectionScene, isLegacyTimeline, normalizeEditVideoPayload } from '@/lib/video-editor/editVideoNormalize';
 import {
-  ApiService,
   type EditVideoBeatAsset,
   type EditVideoInfographicListItem,
   type EditVideoResponse,
@@ -535,21 +535,47 @@ function rowHasProjectScenes(row: VideosTableRow): boolean {
   );
 }
 
+/** Minimum gap between render_queue reads for one video (matches the editor's 90s poll). */
+const RENDER_STATE_MIN_INTERVAL_MS = 90_000;
+const renderStateReads = new Map<string, { at: number; promise: Promise<VideoRenderState | null> }>();
+
+export type VideoRenderState = { status: RenderQueueStatus; finalVideoUrl: string | null };
+
+/** Forget the cached read so the first check after POST /render/queue is fresh. */
+export function invalidateVideoRenderState(videoId: string): void {
+  renderStateReads.delete(videoId.trim());
+}
+
 /**
- * Render `status` + `final_video_url` from GET /render/queue (not the videos table).
+ * Latest render for a video from the Supabase `render_queue` table (`status`,
+ * `final_video_url`) — never GET /render/queue on the backend. Null when the video was
+ * never queued. Reads for the same video within 90s share one result.
  */
-export async function fetchVideoRenderState(
-  videoId: string,
-): Promise<{ status: string | null; finalVideoUrl: string | null } | null> {
-  if (!videoId.trim()) return null;
-  try {
-    const result = await ApiService.getRenderQueueForVideo(videoId);
-    if (!result) return null;
-    return { status: result.status, finalVideoUrl: result.videoUrl };
-  } catch (err) {
-    console.warn('[render/queue]', err);
-    return null;
-  }
+export function fetchVideoRenderState(videoId: string): Promise<VideoRenderState | null> {
+  const id = videoId.trim();
+  if (!id) return Promise.resolve(null);
+  const cached = renderStateReads.get(id);
+  if (cached && Date.now() - cached.at < RENDER_STATE_MIN_INTERVAL_MS) return cached.promise;
+
+  const promise = (async (): Promise<VideoRenderState | null> => {
+    const { data, error } = await supabase
+      .from('render_queue')
+      .select('status, final_video_url, created_at')
+      .eq('video_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    const row = data as { status?: unknown; final_video_url?: unknown };
+    const finalVideoUrl = asHttpUrl(row.final_video_url);
+    const status = normalizeRenderStatus(row.status) ?? (finalVideoUrl ? 'completed' : 'pending');
+    return { status, finalVideoUrl };
+  })();
+  renderStateReads.set(id, { at: Date.now(), promise });
+  // A failed read must not block the next check for 90s.
+  promise.catch(() => renderStateReads.delete(id));
+  return promise;
 }
 
 /**
