@@ -91,7 +91,6 @@ import {
   resolveBeatAsset,
   brollDisplayName,
   clipMediaKind,
-  fetchVideoRenderState,
   fetchVideoRowUrl,
   readPendingGeneration,
   writePendingGeneration,
@@ -1449,7 +1448,8 @@ function ColorPickerPanel({
 }
 
 /** How often a queued render is polled for completion. */
-const RENDER_POLL_MS = 6000;
+/** GET /render/queue cadence — only while a render this session queued is in flight. */
+const RENDER_POLL_MS = 45_000;
 
 /** How often the videos table is checked while a /edit-video run is still going. */
 const GENERATION_POLL_MS = 10000;
@@ -1990,12 +1990,9 @@ export function StudioVideoEditingPanel({
       setRenderStatus('completed');
 
       // Prefer the URL the backend just handed us. When the completion signal carries
-      // none, fall back to the videos row and then the saved script row — otherwise the
-      // download button stayed disabled until the page was reloaded.
+      // none, fall back to the videos row and then the saved script row (no extra
+      // /render/queue request) — otherwise the download button stayed disabled until reload.
       let resolvedUrl = videoUrl;
-      if (!resolvedUrl && videoId) {
-        resolvedUrl = (await fetchVideoRenderState(videoId))?.finalVideoUrl ?? null;
-      }
       if (!resolvedUrl && videoId) {
         resolvedUrl = await fetchVideoRowUrl(videoId);
       }
@@ -2026,24 +2023,29 @@ export function StudioVideoEditingPanel({
     [renderVideoName, scriptRowId, userId, videoId, showToast],
   );
 
-  /** Watch the render we queued in this session via GET /render/queue/{queue_id}. */
+  /**
+   * Watch the render queued from the Render button. This is the only place that reads
+   * GET /render/queue: first check 45s after the click, then every 45s until it settles.
+   * Callbacks are read through a ref so re-renders never restart the 45s countdown.
+   */
+  const renderPollDepsRef = useRef({ videoId, finishRender, showToast });
+  renderPollDepsRef.current = { videoId, finishRender, showToast };
   useEffect(() => {
     if (!renderQueueId) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const poll = async () => {
+      const { videoId, finishRender, showToast } = renderPollDepsRef.current;
       try {
         let status: RenderQueueStatus = 'pending';
         let videoUrl: string | null = null;
-        if (videoId) {
-          const byVideo = await ApiService.getRenderQueueForVideo(videoId);
-          if (byVideo) {
-            status = byVideo.status;
-            videoUrl = byVideo.videoUrl;
-          }
-        }
-        if (status === 'pending') {
+        const byVideo = videoId ? await ApiService.getRenderQueueForVideo(videoId) : null;
+        if (byVideo) {
+          status = byVideo.status;
+          videoUrl = byVideo.videoUrl;
+        } else if (renderQueueId !== videoId) {
+          // Only when the video's own entry wasn't found — not a second request every tick.
           const byQueue = await ApiService.getRenderQueueStatus(renderQueueId);
           if (byQueue.status !== 'pending' || byQueue.videoUrl) {
             status = byQueue.status;
@@ -2068,76 +2070,12 @@ export function StudioVideoEditingPanel({
       timer = setTimeout(() => void poll(), RENDER_POLL_MS);
     };
 
-    void poll();
+    timer = setTimeout(() => void poll(), RENDER_POLL_MS);
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [renderQueueId, videoId, finishRender, showToast]);
-
-  /**
-   * Pick a render back up from GET /render/queue (`status`, `final_video_url`) —
-   * the in-memory queue id is gone after a reload.
-   */
-  useEffect(() => {
-    if (renderQueueId || renderStatus !== 'pending' || !videoId) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const poll = async () => {
-      try {
-        const state = await fetchVideoRenderState(videoId);
-        if (cancelled) return;
-        const status = normalizeRenderStatus(state?.status);
-        if (status === 'completed' || (!status && state?.finalVideoUrl)) {
-          await finishRender(state?.finalVideoUrl ?? null, videoId);
-          return;
-        }
-        if (status === 'failed') {
-          setRenderStatus('failed');
-          showToast('Rendering failed. Please try again.');
-          return;
-        }
-      } catch (err) {
-        console.warn('[render-status]', err);
-        if (cancelled) return;
-      }
-      timer = setTimeout(() => void poll(), RENDER_POLL_MS);
-    };
-
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [renderQueueId, renderStatus, videoId, finishRender, showToast]);
-
-  /** Keep the button in sync with GET /render/queue `{ entries: [{ status, final_video_url }] }`. */
-  useEffect(() => {
-    if (!videoId) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const queue = await ApiService.getRenderQueueForVideo(videoId);
-        if (cancelled || !queue) return;
-        if (queue.status === 'completed') {
-          setRenderQueueId(null);
-          setRenderStatus('completed');
-          if (queue.videoUrl) setRenderedVideoUrl(queue.videoUrl);
-          return;
-        }
-        if (queue.status === 'failed') {
-          setRenderQueueId(null);
-          setRenderStatus('failed');
-        }
-      } catch (err) {
-        console.warn('[render-queue sync]', err);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [videoId]);
+  }, [renderQueueId]);
 
   const closeVideoPreview = useCallback(() => {
     previewVideoRef.current?.pause();
@@ -2630,19 +2568,13 @@ export function StudioVideoEditingPanel({
         const res = videosRowToEditVideoResponse(row);
         const mapped = mapEditVideoResponse(res);
         const maps = hydrateSceneTimelinesFromVideosRow(mapped.scenes, row);
-        let queue: { status: RenderQueueStatus; videoUrl: string | null } | null = null;
-        try {
-          queue = await ApiService.getRenderQueueForVideo(row.id);
-        } catch (err) {
-          console.warn('[render-queue restore]', err);
-        }
-        if (cancelled) return;
         applyMapped(res, {
           script: row.script,
           voice: row.voice,
-          // videos.video_url is the render of this row's own script — it wins over the queue.
-          finalVideoUrl: row.video_url ?? queue?.videoUrl ?? null,
-          renderStatus: row.video_url ? 'completed' : (queue?.status ?? null),
+          // videos.video_url is the render of this row's own script. Opening the editor
+          // never calls /render/queue — that is polled only after the Render button.
+          finalVideoUrl: row.video_url,
+          renderStatus: row.video_url ? 'completed' : null,
           sceneTimelines: maps,
           brollVideoSuggestions: mapped.brollVideoSuggestions,
           brollImageSuggestions: mapped.brollImageSuggestions,
