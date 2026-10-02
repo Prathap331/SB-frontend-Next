@@ -23,7 +23,7 @@ import { SafeArea, SAFE_H, SAFE_W } from './core/safeArea';
 import { mutedFor, readStyle, styleVars, withAlpha } from './core/style';
 import { AnimatedText, FOOTAGE_SHADOW, StoryBackground, leaf, readBgMode, readFirst, highlightWords } from './core/shared';
 import { withAutoFit } from './core/autofit';
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 
 /* ================================================================== */
 /* Content spec                                                         */

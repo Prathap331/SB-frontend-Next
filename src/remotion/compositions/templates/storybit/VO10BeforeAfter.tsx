@@ -11,7 +11,7 @@
  *   mode · stop_at · style{fonts, colours} · font_sizes{…} · animations{…} · cue_times [before, reveal, caption]
  * Timing: 3–8s from clock.durationInFrames.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readNonEmptyString } from '../../../props';
 import { LucideIconView } from '../../../icons';

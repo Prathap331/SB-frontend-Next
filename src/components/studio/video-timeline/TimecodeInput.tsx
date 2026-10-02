@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { formatTimecode, parseTimecode } from '@/lib/video-editor/timecode';
 
 export function TimecodeInput({
@@ -8,42 +8,66 @@ export function TimecodeInput({
   duration,
   onSeek,
   className = '',
+  liveTimeRef,
+  isPlaying = false,
 }: {
   time: number;
   duration: number;
   onSeek: (seconds: number) => void;
   className?: string;
+  liveTimeRef?: MutableRefObject<number>;
+  isPlaying?: boolean;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const display = formatTimecode(time);
 
-  const commit = () => {
-    const parsed = parseTimecode(draft);
+  useEffect(() => {
+    if (editing) return;
+    const el = inputRef.current;
+    if (!el) return;
+    if (isPlaying && liveTimeRef) {
+      let raf = 0;
+      const tick = () => {
+        const node = inputRef.current;
+        if (node && document.activeElement !== node) {
+          node.value = formatTimecode(liveTimeRef.current);
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }
+    el.value = formatTimecode(time);
+  }, [time, isPlaying, editing, liveTimeRef]);
+
+  const commit = (raw: string) => {
     setEditing(false);
-    if (parsed == null) return;
+    const parsed = parseTimecode(raw);
+    if (parsed == null) {
+      const el = inputRef.current;
+      if (el) el.value = formatTimecode(liveTimeRef?.current ?? time);
+      return;
+    }
     const max = Number.isFinite(duration) && duration > 0 ? duration : parsed;
     onSeek(Math.max(0, Math.min(max, parsed)));
   };
 
   return (
     <input
+      ref={inputRef}
       type="text"
       inputMode="decimal"
       spellCheck={false}
       aria-label="Current time"
       title="Jump to a time (mm:ss.cs)"
-      value={editing ? draft : display}
-      onFocus={() => {
-        setDraft(display);
-        setEditing(true);
-      }}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
+      defaultValue={formatTimecode(time)}
+      onFocus={() => setEditing(true)}
+      onBlur={(e) => commit(e.currentTarget.value)}
       onKeyDown={(e) => {
         if (e.key === 'Enter') e.currentTarget.blur();
         if (e.key === 'Escape') {
           setEditing(false);
+          if (inputRef.current) inputRef.current.value = formatTimecode(liveTimeRef?.current ?? time);
           e.currentTarget.blur();
         }
       }}

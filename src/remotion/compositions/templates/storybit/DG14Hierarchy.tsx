@@ -11,7 +11,7 @@
  * parent = number of the parent node (1 = first node); leave it out for the top node.
  * Timing: 3–8s from clock.durationInFrames.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readImageUrl } from '../../../props';
 import { LucideIconView } from '../../../icons';

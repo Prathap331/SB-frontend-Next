@@ -1,7 +1,5 @@
 /**
- * One vocabulary for render state, shared by the /render/queue endpoint and the
- * `videos.render_status` column, so a render reads the same whether the status came
- * from a live poll or from the row loaded when the editor opens.
+ * One vocabulary for render state from GET /render/queue (`status`).
  */
 
 export type RenderQueueStatus = 'pending' | 'completed' | 'failed';

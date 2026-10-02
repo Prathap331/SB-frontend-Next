@@ -293,7 +293,9 @@ export function TaxonomyVisual({ data, clock }: { data: InfographicData; clock: 
   const Template = TEMPLATE_RENDERERS[type];
   if (Template) {
     return (
-      <TemplateErrorBoundary>
+      // Keyed on the props too: a template that threw on half-loaded data must
+      // come back once the full payload arrives, not stay blank until a reload.
+      <TemplateErrorBoundary resetKey={`${type}-${clock.durationInFrames}-${JSON.stringify(data.props ?? {})}`}>
         <Template data={data} clock={clock} />
       </TemplateErrorBoundary>
     );

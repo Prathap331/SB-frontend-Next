@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from 'react';
 import type { TimelineClip, TimelineState } from '@/lib/video-editor/types';
 import { getActiveClipsAtTime } from '@/lib/video-editor/math';
 import {
@@ -11,7 +11,7 @@ import {
   type RemotionInfographicSpec,
 } from '@/lib/video-editor/infographics';
 import { isImageClip } from '@/lib/video-editor/mediaNames';
-import { TimelineOverlayPreview } from '@/components/studio/video-timeline/TimelineOverlayPreview';
+import { LiveTimelineOverlays } from '@/components/studio/video-timeline/TimelineOverlayPreview';
 import { Sparkles, Film, Volume2 } from 'lucide-react';
 import {
   captionTextAtTime,
@@ -59,6 +59,8 @@ type Props = {
   onRequestPause?: () => void;
   /** Library-card specs — used to restore `icon_name` the timeline clip may have dropped. */
   overlaySpecs?: RemotionInfographicSpec[];
+  /** 60fps clock from playback — overlays follow this instead of throttled React time. */
+  visualTimeRef?: MutableRefObject<number>;
 };
 
 type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br';
@@ -162,6 +164,7 @@ export function TimelinePreview({
   onInfographicTextCommit,
   onRequestPause,
   overlaySpecs = [],
+  visualTimeRef,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [editingText, setEditingText] = useState(false);
@@ -183,11 +186,12 @@ export function TimelinePreview({
     selection.addRange(range);
   }, [editingText]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
     const update = () => {
       const rect = el.getBoundingClientRect();
+      if (rect.width < 2 || rect.height < 2) return;
       setFrameSize((prev) =>
         Math.abs(prev.w - rect.width) < 0.5 && Math.abs(prev.h - rect.height) < 0.5
           ? prev
@@ -197,7 +201,15 @@ export function TimelinePreview({
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    return () => ro.disconnect();
+    const raf = requestAnimationFrame(update);
+    const t1 = window.setTimeout(update, 50);
+    const t2 = window.setTimeout(update, 250);
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, []);
 
   const overlayScale = previewOverlayScale(frameSize.w);
@@ -378,6 +390,8 @@ export function TimelinePreview({
   const durationRef = useRef(timeline.duration);
   const onTimeUpdateRef = useRef(onTimeUpdate);
   const onEndedRef = useRef(onEnded);
+  const visualClockRef = useRef(visualTimeRef);
+  visualClockRef.current = visualTimeRef;
   if (!isPlaying) {
     timeRef.current = timeline.currentTime;
   }
@@ -408,9 +422,6 @@ export function TimelinePreview({
 
   const remotionInfoClip = useMemo(() => {
     if (!infoClip?.remotion) return null;
-    const frames = infoClip.remotion.durationFrames;
-    if (!Number.isFinite(frames) || frames <= 0) return null;
-    // Prefer clip.duration (seconds on timeline); fall back to frames/fps via sourceDuration
     const dur = infoClip.duration > 0 ? infoClip.duration : infoClip.sourceDuration;
     if (!isInfographicActiveAtTime(timeline.currentTime, infoClip.start, dur)) return null;
     return infoClip;
@@ -418,8 +429,6 @@ export function TimelinePreview({
 
   const remotionTextClip = useMemo(() => {
     if (!textClip?.remotion) return null;
-    const frames = textClip.remotion.durationFrames;
-    if (!Number.isFinite(frames) || frames <= 0) return null;
     const dur = textClip.duration > 0 ? textClip.duration : textClip.sourceDuration;
     if (!isInfographicActiveAtTime(timeline.currentTime, textClip.start, dur)) return null;
     return textClip;
@@ -709,6 +718,14 @@ export function TimelinePreview({
     let last = performance.now();
     const tick = (now: number) => {
       if (!isPlayingRef.current) return;
+      const host = rootRef.current;
+      if (!host || host.clientWidth <= 2 || host.clientHeight <= 2 || host.getClientRects().length === 0) {
+        const live = visualClockRef.current?.current;
+        if (typeof live === 'number') timeRef.current = live;
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
       const dt = Math.min(0.08, Math.max(0, (now - last) / 1000));
       last = now;
 
@@ -728,7 +745,16 @@ export function TimelinePreview({
         !video.ended &&
         video.readyState >= 2;
 
-      let next = timeRef.current + dt;
+      const prev = timeRef.current;
+      let next = prev + dt;
+      // Media clocks (`currentTime`) tick in coarse, uneven steps; copying them
+      // straight in made the playhead stutter. Run on wall-clock time and ease
+      // toward the media position; only jump when it is far off (seek, stall).
+      const followMedia = (mediaTime: number) => {
+        const drift = mediaTime - next;
+        if (Math.abs(drift) > 0.35) return mediaTime;
+        return Math.max(prev, next + drift * Math.min(1, dt * 8));
+      };
 
       if (videoReady && video && activeMedia) {
         const fromVideo = activeMedia.start + (video.currentTime - (activeMedia.sourceStart || 0));
@@ -737,7 +763,7 @@ export function TimelinePreview({
           // Advance onto / past the cut so the next clip or gap becomes active.
           next = Math.max(next, clipEnd);
         } else {
-          next = fromVideo;
+          next = followMedia(fromVideo);
         }
       } else if (
         audio &&
@@ -752,7 +778,7 @@ export function TimelinePreview({
         if (fromAudio >= voEnd - 0.02 && voEnd < duration - 0.05) {
           next = Math.max(next, voEnd);
         } else {
-          next = fromAudio;
+          next = followMedia(fromAudio);
         }
       }
 
@@ -810,7 +836,8 @@ export function TimelinePreview({
         }}
         playsInline
         preload="auto"
-        muted={Boolean(brollClip) || mediaIsImage}
+        // Only the on-screen buffer may be heard; the other one is preloading / swapping out.
+        muted={Boolean(brollClip) || mediaIsImage || activeBuf !== 'A'}
       />
       <video
         ref={videoBRef}
@@ -823,7 +850,7 @@ export function TimelinePreview({
         }}
         playsInline
         preload="auto"
-        muted={Boolean(brollClip) || mediaIsImage}
+        muted={Boolean(brollClip) || mediaIsImage || activeBuf !== 'B'}
       />
 
       {showImage ? (
@@ -863,39 +890,16 @@ export function TimelinePreview({
         </div>
       ) : null}
 
-      {remotionInfoClip?.remotion ? (
-        <TimelineOverlayPreview
-          clip={remotionInfoClip}
-          currentTime={timeline.currentTime}
-          width={frameSize.w}
-          height={frameSize.h}
-          overlaySpecs={overlaySpecs}
-          isPlaying={isPlaying}
-          onTextCommit={
-            onInfographicTextCommit
-              ? (path, value) => onInfographicTextCommit(remotionInfoClip.id, path, value)
-              : undefined
-          }
-          onRequestPause={onRequestPause}
-        />
-      ) : null}
-
-      {remotionTextClip?.remotion ? (
-        <TimelineOverlayPreview
-          clip={remotionTextClip}
-          currentTime={timeline.currentTime}
-          width={frameSize.w}
-          height={frameSize.h}
-          overlaySpecs={overlaySpecs}
-          isPlaying={isPlaying}
-          onTextCommit={
-            onInfographicTextCommit
-              ? (path, value) => onInfographicTextCommit(remotionTextClip.id, path, value)
-              : undefined
-          }
-          onRequestPause={onRequestPause}
-        />
-      ) : null}
+      <LiveTimelineOverlays
+        timeline={timeline}
+        isPlaying={isPlaying}
+        visualTimeRef={visualTimeRef}
+        width={frameSize.w}
+        height={frameSize.h}
+        overlaySpecs={overlaySpecs}
+        onInfographicTextCommit={onInfographicTextCommit}
+        onRequestPause={onRequestPause}
+      />
 
       {onOverlayTransform &&
         overlayScale > 0 &&
@@ -938,14 +942,14 @@ export function TimelinePreview({
           );
         })}
 
-      {!remotionInfoClip && infoClip && infoClip.mode === 'fullscreen' && (
+      {!infoClip?.remotion && infoClip && infoClip.mode === 'fullscreen' && (
         <div className="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-2 bg-violet-950/70 px-6 text-center">
           <Sparkles className="h-5 w-5 text-violet-200" />
           <p className="text-sm font-bold text-white">{infoClip.text || infoClip.name}</p>
         </div>
       )}
 
-      {!remotionInfoClip && infoClip && infoClip.mode !== 'fullscreen' && (
+      {!infoClip?.remotion && infoClip && infoClip.mode !== 'fullscreen' && (
         <div className="absolute bottom-14 left-3 z-[3] rounded-full border border-white/20 bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-violet-100">
           <Sparkles className="mr-1 inline h-3 w-3" />
           {infoClip.text || infoClip.name}

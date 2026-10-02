@@ -12,7 +12,7 @@
  *   style{fonts, colours} · font_sizes{…} · animations{…} · cue_times [card, text, highlight, counts]
  * Timing: 3–8s from clock.durationInFrames.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readImageUrl, readNonEmptyString } from '../../../props';
 import { LucideIconView } from '../../../icons';

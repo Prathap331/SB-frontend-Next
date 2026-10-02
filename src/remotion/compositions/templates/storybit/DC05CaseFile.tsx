@@ -12,7 +12,7 @@
  * Typed text uses Roboto Slab (typewriter feel) regardless of style fonts.
  * Timing: 3–8s from clock.durationInFrames.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readImageUrl } from '../../../props';
 import { LucideIconView } from '../../../icons';

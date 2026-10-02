@@ -11,7 +11,7 @@
  *   style{fonts, colours} · font_sizes{…} · animations{…} · cue_times [card, name, fact 1…6, tags]
  * Timing: 3–8s from clock.durationInFrames.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readImageUrl, readNonEmptyString } from '../../../props';
 import { BACKGROUND_IMAGE, applySizes, normaliseText, readAnim, type TemplateSpec, type TextSpec } from './core/contentSpec';

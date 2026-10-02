@@ -2186,6 +2186,8 @@ export class ApiService {
       if (v && typeof v === 'object' && !Array.isArray(v)) {
         const obj = v as Record<string, unknown>;
         for (const key of [
+          'final_video_url',
+          'finalVideoUrl',
           'video_url',
           'videoUrl',
           'render_url',
@@ -2286,12 +2288,73 @@ export class ApiService {
 
     const obj = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
     const nested = (obj.data && typeof obj.data === 'object' ? obj.data : {}) as Record<string, unknown>;
-    const videoUrl = this.pickRenderVideoUrl(data);
+    const asUrl = (v: unknown) => {
+      const s = typeof v === 'string' ? v.trim() : '';
+      return /^https?:\/\//i.test(s) ? s : null;
+    };
+    const videoUrl =
+      asUrl(obj.final_video_url) ??
+      asUrl(nested.final_video_url) ??
+      this.pickRenderVideoUrl(data);
     // No status field but a URL is present — the render is done.
     const status: RenderQueueStatus =
       normalizeRenderStatus(obj.status ?? obj.state ?? nested.status ?? nested.state) ??
       (videoUrl ? 'completed' : 'pending');
 
+    return { status, videoUrl, raw: data };
+  }
+
+  /**
+   * Latest render for a video: GET /render/queue/{video_id}, then
+   * GET /render/queue?video_id= if the path lookup is empty.
+   * Reads `status` and `final_video_url`.
+   */
+  static async getRenderQueueForVideo(
+    videoId: string,
+  ): Promise<{ status: RenderQueueStatus; videoUrl: string | null; raw: unknown } | null> {
+    const id = videoId.trim();
+    if (!id) return null;
+    const hasQueueFields = (raw: unknown) => {
+      const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+      const nested = obj?.data && typeof obj.data === 'object' ? (obj.data as Record<string, unknown>) : null;
+      return Boolean(
+        obj?.status ??
+          obj?.state ??
+          obj?.final_video_url ??
+          nested?.status ??
+          nested?.state ??
+          nested?.final_video_url,
+      );
+    };
+    try {
+      const result = await this.getRenderQueueStatus(id);
+      if (result.videoUrl || hasQueueFields(result.raw)) return result;
+    } catch {
+      /* try list filter */
+    }
+    const url = `${this.BASE_URL}/render/queue?video_id=${encodeURIComponent(id)}`;
+    const response = await this.authorizedFetch(url, { method: 'GET' });
+    const data = await this.parseJsonOrThrow<unknown>(response, 'Render queue');
+    const rec = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+    const list = Array.isArray(data)
+      ? data
+      : Array.isArray(rec?.items)
+        ? rec.items
+        : Array.isArray(rec?.results)
+          ? rec.results
+          : rec
+            ? [rec]
+            : [];
+    const latest = list[0];
+    if (!latest) return null;
+    const obj = (latest && typeof latest === 'object' ? latest : {}) as Record<string, unknown>;
+    const asUrl = (v: unknown) => {
+      const s = typeof v === 'string' ? v.trim() : '';
+      return /^https?:\/\//i.test(s) ? s : null;
+    };
+    const videoUrl = asUrl(obj.final_video_url) ?? this.pickRenderVideoUrl(latest);
+    const status: RenderQueueStatus =
+      normalizeRenderStatus(obj.status) ?? (videoUrl ? 'completed' : 'pending');
     return { status, videoUrl, raw: data };
   }
 

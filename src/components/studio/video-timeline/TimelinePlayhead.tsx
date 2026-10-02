@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useLayoutEffect, useRef } from 'react';
+import { memo, useCallback, useLayoutEffect, useRef } from 'react';
 
 type Props = {
   time: number;
@@ -22,12 +22,20 @@ export const TimelinePlayhead = memo(function TimelinePlayhead({
 }: Props) {
   const localRef = useRef<HTMLDivElement | null>(null);
 
-  const setRefs = (el: HTMLDivElement | null) => {
-    localRef.current = el;
-    if (typeof nodeRef === 'function') nodeRef(el);
-    else if (nodeRef) (nodeRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-    if (el) el.style.transform = `translate3d(${time * pixelsPerSecond}px, 0, 0)`;
-  };
+  const setRefs = useCallback(
+    (el: HTMLDivElement | null) => {
+      localRef.current = el;
+      if (typeof nodeRef === 'function') nodeRef(el);
+      else if (nodeRef) (nodeRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+      if (!el) return;
+      // Playback paints this bar from a rAF clock. Re-attaching the callback
+      // ref on React renders must not snap it back to throttled `time`.
+      if (followProps || !el.style.transform) {
+        el.style.transform = `translate3d(${time * pixelsPerSecond}px, 0, 0)`;
+      }
+    },
+    [followProps, nodeRef, pixelsPerSecond, time],
+  );
 
   useLayoutEffect(() => {
     if (!followProps) return;

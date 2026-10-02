@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMediaQuery } from '@/hooks/use-media-query';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -1492,6 +1493,9 @@ export function StudioVideoEditingPanel({
   const [selectedId, setSelectedId] = useState('');
   const [playingVO, setPlayingVO] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  // Desktop and mobile layouts are both in the DOM (CSS-toggled). Only the visible one may
+  // mount a preview — a hidden second preview played the voiceover a second time.
+  const isDesktopLayout = useMediaQuery('(min-width: 1024px)');
   const visualTimeRef = useRef(0);
   const lastTimeCommitRef = useRef(0);
   const [sceneTimelines, setSceneTimelines] = useState<Record<string, TimelineState>>({});
@@ -1566,10 +1570,21 @@ export function StudioVideoEditingPanel({
     timelineApi.setCurrentTime(t);
   }, [isPlaying, timelineApi.setCurrentTime]);
 
-  useEffect(() => {
-    if (isPlaying) return;
-    visualTimeRef.current = timelineApi.timeline.currentTime;
-  }, [isPlaying, timelineApi.timeline.currentTime]);
+  // Synced during render (not in an effect): child effects run before parent
+  // effects, so an effect here let the preview read the previous scene's / seek's
+  // time and drop infographics that should be on screen.
+  if (!isPlaying) visualTimeRef.current = timelineApi.timeline.currentTime;
+
+  /** Pause at the exact frame shown — the committed time lags the 60fps clock by up to 80ms. */
+  const pausePlayback = useCallback(() => {
+    setIsPlaying(false);
+    timelineApi.setCurrentTime(visualTimeRef.current);
+  }, [timelineApi.setCurrentTime]);
+
+  const togglePlay = useCallback(() => {
+    if (isPlaying) pausePlayback();
+    else setIsPlaying(true);
+  }, [isPlaying, pausePlayback]);
 
   const selected = useMemo(
     () => scenes.find((s) => s.id === selectedId) ?? scenes[0] ?? null,
@@ -1698,7 +1713,7 @@ export function StudioVideoEditingPanel({
   const [renderedVideoUrl, setRenderedVideoUrl] = useState<string | null>(null);
   /** Queue id returned by POST /render/queue — non-null while a render is in the queue. */
   const [renderQueueId, setRenderQueueId] = useState<string | null>(null);
-  /** `videos.render_status`, read when the editor opens and kept live while rendering. */
+  /** From GET /render/queue (`status`) — kept live while a render is in progress. */
   const [renderStatus, setRenderStatus] = useState<RenderQueueStatus | null>(null);
   /** Shown right after a render is queued — sets the expectation that this takes a while. */
   const [renderQueuedNoticeOpen, setRenderQueuedNoticeOpen] = useState(false);
@@ -2053,9 +2068,8 @@ export function StudioVideoEditingPanel({
   }, [renderQueueId, finishRender, showToast]);
 
   /**
-   * Pick a render back up from `videos.render_status` — the queue id only lives in
-   * memory, so this is what keeps a render started before a reload (or in another tab)
-   * tracked to completion.
+   * Pick a render back up from GET /render/queue (`status`, `final_video_url`) —
+   * the in-memory queue id is gone after a reload.
    */
   useEffect(() => {
     if (renderQueueId || renderStatus !== 'pending' || !videoId) return;
@@ -2567,11 +2581,13 @@ export function StudioVideoEditingPanel({
         const res = videosRowToEditVideoResponse(row);
         const mapped = mapEditVideoResponse(res);
         const maps = hydrateSceneTimelinesFromVideosRow(mapped.scenes, row);
+        const queue = await ApiService.getRenderQueueForVideo(row.id);
+        if (cancelled) return;
         applyMapped(res, {
           script: row.script,
           voice: row.voice,
-          finalVideoUrl: row.final_video_url,
-          renderStatus: row.render_status,
+          finalVideoUrl: queue?.videoUrl ?? row.video_url,
+          renderStatus: queue?.status ?? (row.video_url ? 'completed' : null),
           sceneTimelines: maps,
           brollVideoSuggestions: mapped.brollVideoSuggestions,
           brollImageSuggestions: mapped.brollImageSuggestions,
@@ -2880,6 +2896,13 @@ export function StudioVideoEditingPanel({
     };
   }, []);
 
+  // Scene-card voiceover preview and timeline playback must never overlap.
+  useEffect(() => {
+    if (!isPlaying) return;
+    voiceoverAudioRef.current?.pause();
+    setPlayingVO(null);
+  }, [isPlaying]);
+
   const toggleVoiceoverPlayback = useCallback((sc: Scene) => {
     if (playingVO === sc.id) {
       voiceoverAudioRef.current?.pause();
@@ -2887,6 +2910,7 @@ export function StudioVideoEditingPanel({
       return;
     }
     voiceoverAudioRef.current?.pause();
+    setIsPlaying(false);
     if (sc.voiceoverUrl) {
       const audio = voiceoverAudioRef.current ?? new Audio();
       audio.src = sc.voiceoverUrl;
@@ -4504,45 +4528,48 @@ export function StudioVideoEditingPanel({
       <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f5f5f7]">
         {/* Undo/redo/split live in the timeline toolbar below — no separate header needed. */}
         <div className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden p-2 sm:p-3 [container-type:size]">
-          <TimelinePreview
-            timeline={timelineApi.timeline}
-            isPlaying={isPlaying}
-            overlaySpecs={overlaySpecsForPreview}
-            onTimeUpdate={handlePreviewTime}
-            onEnded={() => {
-              setIsPlaying(false);
-              visualTimeRef.current = timelineApi.timeline.duration;
-              timelineApi.setCurrentTime(timelineApi.timeline.duration);
-            }}
-            textStyle={textStyle}
-            onTextPositionChange={(x, y) => {
-              setTextStyle((t) => ({ ...t, offsetX: x, offsetY: y }));
-              const textTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.text);
-              const activeText =
-                textTrack?.clips.find((c) => timelineApi.timeline.selectedClipIds.includes(c.id)) ??
-                textTrack?.clips.find(
-                  (c) =>
-                    timelineApi.timeline.currentTime >= c.start &&
-                    timelineApi.timeline.currentTime < c.start + c.duration,
-                );
-              if (activeText) timelineApi.updateClip(activeText.id, { offsetX: x, offsetY: y });
-              if (selected && activeText) recordPendingOverlay(selected.id, activeText.id);
-            }}
-            onCaptionPositionChange={(x, y) => {
-              updateCaptionStyle({
-                offsetX: x,
-                offsetY: y,
-                verticalPosition: verticalPositionFromOffsetY(y),
-                horizontalPosition: horizontalPositionFromOffsetX(x),
-              });
-            }}
-            onTextEdit={(clipId, text) => {
-              timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' });
-              if (selected) recordPendingOverlay(selected.id, clipId);
-            }}
-            onInfographicTextCommit={commitInfographicPreviewText}
-            onRequestPause={() => setIsPlaying(false)}
-          />
+          {isDesktopLayout === true ? (
+            <TimelinePreview
+              timeline={timelineApi.timeline}
+              isPlaying={isPlaying}
+              overlaySpecs={overlaySpecsForPreview}
+              visualTimeRef={visualTimeRef}
+              onTimeUpdate={handlePreviewTime}
+              onEnded={() => {
+                setIsPlaying(false);
+                visualTimeRef.current = timelineApi.timeline.duration;
+                timelineApi.setCurrentTime(timelineApi.timeline.duration);
+              }}
+              textStyle={textStyle}
+              onTextPositionChange={(x, y) => {
+                setTextStyle((t) => ({ ...t, offsetX: x, offsetY: y }));
+                const textTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.text);
+                const activeText =
+                  textTrack?.clips.find((c) => timelineApi.timeline.selectedClipIds.includes(c.id)) ??
+                  textTrack?.clips.find(
+                    (c) =>
+                      timelineApi.timeline.currentTime >= c.start &&
+                      timelineApi.timeline.currentTime < c.start + c.duration,
+                  );
+                if (activeText) timelineApi.updateClip(activeText.id, { offsetX: x, offsetY: y });
+                if (selected && activeText) recordPendingOverlay(selected.id, activeText.id);
+              }}
+              onCaptionPositionChange={(x, y) => {
+                updateCaptionStyle({
+                  offsetX: x,
+                  offsetY: y,
+                  verticalPosition: verticalPositionFromOffsetY(y),
+                  horizontalPosition: horizontalPositionFromOffsetX(x),
+                });
+              }}
+              onTextEdit={(clipId, text) => {
+                timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' });
+                if (selected) recordPendingOverlay(selected.id, clipId);
+              }}
+              onInfographicTextCommit={commitInfographicPreviewText}
+              onRequestPause={pausePlayback}
+            />
+          ) : null}
         </div>
 
         {/* Transport */}
@@ -4560,7 +4587,7 @@ export function StudioVideoEditingPanel({
             </button>
             <button
               type="button"
-              onClick={() => setIsPlaying((p) => !p)}
+              onClick={togglePlay}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#1d1d1f] text-white"
             >
               {isPlaying ? (
@@ -4572,8 +4599,11 @@ export function StudioVideoEditingPanel({
             <TimecodeInput
               time={timelineApi.timeline.currentTime}
               duration={totalDuration}
+              liveTimeRef={visualTimeRef}
+              isPlaying={isPlaying}
               onSeek={(t) => {
                 setIsPlaying(false);
+                visualTimeRef.current = t;
                 timelineApi.setCurrentTime(t);
               }}
             />
@@ -4635,7 +4665,7 @@ export function StudioVideoEditingPanel({
           api={timelineApi}
           height={timelinePanelHeight}
           sceneLabel={selected ? `${selected.num} · ${selected.title}` : 'No scenes yet'}
-          onTogglePlay={() => setIsPlaying((p) => !p)}
+          onTogglePlay={togglePlay}
           isPlaying={isPlaying}
           visualTimeRef={visualTimeRef}
           hiddenTrackIds={[DEFAULT_TRACK_IDS.video, DEFAULT_TRACK_IDS.caption]}
@@ -5099,45 +5129,48 @@ export function StudioVideoEditingPanel({
         </div>
         {/* Preview — large, fills all remaining space above the controls */}
         <div className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden p-2 [container-type:size]">
-          <TimelinePreview
-            timeline={timelineApi.timeline}
-            isPlaying={isPlaying}
-            overlaySpecs={overlaySpecsForPreview}
-            onTimeUpdate={handlePreviewTime}
-            onEnded={() => {
-              setIsPlaying(false);
-              visualTimeRef.current = timelineApi.timeline.duration;
-              timelineApi.setCurrentTime(timelineApi.timeline.duration);
-            }}
-            textStyle={textStyle}
-            onTextPositionChange={(x, y) => {
-              setTextStyle((t) => ({ ...t, offsetX: x, offsetY: y }));
-              const textTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.text);
-              const activeText =
-                textTrack?.clips.find((c) => timelineApi.timeline.selectedClipIds.includes(c.id)) ??
-                textTrack?.clips.find(
-                  (c) =>
-                    timelineApi.timeline.currentTime >= c.start &&
-                    timelineApi.timeline.currentTime < c.start + c.duration,
-                );
-              if (activeText) timelineApi.updateClip(activeText.id, { offsetX: x, offsetY: y });
-              if (selected && activeText) recordPendingOverlay(selected.id, activeText.id);
-            }}
-            onCaptionPositionChange={(x, y) => {
-              updateCaptionStyle({
-                offsetX: x,
-                offsetY: y,
-                verticalPosition: verticalPositionFromOffsetY(y),
-                horizontalPosition: horizontalPositionFromOffsetX(x),
-              });
-            }}
-            onTextEdit={(clipId, text) => {
-              timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' });
-              if (selected) recordPendingOverlay(selected.id, clipId);
-            }}
-            onInfographicTextCommit={commitInfographicPreviewText}
-            onRequestPause={() => setIsPlaying(false)}
-          />
+          {isDesktopLayout === false ? (
+            <TimelinePreview
+              timeline={timelineApi.timeline}
+              isPlaying={isPlaying}
+              overlaySpecs={overlaySpecsForPreview}
+              visualTimeRef={visualTimeRef}
+              onTimeUpdate={handlePreviewTime}
+              onEnded={() => {
+                setIsPlaying(false);
+                visualTimeRef.current = timelineApi.timeline.duration;
+                timelineApi.setCurrentTime(timelineApi.timeline.duration);
+              }}
+              textStyle={textStyle}
+              onTextPositionChange={(x, y) => {
+                setTextStyle((t) => ({ ...t, offsetX: x, offsetY: y }));
+                const textTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.text);
+                const activeText =
+                  textTrack?.clips.find((c) => timelineApi.timeline.selectedClipIds.includes(c.id)) ??
+                  textTrack?.clips.find(
+                    (c) =>
+                      timelineApi.timeline.currentTime >= c.start &&
+                      timelineApi.timeline.currentTime < c.start + c.duration,
+                  );
+                if (activeText) timelineApi.updateClip(activeText.id, { offsetX: x, offsetY: y });
+                if (selected && activeText) recordPendingOverlay(selected.id, activeText.id);
+              }}
+              onCaptionPositionChange={(x, y) => {
+                updateCaptionStyle({
+                  offsetX: x,
+                  offsetY: y,
+                  verticalPosition: verticalPositionFromOffsetY(y),
+                  horizontalPosition: horizontalPositionFromOffsetX(x),
+                });
+              }}
+              onTextEdit={(clipId, text) => {
+                timelineApi.updateClip(clipId, { text, name: text.slice(0, 48) || 'Text' });
+                if (selected) recordPendingOverlay(selected.id, clipId);
+              }}
+              onInfographicTextCommit={commitInfographicPreviewText}
+              onRequestPause={pausePlayback}
+            />
+          ) : null}
         </div>
 
         {/* Playback controls */}
@@ -5145,14 +5178,17 @@ export function StudioVideoEditingPanel({
           <TimecodeInput
             time={timelineApi.timeline.currentTime}
             duration={totalDuration}
+            liveTimeRef={visualTimeRef}
+            isPlaying={isPlaying}
             onSeek={(t) => {
               setIsPlaying(false);
+              visualTimeRef.current = t;
               timelineApi.setCurrentTime(t);
             }}
           />
           <button
             type="button"
-            onClick={() => setIsPlaying((p) => !p)}
+            onClick={togglePlay}
             className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-white"
           >
             {isPlaying ? (

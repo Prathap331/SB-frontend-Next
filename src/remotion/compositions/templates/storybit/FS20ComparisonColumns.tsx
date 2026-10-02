@@ -13,7 +13,7 @@
  * Timing: 3–8s from clock.durationInFrames; rows appear one after another or on their cues.
  */
 import type { CSSProperties } from 'react';
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readImageUrl, readNonEmptyString } from '../../../props';
 import { LucideIconView } from '../../../icons';

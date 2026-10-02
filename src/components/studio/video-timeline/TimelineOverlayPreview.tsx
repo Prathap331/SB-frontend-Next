@@ -1,8 +1,14 @@
 'use client';
 
-import type { TimelineClip } from '@/lib/video-editor/types';
+import { useEffect, useMemo, useState, type MutableRefObject } from 'react';
+import type { TimelineClip, TimelineState } from '@/lib/video-editor/types';
 import { EDITOR_FPS } from '@/lib/video-editor/fps';
-import { enrichRemotionFromSpecs, type RemotionInfographicSpec } from '@/lib/video-editor/infographics';
+import { getActiveClipsAtTime } from '@/lib/video-editor/math';
+import {
+  enrichRemotionFromSpecs,
+  isInfographicActiveAtTime,
+  type RemotionInfographicSpec,
+} from '@/lib/video-editor/infographics';
 import { clipRemotionToInfographicData } from '@/remotion/data';
 import { InfographicVisual } from '@/remotion/compositions/DataDrivenInfographic';
 import { readIconNames } from '@/remotion/props';
@@ -39,7 +45,7 @@ export function TimelineOverlayPreview({
   const remotion = clip.remotion
     ? enrichRemotionFromSpecs(clip.remotion, overlaySpecs, clip)
     : clip.remotion;
-  if (!remotion || width <= 0 || height <= 0) return null;
+  if (!remotion || width <= 1 || height <= 1) return null;
   const data = clipRemotionToInfographicData(remotion);
 
   const dur = clip.duration > 0 ? clip.duration : clip.sourceDuration;
@@ -87,5 +93,100 @@ export function TimelineOverlayPreview({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function remotionClipAtTime(clip: TimelineClip, time: number): TimelineClip | null {
+  if (!clip.remotion) return null;
+  const dur = clip.duration > 0 ? clip.duration : clip.sourceDuration;
+  if (!Number.isFinite(dur) || dur <= 0) return null;
+  if (!isInfographicActiveAtTime(time, clip.start, dur)) return null;
+  return clip;
+}
+
+/**
+ * Live overlay stack driven by the preview clock ref so infographics stay on
+ * screen at the playhead even while React `currentTime` is throttled.
+ */
+export function LiveTimelineOverlays({
+  timeline,
+  isPlaying,
+  visualTimeRef,
+  width,
+  height,
+  overlaySpecs = [],
+  onInfographicTextCommit,
+  onRequestPause,
+}: {
+  timeline: TimelineState;
+  isPlaying: boolean;
+  visualTimeRef?: MutableRefObject<number>;
+  width: number;
+  height: number;
+  overlaySpecs?: RemotionInfographicSpec[];
+  onInfographicTextCommit?: (clipId: string, path: string, value: string) => void;
+  onRequestPause?: () => void;
+}) {
+  const [liveTime, setLiveTime] = useState(timeline.currentTime);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      // Next play starts from here, so the first playing render is not stale.
+      setLiveTime(timeline.currentTime);
+      return;
+    }
+    let raf = 0;
+    const tick = () => {
+      const next = visualTimeRef?.current;
+      if (typeof next === 'number') {
+        setLiveTime((prev) => (Math.abs(prev - next) >= 1 / 120 ? next : prev));
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isPlaying, timeline.currentTime, visualTimeRef]);
+
+  // Paused / scrubbing / scene switch: the committed timeline time is the truth.
+  // Only playback follows the 60fps clock (React time is throttled while playing).
+  const clockTime = isPlaying ? liveTime : timeline.currentTime;
+
+  const overlayClips = useMemo(() => {
+    const active = getActiveClipsAtTime(timeline, clockTime);
+    const seen = new Set<string>();
+    const list: TimelineClip[] = [];
+    for (const clip of active) {
+      if (clip.type !== 'infographic' && clip.type !== 'text') continue;
+      const ready = remotionClipAtTime(clip, clockTime);
+      if (!ready || seen.has(ready.id)) continue;
+      seen.add(ready.id);
+      list.push(ready);
+    }
+    return list;
+  }, [timeline, clockTime]);
+
+  if (width <= 1 || height <= 1) return null;
+  if (!overlayClips.length) return null;
+
+  return (
+    <>
+      {overlayClips.map((clip) => (
+        <TimelineOverlayPreview
+          key={clip.id}
+          clip={clip}
+          currentTime={clockTime}
+          width={width}
+          height={height}
+          overlaySpecs={overlaySpecs}
+          isPlaying={isPlaying}
+          onTextCommit={
+            onInfographicTextCommit
+              ? (path, value) => onInfographicTextCommit(clip.id, path, value)
+              : undefined
+          }
+          onRequestPause={onRequestPause}
+        />
+      ))}
+    </>
   );
 }

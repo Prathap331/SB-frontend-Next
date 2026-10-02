@@ -12,7 +12,7 @@
  * winner: "a", "b" or leave out for a tie / no winner.
  * Timing: 3–8s from clock.durationInFrames.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readImageUrl } from '../../../props';
 import { LucideIconView } from '../../../icons';

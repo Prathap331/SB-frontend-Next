@@ -12,7 +12,7 @@
  * x / y are percentages of the full frame (0 = left / top, 100 = right / bottom).
  * Timing: 1.5–8s from clock.durationInFrames.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readImageUrl, readNonEmptyString } from '../../../props';
 import { LucideIconView } from '../../../icons';

@@ -1,14 +1,13 @@
 import { getScriptTextFromMap, parseScriptLanguageMap } from '@/lib/script-data';
 import { supabase } from '@/lib/supabaseClient';
 import { isDirectionScene, isLegacyTimeline, normalizeEditVideoPayload } from '@/lib/video-editor/editVideoNormalize';
-import type {
-  EditVideoBeatAsset,
-  EditVideoInfographicListItem,
-  EditVideoResponse,
-  EditVideoScene,
-  EditVideoTextListItem,
-  EditVideoTimeline,
-  EditVideoTimelineTrack,
+import {
+  ApiService,
+  type EditVideoBeatAsset,
+  type EditVideoInfographicListItem,
+  type EditVideoResponse,
+  type EditVideoTextListItem,
+  type EditVideoTimelineTrack,
 } from '@/services/api';
 import { addClipToTrack, createSceneTimelinesMap, type LegacySceneLike } from './migrate';
 import {
@@ -33,25 +32,19 @@ import { normalizeClip, recomputeTimelineDuration, roundTime } from './math';
 import { captionWordsFromTrack, findCaptionTrack, findAudioTrack, parseCaptionStyle } from './captions';
 import { brollDisplayName } from './mediaNames';
 
+/** Exact `videos` table columns. */
 export type VideosTableRow = {
   id: string;
   user_id: string;
   script: string | null;
   voice: string | null;
   lang_code: string | null;
-  /** New schema: `{ scenes: DirectionScene[] }`. Legacy: `{ fps, tracks }`. */
-  timeline: unknown;
   timeline_version: number | null;
   created_at: string;
   updated_at: string | null;
-  /** Legacy columns — still read when present. */
-  timeline_json: EditVideoTimeline | null;
-  raw_scenes: EditVideoScene[] | null;
-  final_video_url: string | null;
-  render_status: string | null;
-  scene_timings: unknown;
-  infographics_list: EditVideoInfographicListItem[] | null;
-  text_list: EditVideoTextListItem[] | null;
+  /** `{ scenes: DirectionScene[] }` or legacy `{ fps, tracks }`. */
+  timeline: unknown;
+  video_url: string | null;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -117,14 +110,15 @@ export function resolveBeatAsset(beat: {
 }
 
 export function videosRowToEditVideoResponse(row: VideosTableRow): EditVideoResponse {
+  const packed = asRecord(row.timeline) ?? {};
   return normalizeEditVideoPayload({
     video_id: row.id,
     id: row.id,
-    timeline: row.timeline ?? row.timeline_json,
+    timeline: row.timeline,
     timeline_version: row.timeline_version,
-    scenes: row.raw_scenes,
-    text_list: row.text_list,
-    infographics_list: row.infographics_list,
+    scenes: packed.scenes,
+    text_list: packed.text_list,
+    infographics_list: packed.infographics_list,
   });
 }
 
@@ -318,7 +312,24 @@ function applyOverlayTracks(
               (graphic.overlayId && c.overlayId === graphic.overlayId) ||
               (graphic.beatId && c.beatId === graphic.beatId),
           );
-        if (alreadyGraphic?.remotion) {
+        if (alreadyGraphic) {
+          if (!alreadyGraphic.remotion) {
+            next = {
+              ...next,
+              tracks: next.tracks.map((t) =>
+                t.id !== DEFAULT_TRACK_IDS.infographic
+                  ? t
+                  : {
+                      ...t,
+                      clips: t.clips.map((c) =>
+                        c.id === alreadyGraphic.id
+                          ? { ...c, remotion: remotionPayloadFromSpec(graphic), placement: graphic.placement ?? c.placement }
+                          : c,
+                      ),
+                    },
+              ),
+            };
+          } else {
           const have = parseIconList(
             alreadyGraphic.remotion.props.icon_name ?? alreadyGraphic.remotion.props.icons,
           );
@@ -345,6 +356,7 @@ function applyOverlayTracks(
                     },
               ),
             };
+          }
           }
         }
         if (!alreadyGraphic) {
@@ -452,19 +464,21 @@ function applyOverlayTracks(
   return { ...next, duration: recomputeTimelineDuration(next.tracks, next.duration) };
 }
 
-/** Rebuild per-scene editor timelines from scenes, then overlay persisted tracks from `timeline_json`. */
+/** Rebuild per-scene editor timelines from scenes, then overlay persisted tracks from `videos.timeline`. */
 export function hydrateSceneTimelinesFromVideosRow(
   scenes: LegacySceneLike[],
   row: VideosTableRow,
 ): Record<string, TimelineState> {
   const maps = createSceneTimelinesMap(scenes);
-  const tracks = (isLegacyTimeline(row.timeline) ? row.timeline.tracks : null) ?? row.timeline_json?.tracks ?? [];
+  const packed = asRecord(row.timeline);
+  const tracks = (isLegacyTimeline(row.timeline) ? row.timeline.tracks : null) ?? [];
   if (!tracks.length) return maps;
 
-  const infographicsList = Array.isArray(row.infographics_list) ? row.infographics_list : [];
-  const textList = Array.isArray(row.text_list) ? row.text_list : [];
-  const fps =
-    (isLegacyTimeline(row.timeline) ? row.timeline.fps : null) || row.timeline_json?.fps || EDITOR_FPS;
+  const infographicsList = Array.isArray(packed?.infographics_list)
+    ? (packed.infographics_list as EditVideoInfographicListItem[])
+    : [];
+  const textList = Array.isArray(packed?.text_list) ? (packed.text_list as EditVideoTextListItem[]) : [];
+  const fps = (isLegacyTimeline(row.timeline) ? row.timeline.fps : null) || EDITOR_FPS;
 
   for (const scene of scenes) {
     const current = maps[scene.id];
@@ -488,73 +502,53 @@ export function hydrateSceneTimelinesFromVideosRow(
   return maps;
 }
 
+function asHttpUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : null;
+}
+
 function coerceRow(raw: Record<string, unknown>): VideosTableRow | null {
   const id = typeof raw.id === 'string' ? raw.id : '';
   const userId = typeof raw.user_id === 'string' ? raw.user_id : '';
   if (!id || !userId) return null;
-  const timeline = parseJsonColumn<unknown>(raw.timeline ?? raw.timeline_json);
   return {
     id,
     user_id: userId,
     script: typeof raw.script === 'string' ? raw.script : null,
     voice: typeof raw.voice === 'string' ? raw.voice : null,
     lang_code: typeof raw.lang_code === 'string' ? raw.lang_code : null,
-    timeline,
+    timeline: parseJsonColumn<unknown>(raw.timeline),
     timeline_version: num(raw.timeline_version),
     created_at: typeof raw.created_at === 'string' ? raw.created_at : '',
     updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : null,
-    timeline_json: isLegacyTimeline(timeline) ? timeline : null,
-    raw_scenes: parseJsonColumn<EditVideoScene[]>(raw.raw_scenes),
-    final_video_url: typeof raw.final_video_url === 'string' ? raw.final_video_url : null,
-    render_status: typeof raw.render_status === 'string' ? raw.render_status : null,
-    scene_timings: raw.scene_timings ?? null,
-    infographics_list: parseJsonColumn<EditVideoInfographicListItem[]>(raw.infographics_list),
-    text_list: parseJsonColumn<EditVideoTextListItem[]>(raw.text_list),
+    video_url: asHttpUrl(raw.video_url),
   };
 }
 
 function rowHasProjectScenes(row: VideosTableRow): boolean {
-  if (row.raw_scenes?.length) return true;
-  const rec = row.timeline && typeof row.timeline === 'object' && !Array.isArray(row.timeline) ? (row.timeline as Record<string, unknown>) : null;
+  const rec = asRecord(row.timeline);
   const scenes = Array.isArray(rec?.scenes) ? rec.scenes : [];
-  return scenes.length > 0 && (isDirectionScene(scenes[0]) || Boolean(asRecord(scenes[0])?.scene_id) || Boolean(asRecord(scenes[0])?.vo_text));
+  return (
+    scenes.length > 0 &&
+    (isDirectionScene(scenes[0]) || Boolean(asRecord(scenes[0])?.scene_id) || Boolean(asRecord(scenes[0])?.vo_text))
+  );
 }
 
 /**
- * Current render state of one video row.
- * Read when the editor opens, and polled while a render is still running so a
- * queued render keeps being tracked across reloads (the queue id lives only in memory).
+ * Render `status` + `final_video_url` from GET /render/queue (not the videos table).
  */
-let videosRenderColumnsAvailable: boolean | null = null;
-
 export async function fetchVideoRenderState(
   videoId: string,
 ): Promise<{ status: string | null; finalVideoUrl: string | null } | null> {
   if (!videoId.trim()) return null;
-  if (videosRenderColumnsAvailable === false) {
-    const { data, error } = await supabase.from('videos').select('id').eq('id', videoId).maybeSingle();
-    if (error || !data) return null;
-    return { status: null, finalVideoUrl: null };
+  try {
+    const result = await ApiService.getRenderQueueStatus(videoId);
+    return { status: result.status, finalVideoUrl: result.videoUrl };
+  } catch (err) {
+    console.warn('[render/queue]', err);
+    return null;
   }
-  const { data, error } = await supabase
-    .from('videos')
-    .select('id, render_status, final_video_url')
-    .eq('id', videoId)
-    .maybeSingle();
-  if (error) {
-    videosRenderColumnsAvailable = false;
-    console.error('[videos render_status]', error.message);
-    const fallback = await supabase.from('videos').select('id').eq('id', videoId).maybeSingle();
-    if (fallback.error || !fallback.data) return null;
-    return { status: null, finalVideoUrl: null };
-  }
-  videosRenderColumnsAvailable = true;
-  if (!data) return null;
-  const row = data as Record<string, unknown>;
-  return {
-    status: typeof row.render_status === 'string' ? row.render_status : null,
-    finalVideoUrl: typeof row.final_video_url === 'string' ? row.final_video_url : null,
-  };
 }
 
 /**
@@ -577,35 +571,17 @@ export async function fetchVideosProject(
   const wanted = assignedScript || scriptTextOf(opts?.script);
   if (!wanted) return null;
 
-  const NEW_SELECT =
-    'id, user_id, script, voice, lang_code, timeline, timeline_version, created_at, updated_at';
-  const LEGACY_SELECT =
-    'id, user_id, script, voice, lang_code, timeline_json, timeline_version, raw_scenes, created_at, final_video_url, render_status, scene_timings, infographics_list, text_list';
-
-  const first = await supabase
+  const { data, error } = await supabase
     .from('videos')
-    .select(NEW_SELECT)
+    .select('id, user_id, script, voice, lang_code, timeline, timeline_version, created_at, updated_at, video_url')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(50);
-  let rowsRaw: unknown[] | null = first.data;
-  let error = first.error;
-  if (error) {
-    console.error('[videos table]', error.message);
-    const retry = await supabase
-      .from('videos')
-      .select(LEGACY_SELECT)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    rowsRaw = retry.data;
-    error = retry.error;
-  }
   if (error) {
     console.error('[videos table]', error.message);
     return null;
   }
-  const rows = (rowsRaw ?? [])
+  const rows = (data ?? [])
     .map((row) => coerceRow(row as Record<string, unknown>))
     .filter((row): row is VideosTableRow => Boolean(row && rowHasProjectScenes(row)));
   if (!rows.length) return null;

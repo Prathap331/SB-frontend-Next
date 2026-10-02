@@ -9,7 +9,7 @@
  *   style{fonts, colours} · font_sizes{…} · animations{…} · cue_times [name, role]
  * Timing: 1.5–8s from clock.durationInFrames.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readNonEmptyString } from '../../../props';
 import { applySizes, normaliseText, readAnim, type TemplateSpec } from './core/contentSpec';

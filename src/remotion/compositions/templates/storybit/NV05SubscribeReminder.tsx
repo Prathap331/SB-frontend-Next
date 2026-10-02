@@ -10,7 +10,7 @@
  *   style{fonts, colours} · font_sizes{…} · animations{…} · cue_times [card, click]
  * Timing: 1.5–8s from clock.durationInFrames. Use at most twice per video.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readNonEmptyString } from '../../../props';
 import { LucideIconView } from '../../../icons';

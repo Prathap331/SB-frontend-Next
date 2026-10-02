@@ -1066,7 +1066,7 @@ function scriptDescriptionFromRaw(raw: unknown, wordCount = LIBRARY_SCRIPT_WORD_
   return text.split(' ').filter(Boolean).slice(0, wordCount).join(' ');
 }
 
-/** One generated video for the "My Video" library — fetched from videos.final_video_url. */
+/** One generated video for the "My Video" library — fetched from videos.video_url. */
 export type LibraryVideo = {
   id: string;
   videoUrl: string;
@@ -1087,34 +1087,27 @@ export async function listUserVideos(userId: string): Promise<{
 
   const { data, error } = await supabase
     .from('videos')
-    .select('id, user_id, script, final_video_url, created_at')
+    .select('id, user_id, script, video_url, created_at')
     .eq('user_id', uid)
-    .not('final_video_url', 'is', null)
+    .not('video_url', 'is', null)
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('[videos list final_video_url]', error.message);
-    const fallback = await supabase
-      .from('videos')
-      .select('id, user_id, script, created_at')
-      .eq('user_id', uid)
-      .order('created_at', { ascending: false });
-    if (fallback.error) {
-      return { ok: false, error: fallback.error.message, videos: [] };
-    }
-    return { ok: true, videos: [] };
+    console.error('[videos list video_url]', error.message);
+    return { ok: false, error: error.message, videos: [] };
   }
 
   const videos: LibraryVideo[] = (data ?? [])
     .map((row) => {
-      const rowUserId = asTrimmedString((row as { user_id?: unknown }).user_id);
+      const rec = row as Record<string, unknown>;
+      const rowUserId = asTrimmedString(rec.user_id);
       if (rowUserId !== uid) return null;
-      const videoUrl = asTrimmedString((row as { final_video_url?: unknown }).final_video_url);
+      const videoUrl = asTrimmedString(rec.video_url);
       if (!/^https?:\/\//i.test(videoUrl)) return null;
       return {
-        id: asTrimmedString((row as { id?: unknown }).id),
+        id: asTrimmedString(rec.id),
         videoUrl,
-        description: scriptDescriptionFromRaw((row as { script?: unknown }).script),
+        description: scriptDescriptionFromRaw(rec.script),
       };
     })
     .filter((v): v is LibraryVideo => Boolean(v && v.id));

@@ -13,7 +13,7 @@
  * Items are revealed regions first, then places, in the order given.
  * Timing: 3–8s from clock.durationInFrames.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import { geoCentroid, geoDistance, geoBounds, geoGraticule10, geoInterpolate, geoOrthographic, geoPath } from 'd3-geo';
 import type { TemplateProps } from '../../../types';
 import { readNonEmptyString } from '../../../props';

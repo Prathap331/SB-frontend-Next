@@ -12,7 +12,7 @@
  *   style{fonts, colours} · font_sizes{…} · animations{…} · cue_times [image 1…8]
  * Timing: 3–8s from clock.durationInFrames; one cue per picture puts each change on the beat.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import type { TemplateProps } from '../../../types';
 import { readNonEmptyString } from '../../../props';
 import { applySizes, normaliseText, readAnim, type TemplateSpec, type TextSpec } from './core/contentSpec';

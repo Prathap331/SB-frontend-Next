@@ -9,6 +9,22 @@ import { readIconNames, readTextAnimationStyle } from '../props';
 import { resolveAnimationType } from '../animationTypes';
 import { TEMPLATE_RENDERERS } from './templates/registry';
 import { loadStorybitFonts } from './templates/storybit/core/loadFonts';
+import { markStorybitFontsReady } from './templates/storybit/core/measure';
+
+let storybitFontsPromise: Promise<unknown> | null = null;
+function ensureStorybitFonts(): Promise<unknown> {
+  if (!storybitFontsPromise) {
+    // One failed font file must not block the re-measure for all the others.
+    storybitFontsPromise = loadStorybitFonts()
+      .catch((err) => console.warn('[storybit] some fonts failed to load', err))
+      .then(() => markStorybitFontsReady());
+  }
+  return storybitFontsPromise;
+}
+
+if (typeof window !== 'undefined') {
+  void ensureStorybitFonts();
+}
 
 /** Normalize backend `icon_name` (string or list) for Remotion props. */
 export function iconNameForRemotion(props: Record<string, unknown>): string | string[] | undefined {
@@ -56,7 +72,7 @@ export function InfographicVisual({
   useEffect(() => {
     if (!isTemplate) return;
     let cancelled = false;
-    void loadStorybitFonts().then(() => {
+    void ensureStorybitFonts().then(() => {
       if (!cancelled) setFontsGen((n) => n + 1);
     });
     return () => {

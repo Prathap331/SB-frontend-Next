@@ -15,7 +15,7 @@
  *   title · stops[] · style{fonts, colours} · font_sizes{…} · animations{…} · cue_times [title, stop 1, leg 1, stop 2, …]
  * Timing: 3–8s from clock.durationInFrames.
  */
-import { Img } from 'remotion';
+import { Img } from './core/remotionSafe';
 import { geoBounds, geoCentroid, geoDistance, geoGraticule10, geoMercator, geoNaturalEarth1, geoPath } from 'd3-geo';
 import type { TemplateProps } from '../../../types';
 import { LucideIconView } from '../../../icons';

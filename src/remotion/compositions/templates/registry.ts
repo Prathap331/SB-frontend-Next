@@ -144,11 +144,28 @@ export function getTemplateRenderer(type: string): ComponentType<TemplateProps> 
   return TEMPLATE_RENDERERS[type];
 }
 
-export class TemplateErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
+export class TemplateErrorBoundary extends Component<
+  { children: ReactNode; resetKey?: string | number },
+  { failed: boolean; retries: number }
+> {
+  state = { failed: false, retries: 0 };
 
   static getDerivedStateFromError() {
     return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('[storybit] template render failed', error);
+    if (this.state.retries >= 4) return;
+    requestAnimationFrame(() => {
+      this.setState((s) => ({ failed: false, retries: s.retries + 1 }));
+    });
+  }
+
+  componentDidUpdate(prevProps: { resetKey?: string | number }) {
+    if (prevProps.resetKey !== this.props.resetKey && (this.state.failed || this.state.retries)) {
+      this.setState({ failed: false, retries: 0 });
+    }
   }
 
   render() {

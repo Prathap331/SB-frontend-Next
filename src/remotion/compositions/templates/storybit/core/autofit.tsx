@@ -12,8 +12,8 @@
  * Turn it off per clip with props.auto_fit = "off".
  */
 import { createContext, useContext, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
-import { continueRender, delayRender } from 'remotion';
 import type { TemplateProps } from '../../../../types';
+import { continueRenderSafe, delayRenderSafe } from './remotionSafe';
 import { SAFE_H, SAFE_W } from './safeArea';
 import { exitFrames } from './timeline';
 
@@ -37,15 +37,16 @@ const GRAPHICS = new Set(['path', 'line', 'circle', 'ellipse', 'rect', 'polygon'
 /** Union of everything painted inside `root`, in root coordinates. */
 export function paintedBox(root: HTMLElement): Box | null {
   const r0 = root.getBoundingClientRect();
-  // the preview may show the frame scaled down: convert screen pixels back to frame pixels
-  const k = root.offsetWidth > 0 ? r0.width / root.offsetWidth : 1;
+  // the preview may show the frame scaled down (and not uniformly): convert screen pixels back to frame pixels
+  const kx = root.offsetWidth > 0 && r0.width > 0 ? r0.width / root.offsetWidth : 1;
+  const ky = root.offsetHeight > 0 && r0.height > 0 ? r0.height / root.offsetHeight : kx;
   let b: Box | null = null;
   const add = (r: DOMRect | { left: number; top: number; right: number; bottom: number; width: number; height: number }, pad = 0) => {
     if (r.width <= 0.5 && r.height <= 0.5) return;
-    const x0 = (r.left - r0.left) / k - pad;
-    const y0 = (r.top - r0.top) / k - pad;
-    const x1 = (r.right - r0.left) / k + pad;
-    const y1 = (r.bottom - r0.top) / k + pad;
+    const x0 = (r.left - r0.left) / kx - pad;
+    const y0 = (r.top - r0.top) / ky - pad;
+    const x1 = (r.right - r0.left) / kx + pad;
+    const y1 = (r.bottom - r0.top) / ky + pad;
     b = b ? { x0: Math.min(b.x0, x0), y0: Math.min(b.y0, y0), x1: Math.max(b.x1, x1), y1: Math.max(b.y1, y1) } : { x0, y0, x1, y1 };
   };
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
@@ -107,19 +108,24 @@ export function withAutoFit(Comp: ComponentType<TemplateProps>, max = MAX_GROW):
     const D = p.clock.durationInFrames;
     const key = off ? 'off' : `${D}|${JSON.stringify(props)}`;
     const [fit, setFit] = useState<{ key: string; f: Fit } | null>(null);
-    const [handle] = useState<number | null>(() => (off ? null : delayRender('storybit auto-fit')));
+    const [handle] = useState<number | null>(() => (off ? null : delayRenderSafe('storybit auto-fit')));
     const released = useRef(false);
     const hidden = useRef<HTMLDivElement>(null);
     const need = !off && fit?.key !== key;
     useLayoutEffect(() => {
       if (!need) return;
-      const safe = hidden.current?.querySelector('[data-sb-safe]') as HTMLElement | null;
-      setFit({ key, f: safe ? fitFor(paintedBox(safe), max) : NO_FIT });
+      const measure = () => {
+        const safe = hidden.current?.querySelector('[data-sb-safe]') as HTMLElement | null;
+        setFit({ key, f: safe ? fitFor(paintedBox(safe), max) : NO_FIT });
+      };
+      measure();
+      const raf = requestAnimationFrame(measure);
+      return () => cancelAnimationFrame(raf);
     }, [need, key]);
     useLayoutEffect(() => {
       if (handle !== null && fit && !released.current) {
         released.current = true;
-        continueRender(handle);
+        continueRenderSafe(handle);
       }
     }, [fit, handle]);
     const rest = Math.max(0, D - exitFrames(D) - 1);

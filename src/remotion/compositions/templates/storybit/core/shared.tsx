@@ -5,7 +5,7 @@
  * fonts, colours, the three background modes, and masked title lines.
  */
 import type { CSSProperties, ReactNode } from 'react';
-import { Img } from 'remotion';
+import { Img } from './remotionSafe';
 import { readNonEmptyString } from '../../../../props';
 import type { Line } from './fit';
 import { COLOR_SLOTS, fontFor, lighten, withAlpha, type Colors } from './style';
