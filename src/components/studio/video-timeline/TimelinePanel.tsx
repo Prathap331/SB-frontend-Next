@@ -314,9 +314,10 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
           clearSelection();
         }}
       >
-        {/* Sticky header row: track label corner + time ruler */}
+        {/* Sticky header row: track label corner + time ruler. Above the sticky track
+            labels (z-40) and the tracks playhead so rows scroll underneath it. */}
         <div
-          className="sticky top-0 z-20 flex border-b border-gray-200 bg-white"
+          className="sticky top-0 z-[60] flex border-b border-gray-200 bg-white"
           style={{ height: RULER_HEIGHT, width: LABEL_WIDTH + contentWidth }}
         >
           <div

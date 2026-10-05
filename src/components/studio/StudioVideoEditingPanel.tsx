@@ -1082,8 +1082,9 @@ function specToSuggestionItem(
   return {
     label,
     meta: `${spec.animationType} · ${spec.durationFrames}f · Remotion`,
-    start: spec.startSeconds ?? 0,
-    dur: remotionDurationSeconds(spec.durationFrames, EDITOR_FPS),
+    // The clip on the timeline is the truth once inserted (it may have been moved / trimmed).
+    start: clip ? clip.start : spec.startSeconds ?? 0,
+    dur: clip ? clip.duration : remotionDurationSeconds(spec.durationFrames, EDITOR_FPS),
     matchedScene: sceneTitle,
     matchPct: 100,
     mode: spec.placement === 'full_frame' ? 'fullscreen' : 'overlay',
@@ -1095,6 +1096,12 @@ function specToSuggestionItem(
 
 function tc(sec: number): string {
   return formatTimecode(sec);
+}
+
+/** Card duration to one decimal, truncated (4.9522 → "4.9"), never float noise. */
+function formatCardSeconds(sec: number): string {
+  if (!Number.isFinite(sec) || sec <= 0) return '0.0';
+  return (Math.floor(sec * 10 + 1e-6) / 10).toFixed(1);
 }
 
 function tcShort(sec: number): string {
@@ -1583,6 +1590,18 @@ export function StudioVideoEditingPanel({
     setIsPlaying(false);
     timelineApi.setCurrentTime(visualTimeRef.current);
   }, [timelineApi.setCurrentTime]);
+
+  /** Library card click: park the playhead at the start of that card's clip. */
+  const seekToCardStart = useCallback(
+    (start: number) => {
+      if (!Number.isFinite(start)) return;
+      const t = Math.max(0, Math.min(timelineApi.timeline.duration || start, start));
+      setIsPlaying(false);
+      visualTimeRef.current = t;
+      timelineApi.setCurrentTime(t);
+    },
+    [timelineApi.timeline.duration, timelineApi.setCurrentTime],
+  );
 
   const togglePlay = useCallback(() => {
     if (isPlaying) pausePlayback();
@@ -4853,7 +4872,7 @@ export function StudioVideoEditingPanel({
                     type="broll"
                     already={timelineHasSuggestion(DEFAULT_TRACK_IDS.broll, item)}
                     onInsert={() => insertSuggestion('broll', item)}
-                    onPreview={() => setPreviewItem({ item, type: 'broll' })}
+                    onPreview={() => seekToCardStart(item.start)}
                   />
                 ))
               )}
@@ -4899,7 +4918,7 @@ export function StudioVideoEditingPanel({
                     type="broll"
                     already={timelineHasSuggestion(DEFAULT_TRACK_IDS.broll, item)}
                     onInsert={() => insertSuggestion('broll', item)}
-                    onPreview={() => setPreviewItem({ item, type: 'broll' })}
+                    onPreview={() => seekToCardStart(item.start)}
                   />
                 ))
               )}
@@ -4912,16 +4931,19 @@ export function StudioVideoEditingPanel({
               {selectedInfographicEditor}
               {graphicsForSelectedScene.length > 0 ? (
                 <div className="space-y-2.5">
-                  {graphicsForSelectedScene.map((spec, i) => (
-                    <SuggestionCard
-                      key={`gfxlist-${selected?.id}-${i}`}
-                      item={specToSuggestionItem(spec, selected?.title ?? '', overlayClipsForCards)}
-                      type="infographic"
-                      already={isRemotionAlreadyOnTimeline(spec)}
-                      onInsert={() => insertRemotionInfographic(spec)}
-                      onPreview={() => setPreviewRemotion(spec)}
-                    />
-                  ))}
+                  {graphicsForSelectedScene.map((spec, i) => {
+                    const cardItem = specToSuggestionItem(spec, selected?.title ?? '', overlayClipsForCards);
+                    return (
+                      <SuggestionCard
+                        key={`gfxlist-${selected?.id}-${i}`}
+                        item={cardItem}
+                        type="infographic"
+                        already={isRemotionAlreadyOnTimeline(spec)}
+                        onInsert={() => insertRemotionInfographic(spec)}
+                        onPreview={() => seekToCardStart(cardItem.start)}
+                      />
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
@@ -5524,7 +5546,7 @@ export function StudioVideoEditingPanel({
                                 type="broll"
                                 already={timelineHasSuggestion(DEFAULT_TRACK_IDS.broll, item)}
                                 onInsert={() => insertSuggestion('broll', item)}
-                                onPreview={() => setPreviewItem({ item, type: 'broll' })}
+                                onPreview={() => seekToCardStart(item.start)}
                               />
                             ))}
                           </div>
@@ -5570,7 +5592,7 @@ export function StudioVideoEditingPanel({
                                 type="broll"
                                 already={timelineHasSuggestion(DEFAULT_TRACK_IDS.broll, item)}
                                 onInsert={() => insertSuggestion('broll', item)}
-                                onPreview={() => setPreviewItem({ item, type: 'broll' })}
+                                onPreview={() => seekToCardStart(item.start)}
                               />
                             ))}
                           </div>
@@ -5583,16 +5605,19 @@ export function StudioVideoEditingPanel({
                         {selectedInfographicEditor}
                         {graphicsForSelectedScene.length > 0 ? (
                           <div className="space-y-2.5">
-                            {graphicsForSelectedScene.map((spec, i) => (
-                              <SuggestionCard
-                                key={`m-gfxlist-${selected?.id}-${i}`}
-                                item={specToSuggestionItem(spec, selected?.title ?? '', overlayClipsForCards)}
-                                type="infographic"
-                                already={isRemotionAlreadyOnTimeline(spec)}
-                                onInsert={() => insertRemotionInfographic(spec)}
-                                onPreview={() => setPreviewRemotion(spec)}
-                              />
-                            ))}
+                            {graphicsForSelectedScene.map((spec, i) => {
+                              const cardItem = specToSuggestionItem(spec, selected?.title ?? '', overlayClipsForCards);
+                              return (
+                                <SuggestionCard
+                                  key={`m-gfxlist-${selected?.id}-${i}`}
+                                  item={cardItem}
+                                  type="infographic"
+                                  already={isRemotionAlreadyOnTimeline(spec)}
+                                  onInsert={() => insertRemotionInfographic(spec)}
+                                  onPreview={() => seekToCardStart(cardItem.start)}
+                                />
+                              );
+                            })}
                           </div>
                         ) : (
                           <p className="text-[11px] leading-relaxed text-[#a1a1a6]">
@@ -6200,7 +6225,7 @@ function SuggestionCard({
             <p className="mb-0.5 text-[11px] text-[#6e6e73]">{item.meta}</p>
           )}
           <p className="text-[10px] tabular-nums text-[#a1a1a6]">
-            @ {tcShort(item.start)}.00 · {item.dur}s
+            @ {tcShort(item.start)}.00 · {formatCardSeconds(item.dur)}s
           </p>
         </div>
       </div>
