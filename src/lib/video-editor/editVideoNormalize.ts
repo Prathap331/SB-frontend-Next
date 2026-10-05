@@ -244,7 +244,23 @@ function assetsFromAsserts(raw: Record<string, unknown>): {
   return { photos, videos };
 }
 
-function pickBeatAsset(photos: EditVideoImage[], videos: BrollVideo[]): EditVideoBeatAsset | null {
+/**
+ * The media the backend chose for this direction (`selected_media_id` +
+ * `selected_media_type`), falling back to the first video, then the first photo.
+ */
+function pickBeatAsset(
+  photos: EditVideoImage[],
+  videos: BrollVideo[],
+  selected?: { id: number | null; type: string },
+): EditVideoBeatAsset | null {
+  if (selected?.id != null) {
+    const wantsPhoto = selected.type === 'photo' || selected.type === 'image';
+    const pickedVideo = wantsPhoto ? undefined : videos.find((v) => v.id === selected.id);
+    const pickedPhoto = pickedVideo ? undefined : photos.find((p) => p.id === selected.id);
+    if (pickedVideo || pickedPhoto) {
+      return pickBeatAsset(pickedPhoto ? [pickedPhoto] : [], pickedVideo ? [pickedVideo] : []);
+    }
+  }
   const video = videos[0];
   if (video?.video_files[0]?.link) {
     return {
@@ -296,7 +312,10 @@ function convertDirectionScene(raw: Record<string, unknown>, index: number): {
     const dirEnd = Math.max(dirStart + 0.1, asFiniteNumber(dir.end) ?? dirStart + 1);
     const kind = asString(dir.type).toLowerCase();
     const { photos, videos } = assetsFromAsserts(dir);
-    const asset = pickBeatAsset(photos, videos);
+    const asset = pickBeatAsset(photos, videos, {
+      id: asFiniteNumber(dir.selected_media_id),
+      type: asString(dir.selected_media_type).toLowerCase(),
+    });
     const wantsBroll = kind.includes('b-roll') || kind.includes('broll') || Boolean(asset);
     if (wantsBroll && asset) {
       beats.push({
@@ -320,9 +339,18 @@ function convertDirectionScene(raw: Record<string, unknown>, index: number): {
       (kind.includes('overlay') || kind.includes('full_screen') || kind.includes('fullscreen') || Boolean(asString(dir.template_name)));
     if (!wantsOverlay || !animationType) return;
 
-    const durationFrames = Math.max(1, Math.round((dirEnd - dirStart) * EDITOR_FPS));
     const props = asRecord(dir.template_props) ?? {};
     const fullscreen = kind.includes('full_screen') || kind.includes('fullscreen');
+    // B-roll runs for the whole direction (`start`–`end`); an overlay animation only for
+    // the words it covers (`overlay_start`–`overlay_end`). Full-screen animations have no
+    // overlay window and fill the direction.
+    const overlayStart = asFiniteNumber(dir.overlay_start);
+    const overlayEnd = asFiniteNumber(dir.overlay_end);
+    const hasOverlayWindow =
+      !fullscreen && overlayStart != null && overlayEnd != null && overlayEnd > overlayStart;
+    const animStart = hasOverlayWindow ? Math.max(0, overlayStart) : dirStart;
+    const animEnd = hasOverlayWindow ? Math.max(animStart + 0.1, overlayEnd) : dirEnd;
+    const durationFrames = Math.max(1, Math.round((animEnd - animStart) * EDITOR_FPS));
     infographics.push({
       id: `${sceneId}-overlay-${di + 1}`,
       scene_id: sceneId,
@@ -334,10 +362,10 @@ function convertDirectionScene(raw: Record<string, unknown>, index: number): {
       duration_frames: durationFrames,
       trigger: 'beat',
       placement: fullscreen ? 'full_frame' : 'overlay',
-      start: dirStart,
-      end: dirEnd,
-      start_sec: dirStart,
-      end_sec: dirEnd,
+      start: animStart,
+      end: animEnd,
+      start_sec: animStart,
+      end_sec: animEnd,
       render_engine_hint: 'remotion',
     });
   });
