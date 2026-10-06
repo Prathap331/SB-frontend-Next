@@ -51,7 +51,7 @@ const TABS: { id: StudioTab; label: string; icon: React.ComponentType<{ classNam
   { id: 'thumbnails', label: 'Thumbnails', icon: ImageIcon },
   { id: 'audio', label: 'Cloning', icon: Mic },
   { id: 'video-editing', label: 'AI Video Editing', icon: Film },
-  { id: 'broll', label: 'B-Roll Videos', icon: Clapperboard },
+  // { id: 'broll', label: 'B-Roll Videos', icon: Clapperboard },
 ];
 
 export function StudioStageNav({
