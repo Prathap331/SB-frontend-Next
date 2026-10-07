@@ -73,12 +73,12 @@ export function VideoGenerationProgress({ startedAt }: { startedAt: number }) {
         aria-live="polite"
         aria-busy
       >
-        <div className="mb-4 flex items-center justify-between">
+        {/* <div className="mb-4 flex items-center justify-between">
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-600">
             Step {stepIndex + 1} of {STEPS.length}
           </p>
           <p className="text-[11px] font-semibold tabular-nums text-[#86868b]">{formatElapsed(elapsed)}</p>
-        </div>
+        </div> */}
 
         <div className="vgp-stage relative mb-5 flex h-[170px] items-center justify-center overflow-hidden rounded-2xl border border-amber-100 bg-gradient-to-b from-[#fffaf1] to-[#f5f5f7]">
           <div key={stepIndex} className="vgp-scene-in flex h-full w-full items-center justify-center">

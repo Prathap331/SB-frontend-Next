@@ -687,20 +687,21 @@ export default function AuthCallback() {
                 </div>
               )}
 
-              {/* ── Step 4: Voice cloning (Plus / Pro) ────────────────── */}
+              {/* ── Step 4: Voice cloning (Free once · Plus / Pro any time) ── */}
               {cbStep === 4 && (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-gray-200 bg-[#fafafa] p-4">
                     <p className="text-sm text-[#1d1d1f] leading-relaxed font-light">
-                      Voice cloning is available on Plus and Pro. After you upgrade, open the Audio tab to
-                      record a 10–30 second sample so scripts can sound like you.
+                      Every plan can clone your voice. On Free you clone once, in one language; Plus and Pro
+                      can re-clone any time and add a second language. Open the Cloning tab to record a
+                      10–30 second sample so your videos can sound like you.
                     </p>
                   </div>
 
                   <div className="rounded-2xl border border-dashed border-gray-200 p-5 text-center space-y-3">
                     <Mic className="w-8 h-8 text-[#6e6e73] mx-auto" />
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6e6e73]">
-                      Plus &amp; Pro only
+                      Free: one clone · Plus &amp; Pro: re-clone any time
                     </p>
                     <button
                       type="button"

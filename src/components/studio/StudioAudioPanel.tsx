@@ -36,7 +36,10 @@ import {
   voiceCreditsForSeconds,
 } from '@/lib/credits';
 import {
-  canUseVoiceCloning,
+  FREE_RECLONE_BLOCKED_MESSAGE,
+  canCloneVoice,
+  isPaidVoiceCloneTier,
+  voiceCloneLanguageLimit,
   clonedVoiceId,
   firstNameFromFullName,
   isClonedVoiceId,
@@ -349,7 +352,9 @@ export function StudioAudioPanel({
     [clonedTracks, clonedVoiceName],
   );
   const voiceReady = clonedVoices.length > 0;
-  const cloningAllowed = canUseVoiceCloning(userTier);
+  const paidTier = isPaidVoiceCloneTier(userTier);
+  // Free: one clone, then re-cloning needs Plus / Pro.
+  const cloningAllowed = canCloneVoice(userTier, voiceReady);
 
   const availableScriptLangs = useMemo(() => {
     const keys = Object.keys(languageMap).filter((k) => languageMap[k]?.trim());
@@ -429,10 +434,7 @@ export function StudioAudioPanel({
       const tier = (profile?.user_tier || 'Free').trim() || 'Free';
       setUserTier(tier);
 
-      await loadClonedVoice(id, {
-        fallbackName: metaName,
-        selectIfReady: canUseVoiceCloning(tier),
-      });
+      await loadClonedVoice(id, { fallbackName: metaName });
     })();
     return () => {
       cancelled = true;
@@ -585,7 +587,7 @@ export function StudioAudioPanel({
 
   const openCloneModal = useCallback(() => {
     if (!cloningAllowed) {
-      toast.error('Voice cloning is available on Plus and Pro plans', {
+      toast.error(FREE_RECLONE_BLOCKED_MESSAGE, {
         action: {
           label: 'Upgrade',
           onClick: () => router.push('/pricing'),
@@ -998,51 +1000,48 @@ export function StudioAudioPanel({
             Voice cloning
           </h3>
           <span className="text-[10px] font-semibold uppercase tracking-wide text-[#6e6e73]">
-            Plus &amp; Pro
+            {paidTier ? 'Plus & Pro' : 'Free · one clone'}
           </span>
         </div>
 
-        {cloningAllowed ? (
-          <>
-            <div className="flex flex-wrap items-stretch gap-3">
-              {clonedVoices.map((voice) => (
-                <div key={voice.id} className="w-[150px] sm:w-[168px]">
-                  <VoiceCard
-                    voice={voice}
-                    active={selectedVoice === voice.id}
-                    onSelect={() => handleSelectVoice(voice.id)}
-                    onPreview={(e) => handlePreviewVoice(e, voice.id)}
-                    isPreviewing={previewVoiceId === voice.id}
-                  />
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={openCloneModal}
-                className="inline-flex items-center gap-2 self-center rounded-md border border-dashed border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1d1f] hover:border-gray-400 hover:bg-[#fafafa] transition-all"
-              >
-                <Mic className="w-4 h-4 text-[#6e6e73]" />
-                {voiceReady ? 'Re-clone your voice' : 'Clone your voice'}
-              </button>
+        <div className="flex flex-wrap items-stretch gap-3">
+          {clonedVoices.map((voice) => (
+            <div key={voice.id} className="w-[150px] sm:w-[168px]">
+              <VoiceCard
+                voice={voice}
+                active={selectedVoice === voice.id}
+                onSelect={() => handleSelectVoice(voice.id)}
+                onPreview={(e) => handlePreviewVoice(e, voice.id)}
+                isPreviewing={previewVoiceId === voice.id}
+              />
             </div>
-            {!voiceReady && (
-              <p className="text-xs text-[#6e6e73] mt-3 font-light">
-                Clone your voice once to generate speech with your own sound.
-              </p>
-            )}
-          </>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-[#fafafa] px-4 py-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          ))}
+          {cloningAllowed && (
+            <button
+              type="button"
+              onClick={openCloneModal}
+              className="inline-flex items-center gap-2 self-center rounded-md border border-dashed border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1d1f] hover:border-gray-400 hover:bg-[#fafafa] transition-all"
+            >
+              <Mic className="w-4 h-4 text-[#6e6e73]" />
+              {voiceReady ? 'Re-clone your voice' : 'Clone your voice'}
+            </button>
+          )}
+        </div>
+        {!voiceReady && (
+          <p className="text-xs text-[#6e6e73] mt-3 font-light">
+            {paidTier
+              ? 'Clone your voice once to generate speech with your own sound.'
+              : 'Free plan: clone your voice once, in one language, and generate speech with your own sound.'}
+          </p>
+        )}
+        {!cloningAllowed && (
+          <div className="mt-4 rounded-2xl border border-dashed border-gray-200 bg-[#fafafa] px-4 py-5 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <Lock className="w-3.5 h-3.5 text-[#6e6e73]" />
-                <p className="text-sm font-semibold text-[#1d1d1f]">
-                  Upgrade to unlock voice cloning
-                </p>
+                <p className="text-sm font-semibold text-[#1d1d1f]">Re-cloning needs Plus or Pro</p>
               </div>
-              <p className="text-xs text-[#6e6e73] font-light">
-                Available on Plus and Pro. Clone your voice and use it for script voiceovers.
-              </p>
+              <p className="text-xs text-[#6e6e73] font-light">{FREE_RECLONE_BLOCKED_MESSAGE}</p>
             </div>
             <button
               type="button"
@@ -1509,6 +1508,7 @@ export function StudioAudioPanel({
         onClose={() => setCloneOpen(false)}
         onCloned={handleCloned}
         userId={userId}
+        maxLanguages={voiceCloneLanguageLimit(userTier)}
       />
     </div>
   );

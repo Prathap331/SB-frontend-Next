@@ -49,7 +49,9 @@ import {
 } from '@/components/studio/StudioAudioPanel';
 import { VoiceCloneModal } from '@/components/studio/VoiceCloneModal';
 import {
-  canUseVoiceCloning,
+  FREE_RECLONE_BLOCKED_MESSAGE,
+  canCloneVoice,
+  voiceCloneLanguageLimit,
   clonedVoiceId,
   isClonedVoiceId,
   saveClonedVoiceProfile,
@@ -2710,11 +2712,12 @@ export function StudioVideoEditingPanel({
     };
   }, []);
 
-  const cloningAllowed = canUseVoiceCloning(userTier);
   const clonedVoices = useMemo(
     () => clonedVoicePresets(clonedTracks, clonedVoiceName),
     [clonedTracks, clonedVoiceName],
   );
+  // Free: one clone, then re-cloning needs Plus / Pro.
+  const cloningAllowed = canCloneVoice(userTier, clonedVoices.length > 0);
   const selectedVoicePreset = useMemo(
     () => voicePresets.find((v) => v.id === selectedVoice) ?? null,
     [voicePresets, selectedVoice],
@@ -3932,7 +3935,7 @@ export function StudioVideoEditingPanel({
                       type="button"
                       onClick={() => {
                         if (!cloningAllowed) {
-                          showToast('Voice cloning is available on Plus and Pro plans');
+                          showToast(FREE_RECLONE_BLOCKED_MESSAGE);
                           return;
                         }
                         setCloneOpen(true);
@@ -4300,23 +4303,19 @@ export function StudioVideoEditingPanel({
               Clone your voice once and pick it here — the whole voiceover of this video will be
               in your voice instead of{' '}
               <span className="font-semibold text-[#1d1d1f]">{selectedVoicePreset?.name ?? 'a built-in voice'}</span>.
-              {!cloningAllowed && ' Voice cloning is available on the Plus and Pro plans.'}
             </p>
             <div className="flex flex-col gap-2">
               <button
                 type="button"
                 onClick={() => {
+                  // Only shown without a clone, which every plan may create once.
                   setClonePromptOpen(false);
-                  if (!cloningAllowed) {
-                    router.push('/pricing');
-                    return;
-                  }
                   setCloneOpen(true);
                 }}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] py-2.5 text-sm font-semibold text-white hover:bg-black"
               >
                 <Mic className="h-4 w-4 text-amber-300" />
-                {cloningAllowed ? 'Clone your voice' : 'Clone your voice'}
+                Clone your voice
               </button>
               <button
                 type="button"
@@ -4337,6 +4336,8 @@ export function StudioVideoEditingPanel({
           four timed steps driven by the pending-generation start time. */}
       {pendingGeneration && <VideoGenerationProgress startedAt={pendingGeneration.startedAt} />}
 
+
+        
       {showInsufficientCredits && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/80 p-8 max-w-sm w-full text-center">
@@ -4377,6 +4378,7 @@ export function StudioVideoEditingPanel({
         onClose={() => setCloneOpen(false)}
         onCloned={handleCloned}
         userId={userId}
+        maxLanguages={voiceCloneLanguageLimit(userTier)}
       />
 
       {/* ── Desktop: 3-column layout ── */}

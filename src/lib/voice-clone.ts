@@ -133,8 +133,25 @@ export function parseClonedVoiceTracks(raw: unknown): ClonedVoiceTrack[] {
   return tracks;
 }
 
-/** Voice cloning is available on Plus and Pro only. */
-export function canUseVoiceCloning(tier: string | null | undefined): boolean {
+/** Plus and Pro clone without limits; every other tier is treated as Free. */
+export function isPaidVoiceCloneTier(tier: string | null | undefined): boolean {
   const t = (tier || '').trim().toLowerCase();
   return t === 'plus' || t === 'pro';
 }
+
+/**
+ * Every tier can clone. Free gets a single clone (in one language) — once a voice exists,
+ * re-cloning needs Plus or Pro. Plus and Pro can re-clone any time.
+ */
+export function canCloneVoice(tier: string | null | undefined, hasClonedVoice: boolean): boolean {
+  return isPaidVoiceCloneTier(tier) || !hasClonedVoice;
+}
+
+/** Languages one clone session may record: 1 on Free, VOICE_CLONE_MAX_LANGUAGES on Plus / Pro. */
+export function voiceCloneLanguageLimit(tier: string | null | undefined): number {
+  return isPaidVoiceCloneTier(tier) ? VOICE_CLONE_MAX_LANGUAGES : 1;
+}
+
+/** Shown when a Free user who already cloned tries to clone again. */
+export const FREE_RECLONE_BLOCKED_MESSAGE =
+  'Free plan includes one voice clone. Upgrade to Plus or Pro to re-clone your voice or add another language.';

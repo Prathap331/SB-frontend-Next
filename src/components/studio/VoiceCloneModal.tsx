@@ -55,12 +55,15 @@ export function VoiceCloneModal({
   onCloned,
   userId,
   title = 'Clone your voice',
+  maxLanguages = VOICE_CLONE_MAX_LANGUAGES,
 }: {
   open: boolean;
   onClose: () => void;
   onCloned: () => void;
   userId?: string | null;
   title?: string;
+  /** Languages this session may record — 1 for Free (one-time clone), 2 for Plus / Pro. */
+  maxLanguages?: number;
 }) {
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
@@ -107,7 +110,7 @@ export function VoiceCloneModal({
   );
   const canRecordAnotherLanguage =
     currentTakeReady &&
-    savedSamples.length < VOICE_CLONE_MAX_LANGUAGES - 1 &&
+    savedSamples.length < maxLanguages - 1 &&
     selectableLanguages.length > 0;
 
   const filteredLanguages = useMemo(() => {
@@ -339,8 +342,8 @@ export function VoiceCloneModal({
       toast.error(`Please record at least ${VOICE_CLONE_MIN_SECONDS} seconds`);
       return;
     }
-    if (savedSamples.length >= VOICE_CLONE_MAX_LANGUAGES - 1) {
-      toast.error(`You can record up to ${VOICE_CLONE_MAX_LANGUAGES} languages.`);
+    if (savedSamples.length >= maxLanguages - 1) {
+      toast.error(`You can record up to ${maxLanguages} language${maxLanguages === 1 ? '' : 's'}.`);
       return;
     }
 
@@ -352,7 +355,7 @@ export function VoiceCloneModal({
     setLangMenuOpen(true);
     setLangSearch('');
     clearCurrentTake();
-  }, [recordedBlob, selectedCode, recordSeconds, savedSamples.length, clearCurrentTake]);
+  }, [recordedBlob, selectedCode, recordSeconds, savedSamples.length, maxLanguages, clearCurrentTake]);
 
   const canSave =
     !isRecording &&
@@ -402,7 +405,9 @@ export function VoiceCloneModal({
             Choose the language to record
           </p>
           <p className="text-[11px] text-[#6e6e73]">
-            Record 1 or 2 languages. {recordedCount}/{VOICE_CLONE_MAX_LANGUAGES} saved in this session.
+            {maxLanguages === 1
+              ? 'Free plan: clone your voice once, in one language. Plus and Pro can re-clone and add a second language.'
+              : `Record 1 or ${maxLanguages} languages. ${recordedCount}/${maxLanguages} saved in this session.`}
           </p>
           <button
             type="button"
