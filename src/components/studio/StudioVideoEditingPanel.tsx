@@ -3829,7 +3829,7 @@ export function StudioVideoEditingPanel({
 
   const setupDialog = setupOpen ? (
       <div
-        className="absolute inset-0 z-[60] flex items-center justify-center bg-black/45 p-4"
+        className="absolute inset-0 z-[70] flex items-center justify-center bg-black/45 p-4"
         aria-label="AI video editing setup"
         onClick={closeSetupModal}
       >
@@ -3862,9 +3862,7 @@ export function StudioVideoEditingPanel({
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
                 {/* Face / faceless */}
                 <div>
-                  <p className="mb-2 text-[11px] font-semibold text-[#6e6e73]">
-                    Is this a with-face or faceless video?
-                  </p>
+                 
                   <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
@@ -3907,7 +3905,7 @@ export function StudioVideoEditingPanel({
                         }`}
                       >
                         <UserRound className="h-4.5 w-4.5" />
-                        <span className="text-xs font-semibold">With face video</span>
+                        <span className="text-xs font-semibold">On Camera Video</span>
                         <span className={`text-[10px] ${videoKind === 'with-face' ? 'text-white/65' : 'text-[#86868b]'}`}>
                           Coming soon
                         </span>

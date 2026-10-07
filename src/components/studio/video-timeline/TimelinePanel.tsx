@@ -282,7 +282,9 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
   ]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-t border-gray-200 bg-white" style={{ height }}>
+    // `isolate`: the sticky header / labels / playhead z-indexes only rank against each
+    // other — they can never paint over dialogs or popups elsewhere on the page.
+    <div className="isolate flex h-full min-h-0 flex-col border-t border-gray-200 bg-white" style={{ height }}>
       <TimelineToolbar
         currentTime={timeline.currentTime}
         duration={timeline.duration}
