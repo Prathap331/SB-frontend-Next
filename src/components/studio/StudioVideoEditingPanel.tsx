@@ -98,7 +98,6 @@ import {
   writePendingGeneration,
   clearPendingGeneration,
   pendingGenerationMatches,
-  pendingGenerationMinutes,
   type PendingGeneration,
 } from '@/lib/video-editor';
 import {
@@ -111,6 +110,7 @@ import type { TimelineState, TimelineClip } from '@/lib/video-editor/types';
 import { readInfographicFromEditScene, parseRemotionInfographic, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, seededTextFromOverlayItem, kenBurnsFromTrack, mergeOverlayTrackOntoItem, rebaseOverlaySpec, rebaseSeededText, isOverlayGraphicTrack, collectSceneGraphicsOverlays, displayTextPayloadFromEditor, placementToPreviewOffsets, type RemotionInfographicSpec, type SeededTextOverlay } from '@/lib/video-editor/infographics';
 import { audioWindowSeconds, frameWindowSeconds, toSceneLocalSeconds } from '@/lib/video-editor/timings';
 import { TimelinePanel, TimelinePreview, TimelineClipView } from '@/components/studio/video-timeline';
+import { VideoGenerationProgress } from '@/components/studio/VideoGenerationProgress';
 import { TimecodeInput } from '@/components/studio/video-timeline/TimecodeInput';
 import { TRACK_ROW_HEIGHT } from '@/components/studio/video-timeline/trackLayout';
 import { InfographicClipEditor } from '@/components/studio/InfographicPropsEditor';
@@ -1689,6 +1689,8 @@ export function StudioVideoEditingPanel({
   const [clonedTracks, setClonedTracks] = useState<ClonedVoiceTrack[]>([]);
   const [clonedVoiceName, setClonedVoiceName] = useState<string | null>(null);
   const [cloneOpen, setCloneOpen] = useState(false);
+  /** "Use your own voice?" nudge shown before generating with a built-in voice. */
+  const [clonePromptOpen, setClonePromptOpen] = useState(false);
   const [previewVoiceId, setPreviewVoiceId] = useState<string | null>(null);
   const [isSubmittingSetup, setIsSubmittingSetup] = useState(false);
   /** A /edit-video run still running — survives navigating away (see pendingGeneration). */
@@ -4142,8 +4144,14 @@ export function StudioVideoEditingPanel({
                   type="button"
                   disabled={!canSubmitSetup}
                   onClick={() => {
-                    if (videoKind === 'faceless') void runFacelessGenerate();
-                    else if (videoKind === 'with-face') runWithFaceGenerate();
+                    if (videoKind === 'faceless') {
+                      // No cloned voice yet and a built-in one picked: offer cloning first.
+                      if (!clonedVoices.length && !isClonedVoiceId(selectedVoice)) {
+                        setClonePromptOpen(true);
+                        return;
+                      }
+                      void runFacelessGenerate();
+                    } else if (videoKind === 'with-face') runWithFaceGenerate();
                   }}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -4262,23 +4270,72 @@ export function StudioVideoEditingPanel({
     >
       {setupDialog}
 
-      {/* A /edit-video run that outlived its page — the only signal the user has that
-          the backend is still working on it. */}
-      {pendingGeneration && !isSubmittingSetup && (
-        <div className="absolute inset-x-0 top-0 z-[55] flex items-center justify-center px-3 py-2">
-          <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3.5 py-1.5 shadow-sm">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600" />
-            <p className="text-[11px] font-semibold text-amber-950">
-              Still generating your video
-              {pendingGenerationMinutes(pendingGeneration) > 0
-                ? ` · ${pendingGenerationMinutes(pendingGeneration)} min so far`
-                : ''}
-              {' — '}
-              <span className="font-medium">this keeps running if you leave the page</span>
+      {clonePromptOpen && (
+        <div
+          className="absolute inset-0 z-[78] flex items-center justify-center bg-black/45 p-4"
+          onClick={() => setClonePromptOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clone-prompt-title"
+            className="relative w-full max-w-sm rounded-3xl border border-gray-200 bg-white p-6 text-center shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setClonePromptOpen(false)}
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-[#f5f5f7] text-[#6e6e73] hover:bg-gray-200 hover:text-[#1d1d1f]"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50">
+              <Mic className="h-5 w-5 text-amber-600" />
+            </div>
+            <h3 id="clone-prompt-title" className="mb-2 text-lg font-semibold tracking-tight text-[#1d1d1f]">
+              Narrate in your own voice?
+            </h3>
+            <p className="mb-6 text-sm leading-relaxed text-[#6e6e73]">
+              Clone your voice once and pick it here — the whole voiceover of this video will be
+              in your voice instead of{' '}
+              <span className="font-semibold text-[#1d1d1f]">{selectedVoicePreset?.name ?? 'a built-in voice'}</span>.
+              {!cloningAllowed && ' Voice cloning is available on the Plus and Pro plans.'}
             </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setClonePromptOpen(false);
+                  if (!cloningAllowed) {
+                    router.push('/pricing');
+                    return;
+                  }
+                  setCloneOpen(true);
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] py-2.5 text-sm font-semibold text-white hover:bg-black"
+              >
+                <Mic className="h-4 w-4 text-amber-300" />
+                {cloningAllowed ? 'Clone your voice' : 'Clone your voice'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setClonePromptOpen(false);
+                  void runFacelessGenerate();
+                }}
+                className="w-full rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7]"
+              >
+                Continue without cloning
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* POST /edit-video in flight (or one that outlived a previous visit to this page):
+          four timed steps driven by the pending-generation start time. */}
+      {pendingGeneration && <VideoGenerationProgress startedAt={pendingGeneration.startedAt} />}
 
       {showInsufficientCredits && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
