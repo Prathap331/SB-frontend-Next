@@ -579,6 +579,24 @@ export async function loadTopicWorkspace(
   };
 }
 
+/**
+ * The signed-in user's own scripts (locked in scripts_universal or unlocked in scripts_assigned)
+ * merged onto an idea list, so an idea they generated stays visible, marked generated, and can
+ * be unlocked, even on a topic they opened from Suggested topics.
+ */
+export async function mergeUserScriptsOntoIdeas(
+  topic: string,
+  userId: string | null | undefined,
+  ideas: ScriptIdeaBase[],
+): Promise<MergedIdea[]> {
+  const uid = (userId || '').trim();
+  if (!uid || !topic.trim()) {
+    return ideas.map((idea) => ({ ...idea, generated: false, script: null, scriptRowId: null, fromAssigned: false }));
+  }
+  const scripts = await fetchScriptsForTopic(topic.trim(), uid, ideas.map((i) => i.title));
+  return mergeIdeasWithScripts(ideas, scripts);
+}
+
 /** Re-merge after a new script is generated in-session */
 export function mergeLocalScriptOntoIdeas(
   ideas: MergedIdea[],

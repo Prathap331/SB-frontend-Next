@@ -2203,11 +2203,20 @@ export class ApiService {
     return this.parseJsonOrThrow(response, 'Split beat');
   }
 
+  /** POST /edit/{videoId}/{sceneId}/{beatId}/duplicate — copies the beat; no body. */
+  static async duplicateBeat(videoId: string, sceneId: string, beatId: string): Promise<unknown> {
+    const response = await this.authorizedFetch(this.beatUrl(videoId, sceneId, beatId, '/duplicate'), {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    return this.parseJsonOrThrow(response, 'Duplicate beat');
+  }
+
   /**
    * POST /edit/{videoId}/{sceneId}/{beatId}/move
-   * `{ start, end }` — edges of a B-roll / full-screen beat (the neighbour gives or takes the
-   * words; cut points are shared). `{ overlay_start, overlay_end }` — the template animation
-   * within its beat (kept inside the beat's range).
+   * `{ start, end }` — a B-roll / full-screen beat was dragged or its edges were (the neighbour
+   * gives or takes the words; cut points are shared). `{ overlay_start, overlay_end }` — the
+   * template animation was dragged within its beat (kept inside the beat's range).
    */
   static async moveBeat(
     videoId: string,

@@ -78,7 +78,14 @@ import {
   type EditVideoTextListItem,
 } from '@/services/api';
 import { useVideoTimeline, type ClipEditEvent } from '@/hooks/useVideoTimeline';
-import { applyBeatTimings, beatTimingsFromPayload } from '@/lib/video-editor/beatTimings';
+import {
+  applyBeatTimings,
+  beatTimingsFromPayload,
+  isLocalBeatId,
+  makeLocalBeatId,
+  pickNewBeatId,
+  type BeatTiming,
+} from '@/lib/video-editor/beatTimings';
 import {
   DEFAULT_TRACK_IDS,
   createEmptyTimeline,
@@ -252,6 +259,17 @@ type PendingAddMedia = {
 };
 
 /** Local edits accumulated per scene. Persistence will use new edit endpoints later. */
+/**
+ * Timeline structure edits, sent in order when the user leaves the scene. `beatId` may be a
+ * `local-…` placeholder made by an earlier split / duplicate in the same batch.
+ */
+type BeatMoveRange = { start: number; end: number } | { overlay_start: number; overlay_end: number };
+
+type PendingBeatOp =
+  | { kind: 'move'; clipId: string; beatId: string; range: BeatMoveRange }
+  | { kind: 'split'; beatId: string; splitTime: number; newBeatId: string; newStart: number }
+  | { kind: 'duplicate'; beatId: string; newBeatId: string; newStart: number };
+
 type PendingSceneEdits = {
   captionStyle?: boolean;
   overlayClipIds?: string[];
@@ -259,6 +277,7 @@ type PendingSceneEdits = {
   brollClipIds?: string[];
   trim?: { start: number; end: number };
   addMedia?: PendingAddMedia[];
+  beatOps?: PendingBeatOp[];
 };
 
 type LibraryTab = 'broll-videos' | 'broll-images' | 'infographics' | 'text' | 'captions';
@@ -334,17 +353,24 @@ function addMediaPayloadFromSuggestion(item: Suggestion) {
   });
 }
 
-function addMediaPayloadFromClip(clip: TimelineClip) {
-  return beatAddMediaPayload({
-    mediaId: clip.assetId,
-    mediaType: clip.mediaKind || 'video',
-    mediaUrl: clip.sourceUrl || clip.thumbnailUrl,
-    query: clip.mediaQuery,
-    width: clip.mediaWidth,
-    height: clip.mediaHeight,
-    duration: clip.originalSourceDuration || clip.duration || clip.sourceDuration,
-    photographer: clip.photographer,
-  });
+const OVERLAY_BOUNDS_MESSAGE =
+  'This animation belongs to its B-roll — it can only be repositioned within that video';
+
+/**
+ * Where an overlay infographic may sit: inside the B-roll clip of the same beat (one animation
+ * belongs to one B-roll). Full-screen animations are their own beat and are not bounded.
+ */
+function overlayBoundsForClip(clip: TimelineClip, timeline: TimelineState): { start: number; end: number } | null {
+  if (clip.type !== 'infographic' || !clip.beatId) return null;
+  if (isFullFramePlacement(clip.placement || clip.remotion?.placement)) return null;
+  for (const track of timeline.tracks) {
+    for (const c of track.clips) {
+      if (c.beatId === clip.beatId && isBrollTimelineClip(c)) {
+        return { start: c.start, end: c.start + c.duration };
+      }
+    }
+  }
+  return null;
 }
 
 /** Seconds sent to the edit endpoints — millisecond precision, no float noise. */
@@ -354,90 +380,6 @@ function roundSeconds(sec: number): number {
 
 function isBrollTimelineClip(clip: TimelineClip): boolean {
   return clip.type === 'broll' || clip.trackId === DEFAULT_TRACK_IDS.broll;
-}
-
-function addMediaPayloadReady(payload: BeatAddMediaPayload): boolean {
-  return /^https?:\/\//i.test(payload.media_url) || payload.media_id > 0;
-}
-
-function mergeAddMediaPayload(
-  base: BeatAddMediaPayload,
-  extra: Partial<BeatAddMediaPayload> | BeatAddMediaPayload,
-): BeatAddMediaPayload {
-  return {
-    media_id: base.media_id > 0 ? base.media_id : extra.media_id || 0,
-    media_type: base.media_type || extra.media_type || 'video',
-    media_url: base.media_url || extra.media_url || '',
-    query: base.query || extra.query || '',
-    width: base.width > 0 ? base.width : extra.width || 0,
-    height: base.height > 0 ? base.height : extra.height || 0,
-    duration: base.duration > 0 ? base.duration : extra.duration || 0,
-    photographer: base.photographer || extra.photographer || '',
-  };
-}
-
-function completeAddMediaPayloadForClip(
-  clip: TimelineClip,
-  extras: {
-    beats?: Scene['beats'];
-    suggestions?: Suggestion[];
-  },
-): BeatAddMediaPayload {
-  let payload = addMediaPayloadFromClip(clip);
-  const beat = extras.beats?.find(
-    (b) =>
-      (clip.beatId && b.beatId === clip.beatId) ||
-      urlsMatch(b.assetUrl, clip.sourceUrl) ||
-      urlsMatch(b.assetUrl, clip.thumbnailUrl),
-  );
-  if (beat) {
-    payload = mergeAddMediaPayload(
-      payload,
-      beatAddMediaPayload({
-        mediaId: beat.assetId,
-        mediaType: beat.source || clip.mediaKind,
-        mediaUrl: beat.assetUrl,
-        query: beat.query,
-        width: beat.width,
-        height: beat.height,
-        duration: clip.originalSourceDuration || clip.duration,
-        photographer: beat.photographer,
-      }),
-    );
-  }
-  const match = extras.suggestions?.find((item) => clipMatchesSuggestion(clip, item));
-  if (match) {
-    payload = mergeAddMediaPayload(payload, addMediaPayloadFromSuggestion(match));
-  }
-  return beatAddMediaPayload({
-    mediaId: payload.media_id,
-    mediaType: payload.media_type,
-    mediaUrl: payload.media_url,
-    query: payload.query,
-    width: payload.width,
-    height: payload.height,
-    duration: payload.duration,
-    photographer: payload.photographer,
-  });
-}
-
-function suggestionsForScene(
-  sceneId: string,
-  lookup: {
-    videos: Record<string, Suggestion[]>;
-    images: Record<string, Suggestion[]>;
-    detached: Record<string, Suggestion[]>;
-    manualVideos: Suggestion[];
-    manualImages: Suggestion[];
-  },
-): Suggestion[] {
-  return [
-    ...(lookup.videos[sceneId] ?? []),
-    ...(lookup.images[sceneId] ?? []),
-    ...(lookup.detached[sceneId] ?? []),
-    ...lookup.manualVideos,
-    ...lookup.manualImages,
-  ];
 }
 
 const LIBRARY_TABS: { id: LibraryTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -1569,6 +1511,8 @@ export function StudioVideoEditingPanel({
   const clipEditedRef = useRef<((event: ClipEditEvent) => void) | null>(null);
   const timelineApi = useVideoTimeline(createEmptyTimeline(), {
     onClipEdited: (event) => clipEditedRef.current?.(event),
+    // One animation belongs to one B-roll: an overlay infographic stays within its beat's B-roll.
+    getClipBounds: (clip, timeline) => overlayBoundsForClip(clip, timeline),
   });
   const { setTimeline: replaceTimelineState } = timelineApi;
   const timelineRef = useRef(timelineApi.timeline);
@@ -1711,20 +1655,6 @@ export function StudioVideoEditingPanel({
   /** Media added via B-roll tab "Find more → Add" (always shown in sidebar sections). */
   const [manualBrollVideos, setManualBrollVideos] = useState<Suggestion[]>([]);
   const [manualBrollImages, setManualBrollImages] = useState<Suggestion[]>([]);
-  const brollLookupRef = useRef({
-    videos: {} as Record<string, Suggestion[]>,
-    images: {} as Record<string, Suggestion[]>,
-    detached: {} as Record<string, Suggestion[]>,
-    manualVideos: [] as Suggestion[],
-    manualImages: [] as Suggestion[],
-  });
-  brollLookupRef.current = {
-    videos: sceneBrollVideoSuggestions,
-    images: sceneBrollImageSuggestions,
-    detached: detachedBrollCards,
-    manualVideos: manualBrollVideos,
-    manualImages: manualBrollImages,
-  };
   /** video_id returned by /edit-video. */
   const [videoId, setVideoId] = useState<string | null>(null);
   const videoIdRef = useRef<string | null>(null);
@@ -1886,48 +1816,118 @@ export function StudioVideoEditingPanel({
     [patchSceneClip, recordPendingCaption],
   );
 
-  /** Flush queued add-media (and any duplicated b-roll clips) when leaving a scene. */
+  /** Placeholder beat id (`local-…`) → the id the backend gave that beat. Lives for the session. */
+  const beatIdAliasRef = useRef(new Map<string, string>());
+  const resolveBeatId = useCallback(
+    (beatId: string) => beatIdAliasRef.current.get(beatId) ?? beatId,
+    [],
+  );
+
+  /**
+   * Re-time this scene's clips to the backend's beats (neighbours shift with a move, cuts snap
+   * to word starts) and swap placeholder beat ids for real ones. Uses `response` when it carries
+   * the scene, else re-reads the saved `videos.timeline`.
+   */
+  const syncBeatTimings = useCallback(
+    async (videoId: string, sceneId: string, response: unknown) => {
+      const timings =
+        beatTimingsFromPayload(response, sceneId) ?? (await fetchSceneBeatTimings(videoId, sceneId)) ?? [];
+      const aliases = beatIdAliasRef.current;
+      if (!timings.length && !aliases.size) return;
+      if (selectedIdRef.current === sceneId) {
+        const res = applyBeatTimings(timelineRef.current, timings, aliases);
+        if (res.changed) timelineApi.setTimeline(res.timeline, false);
+      }
+      setSceneTimelines((prev) => {
+        const tl = prev[sceneId];
+        if (!tl) return prev;
+        const res = applyBeatTimings(tl, timings, aliases);
+        return res.changed ? { ...prev, [sceneId]: res.timeline } : prev;
+      });
+    },
+    [timelineApi.setTimeline],
+  );
+
+  /**
+   * Sends one scene's queued move / split / duplicate edits, in order. A split or duplicate
+   * creates a beat; its id is learned from the response so later ops (and deletes / add-media)
+   * that used the placeholder reach the right beat. The scene is re-timed once at the end.
+   */
+  const runBeatOps = useCallback(
+    async (videoId: string, sceneId: string, ops: PendingBeatOp[]) => {
+      // The scene's beats as the backend has them now — kept current from each response.
+      let current: BeatTiming[] | null = await fetchSceneBeatTimings(videoId, sceneId);
+      // Beats the backend already has — anything else after a split / duplicate is the new one.
+      let known = new Set<string>([...syncedBeatIdsRef.current, ...(current ?? []).map((t) => t.id)]);
+      let last: unknown = null;
+      let failed = 0;
+      for (const op of ops) {
+        const beatId = resolveBeatId(op.beatId);
+        if (isLocalBeatId(beatId) || isFabricatedBeatId(beatId)) continue; // its creator failed
+        try {
+          if (!current) current = await fetchSceneBeatTimings(videoId, sceneId);
+          if (op.kind === 'move') {
+            last = await ApiService.moveBeat(videoId, sceneId, beatId, op.range);
+            current = beatTimingsFromPayload(last, sceneId);
+            continue;
+          }
+          last =
+            op.kind === 'split'
+              ? await ApiService.splitBeat(videoId, sceneId, beatId, { split_time: op.splitTime })
+              : await ApiService.duplicateBeat(videoId, sceneId, beatId);
+          current =
+            beatTimingsFromPayload(last, sceneId) ?? (await fetchSceneBeatTimings(videoId, sceneId));
+          if (current) {
+            const created = pickNewBeatId(current, known, op.newStart);
+            if (created) {
+              beatIdAliasRef.current.set(op.newBeatId, created);
+              syncedBeatIdsRef.current.add(created);
+            }
+            known = new Set([...known, ...current.map((t) => t.id)]);
+          }
+        } catch (err) {
+          failed += 1;
+          last = null;
+          current = null;
+          console.warn(`[beat ${op.kind}]`, err);
+        }
+      }
+      if (failed) {
+        showToast(
+          failed === 1
+            ? 'One timeline change could not be saved'
+            : `${failed} timeline changes could not be saved`,
+        );
+      }
+      // A failure leaves the response stale — re-read the saved timeline instead.
+      await syncBeatTimings(videoId, sceneId, failed ? null : last);
+    },
+    [resolveBeatId, showToast, syncBeatTimings],
+  );
+
+  /**
+   * Leaving a scene: send its queued edits — move / split / duplicate first (they create
+   * the beats later calls address), then add-media.
+   */
   const flushSceneEdits = useCallback(
     (sceneId: string) => {
       const pending = pendingSceneEditsRef.current[sceneId];
       delete pendingSceneEditsRef.current[sceneId];
-      const queued = pending?.addMedia ?? [];
-      const timeline =
-        sceneId === selectedIdRef.current
-          ? timelineRef.current
-          : sceneTimelinesRef.current[sceneId];
-      const seen = new Set(
-        queued.map((op) => `${op.beatId}::${op.payload.media_url}::${op.payload.media_id}`),
-      );
-      const extras: PendingAddMedia[] = [];
-      for (const track of timeline?.tracks ?? []) {
-        if (track.id !== DEFAULT_TRACK_IDS.broll && track.type !== 'broll') continue;
-        for (const clip of track.clips) {
-          if (!clip.id.startsWith('dup-')) continue;
-          const beatId = clip.beatId;
-          if (!beatId) continue;
-          const scene = scenesRef.current.find((s) => s.id === sceneId);
-          const payload = completeAddMediaPayloadForClip(clip, {
-            beats: scene?.beats,
-            suggestions: suggestionsForScene(sceneId, brollLookupRef.current),
-          });
-          if (!addMediaPayloadReady(payload)) continue;
-          const key = `${beatId}::${payload.media_url}::${payload.media_id}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          extras.push({ beatId, payload });
-        }
-      }
-      const ops = [...queued, ...extras];
       const videoId = videoIdRef.current;
-      if (!videoId || !ops.length) return;
-      for (const op of ops) {
+      if (!videoId || !pending) return;
+      const beatOps = pending.beatOps ?? [];
+      if (beatOps.length) {
+        enqueueRequest(() => runBeatOps(videoId, sceneId, beatOps));
+      }
+      for (const op of pending.addMedia ?? []) {
         enqueueRequest(async () => {
-          await ApiService.editBeatAddMedia(videoId, sceneId, op.beatId, op.payload);
+          const beatId = resolveBeatId(op.beatId);
+          if (isLocalBeatId(beatId)) return;
+          await ApiService.editBeatAddMedia(videoId, sceneId, beatId, op.payload);
         });
       }
     },
-    [enqueueRequest],
+    [enqueueRequest, runBeatOps, resolveBeatId],
   );
   flushSceneEditsRef.current = flushSceneEdits;
 
@@ -1942,13 +1942,16 @@ export function StudioVideoEditingPanel({
     const videoId = videoIdRef.current;
     if (!videoId) return;
     for (const op of ops) {
-      const beatId = op.beatId;
-      if (!beatId) continue;
+      if (!op.beatId) continue;
+      const queuedBeatId = op.beatId;
       enqueueRequest(async () => {
+        // Resolved when it runs: a split / duplicate queued before it may have named the beat.
+        const beatId = resolveBeatId(queuedBeatId);
+        if (isLocalBeatId(beatId)) return;
         await ApiService.deleteBeat(videoId, op.sceneId, beatId, op.kind === 'overlay' ? 'overlay' : 'beat');
       });
     }
-  }, [enqueueRequest]);
+  }, [enqueueRequest, resolveBeatId]);
   flushPendingDeletesRef.current = flushPendingDeletes;
 
   /** Flush whatever's still pending if the editor unmounts. */
@@ -1960,55 +1963,38 @@ export function StudioVideoEditingPanel({
   }, []);
 
   /**
-   * After /move or /split: re-time this scene's clips to the backend's beats. The backend
-   * shifts neighbours too (every word stays in exactly one beat) and snaps cuts to word starts.
-   * Uses the beats in the response, else re-reads the saved `videos.timeline`.
+   * A beat the backend has (any real direction id — not a locally made `s1_b5`-style id), or
+   * one a queued split / duplicate will create.
    */
-  const syncBeatTimings = useCallback(
-    async (
-      videoId: string,
-      sceneId: string,
-      response: unknown,
-      opts: { splitRightClipId?: string } = {},
-    ) => {
-      const timings =
-        beatTimingsFromPayload(response, sceneId) ?? (await fetchSceneBeatTimings(videoId, sceneId));
-      if (!timings?.length) return;
-      const created = { beatId: null as string | null };
-      if (selectedIdRef.current === sceneId) {
-        const res = applyBeatTimings(timelineRef.current, timings, opts);
-        if (res.newBeatId) created.beatId = res.newBeatId;
-        if (res.changed) timelineApi.setTimeline(res.timeline, false);
-      }
-      setSceneTimelines((prev) => {
-        const tl = prev[sceneId];
-        if (!tl) return prev;
-        const res = applyBeatTimings(tl, timings, opts);
-        return res.changed ? { ...prev, [sceneId]: res.timeline } : prev;
-      });
-      if (created.beatId) syncedBeatIdsRef.current.add(created.beatId);
-    },
-    [timelineApi.setTimeline],
-  );
-
-  /** A beat the backend knows (not a local placeholder) — only those can be moved / split / deleted. */
-  const isSyncedBeat = useCallback(
+  const isPersistableBeat = useCallback(
     (beatId?: string | null): beatId is string =>
-      Boolean(beatId) && !isFabricatedBeatId(beatId) && syncedBeatIdsRef.current.has(beatId as string),
+      Boolean(beatId) && (isLocalBeatId(beatId) || !isFabricatedBeatId(beatId)),
     [],
   );
 
+  /** Queue a move / split / duplicate for this scene. Repeated moves of one clip keep only the last. */
+  const recordBeatOp = useCallback((sceneId: string, op: PendingBeatOp) => {
+    const current = pendingSceneEditsRef.current[sceneId] ?? {};
+    let ops = current.beatOps ?? [];
+    if (op.kind === 'move') {
+      // Drop earlier moves of this clip, unless a split / duplicate came after them.
+      const lastStructural = ops.reduce((idx, o, i) => (o.kind === 'move' ? idx : i), -1);
+      ops = ops.filter((o, i) => !(i > lastStructural && o.kind === 'move' && o.clipId === op.clipId));
+    }
+    pendingSceneEditsRef.current[sceneId] = { ...current, beatOps: [...ops, op] };
+  }, []);
+
   /**
-   * POST /edit/{videoId}/{sceneId}/{beatId}/move when a drag / edge-drag ends.
+   * A drag / edge-drag ended: queue …/move for when the user leaves the scene.
    * B-roll and full-screen beats send `{ start, end }`; an overlay animation sends
    * `{ overlay_start, overlay_end }` (kept inside its beat by the backend).
    */
   const handleClipEdited = useCallback(
-    ({ before, after }: ClipEditEvent) => {
-      const videoId = videoIdRef.current;
+    ({ before, after, clamped }: ClipEditEvent) => {
+      if (clamped) showToast(OVERLAY_BOUNDS_MESSAGE);
       const sceneId = after.sceneId || selectedIdRef.current;
       const beatId = after.beatId;
-      if (!videoId || !sceneId || !isSyncedBeat(beatId)) return;
+      if (!sceneId || !isPersistableBeat(beatId)) return;
       const changed =
         Math.abs(before.start - after.start) > 0.001 ||
         Math.abs(before.duration - after.duration) > 0.001;
@@ -2016,7 +2002,7 @@ export function StudioVideoEditingPanel({
 
       const start = roundSeconds(after.start);
       const end = roundSeconds(after.start + after.duration);
-      let range: { start: number; end: number } | { overlay_start: number; overlay_end: number };
+      let range: BeatMoveRange;
       if (isBrollTimelineClip(after)) {
         range = { start, end };
       } else if (after.type === 'infographic' || after.type === 'text') {
@@ -2026,19 +2012,9 @@ export function StudioVideoEditingPanel({
       } else {
         return;
       }
-
-      enqueueRequest(async () => {
-        try {
-          const res = await ApiService.moveBeat(videoId, sceneId, beatId, range);
-          await syncBeatTimings(videoId, sceneId, res);
-        } catch (err) {
-          showToast(err instanceof Error ? err.message : 'Could not move this clip');
-          // Snap back to what the backend has.
-          await syncBeatTimings(videoId, sceneId, null);
-        }
-      });
+      recordBeatOp(sceneId, { kind: 'move', clipId: after.id, beatId, range });
     },
-    [enqueueRequest, isSyncedBeat, showToast, syncBeatTimings],
+    [isPersistableBeat, recordBeatOp, showToast],
   );
   clipEditedRef.current = handleClipEdited;
 
@@ -3390,9 +3366,9 @@ export function StudioVideoEditingPanel({
   };
 
   /**
-   * Fires after a b-roll clip ("beat") is split at the playhead. POST …/split with
-   * `{ split_time }` (scene seconds — the backend snaps it to the nearest word start), then the
-   * scene is re-timed from the backend and the right half takes the beat id it created.
+   * Fires after a b-roll clip ("beat") is split at the playhead. Queues …/split with
+   * `{ split_time }` (scene seconds — the backend snaps it to the nearest word start) for when the
+   * user leaves the scene; the right half holds a placeholder beat id until then.
    */
   const handleClipSplit = useCallback(
     (clip: TimelineClip, splitAt: number) => {
@@ -3402,37 +3378,23 @@ export function StudioVideoEditingPanel({
       // splitClip names the halves `<id>-a` / `<id>-b`.
       const leftClipId = `${clip.id}-a`;
       const rightClipId = `${clip.id}-b`;
-      const sceneNum = scenes.find((s) => s.id === sceneId)?.num;
-      if (sceneNum) {
-        const brollTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll);
-        const existingForScene = brollTrack?.clips.filter((c) => c.sceneId === sceneId).length ?? 0;
-        // Placeholder until the backend names the new beat (see syncBeatTimings).
-        timelineApi.updateClip(rightClipId, {
-          beatId: makeBrollBeatId(sceneNum, existingForScene + 1),
-          assetId: clip.assetId,
-          fromPexels: clip.fromPexels,
-          mediaQuery: clip.mediaQuery,
-          mediaWidth: clip.mediaWidth,
-          mediaHeight: clip.mediaHeight,
-          photographer: clip.photographer,
-        });
-      }
+      const newBeatId = makeLocalBeatId();
+      timelineApi.updateClip(rightClipId, {
+        beatId: newBeatId,
+        assetId: clip.assetId,
+        fromPexels: clip.fromPexels,
+        mediaQuery: clip.mediaQuery,
+        mediaWidth: clip.mediaWidth,
+        mediaHeight: clip.mediaHeight,
+        photographer: clip.photographer,
+      });
       recordPendingBroll(sceneId, leftClipId);
       recordPendingBroll(sceneId, rightClipId);
-
-      const videoId = videoIdRef.current;
-      if (!videoId || !isSyncedBeat(beatId)) return;
+      if (!isPersistableBeat(beatId)) return;
       const splitTime = roundSeconds(splitAt);
-      enqueueRequest(async () => {
-        try {
-          const res = await ApiService.splitBeat(videoId, sceneId, beatId, { split_time: splitTime });
-          await syncBeatTimings(videoId, sceneId, res, { splitRightClipId: rightClipId });
-        } catch (err) {
-          showToast(err instanceof Error ? err.message : 'Could not split this clip');
-        }
-      });
+      recordBeatOp(sceneId, { kind: 'split', beatId, splitTime, newBeatId, newStart: splitTime });
     },
-    [scenes, timelineApi, recordPendingBroll, isSyncedBeat, enqueueRequest, syncBeatTimings, showToast],
+    [timelineApi, recordPendingBroll, isPersistableBeat, recordBeatOp],
   );
 
   /** Mobile bottom-bar Split button — captures the selected clip before splitting so handleClipSplit can sync it. */
@@ -3446,33 +3408,32 @@ export function StudioVideoEditingPanel({
     if (clip) handleClipSplit(clip, splitAt);
   }, [timelineApi, handleClipSplit]);
 
-  /** Queue /add-media for a duplicated b-roll clip so it persists when leaving the scene. */
+  /**
+   * Duplicates the selected clip. A b-roll beat's copy gets a placeholder beat id and queues
+   * POST …/duplicate for when the user leaves the scene; other clips are copied locally.
+   */
   const handleClipDuplicate = useCallback(
     (source: TimelineClip) => {
-      if (!isBrollTimelineClip(source)) return;
+      if (source.type === 'infographic') {
+        // One animation belongs to one B-roll.
+        showToast('Infographics can’t be duplicated — each animation belongs to one B-roll clip');
+        return;
+      }
+      if (!isBrollTimelineClip(source)) {
+        timelineApi.duplicateSelected();
+        return;
+      }
       const sceneId = source.sceneId || selectedIdRef.current;
-      if (!sceneId) return;
-      const scene = scenes.find((s) => s.id === sceneId);
-      const beatId =
-        source.beatId ||
-        (scene ? backendBeatIdForBroll(scene, timelineRef.current, source.start) : undefined) ||
-        scene?.beats?.find((b) => b.beatId)?.beatId;
-      if (!beatId) return;
-
-      const payload = completeAddMediaPayloadForClip(source, {
-        beats: scene?.beats,
-        suggestions: suggestionsForScene(sceneId, brollLookupRef.current),
-      });
-      if (!addMediaPayloadReady(payload)) return;
-
-      const current = pendingSceneEditsRef.current[sceneId] ?? {};
-      pendingSceneEditsRef.current[sceneId] = {
-        ...current,
-        addMedia: [...(current.addMedia ?? []), { beatId, payload }],
-      };
+      const beatId = source.beatId;
+      const newBeatId = makeLocalBeatId();
+      // duplicateClip places the copy right after its source.
+      const newStart = roundSeconds(source.start + source.duration);
+      timelineApi.duplicateSelected({ beatId: newBeatId });
+      if (!sceneId || !isPersistableBeat(beatId)) return;
       recordPendingBroll(sceneId, source.id);
+      recordBeatOp(sceneId, { kind: 'duplicate', beatId, newBeatId, newStart });
     },
-    [scenes, recordPendingBroll],
+    [timelineApi, isPersistableBeat, recordPendingBroll, recordBeatOp, showToast],
   );
 
   const duplicateSelectedClip = useCallback(() => {
@@ -3480,7 +3441,6 @@ export function StudioVideoEditingPanel({
     const source = id
       ? timelineApi.timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === id)
       : undefined;
-    timelineApi.duplicateSelected();
     if (source) handleClipDuplicate(source);
   }, [timelineApi, handleClipDuplicate]);
 
@@ -3833,7 +3793,7 @@ export function StudioVideoEditingPanel({
           }
           return { ...prev, [sceneId]: [card, ...list] };
         });
-        if (clip.beatId && syncedBeatIdsRef.current.has(clip.beatId)) {
+        if (clip.beatId && (syncedBeatIdsRef.current.has(clip.beatId) || isLocalBeatId(clip.beatId))) {
           const already = pendingDeletesRef.current.some(
             (op) => op.kind === 'broll' && op.beatId === clip.beatId,
           );

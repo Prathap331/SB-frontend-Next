@@ -6,10 +6,10 @@ export const SITE_URL =
 export const SITE_NAME = 'Storio';
 
 export const DEFAULT_TITLE =
-  'Storio — Automated Youtube Script and Metadata, Thumbnail Generator ';
+  'Storio — Create Your YouTube Explainer Video In 2 Minutes ';
 
 export const DEFAULT_DESCRIPTION =
-  'Generate YouTube scripts, SEO-optimized titles/tags from search intelligence, and Thumbnails — all in one tool. Storio helps creators publish faster and rank higher.';
+  'Generate video ideas, full scripts, thumbnails, metadata, voice-cloned dubbing and AI-edited videos with B-roll and infographics.';
 
 export const DEFAULT_KEYWORDS = [
   'AI scriptwriter',
@@ -28,7 +28,7 @@ export const DEFAULT_KEYWORDS = [
  * Cache-bust query so WhatsApp / Facebook re-fetch after OG asset changes.
  * Bump when replacing share images.
  */
-export const OG_IMAGE_VERSION = '3';
+export const OG_IMAGE_VERSION = '4';
 
 /** Primary landscape OG — 1200×630 JPEG (WhatsApp large preview / mobile) */
 export const OG_IMAGE_PATH = `/og-image.jpg?v=${OG_IMAGE_VERSION}`;

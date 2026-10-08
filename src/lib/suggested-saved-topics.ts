@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { normalizeTopicCategory } from '@/services/api';
 import {
+  mergeUserScriptsOntoIdeas,
   normalizeIdeasJson,
   type TopicWorkspace,
 } from '@/lib/recent-topics';
@@ -78,21 +79,28 @@ function collectMatchingTitles(
   rows: unknown[] | null | undefined,
   wanted: Set<string>,
   found: Set<string>,
+  excludeUserId?: string,
 ) {
   for (const row of rows ?? []) {
-    const key = normalizeTitleKey((row as { title?: string | null }).title);
+    const rec = row as { title?: string | null; userId?: string | null };
+    // The signed-in user's own script does not use the idea up for them: they can still unlock it.
+    if (excludeUserId && rec.userId && String(rec.userId) === excludeUserId) continue;
+    const key = normalizeTitleKey(rec.title);
     if (key && wanted.has(key)) found.add(key);
   }
 }
 
 /**
- * Titles that already have a script. Checks scripts_universal first, then scripts_assigned.
- * Matches `title` case-insensitively, and also scripts whose `topic` matches.
+ * Titles that already have a script by someone other than `excludeUserId`. Checks
+ * scripts_universal first, then scripts_assigned. Matches `title` case-insensitively, and also
+ * scripts whose `topic` matches.
  */
 export async function fetchTitlesWithGeneratedScripts(
   titles: string[],
   topic?: string | null,
+  excludeUserId?: string | null,
 ): Promise<Set<string>> {
+  const exclude = (excludeUserId || '').trim() || undefined;
   const unique = [...new Set(titles.map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean))];
   const wanted = new Set(unique.map((t) => normalizeTitleKey(t)));
   const found = new Set<string>();
@@ -103,36 +111,36 @@ export async function fetchTitlesWithGeneratedScripts(
 
   const universalExact = await supabase
     .from('scripts_universal')
-    .select('title')
+    .select('title, userId')
     .in('title', unique);
   if (universalExact.error) {
     console.error('[scripts_universal title check]', universalExact.error.message);
   }
-  collectMatchingTitles(universalExact.data, wanted, found);
+  collectMatchingTitles(universalExact.data, wanted, found, exclude);
 
   if (topic?.trim()) {
     const universalTopic = await supabase
       .from('scripts_universal')
-      .select('title')
+      .select('title, userId')
       .ilike('topic', escapeIlike(topic.trim()))
       .limit(500);
     if (universalTopic.error) {
       console.error('[scripts_universal topic check]', universalTopic.error.message);
     }
-    collectMatchingTitles(universalTopic.data, wanted, found);
+    collectMatchingTitles(universalTopic.data, wanted, found, exclude);
   }
 
   for (const title of leftoverOriginals()) {
     const { data, error } = await supabase
       .from('scripts_universal')
-      .select('title')
+      .select('title, userId')
       .ilike('title', escapeIlike(title))
       .limit(20);
     if (error) {
       console.error('[scripts_universal title ilike]', error.message);
       break;
     }
-    collectMatchingTitles(data, wanted, found);
+    collectMatchingTitles(data, wanted, found, exclude);
   }
 
   const leftoverAfterUniversal = leftoverOriginals();
@@ -140,48 +148,51 @@ export async function fetchTitlesWithGeneratedScripts(
 
   const assignedExact = await supabase
     .from('scripts_assigned')
-    .select('title')
+    .select('title, userId')
     .in('title', leftoverAfterUniversal);
   if (assignedExact.error) {
     console.error('[scripts_assigned title check]', assignedExact.error.message);
   }
-  collectMatchingTitles(assignedExact.data, wanted, found);
+  collectMatchingTitles(assignedExact.data, wanted, found, exclude);
 
   if (topic?.trim()) {
     const assignedTopic = await supabase
       .from('scripts_assigned')
-      .select('title')
+      .select('title, userId')
       .ilike('topic', escapeIlike(topic.trim()))
       .limit(500);
     if (assignedTopic.error) {
       console.error('[scripts_assigned topic check]', assignedTopic.error.message);
     }
-    collectMatchingTitles(assignedTopic.data, wanted, found);
+    collectMatchingTitles(assignedTopic.data, wanted, found, exclude);
   }
 
   for (const title of leftoverOriginals()) {
     const { data, error } = await supabase
       .from('scripts_assigned')
-      .select('title')
+      .select('title, userId')
       .ilike('title', escapeIlike(title))
       .limit(20);
     if (error) {
       console.error('[scripts_assigned title ilike]', error.message);
       break;
     }
-    collectMatchingTitles(data, wanted, found);
+    collectMatchingTitles(data, wanted, found, exclude);
   }
 
   return found;
 }
 
+/** Ideas nobody else has written a script for yet; the user's own generated ideas stay. */
 export async function filterIdeasWithoutGeneratedScripts<T extends { title: string }>(
   ideas: T[],
   topic?: string | null,
+  userId?: string | null,
 ): Promise<T[]> {
   const generated = await fetchTitlesWithGeneratedScripts(
     ideas.map((idea) => idea.title),
     topic,
+    userId,
   );
   return ideas.filter((idea) => !generated.has(normalizeTitleKey(idea.title)));
 }
@@ -429,7 +440,9 @@ export async function loadSharedSavedIdeasTopic(
   if (!preferred) return null;
 
   const ideas = normalizeIdeasJson(preferred.ideas);
-  const remaining = await filterIdeasWithoutGeneratedScripts(ideas, trimmed);
+  const remaining = await filterIdeasWithoutGeneratedScripts(ideas, trimmed, uid);
+  // An idea this user generated (locked or unlocked) keeps its card, marked generated, so it can be unlocked.
+  const merged = await mergeUserScriptsOntoIdeas(trimmed, uid, remaining);
 
   const sources = Array.isArray(preferred.sources)
     ? preferred.sources
@@ -457,13 +470,7 @@ export async function loadSharedSavedIdeasTopic(
 
   return {
     topic: String(preferred.topic ?? trimmed).trim() || trimmed,
-    ideas: remaining.map((idea) => ({
-      ...idea,
-      generated: false,
-      script: null,
-      scriptRowId: null,
-      fromAssigned: false,
-    })),
+    ideas: merged,
     createdAt: preferred.created_at ?? null,
     topicSummary: preferred.topic_summary ?? null,
     category: normalizeTopicCategory(preferred.category) || null,

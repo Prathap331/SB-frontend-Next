@@ -90,8 +90,9 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
   const handleDuplicate = useCallback(() => {
     const id = timeline.selectedClipIds[0];
     const source = id ? timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === id) : undefined;
-    duplicateSelected();
-    if (source) onClipDuplicate?.(source);
+    // The owner duplicates (it names the copy so it can sync it); otherwise duplicate here.
+    if (source && onClipDuplicate) onClipDuplicate(source);
+    else duplicateSelected();
   }, [timeline, duplicateSelected, onClipDuplicate]);
 
   const onPointerDelta = useCallback(
@@ -292,6 +293,13 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
         canUndo={historyLength > 0}
         canRedo={futureLength > 0}
         hasSelection={timeline.selectedClipIds.length > 0}
+        canDuplicate={
+          timeline.selectedClipIds.length > 0 &&
+          // One animation belongs to one B-roll — infographics are never duplicated.
+          !timeline.tracks.some((t) =>
+            t.clips.some((c) => c.id === timeline.selectedClipIds[0] && c.type === 'infographic'),
+          )
+        }
         onUndo={undo}
         onRedo={redo}
         onSplit={handleSplit}

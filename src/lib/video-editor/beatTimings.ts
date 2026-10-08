@@ -60,13 +60,13 @@ export function beatTimingsFromPayload(raw: unknown, sceneId: string): BeatTimin
   const scene = findScene(raw, sceneId);
   if (!scene) return null;
   const out: BeatTiming[] = [];
-  for (const item of scene.directions as unknown[]) {
+  (scene.directions as unknown[]).forEach((item) => {
     const dir = asRecord(item);
-    if (!dir) continue;
+    if (!dir) return;
     const id = idOf(dir.id) || idOf(dir.beat_id);
     const start = num(dir.start);
     const end = num(dir.end);
-    if (!id || start == null || end == null || end <= start) continue;
+    if (!id || start == null || end == null || end <= start) return;
     const overlayStart = num(dir.overlay_start);
     const overlayEnd = num(dir.overlay_end);
     const kind = String(dir.type ?? '').toLowerCase();
@@ -78,7 +78,7 @@ export function beatTimingsFromPayload(raw: unknown, sceneId: string): BeatTimin
       overlayEnd: overlayStart != null && overlayEnd != null && overlayEnd > overlayStart ? overlayEnd : null,
       fullScreen: kind.includes('full_screen') || kind.includes('fullscreen'),
     });
-  }
+  });
   return out;
 }
 
@@ -99,45 +99,50 @@ function rangeFor(clip: TimelineClip, t: BeatTiming): { start: number; end: numb
   return { start: t.overlayStart, end: t.overlayEnd };
 }
 
+/** Placeholder beat id for a clip a pending split / duplicate created, until the backend names it. */
+export function makeLocalBeatId(): string {
+  return `local-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function isLocalBeatId(id: string | null | undefined): boolean {
+  return Boolean(id && id.startsWith('local-'));
+}
+
+/** The beat a split / duplicate just created: an id not in `known`, nearest to where it was made. */
+export function pickNewBeatId(timings: BeatTiming[], known: Set<string>, nearStart: number): string | null {
+  const fresh = timings
+    .filter((t) => !known.has(t.id))
+    .sort((a, b) => Math.abs(a.start - nearStart) - Math.abs(b.start - nearStart));
+  return fresh[0]?.id ?? null;
+}
+
 /**
- * Re-times every clip whose beat is in `timings`. After a split, `splitRightClipId` (the new
- * right half, still on a placeholder beat id) takes the one beat id no clip uses yet.
+ * Re-times every clip whose beat is in `timings`. `aliases` swaps placeholder beat ids
+ * (`local-…`) for the ids the backend created, before re-timing.
  */
 export function applyBeatTimings(
   timeline: TimelineState,
   timings: BeatTiming[],
-  opts: { splitRightClipId?: string } = {},
-): { timeline: TimelineState; newBeatId: string | null; changed: boolean } {
+  aliases?: Map<string, string>,
+): { timeline: TimelineState; changed: boolean } {
   const byId = new Map(timings.map((t) => [t.id, t]));
-  let newBeatId: string | null = null;
-
-  if (opts.splitRightClipId) {
-    const all = timeline.tracks.flatMap((t) => t.clips);
-    const right = all.find((c) => c.id === opts.splitRightClipId);
-    if (right) {
-      const used = new Set(
-        all.filter((c) => c.id !== right.id && c.beatId).map((c) => c.beatId as string),
-      );
-      const fresh = timings
-        .filter((t) => !used.has(t.id))
-        .sort((a, b) => Math.abs(a.start - right.start) - Math.abs(b.start - right.start));
-      newBeatId = fresh[0]?.id ?? null;
-    }
-  }
-
   let changed = false;
   const tracks = timeline.tracks.map((track) => {
     let trackChanged = false;
     const clips = track.clips.map((clip) => {
-      const beatId = newBeatId && clip.id === opts.splitRightClipId ? newBeatId : clip.beatId;
+      const beatId = (clip.beatId && aliases?.get(clip.beatId)) || clip.beatId;
+      const renamed = beatId !== clip.beatId;
       const timing = beatId ? byId.get(beatId) : undefined;
-      if (!timing) return clip;
-      const range = rangeFor(clip, timing);
-      if (!range) return clip;
+      const range = timing ? rangeFor(clip, timing) : null;
+      if (!range) {
+        if (!renamed) return clip;
+        trackChanged = true;
+        return { ...clip, beatId };
+      }
       const duration = range.end - range.start;
       const sameTime =
         Math.abs(clip.start - range.start) < EPS && Math.abs(clip.duration - duration) < EPS;
-      if (sameTime && beatId === clip.beatId) return clip;
+      if (sameTime && !renamed) return clip;
       trackChanged = true;
       return {
         ...clip,
@@ -152,10 +157,9 @@ export function applyBeatTimings(
     return { ...track, clips };
   });
 
-  if (!changed) return { timeline, newBeatId, changed };
+  if (!changed) return { timeline, changed };
   return {
     timeline: { ...timeline, tracks, duration: recomputeTimelineDuration(tracks, timeline.duration) },
-    newBeatId,
     changed,
   };
 }

@@ -10,6 +10,8 @@ type Props = {
   canUndo: boolean;
   canRedo: boolean;
   hasSelection: boolean;
+  /** False when the selected clip cannot be duplicated (an infographic). Defaults to `hasSelection`. */
+  canDuplicate?: boolean;
   onUndo: () => void;
   onRedo: () => void;
   onSplit: () => void;
@@ -26,6 +28,7 @@ export function TimelineToolbar({
   canUndo,
   canRedo,
   hasSelection,
+  canDuplicate = hasSelection,
   onUndo,
   onRedo,
   onSplit,
@@ -56,7 +59,7 @@ export function TimelineToolbar({
         <Scissors className="h-3.5 w-3.5" />
         Split
       </ToolBtn>
-      <ToolBtn label="Duplicate" disabled={!hasSelection} onClick={onDuplicate} icon>
+      <ToolBtn label="Duplicate" disabled={!canDuplicate} onClick={onDuplicate} icon>
         <Copy className="h-3.5 w-3.5" />
       </ToolBtn>
       <ToolBtn label="Delete" disabled={!hasSelection} onClick={onDelete} icon>

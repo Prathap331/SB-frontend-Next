@@ -40,14 +40,25 @@ export type ClipEditEvent = {
   kind: 'move' | 'trim-left' | 'trim-right';
   before: TimelineClip;
   after: TimelineClip;
+  /** It was dropped while being held at the edge of its `getClipBounds` range. */
+  clamped: boolean;
 };
+
+/** Seconds a clip must stay within (e.g. an overlay animation inside its B-roll). */
+export type ClipBounds = { start: number; end: number };
 
 export function useVideoTimeline(
   initial?: TimelineState,
-  opts?: { onClipEdited?: (event: ClipEditEvent) => void },
+  opts?: {
+    onClipEdited?: (event: ClipEditEvent) => void;
+    /** Receives the timeline being edited — it runs inside a state update, during render. */
+    getClipBounds?: (clip: TimelineClip, timeline: TimelineState) => ClipBounds | null;
+  },
 ) {
   const onClipEditedRef = useRef(opts?.onClipEdited);
   onClipEditedRef.current = opts?.onClipEdited;
+  const getClipBoundsRef = useRef(opts?.getClipBounds);
+  getClipBoundsRef.current = opts?.getClipBounds;
   const [timeline, setTimeline] = useState<TimelineState>(initial ?? createEmptyTimeline());
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [future, setFuture] = useState<HistoryEntry[]>([]);
@@ -58,7 +69,9 @@ export function useVideoTimeline(
     clipId: string | null;
     snapshot: TimelineState | null;
     moved: boolean;
-  }>({ kind: null, clipId: null, snapshot: null, moved: false });
+    /** The latest drag frame was held back by the clip's bounds. */
+    clamped: boolean;
+  }>({ kind: null, clipId: null, snapshot: null, moved: false, clamped: false });
 
   const timelineRef = useRef(timeline);
   timelineRef.current = timeline;
@@ -221,6 +234,7 @@ export function useVideoTimeline(
       clipId,
       snapshot: cloneState(timelineRef.current),
       moved: false,
+      clamped: false,
     };
   }, []);
 
@@ -230,6 +244,7 @@ export function useVideoTimeline(
       clipId,
       snapshot: cloneState(timelineRef.current),
       moved: false,
+      clamped: false,
     };
   }, []);
 
@@ -251,6 +266,8 @@ export function useVideoTimeline(
         if (!found || found.track.locked || found.clip.locked) return base;
 
         const deltaSec = deltaPixels / base.pixelsPerSecond;
+        const bounds = getClipBoundsRef.current?.(found.clip, base) ?? null;
+        ix.clamped = false;
         const exclude = new Set([found.clip.id]);
         const targets = collectSnapTargets({
           currentTime: base.currentTime,
@@ -275,6 +292,14 @@ export function useVideoTimeline(
           setSnapGuide(snapped.snappedTo ? snapped.time : null);
           // Only patch start — never add/remove clips during drag.
           const patch = calculateClipMove(found.clip, snapped.time - found.clip.start);
+          if (bounds) {
+            const latest = Math.max(bounds.start, bounds.end - found.clip.duration);
+            const held = Math.min(latest, Math.max(bounds.start, patch.start));
+            if (Math.abs(held - patch.start) > 1e-6) {
+              ix.clamped = true;
+              patch.start = held;
+            }
+          }
           return updateClipInState(base, found.clip.id, patch);
         }
 
@@ -294,6 +319,10 @@ export function useVideoTimeline(
           } else {
             setSnapGuide(null);
           }
+          if (bounds && patch.start < bounds.start - 1e-6) {
+            ix.clamped = true;
+            Object.assign(patch, calculateTrimLeft(found.clip, bounds.start - found.clip.start));
+          }
           return updateClipInState(base, found.clip.id, patch);
         }
 
@@ -302,7 +331,11 @@ export function useVideoTimeline(
           const snapped = snapTime(end, targets, base.pixelsPerSecond, undefined, opts.disableSnap);
           const adj = snapped.time - (found.clip.start + found.clip.duration);
           setSnapGuide(snapped.snappedTo ? snapped.time : null);
-          const patch = calculateTrimRight(found.clip, adj);
+          let patch = calculateTrimRight(found.clip, adj);
+          if (bounds && found.clip.start + patch.duration > bounds.end + 1e-6) {
+            ix.clamped = true;
+            patch = calculateTrimRight(found.clip, bounds.end - (found.clip.start + found.clip.duration));
+          }
           return updateClipInState(base, found.clip.id, patch);
         }
 
@@ -319,10 +352,10 @@ export function useVideoTimeline(
       const before = ix.clipId ? findClip(ix.snapshot, ix.clipId)?.clip : undefined;
       const after = ix.clipId ? findClip(timelineRef.current, ix.clipId)?.clip : undefined;
       if (ix.kind && before && after) {
-        onClipEditedRef.current?.({ kind: ix.kind, before, after });
+        onClipEditedRef.current?.({ kind: ix.kind, before, after, clamped: ix.clamped });
       }
     }
-    interactionRef.current = { kind: null, clipId: null, snapshot: null, moved: false };
+    interactionRef.current = { kind: null, clipId: null, snapshot: null, moved: false, clamped: false };
     setSnapGuide(null);
   }, [pushHistory]);
 

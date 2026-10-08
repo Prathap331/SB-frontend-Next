@@ -1459,22 +1459,23 @@ useEffect(() => {
           }
         : undefined;
 
-      // Suggested topic tags: only unused ideas (no row in scripts_universal / scripts_assigned).
-      // Own searches still load the full workspace.
+      // Suggested topic tags: only ideas nobody else has scripted (no other user's row in
+      // scripts_universal / scripts_assigned). The user's own generated ideas always stay, so a
+      // locked script can still be unlocked. Own searches still load the full workspace.
       let workspace = unusedOnly
         ? await loadSharedSavedIdeasTopic(ideasTopic, userId)
         : await loadTopicWorkspace(ideasTopic, userId);
       if (unusedOnly && (!workspace || workspace.ideas.length === 0)) {
         const own = await loadTopicWorkspace(ideasTopic, userId);
         if (own?.ideas.length) {
-          const unused = await filterIdeasWithoutGeneratedScripts(own.ideas, ideasTopic);
+          const unused = await filterIdeasWithoutGeneratedScripts(own.ideas, ideasTopic, userId);
           workspace = { ...own, ideas: unused, shared: true };
         }
       } else if ((!workspace || workspace.ideas.length === 0) && userId) {
         workspace = await loadSharedSavedIdeasTopic(ideasTopic, userId);
       }
       if (unusedOnly && workspace?.ideas.length) {
-        const unused = await filterIdeasWithoutGeneratedScripts(workspace.ideas, ideasTopic);
+        const unused = await filterIdeasWithoutGeneratedScripts(workspace.ideas, ideasTopic, userId);
         workspace = { ...workspace, ideas: unused, shared: true };
       }
       if (cancelled) return;
