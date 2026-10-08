@@ -1,10 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ListFilter, Loader2, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import {
+  SUGGESTED_TOPICS_MAX,
   fetchSavedIdeaCategories,
+  fetchSuggestedTopicsAll,
+  fetchSuggestedTopicsForCategories,
   fetchSuggestedTopicsForCategory,
   parseProfileCategories,
 } from '@/lib/suggested-saved-topics';
@@ -13,15 +16,35 @@ type Props = {
   onPickTopic: (topic: string) => void;
 };
 
+/** Filter value for "the categories the user picked at sign-up" (user_profiles.categories). */
+const MY_CATEGORIES = '__my_categories__';
+/** Filter value for topics from every category. */
+const ALL_CATEGORIES = '__all_categories__';
+/** "My categories" is the default only when it has at least this many topics; otherwise All. */
+const MY_CATEGORIES_MIN_TOPICS = 30;
+
+function fetchTopicsFor(selection: string, profileCategories: string[], userId: string | null) {
+  if (selection === MY_CATEGORIES) {
+    return fetchSuggestedTopicsForCategories({ categories: profileCategories, userId, limit: SUGGESTED_TOPICS_MAX });
+  }
+  if (selection === ALL_CATEGORIES) {
+    return fetchSuggestedTopicsAll({ userId, limit: SUGGESTED_TOPICS_MAX });
+  }
+  return fetchSuggestedTopicsForCategory({ category: selection, userId, limit: SUGGESTED_TOPICS_MAX });
+}
+
 export function SuggestedSavedTopics({ onPickTopic }: Props) {
   const [userId, setUserId] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
+  const [profileCategories, setProfileCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [topics, setTopics] = useState<string[]>([]);
   const [loadingCats, setLoadingCats] = useState(true);
   const [loadingTopics, setLoadingTopics] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
+  /** Topics per filter value — switching back to a filter does not refetch. */
+  const topicsCacheRef = useRef(new Map<string, string[]>());
 
   useEffect(() => {
     let cancelled = false;
@@ -41,25 +64,25 @@ export function SuggestedSavedTopics({ onPickTopic }: Props) {
       const savedCats = await fetchSavedIdeaCategories();
       if (cancelled) return;
 
-      const preferred = profileCats[0] || '';
-      const list = [...savedCats];
-      if (preferred) {
-        const preferredIdx = list.findIndex(
-          (cat) => cat.toLowerCase() === preferred.toLowerCase(),
-        );
-        if (preferredIdx > 0) {
-          const [picked] = list.splice(preferredIdx, 1);
-          list.unshift(picked);
-        }
-      }
+      // Sign-up categories first (spelled as saved_ideas spells them), then everything else.
+      const mine = profileCats.map(
+        (cat) => savedCats.find((c) => c.toLowerCase() === cat.toLowerCase()) ?? cat,
+      );
+      const mineKeys = new Set(mine.map((c) => c.toLowerCase()));
+      const list = [...mine, ...savedCats.filter((c) => !mineKeys.has(c.toLowerCase()))];
 
-      const initial =
-        (preferred && list.find((c) => c.toLowerCase() === preferred.toLowerCase())) ||
-        list[0] ||
-        '';
+      // Default filter: the user's own categories when they have enough topics, else All.
+      let initial = ALL_CATEGORIES;
+      if (mine.length) {
+        const mineTopics = await fetchTopicsFor(MY_CATEGORIES, mine, uid);
+        if (cancelled) return;
+        topicsCacheRef.current.set(MY_CATEGORIES, mineTopics);
+        if (mineTopics.length >= MY_CATEGORIES_MIN_TOPICS) initial = MY_CATEGORIES;
+      }
 
       setUserId(uid);
       setCategories(list);
+      setProfileCategories(mine);
       setSelectedCategory(initial);
       setLoadingCats(false);
     })();
@@ -68,27 +91,38 @@ export function SuggestedSavedTopics({ onPickTopic }: Props) {
     };
   }, []);
 
-  const loadTopics = useCallback(async (category: string, uid: string | null) => {
-    if (!category.trim()) {
+  useEffect(() => {
+    if (loadingCats) return;
+    if (!selectedCategory.trim()) {
       setTopics([]);
       setLoadingTopics(false);
       return;
     }
+    const cached = topicsCacheRef.current.get(selectedCategory);
+    if (cached) {
+      setTopics(cached);
+      setLoadingTopics(false);
+      return;
+    }
+    let cancelled = false;
     setLoadingTopics(true);
     setTopics([]);
-    const list = await fetchSuggestedTopicsForCategory({
-      category,
-      userId: uid,
-      limit: 20,
-    });
-    setTopics(list);
-    setLoadingTopics(false);
-  }, []);
+    void (async () => {
+      const list = await fetchTopicsFor(selectedCategory, profileCategories, userId);
+      topicsCacheRef.current.set(selectedCategory, list);
+      // A quicker answer for an older pick must not replace the current one.
+      if (cancelled) return;
+      setTopics(list);
+      setLoadingTopics(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategory, profileCategories, userId, loadingCats]);
 
-  useEffect(() => {
-    if (loadingCats) return;
-    void loadTopics(selectedCategory, userId);
-  }, [selectedCategory, userId, loadTopics, loadingCats]);
+  const showingMine = selectedCategory === MY_CATEGORIES;
+  const showingAll = selectedCategory === ALL_CATEGORIES;
+  const selectedLabel = showingMine ? 'My categories' : showingAll ? 'All' : selectedCategory;
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -127,13 +161,13 @@ export function SuggestedSavedTopics({ onPickTopic }: Props) {
           >
             <ListFilter className="h-4 w-4 flex-shrink-0" />
             <span>Filter</span>
-            {selectedCategory ? (
+            {selectedLabel ? (
               <span
                 className={`max-w-[140px] truncate rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                   filterOpen ? 'bg-white/15 text-white' : 'bg-[#f5f5f7] text-[#1d1d1f]'
                 }`}
               >
-                {selectedCategory}
+                {selectedLabel}
               </span>
             ) : null}
             <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 ${filterOpen ? 'rotate-180' : ''}`} />
@@ -149,6 +183,47 @@ export function SuggestedSavedTopics({ onPickTopic }: Props) {
                 aria-label="Categories"
                 className="max-h-80 overflow-y-auto overflow-x-hidden overscroll-contain py-1 [scrollbar-width:thin]"
               >
+                <li role="option" aria-selected={showingAll}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(ALL_CATEGORIES);
+                      setFilterOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-[#f5f5f7] ${
+                      showingAll ? 'font-semibold text-[#1d1d1f] bg-[#f5f5f7]' : 'text-[#1d1d1f]'
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate">All</span>
+                      <span className="block truncate text-[11px] font-normal text-[#86868b]">Topics from every category</span>
+                    </span>
+                    {showingAll ? <Check className="h-3.5 w-3.5 flex-shrink-0" /> : null}
+                  </button>
+                </li>
+                {profileCategories.length > 0 && (
+                  <li role="option" aria-selected={showingMine}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(MY_CATEGORIES);
+                        setFilterOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-[#f5f5f7] ${
+                        showingMine ? 'font-semibold text-[#1d1d1f] bg-[#f5f5f7]' : 'text-[#1d1d1f]'
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate">My categories</span>
+                        <span className="block truncate text-[11px] font-normal text-[#86868b]">
+                          {profileCategories.join(', ')}
+                        </span>
+                      </span>
+                      {showingMine ? <Check className="h-3.5 w-3.5 flex-shrink-0" /> : null}
+                    </button>
+                  </li>
+                )}
+                <li aria-hidden className="my-1 border-t border-gray-100" />
                 {categories.length === 0 ? (
                   <li className="px-3 py-2 text-sm text-[#86868b]">No categories in saved ideas yet.</li>
                 ) : (
@@ -158,7 +233,10 @@ export function SuggestedSavedTopics({ onPickTopic }: Props) {
                       <li key={cat} role="option" aria-selected={active}>
                         <button
                           type="button"
-                          onClick={() => setSelectedCategory(cat)}
+                          onClick={() => {
+                            setSelectedCategory(cat);
+                            setFilterOpen(false);
+                          }}
                           className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-[#f5f5f7] ${
                             active ? 'font-semibold text-[#1d1d1f] bg-[#f5f5f7]' : 'text-[#1d1d1f]'
                           }`}
@@ -179,15 +257,26 @@ export function SuggestedSavedTopics({ onPickTopic }: Props) {
       {loadingCats || loadingTopics ? (
         <div className="flex items-center gap-2 py-8 text-sm text-[#86868b]">
           <Loader2 className="h-4 w-4 animate-spin" />
-          {loadingCats ? 'Loading categories…' : 'Finding topics…'}
+          {loadingCats ? 'Finding topics for you…' : 'Finding topics…'}
         </div>
       ) : topics.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-gray-200 bg-[#fafafa] px-4 py-8 text-center text-sm text-[#86868b]">
-          {selectedCategory
-            ? `No topics from other users in ${selectedCategory} yet.`
-            : 'No topics to suggest yet.'}
+          {showingMine
+            ? 'No topics from other users in your categories yet. Try All or another category in Filter.'
+            : showingAll
+              ? 'No topics from other users yet.'
+              : selectedCategory
+              ? `No topics from other users in ${selectedCategory} yet.`
+              : 'No topics to suggest yet.'}
         </p>
       ) : (
+        <>
+        {showingMine && (
+          <p className="mb-2.5 text-xs text-[#86868b]">
+            Based on your categories:{' '}
+            <span className="font-medium text-[#6e6e73]">{profileCategories.join(', ')}</span>
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           {topics.map((topic) => (
             <button
@@ -201,6 +290,7 @@ export function SuggestedSavedTopics({ onPickTopic }: Props) {
             </button>
           ))}
         </div>
+        </>
       )}
     </div>
   );

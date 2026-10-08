@@ -53,7 +53,9 @@ export function TimelineOverlayPreview({
   const local = currentTime - clip.start;
   if (local < -0.02 || local >= dur) return null;
 
-  const durationInFrames = Math.max(1, remotion.durationFrames || Math.round(dur * EDITOR_FPS));
+  // The animation spans the clip as it sits on the timeline — after a /move or trim its
+  // length differs from the template's original durationFrames.
+  const durationInFrames = Math.max(1, Math.round(dur * EDITOR_FPS) || remotion.durationFrames);
   const frame = Math.min(
     durationInFrames - 1,
     Math.max(0, Math.floor(local * EDITOR_FPS)),

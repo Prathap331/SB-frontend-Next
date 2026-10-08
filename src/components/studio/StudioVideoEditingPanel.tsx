@@ -77,7 +77,8 @@ import {
   type EditVideoCaptionAnimationType,
   type EditVideoTextListItem,
 } from '@/services/api';
-import { useVideoTimeline } from '@/hooks/useVideoTimeline';
+import { useVideoTimeline, type ClipEditEvent } from '@/hooks/useVideoTimeline';
+import { applyBeatTimings, beatTimingsFromPayload } from '@/lib/video-editor/beatTimings';
 import {
   DEFAULT_TRACK_IDS,
   createEmptyTimeline,
@@ -94,6 +95,7 @@ import {
   brollDisplayName,
   clipMediaKind,
   fetchVideoRowUrl,
+  fetchSceneBeatTimings,
   fetchVideoRenderState,
   invalidateVideoRenderState,
   readPendingGeneration,
@@ -135,7 +137,7 @@ import {
   type BeatAddMediaPayload,
 } from '@/lib/video-editor/beatEdits';
 import { LucideIconView } from '@/remotion/icons';
-import { placementToDesignPx } from '@/remotion/placement';
+import { isFullFramePlacement, placementToDesignPx } from '@/remotion/placement';
 import { formatTimecode, formatTimecodeShort } from '@/lib/video-editor/timecode';
 import { EDITOR_FPS } from '@/lib/video-editor/fps';
 import {
@@ -236,14 +238,6 @@ type Suggestion = {
   icons?: string[];
 };
 
-type PendingSplit = {
-  beatId: string;
-  leftClipId: string;
-  rightClipId: string;
-  splitAtLocal: number;
-  newBeatId: string;
-};
-
 type PendingDelete = {
   sceneId: string;
   kind: 'broll' | 'overlay';
@@ -264,7 +258,6 @@ type PendingSceneEdits = {
   infographic?: SceneInfographicUpdate;
   brollClipIds?: string[];
   trim?: { start: number; end: number };
-  splits?: PendingSplit[];
   addMedia?: PendingAddMedia[];
 };
 
@@ -352,6 +345,11 @@ function addMediaPayloadFromClip(clip: TimelineClip) {
     duration: clip.originalSourceDuration || clip.duration || clip.sourceDuration,
     photographer: clip.photographer,
   });
+}
+
+/** Seconds sent to the edit endpoints — millisecond precision, no float noise. */
+function roundSeconds(sec: number): number {
+  return Math.round(Math.max(0, sec) * 1000) / 1000;
 }
 
 function isBrollTimelineClip(clip: TimelineClip): boolean {
@@ -1567,7 +1565,11 @@ export function StudioVideoEditingPanel({
   /** Mobile: which bottom-bar slide-up sheet is open, if any. */
   const [mobileSheet, setMobileSheet] = useState<'scenes' | 'library' | null>(null);
 
-  const timelineApi = useVideoTimeline(createEmptyTimeline());
+  /** Set further down (needs the request queue) — finished drags / trims go to /move. */
+  const clipEditedRef = useRef<((event: ClipEditEvent) => void) | null>(null);
+  const timelineApi = useVideoTimeline(createEmptyTimeline(), {
+    onClipEdited: (event) => clipEditedRef.current?.(event),
+  });
   const { setTimeline: replaceTimelineState } = timelineApi;
   const timelineRef = useRef(timelineApi.timeline);
   timelineRef.current = timelineApi.timeline;
@@ -1828,14 +1830,6 @@ export function StudioVideoEditingPanel({
     pendingSceneEditsRef.current[sceneId] = { ...current, trim };
   }, []);
 
-  const recordPendingSplit = useCallback((sceneId: string, split: PendingSplit) => {
-    const current = pendingSceneEditsRef.current[sceneId] ?? {};
-    pendingSceneEditsRef.current[sceneId] = {
-      ...current,
-      splits: [...(current.splits ?? []), split],
-    };
-  }, []);
-
   const cancelPendingDelete = useCallback((opts: { beatId?: string | null; overlayId?: string | null }) => {
     pendingDeletesRef.current = pendingDeletesRef.current.filter((op) => {
       if (opts.beatId && op.beatId === opts.beatId) return false;
@@ -1937,17 +1931,116 @@ export function StudioVideoEditingPanel({
   );
   flushSceneEditsRef.current = flushSceneEdits;
 
+  /**
+   * DELETE /edit/{videoId}/{sceneId}/{beatId}?target=beat|overlay for every queued removal.
+   * Removals wait until Render (or leaving the editor) so a clip can still be re-inserted
+   * from its card, which cancels the queued delete.
+   */
   const flushPendingDeletes = useCallback(() => {
+    const ops = pendingDeletesRef.current;
     pendingDeletesRef.current = [];
-  }, []);
+    const videoId = videoIdRef.current;
+    if (!videoId) return;
+    for (const op of ops) {
+      const beatId = op.beatId;
+      if (!beatId) continue;
+      enqueueRequest(async () => {
+        await ApiService.deleteBeat(videoId, op.sceneId, beatId, op.kind === 'overlay' ? 'overlay' : 'beat');
+      });
+    }
+  }, [enqueueRequest]);
   flushPendingDeletesRef.current = flushPendingDeletes;
 
-  /** Flush whatever's still pending for the active scene if the editor unmounts. */
+  /** Flush whatever's still pending if the editor unmounts. */
   useEffect(() => {
     return () => {
       if (selectedIdRef.current) flushSceneEditsRef.current?.(selectedIdRef.current);
+      flushPendingDeletesRef.current?.();
     };
   }, []);
+
+  /**
+   * After /move or /split: re-time this scene's clips to the backend's beats. The backend
+   * shifts neighbours too (every word stays in exactly one beat) and snaps cuts to word starts.
+   * Uses the beats in the response, else re-reads the saved `videos.timeline`.
+   */
+  const syncBeatTimings = useCallback(
+    async (
+      videoId: string,
+      sceneId: string,
+      response: unknown,
+      opts: { splitRightClipId?: string } = {},
+    ) => {
+      const timings =
+        beatTimingsFromPayload(response, sceneId) ?? (await fetchSceneBeatTimings(videoId, sceneId));
+      if (!timings?.length) return;
+      const created = { beatId: null as string | null };
+      if (selectedIdRef.current === sceneId) {
+        const res = applyBeatTimings(timelineRef.current, timings, opts);
+        if (res.newBeatId) created.beatId = res.newBeatId;
+        if (res.changed) timelineApi.setTimeline(res.timeline, false);
+      }
+      setSceneTimelines((prev) => {
+        const tl = prev[sceneId];
+        if (!tl) return prev;
+        const res = applyBeatTimings(tl, timings, opts);
+        return res.changed ? { ...prev, [sceneId]: res.timeline } : prev;
+      });
+      if (created.beatId) syncedBeatIdsRef.current.add(created.beatId);
+    },
+    [timelineApi.setTimeline],
+  );
+
+  /** A beat the backend knows (not a local placeholder) — only those can be moved / split / deleted. */
+  const isSyncedBeat = useCallback(
+    (beatId?: string | null): beatId is string =>
+      Boolean(beatId) && !isFabricatedBeatId(beatId) && syncedBeatIdsRef.current.has(beatId as string),
+    [],
+  );
+
+  /**
+   * POST /edit/{videoId}/{sceneId}/{beatId}/move when a drag / edge-drag ends.
+   * B-roll and full-screen beats send `{ start, end }`; an overlay animation sends
+   * `{ overlay_start, overlay_end }` (kept inside its beat by the backend).
+   */
+  const handleClipEdited = useCallback(
+    ({ before, after }: ClipEditEvent) => {
+      const videoId = videoIdRef.current;
+      const sceneId = after.sceneId || selectedIdRef.current;
+      const beatId = after.beatId;
+      if (!videoId || !sceneId || !isSyncedBeat(beatId)) return;
+      const changed =
+        Math.abs(before.start - after.start) > 0.001 ||
+        Math.abs(before.duration - after.duration) > 0.001;
+      if (!changed) return;
+
+      const start = roundSeconds(after.start);
+      const end = roundSeconds(after.start + after.duration);
+      let range: { start: number; end: number } | { overlay_start: number; overlay_end: number };
+      if (isBrollTimelineClip(after)) {
+        range = { start, end };
+      } else if (after.type === 'infographic' || after.type === 'text') {
+        range = isFullFramePlacement(after.placement || after.remotion?.placement)
+          ? { start, end }
+          : { overlay_start: start, overlay_end: end };
+      } else {
+        return;
+      }
+
+      enqueueRequest(async () => {
+        try {
+          const res = await ApiService.moveBeat(videoId, sceneId, beatId, range);
+          await syncBeatTimings(videoId, sceneId, res);
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : 'Could not move this clip');
+          // Snap back to what the backend has.
+          await syncBeatTimings(videoId, sceneId, null);
+        }
+      });
+    },
+    [enqueueRequest, isSyncedBeat, showToast, syncBeatTimings],
+  );
+  clipEditedRef.current = handleClipEdited;
 
   const renderInFlight =
     renderStatus !== 'completed' && (Boolean(renderQueueId) || renderStatus === 'pending');
@@ -3297,25 +3390,25 @@ export function StudioVideoEditingPanel({
   };
 
   /**
-   * Fires after a b-roll clip ("beat") gets split on the timeline — tells the backend where the
-   * split happened, then registers the boundaries of the newly split-off second clip. The right
-   * half becomes its own beat, so it's assigned the next beat id in that scene.
+   * Fires after a b-roll clip ("beat") is split at the playhead. POST …/split with
+   * `{ split_time }` (scene seconds — the backend snaps it to the nearest word start), then the
+   * scene is re-timed from the backend and the right half takes the beat id it created.
    */
   const handleClipSplit = useCallback(
     (clip: TimelineClip, splitAt: number) => {
       if (clip.trackId !== DEFAULT_TRACK_IDS.broll || !clip.sceneId || !clip.beatId) return;
       const sceneId = clip.sceneId;
       const beatId = clip.beatId;
-      const splitAtLocal = splitAt - clip.start;
+      // splitClip names the halves `<id>-a` / `<id>-b`.
+      const leftClipId = `${clip.id}-a`;
       const rightClipId = `${clip.id}-b`;
-      let newBeatId = beatId;
       const sceneNum = scenes.find((s) => s.id === sceneId)?.num;
       if (sceneNum) {
         const brollTrack = timelineApi.timeline.tracks.find((t) => t.id === DEFAULT_TRACK_IDS.broll);
         const existingForScene = brollTrack?.clips.filter((c) => c.sceneId === sceneId).length ?? 0;
-        newBeatId = makeBrollBeatId(sceneNum, existingForScene + 1);
+        // Placeholder until the backend names the new beat (see syncBeatTimings).
         timelineApi.updateClip(rightClipId, {
-          beatId: newBeatId,
+          beatId: makeBrollBeatId(sceneNum, existingForScene + 1),
           assetId: clip.assetId,
           fromPexels: clip.fromPexels,
           mediaQuery: clip.mediaQuery,
@@ -3324,17 +3417,22 @@ export function StudioVideoEditingPanel({
           photographer: clip.photographer,
         });
       }
-      recordPendingSplit(sceneId, {
-        beatId,
-        leftClipId: clip.id,
-        rightClipId,
-        splitAtLocal,
-        newBeatId,
-      });
-      recordPendingBroll(sceneId, clip.id);
+      recordPendingBroll(sceneId, leftClipId);
       recordPendingBroll(sceneId, rightClipId);
+
+      const videoId = videoIdRef.current;
+      if (!videoId || !isSyncedBeat(beatId)) return;
+      const splitTime = roundSeconds(splitAt);
+      enqueueRequest(async () => {
+        try {
+          const res = await ApiService.splitBeat(videoId, sceneId, beatId, { split_time: splitTime });
+          await syncBeatTimings(videoId, sceneId, res, { splitRightClipId: rightClipId });
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : 'Could not split this clip');
+        }
+      });
     },
-    [scenes, timelineApi, recordPendingSplit, recordPendingBroll],
+    [scenes, timelineApi, recordPendingBroll, isSyncedBeat, enqueueRequest, syncBeatTimings, showToast],
   );
 
   /** Mobile bottom-bar Split button — captures the selected clip before splitting so handleClipSplit can sync it. */
@@ -3753,6 +3851,8 @@ export function StudioVideoEditingPanel({
 
       if ((clip.type === 'infographic' || clip.type === 'text') && clip.overlayId) {
         if (!syncedOverlayIdsRef.current.has(clip.overlayId)) return;
+        // DELETE …/{beatId}?target=overlay is addressed by the beat that carries the animation.
+        if (!clip.beatId || isFabricatedBeatId(clip.beatId)) return;
         const already = pendingDeletesRef.current.some(
           (op) => op.kind === 'overlay' && op.overlayId === clip.overlayId,
         );
@@ -3760,6 +3860,7 @@ export function StudioVideoEditingPanel({
           pendingDeletesRef.current.push({
             sceneId,
             kind: 'overlay',
+            beatId: clip.beatId,
             overlayId: clip.overlayId,
           });
         }

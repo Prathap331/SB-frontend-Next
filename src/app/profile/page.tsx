@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import StudioShell from '@/components/studio/StudioShell';
-import { User, Edit, Save, FileText, CreditCard, Crown, Calendar, DollarSign, Download, ExternalLink, LogOut, Menu, X, Video, Upload, CheckCircle2, AlertCircle, Loader2, FileIcon, Info, Lock, Eye, EyeOff, Camera } from 'lucide-react';
+import { User, Edit, Save, FileText, CreditCard, Crown, Calendar, DollarSign, Download, ExternalLink, LogOut, Menu, X, BrainCircuit, Upload, CheckCircle2, AlertCircle, Loader2, FileIcon, Info, Lock, Eye, EyeOff, Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import {
   MAX_IMAGE_SIZE, IMAGE_TYPES, THUMBNAIL_BUCKET, PHOTO_SLOTS, PhotoKey,
@@ -83,7 +83,7 @@ const ACCOUNT_PAGE_META: Record<ProfileTabId, { title: string; subtitle: string 
     subtitle: "Scripts you've unlocked — ready to produce",
   },
   thumbnails: {
-    title: 'Thumbnail Photos',
+    title: 'Your Photos',
     subtitle: '2 HD photos of yourself, used to generate your video thumbnails',
   },
   channel: {
@@ -673,8 +673,8 @@ export function ProfileWorkspace({ embedded = false, forcedTab }: ProfileWorkspa
 
   const menuItems = [
     { id: 'profile', label: 'Basic Details', icon: User },
-    { id: 'thumbnails', label: 'Thumbnail Photos', icon: Camera },
-    { id: 'channel', label: 'Channel memory', icon: Video },
+    { id: 'thumbnails', label: 'Your Photos', icon: Camera },
+    { id: 'channel', label: 'Channel memory', icon: BrainCircuit },
     { id: 'subscription', label: 'Subscription', icon: Crown },
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'password', label: 'Update Password', icon: Lock },

@@ -2166,6 +2166,62 @@ export class ApiService {
     return this.parseJsonOrThrow(response, 'Add beat media');
   }
 
+  private static beatUrl(videoId: string, sceneId: string, beatId: string, suffix = ''): string {
+    return `${this.BASE_URL}/edit/${encodeURIComponent(videoId)}/${encodeURIComponent(sceneId)}/${encodeURIComponent(beatId)}${suffix}`;
+  }
+
+  /**
+   * DELETE /edit/{videoId}/{sceneId}/{beatId}?target=beat|overlay
+   * `beat` removes the beat's B-roll; `overlay` removes its template animation.
+   */
+  static async deleteBeat(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    target: 'beat' | 'overlay',
+  ): Promise<unknown> {
+    const url = `${this.beatUrl(videoId, sceneId, beatId)}?target=${target}`;
+    const response = await this.authorizedFetch(url, { method: 'DELETE' });
+    return this.parseJsonOrThrow(response, target === 'overlay' ? 'Delete animation' : 'Delete beat');
+  }
+
+  /**
+   * POST /edit/{videoId}/{sceneId}/{beatId}/split — exactly one of
+   * `{ split_word_index }` or `{ split_time }` (scene seconds; the backend snaps it to the
+   * nearest word start).
+   */
+  static async splitBeat(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    at: { split_time: number } | { split_word_index: number },
+  ): Promise<unknown> {
+    const response = await this.authorizedFetch(this.beatUrl(videoId, sceneId, beatId, '/split'), {
+      method: 'POST',
+      body: JSON.stringify(at),
+    });
+    return this.parseJsonOrThrow(response, 'Split beat');
+  }
+
+  /**
+   * POST /edit/{videoId}/{sceneId}/{beatId}/move
+   * `{ start, end }` — edges of a B-roll / full-screen beat (the neighbour gives or takes the
+   * words; cut points are shared). `{ overlay_start, overlay_end }` — the template animation
+   * within its beat (kept inside the beat's range).
+   */
+  static async moveBeat(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    range: { start: number; end: number } | { overlay_start: number; overlay_end: number },
+  ): Promise<unknown> {
+    const response = await this.authorizedFetch(this.beatUrl(videoId, sceneId, beatId, '/move'), {
+      method: 'POST',
+      body: JSON.stringify(range),
+    });
+    return this.parseJsonOrThrow(response, 'Move beat');
+  }
+
   /**
    * Queue a full-video render via POST /render/queue.
    * Payload: { video_id, orientation }

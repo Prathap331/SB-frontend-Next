@@ -8,6 +8,8 @@ import {
 const PAGE_SIZE = 1000;
 const MAX_ROWS = 30000;
 const SUGGESTED_TOPIC_COUNT = 20;
+/** Topics shown for the user's own categories, or for one picked category. */
+export const SUGGESTED_TOPICS_MAX = 50;
 
 export function parseProfileCategories(raw: unknown): string[] {
   let list: unknown = raw;
@@ -259,12 +261,14 @@ export async function fetchSuggestedTopicsForCategory(opts: {
   category: string;
   userId: string | null;
   limit?: number;
+  /** The user's own topic keys, when the caller already loaded them. */
+  ownTopics?: Set<string>;
 }): Promise<string[]> {
   const category = opts.category.trim();
   if (!category) return [];
   const limit = opts.limit ?? SUGGESTED_TOPIC_COUNT;
   const uid = (opts.userId || '').trim();
-  const ownTopics = await fetchCurrentUserTopicKeys(uid || null);
+  const ownTopics = opts.ownTopics ?? (await fetchCurrentUserTopicKeys(uid || null));
   const catKey = category.toLowerCase();
   const seen = new Set<string>(ownTopics);
   const topics: string[] = [];
@@ -301,6 +305,80 @@ export async function fetchSuggestedTopicsForCategory(opts: {
     if (!data || data.length < PAGE_SIZE) break;
   }
 
+  return topics;
+}
+
+/** Newest topics from other users across every category. */
+export async function fetchSuggestedTopicsAll(opts: {
+  userId: string | null;
+  limit?: number;
+}): Promise<string[]> {
+  const limit = opts.limit ?? SUGGESTED_TOPICS_MAX;
+  const uid = (opts.userId || '').trim();
+  const seen = await fetchCurrentUserTopicKeys(uid || null);
+  const topics: string[] = [];
+
+  for (let from = 0; from < MAX_ROWS && topics.length < limit; from += PAGE_SIZE) {
+    let query = supabase
+      .from('saved_ideas')
+      .select('topic, userId')
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+    if (uid) query = query.neq('userId', uid);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('[saved_ideas suggested topics (all)]', error.message);
+      break;
+    }
+    for (const row of data ?? []) {
+      const rec = row as { topic?: string | null; userId?: string | null };
+      if (uid && rec.userId && String(rec.userId) === uid) continue;
+      const topic = String(rec.topic ?? '').trim();
+      const key = topicKey(topic);
+      if (!topic || seen.has(key)) continue;
+      seen.add(key);
+      topics.push(topic);
+      if (topics.length >= limit) break;
+    }
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  return topics;
+}
+
+/**
+ * Topics across several categories (the user's sign-up categories), interleaved so every
+ * category is represented, de-duplicated, capped at `limit`.
+ */
+export async function fetchSuggestedTopicsForCategories(opts: {
+  categories: string[];
+  userId: string | null;
+  limit?: number;
+}): Promise<string[]> {
+  const categories = [...new Set(opts.categories.map((c) => c.trim()).filter(Boolean))];
+  if (!categories.length) return [];
+  const limit = opts.limit ?? SUGGESTED_TOPICS_MAX;
+  const ownTopics = await fetchCurrentUserTopicKeys((opts.userId || '').trim() || null);
+  // Each list is fetched up to the full limit so a sparse category leaves room for the others.
+  const perCategory = await Promise.all(
+    categories.map((category) =>
+      fetchSuggestedTopicsForCategory({ category, userId: opts.userId, limit, ownTopics }),
+    ),
+  );
+
+  const seen = new Set<string>();
+  const topics: string[] = [];
+  for (let i = 0; topics.length < limit && perCategory.some((list) => i < list.length); i += 1) {
+    for (const list of perCategory) {
+      const topic = list[i];
+      if (!topic) continue;
+      const key = topicKey(topic);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      topics.push(topic);
+      if (topics.length >= limit) break;
+    }
+  }
   return topics;
 }
 

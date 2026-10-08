@@ -45,6 +45,8 @@ function DefaultStudioSearchBar() {
       return;
     }
     setSearchWarning(null);
+    // Searching: let go of the box so it is not left highlighted behind loaders / popups.
+    (document.activeElement as HTMLElement | null)?.blur();
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -78,7 +80,10 @@ function DefaultStudioSearchBar() {
                 void submit();
               }
             }}
-            className="pl-10 pr-4 py-5 rounded-full border-gray-200 bg-white text-sm"
+            // Focus ring only while a search is being typed — not when merely focused.
+            className={`pl-10 pr-4 py-5 rounded-full border-gray-200 bg-white text-sm ${
+              query.trim() ? '' : 'focus-visible:ring-0 focus-visible:ring-offset-0'
+            }`}
           />
         </div>
         <button
@@ -176,8 +181,11 @@ export default function StudioShell({
             </div>
           </div>
 
+          {/* No z-index here: it would trap every page popup / loading overlay (fixed, z-50+)
+              under the header (z-40), leaving the search bar bright above the backdrop.
+              Overflow clipping already keeps ordinary page content out of the header. */}
           <div
-            className={`relative z-0 flex-1 min-h-0 ${
+            className={`relative flex-1 min-h-0 ${
               contentScroll ? 'overflow-y-auto' : 'overflow-hidden flex flex-col'
             }`}
           >

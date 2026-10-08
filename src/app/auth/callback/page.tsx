@@ -399,7 +399,7 @@ export default function AuthCallback() {
                     : cbStep === 2
                     ? 'Your profile'
                     : cbStep === 3
-                    ? 'Thumbnail photos'
+                    ? 'Your photos'
                     : cbStep === 4
                     ? 'Record your voice'
                     : 'Channel memory'}

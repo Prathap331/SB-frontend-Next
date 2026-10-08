@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   AudioLines,
   Check,
   ChevronDown,
@@ -366,7 +367,7 @@ export function VoiceCloneModal({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] !m-0"
       onClick={() => {
         if (!isRecording && !cloneBusy) onClose();
       }}
@@ -401,6 +402,16 @@ export function VoiceCloneModal({
         </div>
 
         <div className="px-5 sm:px-6 pt-4 pb-3 space-y-2 flex-shrink-0">
+          <div
+            role="note"
+            className="mb-3 flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2.5"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" aria-hidden />
+            <p className="text-xs leading-relaxed text-amber-950">
+              <span className="font-semibold">Record with enthusiasm and natural energy</span> — Your
+              natural expression helps create a more engaging, authentic cloned voice for your videos.
+            </p>
+          </div>
           <p className="text-xs font-semibold text-[#1d1d1f]">
             Choose the language to record
           </p>

@@ -35,7 +35,19 @@ function cloneState(state: TimelineState): TimelineState {
 
 export type SceneBoundaryInput = { sceneId: string; title: string; start: number; end: number };
 
-export function useVideoTimeline(initial?: TimelineState) {
+/** A finished drag (`move`) or edge drag (`trim-left` / `trim-right`) of one clip. */
+export type ClipEditEvent = {
+  kind: 'move' | 'trim-left' | 'trim-right';
+  before: TimelineClip;
+  after: TimelineClip;
+};
+
+export function useVideoTimeline(
+  initial?: TimelineState,
+  opts?: { onClipEdited?: (event: ClipEditEvent) => void },
+) {
+  const onClipEditedRef = useRef(opts?.onClipEdited);
+  onClipEditedRef.current = opts?.onClipEdited;
   const [timeline, setTimeline] = useState<TimelineState>(initial ?? createEmptyTimeline());
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [future, setFuture] = useState<HistoryEntry[]>([]);
@@ -304,6 +316,11 @@ export function useVideoTimeline(initial?: TimelineState) {
     const ix = interactionRef.current;
     if (ix.snapshot && ix.moved) {
       pushHistory(ix.snapshot);
+      const before = ix.clipId ? findClip(ix.snapshot, ix.clipId)?.clip : undefined;
+      const after = ix.clipId ? findClip(timelineRef.current, ix.clipId)?.clip : undefined;
+      if (ix.kind && before && after) {
+        onClipEditedRef.current?.({ kind: ix.kind, before, after });
+      }
     }
     interactionRef.current = { kind: null, clipId: null, snapshot: null, moved: false };
     setSnapGuide(null);

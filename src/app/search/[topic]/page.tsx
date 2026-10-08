@@ -1297,6 +1297,8 @@ useEffect(() => {
       return;
     }
     setSearchWarning(null);
+    // Searching: let go of the box so it is not left highlighted behind loaders / popups.
+    searchInputRef.current?.blur();
 
     const { data: { session } } = await sbClient.auth.getSession();
     if (!session) {
@@ -2032,7 +2034,10 @@ useEffect(() => {
                       void handleSearchSubmit();
                     }
                   }}
-                  className="pl-10 pr-4 py-5 rounded-full border-gray-200 bg-white text-sm"
+                  // Focus ring only while a search is being typed — not when merely focused.
+                  className={`pl-10 pr-4 py-5 rounded-full border-gray-200 bg-white text-sm ${
+                    searchQuery.trim() ? '' : 'focus-visible:ring-0 focus-visible:ring-offset-0'
+                  }`}
                 />
               </div>
               <button

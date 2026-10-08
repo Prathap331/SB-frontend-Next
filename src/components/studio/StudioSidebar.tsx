@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   History,
@@ -14,8 +14,9 @@ import {
   Lock,
   Vault,
   Video,
-  Clapperboard,
+  BrainCircuit,
   FileText,
+  ChevronsUpDown,
   ChevronDown,
   LogIn,
   PanelLeftClose,
@@ -125,6 +126,10 @@ export default function StudioSidebar({
   const [creditsTotal, setCreditsTotal] = useState(100);
   const [userId, setUserId] = useState<string | null>(null);
   const [recentExpanded, setRecentExpanded] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+  /** Account menu opened from the profile row (ChatGPT-style). */
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
 
   const RECENT_PREVIEW_COUNT = 4;
 
@@ -173,6 +178,7 @@ export default function StudioSidebar({
       const uid = session.user.id;
       setUserId(uid);
       const meta = session.user.user_metadata ?? {};
+      setUserEmail(session.user.email ?? '');
       const metaName = meta.full_name || meta.name;
       if (metaName) setUserName(metaName);
 
@@ -215,6 +221,26 @@ export default function StudioSidebar({
       window.removeEventListener('creditsUpdated', onCreditsUpdated);
     };
   }, []);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+    const onDoc = (event: MouseEvent) => {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAccountOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [accountOpen]);
+
+  useEffect(() => {
+    setAccountOpen(false);
+  }, [pathname, searchParams]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -326,6 +352,52 @@ export default function StudioSidebar({
           {!collapsed && 'New topic'}
         </button>
 
+        {!collapsed && (
+          <p className="px-2 mb-1.5 text-[10px] font-semibold tracking-widest text-[#8b7ec8] uppercase">
+            Library
+          </p>
+        )}
+        <nav className={`space-y-0.5 ${collapsed ? 'mb-3' : 'mb-5'}`}>
+          <SidebarLink
+            icon={Vault}
+            label="Content Vault"
+            active={activeView === 'content-vault'}
+            onClick={() => go('content-vault')}
+            collapsed={collapsed}
+          />
+          {isLoggedIn ? (
+            <>
+              <SidebarLink
+                icon={FileText}
+                label="My Scripts"
+                active={activeView === 'my-scripts'}
+                onClick={() => go('my-scripts')}
+                collapsed={collapsed}
+              />
+              <SidebarLink
+                icon={Video}
+                label="My Video"
+                active={activeView === 'my-videos'}
+                onClick={() => go('my-videos')}
+                collapsed={collapsed}
+              />
+            </>
+          ) : (
+            <SidebarLink
+              icon={LogIn}
+              label="Sign in"
+              onClick={() => {
+                onNavigate?.();
+                try {
+                  localStorage.setItem('post_auth_redirect', window.location.href);
+                } catch { /* ignore */ }
+                router.push(landingPath('/auth'));
+              }}
+              collapsed={collapsed}
+            />
+          )}
+        </nav>
+
         {isLoggedIn && (
           <>
             {!collapsed && (
@@ -398,112 +470,6 @@ export default function StudioSidebar({
           </>
         )}
 
-        {!collapsed && (
-          <p className="px-2 mb-1.5 text-[10px] font-semibold tracking-widest text-[#8b7ec8] uppercase">
-            Library
-          </p>
-        )}
-        <nav className={`space-y-0.5 ${collapsed ? 'mb-3' : 'mb-5'}`}>
-          <SidebarLink
-            icon={Vault}
-            label="Content Vault"
-            active={activeView === 'content-vault'}
-            onClick={() => go('content-vault')}
-            collapsed={collapsed}
-          />
-          {isLoggedIn ? (
-            <>
-              <SidebarLink
-                icon={FileText}
-                label="My Scripts"
-                active={activeView === 'my-scripts'}
-                onClick={() => go('my-scripts')}
-                collapsed={collapsed}
-              />
-              <SidebarLink
-                icon={Clapperboard}
-                label="My Video"
-                active={activeView === 'my-videos'}
-                onClick={() => go('my-videos')}
-                collapsed={collapsed}
-              />
-            </>
-          ) : (
-            <SidebarLink
-              icon={LogIn}
-              label="Sign in"
-              onClick={() => {
-                onNavigate?.();
-                try {
-                  localStorage.setItem('post_auth_redirect', window.location.href);
-                } catch { /* ignore */ }
-                router.push(landingPath('/auth'));
-              }}
-              collapsed={collapsed}
-            />
-          )}
-        </nav>
-
-        {isLoggedIn && (
-          <>
-            {!collapsed && (
-              <p className="px-2 mb-1.5 text-[10px] font-semibold tracking-widest text-[#8b7ec8] uppercase">
-                Account
-              </p>
-            )}
-            <nav className="space-y-0.5">
-              <SidebarLink
-                icon={Video}
-                label="Channel Memory"
-                active={activeView === 'channel'}
-                onClick={() => go('channel')}
-                collapsed={collapsed}
-              />
-              <SidebarLink
-                icon={Camera}
-                label="Thumbnail Photos"
-                active={activeView === 'thumbnails'}
-                onClick={() => go('thumbnails')}
-                collapsed={collapsed}
-              />
-              <SidebarLink
-                icon={Crown}
-                label="Subscription"
-                active={activeView === 'subscription'}
-                onClick={() => go('subscription')}
-                collapsed={collapsed}
-              />
-              <SidebarLink
-                icon={CreditCard}
-                label="Billing"
-                active={activeView === 'billing'}
-                onClick={() => go('billing')}
-                collapsed={collapsed}
-              />
-              <SidebarLink
-                icon={Lock}
-                label="Update Password"
-                active={activeView === 'password'}
-                onClick={() => go('password')}
-                collapsed={collapsed}
-              />
-              <SidebarLink
-                icon={User}
-                label="Profile"
-                active={activeView === 'profile'}
-                onClick={() => go('profile')}
-                collapsed={collapsed}
-              />
-              <SidebarLink
-                icon={LogOut}
-                label="Logout"
-                onClick={handleLogout}
-                danger
-                collapsed={collapsed}
-              />
-            </nav>
-          </>
-        )}
       </div>
 
       <div className={`border-t border-gray-200/80 bg-[#fafbfc] py-4 ${collapsed ? 'px-2' : 'px-4'}`}>
@@ -524,19 +490,64 @@ export default function StudioSidebar({
           </>
         )}
         <div className={`flex items-center ${collapsed ? 'flex-col gap-2' : 'gap-2.5'}`}>
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0"
-            style={{ backgroundColor: getAvatarColor(displayName) }}
-            title={displayName}
-          >
-            {initial}
+          <div ref={accountRef} className={`relative ${collapsed ? '' : 'min-w-0 flex-1'}`}>
+            <button
+              type="button"
+              onClick={() => {
+                if (!isLoggedIn) {
+                  onNavigate?.();
+                  router.push(landingPath('/auth'));
+                  return;
+                }
+                setAccountOpen((open) => !open);
+              }}
+              title={isLoggedIn ? 'Account' : 'Sign in'}
+              aria-haspopup="menu"
+              aria-expanded={accountOpen}
+              className={`flex w-full items-center rounded-xl text-left transition-colors hover:bg-white ${
+                collapsed ? 'justify-center p-0.5' : 'gap-2.5 px-1.5 py-1.5 -mx-1.5'
+              } ${accountOpen ? 'bg-white shadow-sm' : ''}`}
+            >
+              <span
+                className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0"
+                style={{ backgroundColor: getAvatarColor(displayName) }}
+              >
+                {initial}
+              </span>
+              {!collapsed && (
+                <>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-[#1d1d1f] truncate">{displayName}</span>
+                    <span className="block text-[11px] text-gray-500 truncate">{displayPlan}</span>
+                  </span>
+                  {isLoggedIn && <ChevronsUpDown className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />}
+                </>
+              )}
+            </button>
+
+            {accountOpen && isLoggedIn && (
+              <div
+                role="menu"
+                aria-label="Account"
+                className={`absolute z-50 w-60 overflow-hidden rounded-2xl border border-gray-200 bg-white py-1.5 shadow-xl ${
+                  collapsed ? 'left-full bottom-0 ml-3' : 'left-0 bottom-full mb-2'
+                }`}
+              >
+                <div className="px-3.5 pb-2 pt-1.5 border-b border-gray-100 mb-1">
+                  <p className="text-sm font-semibold text-[#1d1d1f] truncate">{displayName}</p>
+                  {userEmail && <p className="text-[11px] text-gray-500 truncate">{userEmail}</p>}
+                </div>
+                <AccountMenuItem icon={User} label="Profile" active={activeView === 'profile'} onClick={() => go('profile')} />
+                <AccountMenuItem icon={BrainCircuit} label="Channel Memory" active={activeView === 'channel'} onClick={() => go('channel')} />
+                <AccountMenuItem icon={Camera} label="Your Photos" active={activeView === 'thumbnails'} onClick={() => go('thumbnails')} />
+                <AccountMenuItem icon={Crown} label="Subscription" active={activeView === 'subscription'} onClick={() => go('subscription')} />
+                <AccountMenuItem icon={CreditCard} label="Billing" active={activeView === 'billing'} onClick={() => go('billing')} />
+                <AccountMenuItem icon={Lock} label="Update Password" active={activeView === 'password'} onClick={() => go('password')} />
+                <div className="my-1 border-t border-gray-100" />
+                <AccountMenuItem icon={LogOut} label="Log out" onClick={handleLogout} danger />
+              </div>
+            )}
           </div>
-          {!collapsed && (
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-[#1d1d1f] truncate">{displayName}</p>
-              <p className="text-[11px] text-gray-500 truncate">{displayPlan}</p>
-            </div>
-          )}
           <button
             type="button"
             onClick={() => go('pricing')}
@@ -594,6 +605,40 @@ function SidebarLink({
         }`}
       />
       {!collapsed && label}
+    </button>
+  );
+}
+
+function AccountMenuItem({
+  icon: Icon,
+  label,
+  onClick,
+  active,
+  danger,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm transition-colors ${
+        danger
+          ? 'text-red-600 hover:bg-red-50'
+          : active
+            ? 'bg-[#f5f5f7] font-semibold text-[#1d1d1f]'
+            : 'text-[#1d1d1f] hover:bg-[#f5f5f7]'
+      }`}
+    >
+      <Icon
+        className={`h-4 w-4 flex-shrink-0 ${danger ? 'text-red-500' : active ? 'text-[#8b7ec8]' : 'text-gray-400'}`}
+      />
+      {label}
     </button>
   );
 }

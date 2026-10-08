@@ -31,6 +31,7 @@ import { DEFAULT_TRACK_IDS, type TimelineClip, type TimelineState } from './type
 import { normalizeClip, recomputeTimelineDuration, roundTime } from './math';
 import { captionWordsFromTrack, findCaptionTrack, findAudioTrack, parseCaptionStyle } from './captions';
 import { brollDisplayName } from './mediaNames';
+import { beatTimingsFromPayload, type BeatTiming } from './beatTimings';
 
 /** Exact `videos` table columns. */
 export type VideosTableRow = {
@@ -620,6 +621,17 @@ export async function fetchVideosProject(
   if (exact) return exact;
   const loose = rows.filter((row) => scriptsMatch(row.script, wanted));
   return loose.length === 1 ? loose[0] : null;
+}
+
+/** A scene's current beat timings from `videos.timeline` — fallback when an edit response has none. */
+export async function fetchSceneBeatTimings(videoId: string, sceneId: string): Promise<BeatTiming[] | null> {
+  if (!videoId.trim()) return null;
+  const { data, error } = await supabase.from('videos').select('timeline').eq('id', videoId).maybeSingle();
+  if (error) {
+    console.warn('[videos timeline]', error.message);
+    return null;
+  }
+  return beatTimingsFromPayload(parseJsonColumn<unknown>((data as { timeline?: unknown } | null)?.timeline), sceneId);
 }
 
 /** `videos.video_url` for one row — the rendered video of that row's own script. */
