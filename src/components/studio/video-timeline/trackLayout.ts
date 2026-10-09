@@ -1,5 +1,5 @@
 /** Uniform row height so track labels and clip rows stay pixel-aligned. */
-export const TRACK_ROW_HEIGHT = 40;
+export const TRACK_ROW_HEIGHT = 28;
 
 export function trackHeightPx(_track?: {
   collapsed?: boolean;
@@ -8,4 +8,4 @@ export function trackHeightPx(_track?: {
   return TRACK_ROW_HEIGHT;
 }
 
-export const RULER_HEIGHT = 28;
+export const RULER_HEIGHT = 22;

@@ -308,12 +308,7 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
         onZoomIn={() => setPixelsPerSecond(timeline.pixelsPerSecond + 20)}
         onZoomOut={() => setPixelsPerSecond(timeline.pixelsPerSecond - 20)}
       />
-      {sceneLabel ? (
-        <div className="flex-shrink-0 border-b border-gray-100 bg-[#fafafa] px-3 py-1 text-[11px] text-[#6e6e73]">
-          Editing scene: <span className="font-semibold text-[#1d1d1f]">{sceneLabel}</span>
-          <span className="text-[#a1a1a6]"> · timeline length matches voiceover</span>
-        </div>
-      ) : null}
+     
 
       <div
         ref={scrollRef}

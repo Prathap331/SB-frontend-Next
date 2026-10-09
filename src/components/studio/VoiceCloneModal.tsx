@@ -322,6 +322,8 @@ export function VoiceCloneModal({
         samples: converted,
       });
       onCloned();
+      // Pages outside this modal's owner (e.g. the studio stage ticks) listen for this.
+      window.dispatchEvent(new Event('voiceCloneUpdated'));
       onClose();
       toast.success(
         converted.length > 1

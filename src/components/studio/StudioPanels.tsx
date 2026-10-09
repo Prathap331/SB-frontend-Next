@@ -54,6 +54,21 @@ const TABS: { id: StudioTab; label: string; icon: React.ComponentType<{ classNam
   // { id: 'broll', label: 'B-Roll Videos', icon: Clapperboard },
 ];
 
+/** Position of a stage in the studio flow (Content Ideas → … → AI Video Editing); -1 if not a stage. */
+export function studioStageIndex(tab: StudioTab): number {
+  return TABS.findIndex((t) => t.id === tab);
+}
+
+/** ms the progress line takes per stage it crosses (capped), so long jumps stay smooth, not slow. */
+const STAGE_STEP_MS = 220;
+const STAGE_MAX_MS = 900;
+
+/**
+ * The studio stages as a stepper: every stage from Content Ideas up to the active one is
+ * highlighted and joined by a line. Switching stages animates the line forward or back, and
+ * each stage lights up (or dims) as the line reaches it. A tick marks a completed stage,
+ * highlighted or not.
+ */
 export function StudioStageNav({
   active,
   onChange,
@@ -69,38 +84,155 @@ export function StudioStageNav({
   // On mobile, the AI Video Editing tab needs all the width it can get for its
   // own toolbar/preview, so collapse the stage tabs to icon-only there.
   const compactOnMobile = active === 'video-editing';
+  const activeIndex = Math.max(0, studioStageIndex(active));
+
+  const rowRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [centers, setCenters] = useState<number[]>([]);
+
+  // Where the line came from: read during the render that changes `active`, updated after it.
+  const fromIndexRef = useRef(activeIndex);
+  const fromIndex = fromIndexRef.current;
+  useEffect(() => {
+    fromIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const measure = () => {
+      const next = tabRefs.current.map((el) => (el ? el.offsetLeft + el.offsetWidth / 2 : 0));
+      setCenters((prev) =>
+        prev.length === next.length && prev.every((v, i) => Math.abs(v - next[i]) < 0.5) ? prev : next,
+      );
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(row);
+    tabRefs.current.forEach((el) => el && ro.observe(el));
+    return () => ro.disconnect();
+  }, [compactOnMobile]);
+
+  const measured = centers.length === TABS.length;
+  const startX = measured ? centers[0] : 0;
+  const endX = measured ? centers[centers.length - 1] : 0;
+  const fromX = measured ? centers[fromIndex] ?? startX : 0;
+  const toX = measured ? centers[activeIndex] ?? startX : 0;
+  const durationMs = Math.min(STAGE_MAX_MS, STAGE_STEP_MS * Math.max(1, Math.abs(activeIndex - fromIndex)));
+  const span = Math.abs(toX - fromX);
+  /** When the moving line reaches a stage — its highlight changes then, not before. */
+  const delayFor = (i: number) => {
+    if (!measured || !span || i === fromIndex) return 0;
+    const between = Math.min(fromIndex, activeIndex) < i && i <= Math.max(fromIndex, activeIndex);
+    if (!between) return 0;
+    return Math.round((Math.abs(centers[i] - fromX) / span) * durationMs);
+  };
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {TABS.map(({ id, label, icon: Icon }) => {
-        const isActive = active === id;
-        const isDisabled = !!disabled?.[id];
-        return (
-          <button
-            key={id}
-            type="button"
-            disabled={isDisabled}
-            onClick={() => {
-              if (!isDisabled) onChange(id);
-            }}
-            title={compactOnMobile ? label : isDisabled ? 'Not available for this script' : undefined}
-            className={`inline-flex items-center gap-2 rounded-xl ${
-              compactOnMobile ? 'px-2.5 lg:px-4' : 'px-4'
-            } py-2 text-sm font-medium border transition-all ${
-              isDisabled
-                ? 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed opacity-60'
-                : isActive
-                  ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
-                  : 'bg-white text-[#1d1d1f] border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <Icon className="w-3.5 h-3.5" />
-            <span className={compactOnMobile ? 'hidden lg:inline' : ''}>{label}</span>
-            {completed?.[id] && !isActive && !isDisabled && (
-              <Check className="w-3.5 h-3.5 text-green-500" />
-            )}
-          </button>
-        );
-      })}
+    <div className="-mx-1 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div ref={rowRef} className="relative flex w-max items-center gap-5 sm:gap-7">
+        {measured && (
+          <>
+            {/* track */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-gray-200"
+              style={{ left: startX, width: Math.max(0, endX - startX) }}
+            />
+            {/* progress: Content Ideas → active stage */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-[#1d1d1f]"
+              style={{
+                left: startX,
+                width: Math.max(0, toX - startX),
+                transition: `width ${durationMs}ms cubic-bezier(0.65, 0, 0.35, 1)`,
+              }}
+            />
+          </>
+        )}
+        {TABS.map(({ id, label, icon: Icon }, i) => {
+          const isActive = active === id;
+          const isDisabled = !!disabled?.[id];
+          const highlighted = i <= activeIndex;
+          const done = !!completed?.[id];
+          return (
+            <button
+              key={id}
+              ref={(el) => {
+                tabRefs.current[i] = el;
+              }}
+              type="button"
+              disabled={isDisabled}
+              aria-current={isActive ? 'step' : undefined}
+              onClick={() => {
+                if (!isDisabled) onChange(id);
+              }}
+              title={compactOnMobile ? label : isDisabled ? 'Not available for this script' : undefined}
+              style={{ transitionDelay: `${delayFor(i)}ms` }}
+              className={`relative z-[1] inline-flex flex-shrink-0 items-center gap-2 rounded-xl ${
+                compactOnMobile ? 'px-2.5 lg:px-4' : 'px-4'
+              } py-2 text-sm font-medium border transition-[background-color,color,border-color,box-shadow] duration-300 ${
+                isDisabled
+                  ? 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed opacity-60'
+                  : highlighted
+                    ? `bg-[#1d1d1f] text-white border-[#1d1d1f] ${isActive ? 'shadow-md shadow-black/20' : ''}`
+                    : 'bg-white text-[#1d1d1f] border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span className={compactOnMobile ? 'hidden lg:inline' : ''}>{label}</span>
+              {done && !isDisabled && (
+                <Check
+                  key={`${id}-done`}
+                  // Same amber as the "Current topic" label and topic summary.
+                  className="stage-tick-pop h-4 w-4 flex-shrink-0 text-amber-600"
+                  strokeWidth={3}
+                  aria-label="Completed"
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <style>{`
+        .stage-tick-pop { animation: stage-tick-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+        @keyframes stage-tick-pop { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) {
+          .stage-tick-pop { animation: none; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/** Script-based stages with no script chosen yet. */
+export function StudioSelectIdeaPrompt({
+  onGoToIdeas,
+  canGoToIdeas = true,
+}: {
+  onGoToIdeas: () => void;
+  canGoToIdeas?: boolean;
+}) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl px-6 py-14 text-center">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-200 bg-[#f5f5f7]">
+        <Lightbulb className="h-5 w-5 text-amber-500" />
+      </div>
+      <p className="text-base font-semibold text-[#1d1d1f] mb-1">Select an idea first</p>
+      <p className="text-sm text-gray-500">
+        Go to Content Ideas, pick an idea and click <span className="font-semibold text-[#1d1d1f]">View script</span>.
+      </p>
+      {canGoToIdeas && (
+        <button
+          type="button"
+          onClick={onGoToIdeas}
+          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#1d1d1f] px-4 py-2.5 text-sm font-semibold text-white hover:bg-black"
+        >
+          <Lightbulb className="h-4 w-4 text-amber-300" />
+          Go to Content Ideas
+        </button>
+      )}
     </div>
   );
 }

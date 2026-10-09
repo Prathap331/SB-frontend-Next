@@ -22,7 +22,7 @@ export const TimelineRuler = memo(function TimelineRuler({
 
   return (
     <div
-      className="relative h-7 cursor-pointer border-b border-gray-200 bg-[#fafafa]"
+      className="relative h-[22px] cursor-pointer border-b border-gray-200 bg-[#fafafa]"
       style={{ width }}
       onClick={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();

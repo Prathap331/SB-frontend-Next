@@ -22,6 +22,8 @@ import { useKeywordNavigation } from '@/hooks/use-keyword-navigation';
 import StudioShell from '@/components/studio/StudioShell';
 import {
   StudioStageNav,
+  StudioSelectIdeaPrompt,
+  studioStageIndex,
   StudioScriptPanel,
   StudioMetadataPanel,
   StudioThumbnailsPanel,
@@ -30,6 +32,8 @@ import {
 } from '@/components/studio/StudioPanels';
 import { StudioVideoEditingPanel } from '@/components/studio/StudioVideoEditingPanel';
 import { StudioCloningPanel } from '@/components/studio/StudioCloningPanel';
+import { fetchClonedVoiceFromProfile } from '@/components/studio/StudioAudioPanel';
+import { fetchVideosProject } from '@/lib/video-editor/videos-store';
 import { StudioChromeProvider, useStudioChrome } from '@/components/studio/StudioChromeContext';
 import { getScriptTextFromMap } from '@/lib/script-data';
 import {
@@ -555,6 +559,18 @@ const TSSCard: React.FC<TSSCardProps> = ({
  * Only English generates today; the rest are listed as coming soon so the roadmap is
  * visible without being selectable.
  */
+/** Shown under a minutes input when Generate script was clicked without a length. */
+function LengthPrompt({ min, max }: { min: number; max: number }) {
+  return (
+    <div role="alert" className="absolute left-0 top-full z-30 mt-2 w-max max-w-[220px]">
+      <div className="relative rounded-lg bg-[#1d1d1f] px-3 py-2 text-[12px] font-medium leading-snug text-white shadow-lg">
+        <span className="absolute -top-1 left-5 h-2.5 w-2.5 rotate-45 bg-[#1d1d1f]" aria-hidden />
+        Enter the video length first ({min}–{max} minutes)
+      </div>
+    </div>
+  );
+}
+
 function ScriptLanguageSelect({
   value,
   onChange,
@@ -704,6 +720,9 @@ function SearchTopicPageInner() {
   const [scriptViewerLoading, setScriptViewerLoading] = useState(() => !!scriptIdParam);
 
   const [videoLengths, setVideoLengths] = useState<Record<number, string>>({});
+  /** Idea whose "Generate script" was clicked with no minutes — its input shows a prompt. */
+  const [lengthPromptId, setLengthPromptId] = useState<number | null>(null);
+  const lengthInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const initialTab = studioTabFromPathname(pathname) ?? (scriptIdParam ? 'script' : 'ideas');
   const [studioTab, setStudioTabState] = useState<StudioTab>(initialTab);
   /** Ideas tab stays enabled for vault / my-scripts opens (loaded from script topic) */
@@ -1196,16 +1215,30 @@ useEffect(() => {
     setGeneratedIdeaIds(generated);
     setIdeaScripts(scripts);
 
-    const first = ideas.find((i) => i.generated && i.script);
-    if (first?.script) {
-      setActiveScriptData(first.script);
-      setActiveScriptIdeaTitle(first.title);
-      setActiveScriptIdeaDescription(first.description || '');
+    // Never pick a script for the user: Full Script / Metadata / Thumbnails / AI Video Editing
+    // show the script they opened with "View script". On a reload of this topic, keep that
+    // script (fresh data) if it is still among the ideas; otherwise nothing is selected.
+    const current = activeScriptSnapshotRef.current;
+    const currentTitle = current.ideaTitle.trim().toLowerCase();
+    const currentRow = current.scriptRowId != null ? String(current.scriptRowId) : '';
+    const kept = current.data
+      ? ideas.find(
+          (i) =>
+            i.generated &&
+            i.script &&
+            ((currentRow && i.scriptRowId != null && String(i.scriptRowId) === currentRow) ||
+              (currentTitle && i.title.trim().toLowerCase() === currentTitle)),
+        )
+      : undefined;
+    if (kept?.script) {
+      setActiveScriptData(kept.script);
+      setActiveScriptIdeaTitle(kept.title);
+      setActiveScriptIdeaDescription(kept.description || '');
       setActiveScriptTopic(topic);
-      setActiveScriptRowId(first.scriptRowId ?? null);
-      setActiveUniversalScriptId(first.fromAssigned ? null : (first.scriptRowId ?? null));
-      setActiveScriptFromAssigned(!!first.fromAssigned);
-      const mins = Number(first.script.metrics?.videoLength || 10);
+      setActiveScriptRowId(kept.scriptRowId ?? null);
+      setActiveUniversalScriptId(kept.fromAssigned ? null : (kept.scriptRowId ?? null));
+      setActiveScriptFromAssigned(!!kept.fromAssigned);
+      const mins = Number(kept.script.metrics?.videoLength || 10);
       setActiveScriptDuration(Number.isFinite(mins) && mins > 0 ? mins : 10);
     } else {
       setActiveScriptData(null);
@@ -1886,7 +1919,25 @@ useEffect(() => {
     });
   };
 
+  /** Generate needs a length: without one, focus that idea's minutes input and say so. */
+  const generateWithLength = (id: number, idea: ScriptIdea) => {
+    if (!videoLengths[id]?.trim()) {
+      setLengthPromptId(id);
+      lengthInputRefs.current[id]?.focus();
+      return;
+    }
+    setLengthPromptId(null);
+    void startScriptGeneration(idea);
+  };
+
+  useEffect(() => {
+    if (lengthPromptId == null) return;
+    const t = window.setTimeout(() => setLengthPromptId(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [lengthPromptId]);
+
   const handleVideoLengthChange = (id: number, value: string) => {
+    if (value.trim()) setLengthPromptId((cur) => (cur === id ? null : cur));
     // Allow empty while typing; cap at the plan max right away. The plan min is applied
     // on blur instead — clamping it per keystroke would turn the "1" of "10" into the
     // min before the second digit could be typed.
@@ -1915,17 +1966,70 @@ useEffect(() => {
     }
   };
 
+  /** Thumbnails generated for the opened script in this session (the panel reports them). */
+  const [thumbnailCount, setThumbnailCount] = useState(0);
+  const [hasClonedVoice, setHasClonedVoice] = useState(false);
+  const [hasVideoProject, setHasVideoProject] = useState(false);
+
+  // Cloned voice: on load, and again whenever the clone modal saves one.
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      const { data: { session } } = await sbClient.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) return;
+      const { tracks } = await fetchClonedVoiceFromProfile(uid);
+      if (!cancelled) setHasClonedVoice(tracks.length > 0);
+    };
+    void check();
+    const onCloned = () => { void check(); };
+    window.addEventListener('voiceCloneUpdated', onCloned);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('voiceCloneUpdated', onCloned);
+    };
+  }, []);
+
+  // Per opened script: has a video been generated for it? (The editor also reports it live.)
+  const activeScriptKey = `${activeScriptRowId ?? ''}|${activeScriptIdeaTitle}`;
+  useEffect(() => {
+    setThumbnailCount(0);
+    setHasVideoProject(false);
+    if (!activeScriptFromAssigned || !activeScriptRowId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data: { session } } = await sbClient.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) return;
+      const row = await fetchVideosProject(uid, { scriptRowId: activeScriptRowId });
+      if (!cancelled && row) setHasVideoProject(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // activeScriptKey covers the row id + title; the flag only matters once unlocked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeScriptKey, activeScriptFromAssigned]);
+
+  const hasSelectedScript = !!activeScriptData;
+  const activeStageIndex = studioStageIndex(studioTab);
   const stageCompleted = {
+    // Ideas were generated for this topic.
     ideas: scriptIdeas.length > 0,
-    script: !!activeScriptData?.script,
-    metadata: !!(activeScriptData?.youtube_metadata?.titles?.length || activeScriptData?.youtube_metadata?.descriptions?.length || activeScriptData?.youtube_metadata?.hashtags?.length),
-    thumbnails: !!(
-      activeScriptData?.youtube_metadata?.thumbnail_text?.length ||
-      normalizeGeneratedThumbnailList(activeScriptData?.thumbnail_generated).length > 0
-    ),
+    // The opened script is unlocked.
+    script: hasSelectedScript && activeScriptFromAssigned,
+    // Nothing to generate — done once the user has reached it.
+    metadata: hasSelectedScript && activeStageIndex >= studioStageIndex('metadata'),
+    // A thumbnail was generated for the opened script.
+    thumbnails:
+      hasSelectedScript &&
+      (thumbnailCount > 0 ||
+        normalizeGeneratedThumbnailList(activeScriptData?.thumbnail_generated).length > 0),
     broll: false,
-    audio: false,
-    'video-editing': false,
+    // The user has a cloned voice.
+    audio: hasClonedVoice,
+    // A video was generated for the opened script.
+    'video-editing': hasSelectedScript && hasVideoProject,
   };
 
   const selectIdeaScript = async (idea: ScriptIdea) => {
@@ -2177,7 +2281,14 @@ useEffect(() => {
 
         {/* Scrollable panel content only */}
         <div className={`flex-1 min-h-0 ${studioTab === 'video-editing' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-          {studioTab === 'video-editing' ? (
+          {studioTab === 'video-editing' && !hasSelectedScript && !scriptViewerLoading ? (
+            <div className="max-w-8xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+              <StudioSelectIdeaPrompt
+                onGoToIdeas={() => setStudioTab('ideas')}
+                canGoToIdeas={!ideasTabDisabled}
+              />
+            </div>
+          ) : studioTab === 'video-editing' ? (
             <div className="h-full px-3 sm:px-4 py-2">
               <StudioVideoEditingPanel
                 scriptText={
@@ -2207,6 +2318,9 @@ useEffect(() => {
                 }}
                 onSelectAnotherScript={() => {
                   router.push('/app/my-scripts?returnTab=video-editing');
+                }}
+                onVideoProjectChange={(hasVideo) => {
+                  if (hasVideo) setHasVideoProject(true);
                 }}
               />
             </div>
@@ -2303,13 +2417,16 @@ useEffect(() => {
                               )}
                             </div>
                             <div className="flex flex-wrap items-end gap-3 ml-auto">
-                              <div>
+                              <div className="relative">
                                 <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
-                                  Length (min)
+                                  Minutes ({minScriptMinutes}-{maxScriptMinutes})
                                 </label>
                                 <Input
+                                  ref={(el) => {
+                                    lengthInputRefs.current[statement.id] = el;
+                                  }}
                                   type="number"
-                                  placeholder={`${minScriptMinutes}-${maxScriptMinutes}`}
+                                  aria-invalid={lengthPromptId === statement.id || undefined}
                                   value={videoLengths[statement.id] || ''}
                                   onChange={(e) => handleVideoLengthChange(statement.id, e.target.value)}
                                   onBlur={() => handleVideoLengthBlur(statement.id)}
@@ -2318,6 +2435,9 @@ useEffect(() => {
                                   max={maxScriptMinutes}
                                   title={`${userTier} plan: ${minScriptMinutes}–${maxScriptMinutes} min`}
                                 />
+                                {lengthPromptId === statement.id && (
+                                  <LengthPrompt min={minScriptMinutes} max={maxScriptMinutes} />
+                                )}
                               </div>
                               <div>
                                 <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
@@ -2328,14 +2448,13 @@ useEffect(() => {
                                   onChange={(language) =>
                                     setScriptLanguages((prev) => ({ ...prev, [statement.id]: language }))
                                   }
-                                  className="w-40"
+                                  className="w-32"
                                 />
                               </div>
                               <button
                                 type="button"
-                                onClick={() => startScriptGeneration(statement)}
-                                disabled={!videoLengths[statement.id]?.trim()}
-                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                onClick={() => generateWithLength(statement.id, statement)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black transition-colors"
                               >
                                 <FileText className="w-3.5 h-3.5" />
                                 Generate script
@@ -2415,13 +2534,16 @@ useEffect(() => {
                                       )}
                                     </div>
                                     <div className="flex flex-wrap items-end gap-3 ml-auto">
-                                      <div>
+                                      <div className="relative">
                                         <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
-                                          Length (min)
+                                          Minutes ({minScriptMinutes}-{maxScriptMinutes})
                                         </label>
                                         <Input
+                                          ref={(el) => {
+                                            lengthInputRefs.current[ideaId] = el;
+                                          }}
                                           type="number"
-                                          placeholder={`${minScriptMinutes}-${maxScriptMinutes}`}
+                                          aria-invalid={lengthPromptId === ideaId || undefined}
                                           value={videoLengths[ideaId] || ''}
                                           onChange={(e) => handleVideoLengthChange(ideaId, e.target.value)}
                                           onBlur={() => handleVideoLengthBlur(ideaId)}
@@ -2430,9 +2552,9 @@ useEffect(() => {
                                           max={maxScriptMinutes}
                                           title={`${userTier} plan: ${minScriptMinutes}–${maxScriptMinutes} min`}
                                         />
-                                        <p className="text-[9px] text-gray-400 mt-0.5 text-center">
-                                          {minScriptMinutes}–{maxScriptMinutes}m
-                                        </p>
+                                        {lengthPromptId === ideaId && (
+                                          <LengthPrompt min={minScriptMinutes} max={maxScriptMinutes} />
+                                        )}
                                       </div>
                                       <div>
                                         <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
@@ -2443,14 +2565,13 @@ useEffect(() => {
                                           onChange={(language) =>
                                             setScriptLanguages((prev) => ({ ...prev, [ideaId]: language }))
                                           }
-                                          className="w-40"
+                                          className="w-32"
                                         />
                                       </div>
                                       <button
                                         type="button"
-                                        onClick={() => startScriptGeneration(relatedIdea)}
-                                        disabled={!videoLengths[ideaId]?.trim()}
-                                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed"
+                                        onClick={() => generateWithLength(ideaId, relatedIdea)}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1d1d1f] text-white text-sm font-semibold hover:bg-black"
                                       >
                                         <FileText className="w-3.5 h-3.5" />
                                         Generate script
@@ -2469,7 +2590,18 @@ useEffect(() => {
               </>
             )}
 
-            {studioTab === 'script' && (
+            {studioTab !== 'ideas' &&
+              studioTab !== 'audio' &&
+              studioTab !== 'broll' &&
+              !hasSelectedScript &&
+              !scriptViewerLoading && (
+                <StudioSelectIdeaPrompt
+                  onGoToIdeas={() => setStudioTab('ideas')}
+                  canGoToIdeas={!ideasTabDisabled}
+                />
+              )}
+
+            {studioTab === 'script' && (scriptViewerLoading || hasSelectedScript) && (
               scriptViewerLoading ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -2504,11 +2636,11 @@ useEffect(() => {
               )
             )}
 
-            {studioTab === 'metadata' && (
+            {studioTab === 'metadata' && hasSelectedScript && (
               <StudioMetadataPanel data={activeScriptData} />
             )}
 
-            {studioTab === 'thumbnails' && (
+            {studioTab === 'thumbnails' && hasSelectedScript && (
               <StudioThumbnailsPanel
                 data={activeScriptData}
                 ideaTitle={activeScriptIdeaTitle}
@@ -2521,6 +2653,7 @@ useEffect(() => {
                   normalizeGeneratedThumbnail(activeScriptData?.thumbnail_generated)
                 }
                 onGoToScript={() => setStudioTab('script')}
+                onGeneratedChange={setThumbnailCount}
               />
             )}
 

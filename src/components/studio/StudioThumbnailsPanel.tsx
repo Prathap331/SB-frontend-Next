@@ -68,6 +68,8 @@ type Props = {
   initialGeneratedThumbnail?: GeneratedThumbnailItem | null;
   /** Switch user to the Full Script tab to unlock */
   onGoToScript?: () => void;
+  /** Number of generated thumbnails for this script, whenever it changes — drives the stage tick. */
+  onGeneratedChange?: (count: number) => void;
 };
 
 export function StudioThumbnailsPanel({
@@ -80,6 +82,7 @@ export function StudioThumbnailsPanel({
   fromAssigned = false,
   initialGeneratedThumbnail = null,
   onGoToScript,
+  onGeneratedChange,
 }: Props) {
   const router = useRouter();
   const texts = extractThumbnailTexts(data);
@@ -105,6 +108,12 @@ export function StudioThumbnailsPanel({
     const fromData = normalizeGeneratedThumbnailList(data?.thumbnail_generated);
     if (fromData.length) setGeneratedList(fromData);
   }, [data?.thumbnail_generated]);
+
+  const onGeneratedChangeRef = useRef(onGeneratedChange);
+  onGeneratedChangeRef.current = onGeneratedChange;
+  useEffect(() => {
+    onGeneratedChangeRef.current?.(generatedList.length);
+  }, [generatedList.length]);
 
   const [pFiles, setPFiles] = useState<Partial<Record<PhotoKey, File>>>({});
   const [pPreviews, setPPreviews] = useState<Partial<Record<PhotoKey, string>>>({});

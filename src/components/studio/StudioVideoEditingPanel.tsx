@@ -1419,6 +1419,7 @@ export function StudioVideoEditingPanel({
   onFindMoreBroll,
   onLanguageChange,
   onSelectAnotherScript,
+  onVideoProjectChange,
 }: {
   scriptText?: string;
   /** Translations from scripts_assigned.script — drives the language dropdown. */
@@ -1437,6 +1438,8 @@ export function StudioVideoEditingPanel({
   onLanguageChange?: (language: string, script: string) => void;
   /** Opens My Scripts so a different script can be loaded into this tab. */
   onSelectAnotherScript?: () => void;
+  /** True once this script has a generated video (restored or just made) — drives the stage tick. */
+  onVideoProjectChange?: (hasVideo: boolean) => void;
 }) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>('editor');
@@ -1474,10 +1477,10 @@ export function StudioVideoEditingPanel({
   const [detachedBrollCards, setDetachedBrollCards] = useState<Record<string, Suggestion[]>>({});
 
   const [timelinePanelHeight, setTimelinePanelHeight] = useState(() => {
-    if (typeof window === 'undefined') return 240;
+    if (typeof window === 'undefined') return 220;
     const raw = window.localStorage.getItem('storio_timeline_height');
-    const n = raw ? Number(raw) : 240;
-    return Number.isFinite(n) ? Math.min(500, Math.max(150, n)) : 240;
+    const n = raw ? Number(raw) : 220;
+    return Number.isFinite(n) ? Math.min(500, Math.max(150, n)) : 220;
   });
   const [textStyle, setTextStyle] = useState<TextStyle>({
     offsetX: 50,
@@ -1659,6 +1662,11 @@ export function StudioVideoEditingPanel({
   const [videoId, setVideoId] = useState<string | null>(null);
   const videoIdRef = useRef<string | null>(null);
   videoIdRef.current = videoId;
+  const onVideoProjectChangeRef = useRef(onVideoProjectChange);
+  onVideoProjectChangeRef.current = onVideoProjectChange;
+  useEffect(() => {
+    onVideoProjectChangeRef.current?.(Boolean(videoId));
+  }, [videoId]);
   const beatTextTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const restoredCacheRef = useRef(false);
   const restoreIdentityRef = useRef('');
@@ -5367,7 +5375,7 @@ export function StudioVideoEditingPanel({
             drag handles as desktop once a clip is selected. */}
         <div
           className="flex-shrink-0 overflow-auto border-t border-gray-200 bg-white"
-          style={{ scrollbarWidth: 'thin', maxHeight: 160 }}
+          style={{ scrollbarWidth: 'thin', maxHeight: 140 }}
           onClick={(e) => {
             if ((e.target as HTMLElement).closest('[data-clip-id]')) return;
             timelineApi.clearSelection();
