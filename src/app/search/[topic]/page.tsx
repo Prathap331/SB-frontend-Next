@@ -2117,10 +2117,15 @@ useEffect(() => {
       contentScroll={false}
       requireAuth={!isComposePlaceholder && !isComposingNew}
       topBar={
-        studioTab === 'video-editing' ? (
-          <div className="flex-1" />
-        ) : (
-          <div className="flex flex-col gap-1 flex-1 min-w-0 relative mx-3 my-1">
+        <>
+          {/* AI Video Editing on desktop keeps the bar empty (the editor needs the room);
+              on mobile the search bar + Go sit beside the menu button there too. */}
+          {studioTab === 'video-editing' && <div className="hidden flex-1 lg:block" />}
+          <div
+            className={`flex flex-col gap-1 flex-1 min-w-0 relative mx-3 my-1 ${
+              studioTab === 'video-editing' ? 'lg:hidden' : ''
+            }`}
+          >
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -2167,7 +2172,7 @@ useEffect(() => {
               </div>
             )}
           </div>
-        )
+        </>
       }
     >
       <div className="flex flex-col h-full min-h-0">

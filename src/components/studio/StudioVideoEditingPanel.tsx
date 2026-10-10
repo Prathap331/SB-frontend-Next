@@ -10,7 +10,6 @@ import {
   Pause,
   Play,
   SkipBack,
-  MoreHorizontal,
   Check,
   AlertCircle,
   AlertTriangle,
@@ -31,7 +30,6 @@ import {
   Search,
   Image as ImageIcon,
   Type,
-  Layers,
   Trash2,
   Copy,
   Crop,
@@ -120,10 +118,9 @@ import {
 import type { TimelineState, TimelineClip } from '@/lib/video-editor/types';
 import { readInfographicFromEditScene, parseRemotionInfographic, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, seededTextFromOverlayItem, kenBurnsFromTrack, mergeOverlayTrackOntoItem, rebaseOverlaySpec, rebaseSeededText, isOverlayGraphicTrack, collectSceneGraphicsOverlays, displayTextPayloadFromEditor, placementToPreviewOffsets, type RemotionInfographicSpec, type SeededTextOverlay } from '@/lib/video-editor/infographics';
 import { audioWindowSeconds, frameWindowSeconds, toSceneLocalSeconds } from '@/lib/video-editor/timings';
-import { TimelinePanel, TimelinePreview, TimelineClipView } from '@/components/studio/video-timeline';
+import { TimelinePanel, TimelinePreview } from '@/components/studio/video-timeline';
 import { VideoGenerationProgress } from '@/components/studio/VideoGenerationProgress';
 import { TimecodeInput } from '@/components/studio/video-timeline/TimecodeInput';
-import { TRACK_ROW_HEIGHT } from '@/components/studio/video-timeline/trackLayout';
 import { InfographicClipEditor } from '@/components/studio/InfographicPropsEditor';
 import { RemotionInfographicPreview } from '@/remotion/RemotionInfographicPreview';
 import {
@@ -372,6 +369,11 @@ function overlayBoundsForClip(clip: TimelineClip, timeline: TimelineState): { st
   }
   return null;
 }
+
+/** Ceiling for the timeline panel — it hugs its tracks below this (no resize handle). */
+const TIMELINE_MAX_HEIGHT = 280;
+/** Mobile track strip: ruler + the visible track rows. */
+const MOBILE_TIMELINE_MAX_HEIGHT = 170;
 
 /** Seconds sent to the edit endpoints — millisecond precision, no float noise. */
 function roundSeconds(sec: number): number {
@@ -1476,12 +1478,6 @@ export function StudioVideoEditingPanel({
   const flushPendingDeletesRef = useRef<(() => void) | null>(null);
   const [detachedBrollCards, setDetachedBrollCards] = useState<Record<string, Suggestion[]>>({});
 
-  const [timelinePanelHeight, setTimelinePanelHeight] = useState(() => {
-    if (typeof window === 'undefined') return 220;
-    const raw = window.localStorage.getItem('storio_timeline_height');
-    const n = raw ? Number(raw) : 220;
-    return Number.isFinite(n) ? Math.min(500, Math.max(150, n)) : 220;
-  });
   const [textStyle, setTextStyle] = useState<TextStyle>({
     offsetX: 50,
     offsetY: 15,
@@ -1508,7 +1504,8 @@ export function StudioVideoEditingPanel({
   const [infographicColorIndex, setInfographicColorIndex] = useState<number | undefined>(undefined);
   const [libraryTab, setLibraryTab] = useState<LibraryTab>('broll-videos');
   /** Mobile: which bottom-bar slide-up sheet is open, if any. */
-  const [mobileSheet, setMobileSheet] = useState<'scenes' | 'library' | null>(null);
+  const [mobileSheet, setMobileSheet] = useState<'library' | null>(null);
+  const mobileSceneStripRef = useRef<HTMLDivElement>(null);
 
   /** Set further down (needs the request queue) — finished drags / trims go to /move. */
   const clipEditedRef = useRef<((event: ClipEditEvent) => void) | null>(null);
@@ -1550,6 +1547,18 @@ export function StudioVideoEditingPanel({
       setIsPlaying(false);
       visualTimeRef.current = t;
       timelineApi.setCurrentTime(t);
+    },
+    [timelineApi.timeline.duration, timelineApi.setCurrentTime],
+  );
+
+  /** Fullscreen player seek: jump the playhead, then pick playback back up if asked. */
+  const seekPreview = useCallback(
+    (time: number, resume: boolean) => {
+      const t = Math.max(0, Math.min(timelineApi.timeline.duration || time, time));
+      setIsPlaying(false);
+      visualTimeRef.current = t;
+      timelineApi.setCurrentTime(t);
+      if (resume) requestAnimationFrame(() => setIsPlaying(true));
     },
     [timelineApi.timeline.duration, timelineApi.setCurrentTime],
   );
@@ -1602,6 +1611,13 @@ export function StudioVideoEditingPanel({
     },
     [scenes, replaceTimelineState],
   );
+
+  useEffect(() => {
+    const strip = mobileSceneStripRef.current;
+    if (!strip || !selectedId) return;
+    const card = strip.querySelector<HTMLElement>(`[data-scene-id="${CSS.escape(selectedId)}"]`);
+    card?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+  }, [selectedId]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -3864,31 +3880,6 @@ export function StudioVideoEditingPanel({
     });
   }, []);
 
-  const beginResizeTimeline = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startH = timelinePanelHeight;
-    const move = (ev: PointerEvent) => {
-      const delta = startY - ev.clientY;
-      const next = Math.min(Math.round(window.innerHeight * 0.65), Math.max(150, startH + delta));
-      setTimelinePanelHeight(next);
-    };
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      setTimelinePanelHeight((h) => {
-        try {
-          window.localStorage.setItem('storio_timeline_height', String(h));
-        } catch {
-          /* ignore */
-        }
-        return h;
-      });
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  }, [timelinePanelHeight]);
-
   const openSetupModal = useCallback(() => {
     setStage('setup');
     setSetupOpen(true);
@@ -4663,11 +4654,7 @@ export function StudioVideoEditingPanel({
           })}
         </div>
         )}
-        {hasScenes ? (
-        <p className="flex-shrink-0 border-t border-gray-100 px-4 py-2.5 text-[11px] leading-relaxed text-[#86868b]">
-          Drop MP4, MOV or WebM from your device. Uploaded clips appear on the Video track for the selected scene.
-        </p>
-        ) : null}
+       
         <input
           ref={fileInputRef}
           type="file"
@@ -4701,6 +4688,8 @@ export function StudioVideoEditingPanel({
               isPlaying={isPlaying}
               overlaySpecs={overlaySpecsForPreview}
               visualTimeRef={visualTimeRef}
+              onTogglePlay={togglePlay}
+              onSeek={seekPreview}
               onTimeUpdate={handlePreviewTime}
               onEnded={() => {
                 setIsPlaying(false);
@@ -4817,20 +4806,10 @@ export function StudioVideoEditingPanel({
           </div>
         </div>
 
-        {/* Resizable divider */}
-        <div
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="Resize timeline"
-          onPointerDown={beginResizeTimeline}
-          className="flex h-2 flex-shrink-0 cursor-row-resize items-center justify-center bg-gray-100 hover:bg-amber-100"
-        >
-          <span className="h-0.5 w-10 rounded-full bg-gray-300" />
-        </div>
-
+        {isDesktopLayout === true && (
         <TimelinePanel
           api={timelineApi}
-          height={timelinePanelHeight}
+          height={TIMELINE_MAX_HEIGHT}
           sceneLabel={selected ? `${selected.num} · ${selected.title}` : 'No scenes yet'}
           onTogglePlay={togglePlay}
           isPlaying={isPlaying}
@@ -4840,6 +4819,7 @@ export function StudioVideoEditingPanel({
           onClipDuplicate={handleClipDuplicate}
           onDelete={handleDeleteSelected}
         />
+        )}
       </section>
 
 
@@ -5251,51 +5231,66 @@ export function StudioVideoEditingPanel({
 
       {/* ── Mobile: single-column layout ── */}
       <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f5f5f7] lg:hidden">
-        {/* Top toolbar — undo/redo/split/delete/duplicate live only in the clip-selected tools below */}
-        <div className="flex h-11 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-3">
-          <div className="w-[68px] flex-shrink-0" />
-          <p className="min-w-0 flex-1 truncate px-2 text-center text-xs font-semibold text-[#1d1d1f]">
-            {selected ? selected.title : 'Preview'}
-          </p>
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => setVideoPreviewOpen(true)}
-              disabled={!renderedVideoUrl}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] disabled:opacity-30"
-              title={renderedVideoUrl ? 'View and download the generated video' : 'Render a video first'}
-            >
-              <Download className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={openRenderConfirm}
-              disabled={renderDisabled}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73] disabled:opacity-30"
-              title={
-                !videoId
-                  ? 'Generate the video first'
-                  : renderInFlight
-                    ? 'Rendering in the queue — you will be notified when it is done'
-                    : 'Render all scenes into one video'
-              }
-            >
-              {renderBusy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : renderStatus === 'completed' ? (
-                <Check className="h-4 w-4 text-emerald-600" />
-              ) : (
-                <Film className="h-4 w-4" />
-              )}
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6e6e73]"
-              title="More"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-          </div>
+        {/* Scene strip — "Generate voice and scenes" until there are scenes; then a static
+            "Scenes" label and compact cards (number + length) that scroll sideways. */}
+        <div className="flex h-[60px] flex-shrink-0 items-center border-b border-gray-200 bg-white">
+          {!hasScenes ? (
+            <div className="flex w-full items-center justify-center px-3">
+              <button
+                type="button"
+                onClick={openSetupModal}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                <Sparkles className="h-4 w-4 text-amber-300" />
+                Generate voice and scenes
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex h-full flex-shrink-0 items-center border-r border-gray-100 pl-3 pr-2.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#6e6e73]">Scenes</span>
+              </div>
+              <div
+                ref={mobileSceneStripRef}
+                className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-x-auto px-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {scenes.map((sc) => {
+                  const active = sc.id === selectedId;
+                  return (
+                    <button
+                      key={sc.id}
+                      type="button"
+                      data-scene-id={sc.id}
+                      onClick={() => selectScene(sc.id)}
+                      aria-current={active ? 'true' : undefined}
+                      title={sc.title}
+                      className={`relative flex h-11 min-w-[64px] flex-shrink-0 flex-col items-center justify-center rounded-xl border px-3 transition-colors ${
+                        active
+                          ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-sm'
+                          : 'border-gray-200 bg-[#fafafa] text-[#1d1d1f]'
+                      }`}
+                    >
+                      <span className="text-xs font-bold tabular-nums leading-tight">{sc.num}</span>
+                      <span className={`text-[10px] tabular-nums leading-tight ${active ? 'text-white/70' : 'text-[#86868b]'}`}>
+                        {tcShort(sc.duration)}
+                      </span>
+                      {sc.generationError && (
+                        <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-red-500" aria-label="Scene has an error" />
+                      )}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={addScene}
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-dashed border-gray-300 text-[#6e6e73]"
+                  aria-label="Add scene"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </>
+          )}
         </div>
         {/* Preview — large, fills all remaining space above the controls */}
         <div className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden p-2 [container-type:size]">
@@ -5305,6 +5300,8 @@ export function StudioVideoEditingPanel({
               isPlaying={isPlaying}
               overlaySpecs={overlaySpecsForPreview}
               visualTimeRef={visualTimeRef}
+              onTogglePlay={togglePlay}
+              onSeek={seekPreview}
               onTimeUpdate={handlePreviewTime}
               onEnded={() => {
                 setIsPlaying(false);
@@ -5343,8 +5340,8 @@ export function StudioVideoEditingPanel({
           ) : null}
         </div>
 
-        {/* Playback controls */}
-        <div className="flex flex-shrink-0 items-center justify-center gap-3 border-t border-gray-200 bg-white py-2">
+        {/* Playback controls (left) · download + render (right) */}
+        <div className="flex flex-shrink-0 items-center gap-2.5 border-t border-gray-200 bg-white px-3 py-2">
           <TimecodeInput
             time={timelineApi.timeline.currentTime}
             duration={totalDuration}
@@ -5359,67 +5356,69 @@ export function StudioVideoEditingPanel({
           <button
             type="button"
             onClick={togglePlay}
-            className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-white"
+            className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-white"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? (
-              <Pause className="h-4 w-4 fill-current" />
+              <Pause className="h-3.5 w-3.5 fill-current" />
             ) : (
-              <Play className="ml-0.5 h-4 w-4 fill-current" />
+              <Play className="ml-0.5 h-3.5 w-3.5 fill-current" />
             )}
           </button>
           <span className="text-xs tabular-nums text-[#86868b]">{tcShort(totalDuration)}</span>
-        </div>
-
-        {/* Tracks — compact rows only (no ruler/toolbar); tap a clip to select it and
-            bring up its tools in the bottom bar below. Trim still works via the same
-            drag handles as desktop once a clip is selected. */}
-        <div
-          className="flex-shrink-0 overflow-auto border-t border-gray-200 bg-white"
-          style={{ scrollbarWidth: 'thin', maxHeight: 140 }}
-          onClick={(e) => {
-            if ((e.target as HTMLElement).closest('[data-clip-id]')) return;
-            timelineApi.clearSelection();
-          }}
-        >
-          <div
-            className="relative"
-            style={{
-              width: Math.max(320, timelineApi.timeline.duration * timelineApi.timeline.pixelsPerSecond + 40),
-            }}
-          >
-            {timelineApi.timeline.tracks
-              .filter((track) => track.id !== DEFAULT_TRACK_IDS.video && track.id !== DEFAULT_TRACK_IDS.caption)
-              .map((track) => (
-              <div
-                key={track.id}
-                className="relative border-b border-gray-100 last:border-b-0"
-                style={{ height: TRACK_ROW_HEIGHT }}
-              >
-                {track.clips.length === 0 ? (
-                  <div className="flex h-full items-center px-3 text-[10px] text-[#a1a1a6]">
-                    {track.name}
-                  </div>
-                ) : (
-                  track.clips.map((clip) => (
-                    <TimelineClipView
-                      key={clip.id}
-                      clip={clip}
-                      pixelsPerSecond={timelineApi.timeline.pixelsPerSecond}
-                      selected={timelineApi.timeline.selectedClipIds.includes(clip.id)}
-                      trackLocked={track.locked}
-                      trackHeight={TRACK_ROW_HEIGHT}
-                      onSelect={(e) => timelineApi.selectClips([clip.id], e.metaKey || e.ctrlKey)}
-                      onBeginMove={timelineApi.beginMove}
-                      onBeginTrim={timelineApi.beginTrim}
-                      onPointerDelta={(dx, disableSnap) => timelineApi.applyPointerDelta(dx, { disableSnap })}
-                      onPointerEnd={timelineApi.endPointerInteraction}
-                    />
-                  ))
-                )}
-              </div>
-            ))}
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setVideoPreviewOpen(true)}
+              disabled={!renderedVideoUrl}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 bg-white text-[#1d1d1f] disabled:opacity-30"
+              aria-label="Download video"
+              title={renderedVideoUrl ? 'View and download the generated video' : 'Render a video first'}
+            >
+              <Download className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={openRenderConfirm}
+              disabled={renderDisabled}
+              className="inline-flex h-7 items-center gap-1 rounded-lg bg-[#1d1d1f] px-2.5 text-[11px] font-semibold text-white disabled:opacity-40"
+              title={
+                !videoId
+                  ? 'Generate the video first'
+                  : renderInFlight
+                    ? 'Rendering in the queue — you will be notified when it is done'
+                    : 'Render all scenes into one video'
+              }
+            >
+              {renderBusy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : renderStatus === 'completed' ? (
+                <Check className="h-3.5 w-3.5 text-emerald-400" />
+              ) : (
+                <Film className="h-3.5 w-3.5" />
+              )}
+              {renderButtonLabel}
+            </button>
           </div>
         </div>
+
+        {/* Tracks — the desktop timeline in compact mode: ruler, clip rows and the orange
+            playhead with the same pin / scrub / auto-scroll behaviour. Tap a clip to select it
+            and bring up its tools in the bottom bar below. */}
+        {isDesktopLayout === false && (
+          <TimelinePanel
+            api={timelineApi}
+            compact
+            height={MOBILE_TIMELINE_MAX_HEIGHT}
+            onTogglePlay={togglePlay}
+            isPlaying={isPlaying}
+            visualTimeRef={visualTimeRef}
+            hiddenTrackIds={[DEFAULT_TRACK_IDS.video, DEFAULT_TRACK_IDS.caption]}
+            onClipSplit={handleClipSplit}
+            onClipDuplicate={handleClipDuplicate}
+            onDelete={handleDeleteSelected}
+          />
+        )}
 
         {/* Bottom bar — icon nav, or the selected clip's tools */}
         <div className="flex-shrink-0 border-t border-gray-200 bg-white">
@@ -5444,7 +5443,6 @@ export function StudioVideoEditingPanel({
             </div>
           ) : (
             <div className="flex items-stretch">
-              <MobileBarIcon icon={Layers} label="Scenes" onClick={() => setMobileSheet('scenes')} />
               <MobileBarIcon
                 icon={Film}
                 label="Videos"
@@ -5505,7 +5503,7 @@ export function StudioVideoEditingPanel({
             >
               <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3">
                 <p className="text-sm font-semibold text-[#1d1d1f]">
-                  {mobileSheet === 'scenes' ? 'Scenes' : LIBRARY_TABS.find((t) => t.id === libraryTab)?.label}
+                  {LIBRARY_TABS.find((t) => t.id === libraryTab)?.label}
                 </p>
                 <button
                   type="button"
@@ -5517,121 +5515,6 @@ export function StudioVideoEditingPanel({
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-                {mobileSheet === 'scenes' && (
-                  <div className="p-3">
-                    {!hasScenes ? (
-                      <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
-                        <p className="text-xs leading-relaxed text-[#86868b]">
-                          No scenes yet. Generate a voiceover and scene breakdown to start editing.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setMobileSheet(null);
-                            openSetupModal();
-                          }}
-                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1d1d1f] px-4 py-2.5 text-sm font-semibold text-white"
-                        >
-                          <Sparkles className="h-4 w-4 text-amber-300" />
-                          Generate voice and scenes
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2.5">
-                        {scenes.map((sc) => {
-                          const active = sc.id === selectedId;
-                          return (
-                            <div
-                              key={sc.id}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => {
-                                selectScene(sc.id);
-                                setMobileSheet(null);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  selectScene(sc.id);
-                                  setMobileSheet(null);
-                                }
-                              }}
-                              className={`cursor-pointer rounded-2xl border p-3 transition-colors ${
-                                active
-                                  ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white shadow-sm'
-                                  : 'border-gray-200 bg-[#fafafa]'
-                              }`}
-                            >
-                              <div className="mb-2 flex items-start gap-2.5">
-                                <span
-                                  className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold tabular-nums ${
-                                    active ? 'bg-white/10 text-white/80' : 'bg-white border border-gray-200 text-[#6e6e73]'
-                                  }`}
-                                >
-                                  {sc.num}
-                                </span>
-                                <p className={`pt-1 text-sm font-semibold leading-snug ${active ? 'text-white' : 'text-[#1d1d1f]'}`}>
-                                  {sc.title}
-                                </p>
-                              </div>
-                              {sc.generationError && (
-                                <div
-                                  className={`mb-2.5 flex items-start gap-1.5 rounded-lg px-2 py-1.5 text-[10px] leading-snug ${
-                                    active ? 'bg-red-400/15 text-red-100' : 'border border-red-100 bg-red-50 text-red-700'
-                                  }`}
-                                >
-                                  <AlertTriangle className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                                  <span className="line-clamp-2">{sc.generationError}</span>
-                                </div>
-                              )}
-                              <div className="mb-2.5 flex flex-wrap items-center gap-2 text-[11px]">
-                                <span className={`tabular-nums ${active ? 'text-white/55' : 'text-[#86868b]'}`}>
-                                  {tc(sc.start)} · {sc.duration}s
-                                </span>
-                                {!active && <StatusPill status={sc.status} />}
-                              </div>
-                              <button
-                                type="button"
-                                disabled={!sc.voiceoverUrl && !!sc.generationError}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleVoiceoverPlayback(sc);
-                                }}
-                                className={`mb-2.5 flex w-full items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
-                                  playingVO === sc.id
-                                    ? active
-                                      ? 'border-amber-300/40 bg-amber-400/15 text-amber-100'
-                                      : 'border-amber-200 bg-amber-50 text-amber-900'
-                                    : active
-                                      ? 'border-white/15 bg-white/5 text-white/80'
-                                      : 'border-gray-200 bg-white text-[#6e6e73]'
-                                }`}
-                              >
-                                {playingVO === sc.id ? <Pause className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-                                <span className="flex-1">
-                                  {sc.generationError && !sc.voiceoverUrl
-                                    ? 'Voiceover unavailable'
-                                    : playingVO === sc.id
-                                      ? 'Playing voiceover…'
-                                      : 'Play voiceover'}
-                                </span>
-                                <span className="tabular-nums opacity-60">{sc.duration}s</span>
-                              </button>
-                            </div>
-                          );
-                        })}
-                        <button
-                          type="button"
-                          onClick={addScene}
-                          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 px-3 py-2.5 text-xs font-semibold text-[#6e6e73]"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Add scene
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 {mobileSheet === 'library' && (
                   <div className="p-3">
                     {libraryTab === 'broll-videos' && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import type { UseVideoTimelineReturn } from '@/hooks/useVideoTimeline';
 import type { TimelineClip } from '@/lib/video-editor/types';
 import { TimelineRuler } from './TimelineRuler';
@@ -13,6 +13,11 @@ import { TimelineToolbar } from './TimelineToolbar';
 type Props = {
   api: UseVideoTimelineReturn;
   height: number;
+  /**
+   * Mobile strip: ruler + clip rows + playhead only — no toolbar and no track-name column
+   * (an empty track shows its name faintly in its row). Same playhead / scrub behaviour.
+   */
+  compact?: boolean;
   onTogglePlay?: () => void;
   /** Drives the follow-the-playhead scroll during playback. */
   isPlaying?: boolean;
@@ -31,7 +36,9 @@ type Props = {
 
 const LABEL_WIDTH = 148;
 
-export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sceneLabel, hiddenTrackIds, onClipSplit, onClipDuplicate, onDelete, visualTimeRef }: Props) {
+export function TimelinePanel({ api, height, compact = false, onTogglePlay, isPlaying = false, sceneLabel, hiddenTrackIds, onClipSplit, onClipDuplicate, onDelete, visualTimeRef }: Props) {
+  /** Width of the sticky track-name column (none in compact mode). Fixed for an instance's life. */
+  const labelWidth = compact ? 0 : LABEL_WIDTH;
   const {
     timeline,
     snapGuide,
@@ -63,14 +70,47 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
   const ppsRef = useRef(timeline.pixelsPerSecond);
   const durationRef = useRef(timeline.duration);
   const timeRef = useRef(timeline.currentTime);
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+  /** Scroll-scrub time not yet committed to the timeline (render must not overwrite it). */
+  const pendingScrubRef = useRef<number | null>(null);
+  const scrubTimerRef = useRef<number | null>(null);
+  const lastScrubCommitRef = useRef(0);
+  /** Last time committed by scrubbing — re-aligning to it would yank the scroll back. */
+  const lastScrubTimeRef = useRef<number | null>(null);
+  /** Scrolls before this moment came from code (glide, zoom, scene swap), not the user. */
+  const ignoreScrollUntilRef = useRef(0);
+  const glideRafRef = useRef(0);
+  /**
+   * Where the paused playhead sits on screen: px from the left edge of the clip area. 0 (the left
+   * edge) until something plays; on pause it stays wherever playback left it.
+   */
+  const pinOffsetRef = useRef(0);
+  const wasPlayingRef = useRef(isPlaying);
   ppsRef.current = timeline.pixelsPerSecond;
   durationRef.current = timeline.duration;
-  if (!isPlaying && !draggingRef.current) timeRef.current = timeline.currentTime;
+  if (!isPlaying && !draggingRef.current && pendingScrubRef.current == null) {
+    timeRef.current = timeline.currentTime;
+  }
 
+  /** Width of the clip area on screen — the timeline gets this much room after its end. */
+  const [stripWidth, setStripWidth] = useState(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => setStripWidth(Math.max(0, el.clientWidth - labelWidth));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Room after the end so even the last second can be scrolled under a fixed playhead.
   const contentWidth = useMemo(
-    () => Math.max(640, timeline.duration * timeline.pixelsPerSecond + 120),
-    [timeline.duration, timeline.pixelsPerSecond],
+    () => Math.max(640, timeline.duration * timeline.pixelsPerSecond + Math.max(120, stripWidth)),
+    [timeline.duration, timeline.pixelsPerSecond, stripWidth],
   );
+
 
   const visibleTracks = useMemo(
     () => (hiddenTrackIds?.length ? timeline.tracks.filter((t) => !hiddenTrackIds.includes(t.id)) : timeline.tracks),
@@ -108,27 +148,93 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
     if (tracksPlayheadRef.current) tracksPlayheadRef.current.style.transform = x;
   }, []);
 
-  const keepPlayheadVisible = useCallback((time: number, instant = true) => {
-    const scroller = scrollRef.current;
-    if (!scroller) return;
-    const visible = scroller.clientWidth - LABEL_WIDTH;
-    if (visible <= 0) return;
-    const playheadX = time * ppsRef.current;
-    const pad = 28;
-    const viewLeft = scroller.scrollLeft;
-    const viewRight = viewLeft + visible;
-    let dest = scroller.scrollLeft;
-    if (playheadX < viewLeft + pad) dest = Math.max(0, playheadX - pad);
-    else if (playheadX > viewRight - pad) {
-      dest = playheadX - visible + pad;
-    } else {
+  /**
+   * Paused, the playhead is pinned `pinOffsetRef` px from the left of the clip area: this scrolls so
+   * `time` sits there (time = (scrollLeft + pin) / px-per-second). `animate` glides instead of
+   * jumping. Near the start the scroll cannot go below 0 — the pin follows the playhead then.
+   */
+  const alignToTime = useCallback((time: number, animate: boolean) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    cancelAnimationFrame(glideRafRef.current);
+    const max = Math.max(0, el.scrollWidth - el.clientWidth);
+    const x = time * ppsRef.current;
+    const target = Math.min(max, Math.max(0, x - pinOffsetRef.current));
+    pinOffsetRef.current = x - target;
+    const from = el.scrollLeft;
+    if (!animate || Math.abs(target - from) < 1) {
+      ignoreScrollUntilRef.current = performance.now() + 120;
+      el.scrollLeft = target;
       return;
     }
-    const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
-    dest = Math.min(maxScroll, Math.max(0, dest));
-    if (instant) scroller.scrollLeft = dest;
-    return dest;
+    const started = performance.now();
+    const GLIDE_MS = 260;
+    const step = (now: number) => {
+      const k = Math.min(1, (now - started) / GLIDE_MS);
+      const eased = 1 - Math.pow(1 - k, 3);
+      ignoreScrollUntilRef.current = now + 120;
+      el.scrollLeft = from + (target - from) * eased;
+      if (k < 1) glideRafRef.current = requestAnimationFrame(step);
+    };
+    glideRafRef.current = requestAnimationFrame(step);
   }, []);
+
+  /** The user put the playhead at `time` on screen (click / drop): keep it pinned right there. */
+  const pinAtTime = useCallback((time: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const strip = Math.max(0, el.clientWidth - labelWidth);
+    pinOffsetRef.current = Math.max(0, Math.min(strip, time * ppsRef.current - el.scrollLeft));
+  }, []);
+
+  /** The user takes over the scroll: stop any glide so it never fights them. */
+  const stopGlide = useCallback(() => {
+    cancelAnimationFrame(glideRafRef.current);
+    ignoreScrollUntilRef.current = 0;
+  }, []);
+
+  /**
+   * Paused: scrolling the timeline scrubs it — the playhead stays pinned at the left edge and the
+   * time under it follows the scroll. The playhead is painted every frame; the time is committed
+   * about every 40 ms so the preview keeps up without re-rendering the whole editor per frame.
+   */
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (isPlayingRef.current || draggingRef.current || performance.now() < ignoreScrollUntilRef.current) return;
+    const next = Math.max(0, Math.min(durationRef.current, (el.scrollLeft + pinOffsetRef.current) / ppsRef.current));
+    if (Math.abs(next - timeRef.current) < 1e-4) return;
+    timeRef.current = next;
+    if (visualTimeRef) visualTimeRef.current = next;
+    paintPlayhead(next);
+    pendingScrubRef.current = next;
+    if (scrubTimerRef.current == null) {
+      const wait = Math.max(0, 40 - (performance.now() - lastScrubCommitRef.current));
+      scrubTimerRef.current = window.setTimeout(() => {
+        scrubTimerRef.current = null;
+        const t = pendingScrubRef.current;
+        pendingScrubRef.current = null;
+        lastScrubCommitRef.current = performance.now();
+        if (t == null) return;
+        lastScrubTimeRef.current = t;
+        setCurrentTime(t);
+      }, wait);
+    }
+  }, [paintPlayhead, setCurrentTime, visualTimeRef]);
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(glideRafRef.current);
+      if (scrubTimerRef.current != null) window.clearTimeout(scrubTimerRef.current);
+    },
+    [],
+  );
+
+  // A zoom or a wider / narrower clip area moves where `time` sits — re-pin it (not a scrub).
+  useEffect(() => {
+    if (isPlayingRef.current) return;
+    alignToTime(timeRef.current, false);
+  }, [alignToTime, contentWidth, timeline.pixelsPerSecond]);
 
   const beginPlayheadDrag = useCallback(
     (e: React.PointerEvent) => {
@@ -150,8 +256,8 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
         const EDGE = 80;
         const MAX_VEL = 1600;
         let vel = 0;
-        if (localX < LABEL_WIDTH + EDGE) {
-          vel = -Math.min(2, Math.max(0, (LABEL_WIDTH + EDGE - localX) / EDGE)) * MAX_VEL;
+        if (localX < labelWidth + EDGE) {
+          vel = -Math.min(2, Math.max(0, (labelWidth + EDGE - localX) / EDGE)) * MAX_VEL;
         } else if (localX > rect.width - EDGE) {
           vel = Math.min(2, Math.max(0, (localX - (rect.width - EDGE)) / EDGE)) * MAX_VEL;
         }
@@ -160,12 +266,12 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
           scroller.scrollLeft = Math.max(0, Math.min(maxScroll, scroller.scrollLeft + vel * dt));
         }
 
-        const clipLeft = LABEL_WIDTH + 2;
+        const clipLeft = labelWidth + 2;
         const clipRight = rect.width - 2;
         const viewX = Math.min(clipRight, Math.max(clipLeft, localX));
         const t = Math.max(
           0,
-          Math.min(durationRef.current, (viewX + scroller.scrollLeft - LABEL_WIDTH) / ppsRef.current),
+          Math.min(durationRef.current, (viewX + scroller.scrollLeft - labelWidth) / ppsRef.current),
         );
         timeRef.current = t;
         if (visualTimeRef) visualTimeRef.current = t;
@@ -186,6 +292,7 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
       };
       const up = () => {
         draggingRef.current = false;
+        pinAtTime(timeRef.current);
         cancelAnimationFrame(raf);
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
@@ -196,7 +303,7 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
       apply(performance.now());
       raf = requestAnimationFrame(tick);
     },
-    [paintPlayhead, setCurrentTime, visualTimeRef],
+    [paintPlayhead, pinAtTime, setCurrentTime, visualTimeRef],
   );
 
   useEffect(() => {
@@ -212,7 +319,7 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
 
       const scroller = scrollRef.current;
       if (scroller) {
-        const strip = scroller.clientWidth - LABEL_WIDTH;
+        const strip = scroller.clientWidth - labelWidth;
         if (strip > 0) {
           const playheadX = t * ppsRef.current;
           const dest = Math.min(
@@ -230,11 +337,27 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
     return () => cancelAnimationFrame(raf);
   }, [isPlaying, paintPlayhead, visualTimeRef]);
 
+  // Paused / stopped: playhead pinned where it is on screen (left edge until something plays; on
+  // pause, where playback left it). A seek (ruler / track click, timecode, playhead drop, new
+  // scene) glides the timeline so that time sits under it; a time from scrolling is already there.
   useEffect(() => {
+    const justPaused = wasPlayingRef.current && !isPlaying;
+    wasPlayingRef.current = isPlaying;
     if (isPlaying || draggingRef.current) return;
-    paintPlayhead(timeline.currentTime);
-    keepPlayheadVisible(timeline.currentTime);
-  }, [isPlaying, keepPlayheadVisible, paintPlayhead, timeline.currentTime, timeline.pixelsPerSecond]);
+    if (justPaused) {
+      // Stay where playback left the playhead — no jump back to the left edge.
+      const el = scrollRef.current;
+      const strip = el ? Math.max(0, el.clientWidth - labelWidth) : 0;
+      if (el) {
+        pinOffsetRef.current = Math.max(0, Math.min(strip, timeline.currentTime * ppsRef.current - el.scrollLeft));
+      }
+    }
+    paintPlayhead(pendingScrubRef.current ?? timeline.currentTime);
+    if (pendingScrubRef.current != null) return;
+    if (lastScrubTimeRef.current != null && Math.abs(timeline.currentTime - lastScrubTimeRef.current) < 1e-6) return;
+    lastScrubTimeRef.current = null;
+    alignToTime(timeline.currentTime, true);
+  }, [isPlaying, alignToTime, paintPlayhead, timeline.currentTime, timeline.pixelsPerSecond]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -285,7 +408,10 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
   return (
     // `isolate`: the sticky header / labels / playhead z-indexes only rank against each
     // other — they can never paint over dialogs or popups elsewhere on the page.
-    <div className="isolate flex h-full min-h-0 flex-col border-t border-gray-200 bg-white" style={{ height }}>
+    // `height` is a ceiling, not a fixed size: the panel hugs its tracks (no blank band under
+    // them) and only scrolls when there are more tracks than fit.
+    <div className="isolate flex min-h-0 flex-shrink-0 flex-col border-t border-gray-200 bg-white" style={{ maxHeight: height }}>
+      {!compact && (
       <TimelineToolbar
         currentTime={timeline.currentTime}
         duration={timeline.duration}
@@ -308,35 +434,53 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
         onZoomIn={() => setPixelsPerSecond(timeline.pixelsPerSecond + 20)}
         onZoomOut={() => setPixelsPerSecond(timeline.pixelsPerSecond - 20)}
       />
+      )}
      
 
       <div
         ref={scrollRef}
         className="relative min-h-0 flex-1 overflow-auto"
         style={{ scrollbarWidth: 'thin' }}
+        onScroll={handleScroll}
+        onWheel={stopGlide}
+        onPointerDownCapture={stopGlide}
         onClick={(e) => {
           if ((e.target as HTMLElement).closest('[data-clip-id]')) return;
           clearSelection();
+          // An empty spot in the tracks moves the playhead there, so Play starts from it.
+          const el = scrollRef.current;
+          if (!el || isPlayingRef.current) return;
+          const x = e.clientX - el.getBoundingClientRect().left;
+          if (x <= labelWidth) return;
+          const t = Math.max(0, Math.min(durationRef.current, (x - labelWidth + el.scrollLeft) / ppsRef.current));
+          if (visualTimeRef) visualTimeRef.current = t;
+          pinAtTime(t);
+          setCurrentTime(t);
         }}
       >
         {/* Sticky header row: track label corner + time ruler. Above the sticky track
             labels (z-40) and the tracks playhead so rows scroll underneath it. */}
         <div
           className="sticky top-0 z-[60] flex border-b border-gray-200 bg-white"
-          style={{ height: RULER_HEIGHT, width: LABEL_WIDTH + contentWidth }}
+          style={{ height: RULER_HEIGHT, width: labelWidth + contentWidth }}
         >
-          <div
-            className="sticky left-0 z-50 flex flex-shrink-0 items-center border-r border-gray-200 bg-[#fafafa] px-2.5 text-[10px] font-semibold uppercase tracking-wide text-[#a1a1a6]"
-            style={{ width: LABEL_WIDTH, height: RULER_HEIGHT }}
-          >
-            Tracks
-          </div>
+          {!compact && (
+            <div
+              className="sticky left-0 z-50 flex flex-shrink-0 items-center border-r border-gray-200 bg-[#fafafa] px-2.5 text-[10px] font-semibold uppercase tracking-wide text-[#a1a1a6]"
+              style={{ width: labelWidth, height: RULER_HEIGHT }}
+            >
+              Tracks
+            </div>
+          )}
           <div className="relative flex-shrink-0" style={{ width: contentWidth, height: RULER_HEIGHT }}>
             <TimelineRuler
               duration={timeline.duration}
               pixelsPerSecond={timeline.pixelsPerSecond}
               width={contentWidth}
-                    onSeek={setCurrentTime}
+                    onSeek={(t) => {
+                      pinAtTime(t);
+                      setCurrentTime(t);
+                    }}
             />
             <TimelinePlayhead
               time={timeline.currentTime}
@@ -350,20 +494,22 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
         </div>
 
         {/* Body: labels + clip rows share the same vertical scroll */}
-        <div className="relative flex" style={{ width: LABEL_WIDTH + contentWidth, height: tracksHeight }}>
-          <div
-            className="sticky left-0 z-40 flex-shrink-0 border-r border-gray-200 bg-white"
-            style={{ width: LABEL_WIDTH }}
-          >
-            {visibleTracks.map((track) => (
-              <TrackHeader
-                key={track.id}
-                track={track}
-                width={LABEL_WIDTH}
-                onChange={(patch) => updateTrack(track.id, patch)}
-              />
-            ))}
-          </div>
+        <div className="relative flex" style={{ width: labelWidth + contentWidth, height: tracksHeight }}>
+          {!compact && (
+            <div
+              className="sticky left-0 z-40 flex-shrink-0 border-r border-gray-200 bg-white"
+              style={{ width: labelWidth }}
+            >
+              {visibleTracks.map((track) => (
+                <TrackHeader
+                  key={track.id}
+                  track={track}
+                  width={labelWidth}
+                  onChange={(patch) => updateTrack(track.id, patch)}
+                />
+              ))}
+            </div>
+          )}
 
           <div className="relative flex-shrink-0" style={{ width: contentWidth, height: tracksHeight }}>
             {snapGuide != null && (
@@ -381,6 +527,11 @@ export function TimelinePanel({ api, height, onTogglePlay, isPlaying = false, sc
                   className={`relative border-b border-gray-100 ${track.visible ? '' : 'opacity-40'}`}
                   style={{ height: h }}
                 >
+                  {compact && track.clips.length === 0 && (
+                    <div className="pointer-events-none sticky left-2 flex h-full w-max items-center text-[10px] text-[#a1a1a6]">
+                      {track.name}
+                    </div>
+                  )}
                   {track.clips.map((clip) => (
                     <TimelineClipView
                       key={clip.id}

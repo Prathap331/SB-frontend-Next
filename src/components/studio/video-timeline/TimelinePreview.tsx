@@ -12,7 +12,7 @@ import {
 } from '@/lib/video-editor/infographics';
 import { isImageClip } from '@/lib/video-editor/mediaNames';
 import { LiveTimelineOverlays } from '@/components/studio/video-timeline/TimelineOverlayPreview';
-import { Sparkles, Film, Volume2 } from 'lucide-react';
+import { Sparkles, Film, Volume2, Maximize2, Minimize2, Pause, Play, RotateCcw } from 'lucide-react';
 import {
   captionTextAtTime,
   DEFAULT_CAPTION_STYLE,
@@ -61,9 +61,19 @@ type Props = {
   overlaySpecs?: RemotionInfographicSpec[];
   /** 60fps clock from playback — overlays follow this instead of throttled React time. */
   visualTimeRef?: MutableRefObject<number>;
+  /** Fullscreen player: play / pause. */
+  onTogglePlay?: () => void;
+  /** Fullscreen player: jump to `t` seconds; `resume` keeps playing afterwards. */
+  onSeek?: (t: number, resume: boolean) => void;
 };
 
 type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br';
+
+/** m:ss for the fullscreen player. */
+function formatClock(sec: number): string {
+  const total = Math.max(0, Math.floor(Number.isFinite(sec) ? sec : 0));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
 
 /** animation-name → { duration, timing } for each backend text_animation_style value. */
 const TEXT_ANIMATION_CSS: Record<string, { duration: string; timing: string }> = {
@@ -165,6 +175,8 @@ export function TimelinePreview({
   onRequestPause,
   overlaySpecs = [],
   visualTimeRef,
+  onTogglePlay,
+  onSeek,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [editingText, setEditingText] = useState(false);
@@ -606,22 +618,52 @@ export function TimelinePreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaClip?.id, mediaClip?.sourceUrl, mediaIsImage, isPlaying]);
 
-  // Scrub / pause seek on the active buffer
+  /**
+   * Scrubbing asks for a new frame many times a second. Seeking a <video> again before the last
+   * seek lands queues decodes and stutters, so: one seek at a time, and when it lands, jump
+   * straight to the latest requested position.
+   */
+  const pendingVideoSeekRef = useRef<{ el: HTMLVideoElement; t: number } | null>(null);
+  const seekVideoLatest = (el: HTMLVideoElement, t: number) => {
+    if (el.seeking) {
+      pendingVideoSeekRef.current = { el, t };
+      return;
+    }
+    pendingVideoSeekRef.current = null;
+    seekingRef.current = true;
+    try {
+      el.currentTime = t;
+    } catch {
+      /* ignore */
+    }
+    seekingRef.current = false;
+  };
+  const seekVideoLatestRef = useRef(seekVideoLatest);
+  seekVideoLatestRef.current = seekVideoLatest;
+
+  useEffect(() => {
+    const els = [videoARef.current, videoBRef.current].filter((el): el is HTMLVideoElement => Boolean(el));
+    const onSeeked = (e: Event) => {
+      const pending = pendingVideoSeekRef.current;
+      if (!pending || pending.el !== e.currentTarget || isPlayingRef.current) return;
+      pendingVideoSeekRef.current = null;
+      if (Math.abs(pending.el.currentTime - pending.t) > 0.03) seekVideoLatestRef.current(pending.el, pending.t);
+    };
+    els.forEach((el) => el.addEventListener('seeked', onSeeked));
+    return () => els.forEach((el) => el.removeEventListener('seeked', onSeeked));
+  }, []);
+
+  // Scrub / pause seek on the active buffer (frame-accurate: within one frame of the playhead)
   useEffect(() => {
     if (mediaIsImage || !mediaClip?.sourceUrl) return;
     const el = getActiveVideo();
     if (!el) return;
-    if (isPlaying) return;
-    const local = localMediaTime(mediaClip, timeline.currentTime);
-    if (Math.abs(el.currentTime - local) > 0.12) {
-      seekingRef.current = true;
-      try {
-        el.currentTime = local;
-      } catch {
-        /* ignore */
-      }
-      seekingRef.current = false;
+    if (isPlaying) {
+      pendingVideoSeekRef.current = null;
+      return;
     }
+    const local = localMediaTime(mediaClip, timeline.currentTime);
+    if (Math.abs(el.currentTime - local) > 0.03) seekVideoLatest(el, local);
     el.pause();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeline.currentTime, mediaClip?.id, mediaIsImage, isPlaying]);
@@ -805,10 +847,160 @@ export function TimelinePreview({
   const showVideo = Boolean(mediaClip?.sourceUrl && !mediaIsImage);
   const kenStyle = kenBurnsCss(mediaClip, timeline.currentTime);
 
+  /* ── Fullscreen: the composed preview (video + overlays + captions), letterboxed 16:9 ── */
+  const fullscreenRef = useRef<HTMLDivElement>(null);
+  /** Real Fullscreen API is active on our wrapper. */
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  /** Fallback where the API is missing (iPhone Safari): fill the window instead. */
+  const [windowFullscreen, setWindowFullscreen] = useState(false);
+  const isFullscreen = nativeFullscreen || windowFullscreen;
+
+  useEffect(() => {
+    const onChange = () => setNativeFullscreen(document.fullscreenElement === fullscreenRef.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!windowFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setWindowFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [windowFullscreen]);
+
+  const toggleFullscreen = () => {
+    if (windowFullscreen) {
+      setWindowFullscreen(false);
+      return;
+    }
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    const el = fullscreenRef.current;
+    if (el?.requestFullscreen) {
+      el.requestFullscreen().catch(() => setWindowFullscreen(true));
+    } else {
+      setWindowFullscreen(true);
+    }
+  };
+
+  /* ── Fullscreen player controls: auto-hide while playing, live progress from the 60fps clock ── */
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideControlsTimerRef = useRef<number | null>(null);
+  const progressFillRef = useRef<HTMLDivElement>(null);
+  const progressKnobRef = useRef<HTMLDivElement>(null);
+  const timeLabelRef = useRef<HTMLSpanElement>(null);
+  const seekingBarRef = useRef(false);
+
+  const revealControls = () => {
+    setControlsVisible(true);
+    if (hideControlsTimerRef.current) window.clearTimeout(hideControlsTimerRef.current);
+    hideControlsTimerRef.current = window.setTimeout(() => {
+      if (isPlayingRef.current && !seekingBarRef.current) setControlsVisible(false);
+    }, 2500);
+  };
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    revealControls();
+    return () => {
+      if (hideControlsTimerRef.current) window.clearTimeout(hideControlsTimerRef.current);
+    };
+    // re-arm the auto-hide whenever play state changes in fullscreen
+  }, [isFullscreen, isPlaying]);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const paint = (t: number) => {
+      const total = Math.max(0.001, durationRef.current);
+      const pct = `${Math.min(100, Math.max(0, (t / total) * 100))}%`;
+      if (progressFillRef.current) progressFillRef.current.style.width = pct;
+      if (progressKnobRef.current) progressKnobRef.current.style.left = pct;
+      if (timeLabelRef.current) {
+        timeLabelRef.current.textContent = `${formatClock(t)} / ${formatClock(durationRef.current)}`;
+      }
+    };
+    if (!isPlaying) {
+      paint(timeline.currentTime);
+      return;
+    }
+    let raf = 0;
+    const tick = () => {
+      paint(visualTimeRef?.current ?? timeRef.current);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isFullscreen, isPlaying, timeline.currentTime, visualTimeRef]);
+
+  const togglePlayback = () => {
+    onTogglePlay?.();
+    revealControls();
+  };
+
+  const currentPlayTime = () => (isPlayingRef.current ? visualTimeRef?.current ?? timeRef.current : timeline.currentTime);
+
+  const rewind = () => {
+    onSeek?.(Math.max(0, currentPlayTime() - 10), isPlayingRef.current);
+    revealControls();
+  };
+
+  /** Click or drag on the progress bar: seek there; playback resumes on release if it was playing. */
+  const beginBarSeek = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const bar = e.currentTarget;
+    const wasPlaying = isPlayingRef.current;
+    seekingBarRef.current = true;
+    const timeAt = (clientX: number) => {
+      const rect = bar.getBoundingClientRect();
+      const frac = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)));
+      return frac * durationRef.current;
+    };
+    onSeek?.(timeAt(e.clientX), false);
+    const move = (ev: PointerEvent) => onSeek?.(timeAt(ev.clientX), false);
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      seekingBarRef.current = false;
+      onSeek?.(timeAt(ev.clientX), wasPlaying);
+      revealControls();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  const showControls = controlsVisible || !isPlaying;
+
   return (
     <div
+      ref={fullscreenRef}
+      onPointerMove={isFullscreen ? revealControls : undefined}
+      onClick={(e) => {
+        // Letterbox bars around the frame act like the frame: click to play / pause.
+        if (isFullscreen && e.target === e.currentTarget) togglePlayback();
+      }}
+      // Outside fullscreen this box carries the old frame sizing (16:9, up to 900px), so the
+      // layout is unchanged; in fullscreen it fills the screen and letterboxes the frame.
+      className={
+        isFullscreen
+          ? `flex items-center justify-center bg-black ${windowFullscreen ? 'fixed inset-0 z-[200]' : ''}`
+          : 'relative flex max-h-full'
+      }
+      style={
+        isFullscreen
+          ? undefined
+          : { aspectRatio: '16 / 9', width: 'min(100%, 900px)', maxWidth: '900px' }
+      }
+    >
+    <div
       ref={rootRef}
-      className={`relative flex max-h-full items-end justify-center overflow-hidden rounded-xl border border-gray-200 ${
+      className={`relative flex max-h-full items-end justify-center overflow-hidden ${
+        isFullscreen ? '' : 'rounded-xl border border-gray-200'
+      } ${
         hasVisual
           ? 'bg-gradient-to-br from-slate-700 to-slate-950'
           : hasVoiceOnly
@@ -817,12 +1009,108 @@ export function TimelinePreview({
       }`}
       style={{
         aspectRatio: '16 / 9',
-        width: 'min(100%, 900px)',
-        maxWidth: '900px',
+        // Fullscreen: the largest 16:9 frame that fits the screen; otherwise fill the box above.
+        width: isFullscreen ? 'min(100vw, calc(100vh * 16 / 9))' : '100%',
+        maxWidth: 'none',
         ['--preview-slide' as string]: `${40 * overlayScale}px`,
       }}
     >
       <audio ref={audioRef} preload="auto" className="hidden" />
+
+      {!isFullscreen && (
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute bottom-2 right-2 z-[40] inline-flex h-8 w-8 items-center justify-center rounded-lg bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/75"
+          aria-label="Full screen"
+          title="Full screen"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+
+      {isFullscreen && (
+        <>
+          {/* Above the editing layers: in fullscreen a click only plays / pauses. */}
+          <div
+            className={`absolute inset-0 z-[30] ${showControls ? 'cursor-default' : 'cursor-none'}`}
+            onClick={togglePlayback}
+            aria-hidden
+          />
+
+          {!isPlaying && (
+            <button
+              type="button"
+              onClick={togglePlayback}
+              className="absolute left-1/2 top-1/2 z-[45] inline-flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-2xl backdrop-blur-sm transition-transform hover:scale-105"
+              aria-label="Play"
+            >
+              <Play className="ml-1 h-9 w-9 fill-current" />
+            </button>
+          )}
+
+          <div
+            className={`absolute inset-x-0 bottom-0 z-[45] bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-3 pt-10 transition-opacity duration-300 sm:px-6 ${
+              showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          >
+            <div
+              role="slider"
+              aria-label="Seek"
+              aria-valuemin={0}
+              aria-valuemax={Math.round(timeline.duration)}
+              aria-valuenow={Math.round(timeline.currentTime)}
+              tabIndex={0}
+              onPointerDown={beginBarSeek}
+              className="group relative mb-2.5 h-4 cursor-pointer touch-none"
+            >
+              <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/30 transition-[height] group-hover:h-1.5">
+                <div ref={progressFillRef} className="h-full rounded-full bg-amber-500" style={{ width: '0%' }} />
+              </div>
+              <div
+                ref={progressKnobRef}
+                className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow"
+                style={{ left: '0%' }}
+              />
+            </div>
+            <div className="flex items-center gap-2 text-white">
+              <button
+                type="button"
+                onClick={rewind}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15"
+                aria-label="Rewind 10 seconds"
+                title="Rewind 10s"
+              >
+                <span className="relative inline-flex">
+                  <RotateCcw className="h-5 w-5" />
+                  <span className="absolute inset-0 flex items-center justify-center pt-[1px] text-[7px] font-bold">10</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={togglePlayback}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15"
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="ml-0.5 h-5 w-5 fill-current" />}
+              </button>
+              <span ref={timeLabelRef} className="text-xs font-medium tabular-nums text-white/90">
+                {formatClock(timeline.currentTime)} / {formatClock(timeline.duration)}
+              </span>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15"
+                aria-label="Exit full screen"
+                title="Exit full screen (Esc)"
+              >
+                <Minimize2 className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Dual video buffers — cross-swap at clip boundaries to avoid blank frames */}
       <video
@@ -1086,6 +1374,7 @@ export function TimelinePreview({
           )}
         </div>
       )}
+    </div>
     </div>
   );
 }

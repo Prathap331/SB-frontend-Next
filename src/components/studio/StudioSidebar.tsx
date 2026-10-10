@@ -257,6 +257,8 @@ export default function StudioSidebar({
 
   const isLoggedIn = !!userId;
   const displayName = isLoggedIn ? userName : 'GO';
+  /** Profile row shows just the first name, so it always fits (the menu header keeps the full name). */
+  const firstName = displayName.trim().split(/\s+/)[0] || displayName;
   const displayPlan = isLoggedIn ? plan : 'Free plan';
   const displayCreditsLeft = isLoggedIn ? creditsLeft : 0;
   const displayCreditsTotal = isLoggedIn ? creditsTotal : 100;
@@ -489,7 +491,7 @@ export default function StudioSidebar({
             </div>
           </>
         )}
-        <div className={`flex items-center ${collapsed ? 'flex-col gap-2' : 'gap-2.5'}`}>
+        <div className={`flex items-center ${collapsed ? 'flex-col gap-0' : 'gap-0'}`}>
           <div ref={accountRef} className={`relative ${collapsed ? '' : 'min-w-0 flex-1'}`}>
             <button
               type="button"
@@ -517,7 +519,9 @@ export default function StudioSidebar({
               {!collapsed && (
                 <>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-[#1d1d1f] truncate">{displayName}</span>
+                    <span className="block break-words text-sm font-semibold leading-tight text-[#1d1d1f]" title={displayName}>
+                      {firstName}
+                    </span>
                     <span className="block text-[11px] text-gray-500 truncate">{displayPlan}</span>
                   </span>
                   {isLoggedIn && <ChevronsUpDown className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />}

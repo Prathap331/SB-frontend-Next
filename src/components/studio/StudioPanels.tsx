@@ -81,14 +81,12 @@ export function StudioStageNav({
   /** Tabs that cannot be selected (e.g. Content Ideas when opening a vault script) */
   disabled?: Partial<Record<StudioTab, boolean>>;
 }) {
-  // On mobile, the AI Video Editing tab needs all the width it can get for its
-  // own toolbar/preview, so collapse the stage tabs to icon-only there.
-  const compactOnMobile = active === 'video-editing';
   const activeIndex = Math.max(0, studioStageIndex(active));
 
   const rowRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [centers, setCenters] = useState<number[]>([]);
+  /** Each tab's box inside the row — tabs wrap onto new lines on narrow screens. */
+  const [boxes, setBoxes] = useState<{ left: number; top: number; width: number; height: number }[]>([]);
 
   // Where the line came from: read during the render that changes `active`, updated after it.
   const fromIndexRef = useRef(activeIndex);
@@ -101,9 +99,21 @@ export function StudioStageNav({
     const row = rowRef.current;
     if (!row) return;
     const measure = () => {
-      const next = tabRefs.current.map((el) => (el ? el.offsetLeft + el.offsetWidth / 2 : 0));
-      setCenters((prev) =>
-        prev.length === next.length && prev.every((v, i) => Math.abs(v - next[i]) < 0.5) ? prev : next,
+      const next = tabRefs.current.map((el) =>
+        el
+          ? { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight }
+          : { left: 0, top: 0, width: 0, height: 0 },
+      );
+      setBoxes((prev) =>
+        prev.length === next.length &&
+        prev.every(
+          (v, i) =>
+            Math.abs(v.left - next[i].left) < 0.5 &&
+            Math.abs(v.top - next[i].top) < 0.5 &&
+            Math.abs(v.width - next[i].width) < 0.5,
+        )
+          ? prev
+          : next,
       );
     };
     measure();
@@ -111,46 +121,51 @@ export function StudioStageNav({
     ro.observe(row);
     tabRefs.current.forEach((el) => el && ro.observe(el));
     return () => ro.disconnect();
-  }, [compactOnMobile]);
+  }, []);
 
-  const measured = centers.length === TABS.length;
-  const startX = measured ? centers[0] : 0;
-  const endX = measured ? centers[centers.length - 1] : 0;
-  const fromX = measured ? centers[fromIndex] ?? startX : 0;
-  const toX = measured ? centers[activeIndex] ?? startX : 0;
-  const durationMs = Math.min(STAGE_MAX_MS, STAGE_STEP_MS * Math.max(1, Math.abs(activeIndex - fromIndex)));
-  const span = Math.abs(toX - fromX);
+  const measured = boxes.length === TABS.length;
+  // The line travels one gap at a time from the old stage to the new one, forward or back.
+  const steps = Math.abs(activeIndex - fromIndex);
+  const stepMs = steps ? Math.min(STAGE_STEP_MS, STAGE_MAX_MS / steps) : STAGE_STEP_MS;
+  const forward = activeIndex >= fromIndex;
+  /** When the gap after stage `k` starts filling (forward) or draining (back). */
+  const gapDelay = (k: number) =>
+    forward
+      ? k >= fromIndex && k < activeIndex ? (k - fromIndex) * stepMs : 0
+      : k >= activeIndex && k < fromIndex ? (fromIndex - 1 - k) * stepMs : 0;
   /** When the moving line reaches a stage — its highlight changes then, not before. */
-  const delayFor = (i: number) => {
-    if (!measured || !span || i === fromIndex) return 0;
-    const between = Math.min(fromIndex, activeIndex) < i && i <= Math.max(fromIndex, activeIndex);
-    if (!between) return 0;
-    return Math.round((Math.abs(centers[i] - fromX) / span) * durationMs);
-  };
+  const delayFor = (i: number) =>
+    forward
+      ? i > fromIndex && i <= activeIndex ? Math.round((i - fromIndex) * stepMs) : 0
+      : i > activeIndex && i <= fromIndex ? Math.round((fromIndex - i) * stepMs) : 0;
 
   return (
-    <div className="-mx-1 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div ref={rowRef} className="relative flex w-max items-center gap-5 sm:gap-7">
-        {measured && (
-          <>
-            {/* track */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-gray-200"
-              style={{ left: startX, width: Math.max(0, endX - startX) }}
-            />
-            {/* progress: Content Ideas → active stage */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-[#1d1d1f]"
-              style={{
-                left: startX,
-                width: Math.max(0, toX - startX),
-                transition: `width ${durationMs}ms cubic-bezier(0.65, 0, 0.35, 1)`,
-              }}
-            />
-          </>
-        )}
+    <div className="py-1">
+      <div ref={rowRef} className="relative flex flex-wrap items-center gap-x-5 gap-y-2.5 sm:gap-x-7">
+        {/* One connector per gap between neighbours on the same row (none across a wrap). */}
+        {measured &&
+          TABS.slice(0, -1).map((_, k) => {
+            const a = boxes[k];
+            const b = boxes[k + 1];
+            if (Math.abs(a.top - b.top) > 2) return null;
+            const left = a.left + a.width;
+            return (
+              <span
+                key={`gap-${k}`}
+                aria-hidden
+                className="pointer-events-none absolute h-0.5 -translate-y-1/2 overflow-hidden rounded-full bg-gray-200"
+                style={{ left, width: Math.max(0, b.left - left), top: a.top + a.height / 2 }}
+              >
+                <span
+                  className="block h-full w-full origin-left rounded-full bg-[#1d1d1f]"
+                  style={{
+                    transform: `scaleX(${k < activeIndex ? 1 : 0})`,
+                    transition: `transform ${Math.round(stepMs)}ms cubic-bezier(0.4, 0, 0.2, 1) ${Math.round(gapDelay(k))}ms`,
+                  }}
+                />
+              </span>
+            );
+          })}
         {TABS.map(({ id, label, icon: Icon }, i) => {
           const isActive = active === id;
           const isDisabled = !!disabled?.[id];
@@ -168,11 +183,9 @@ export function StudioStageNav({
               onClick={() => {
                 if (!isDisabled) onChange(id);
               }}
-              title={compactOnMobile ? label : isDisabled ? 'Not available for this script' : undefined}
+              title={isDisabled ? 'Not available for this script' : undefined}
               style={{ transitionDelay: `${delayFor(i)}ms` }}
-              className={`relative z-[1] inline-flex flex-shrink-0 items-center gap-2 rounded-xl ${
-                compactOnMobile ? 'px-2.5 lg:px-4' : 'px-4'
-              } py-2 text-sm font-medium border transition-[background-color,color,border-color,box-shadow] duration-300 ${
+              className={`relative z-[1] inline-flex flex-shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium border transition-[background-color,color,border-color,box-shadow] duration-300 ${
                 isDisabled
                   ? 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed opacity-60'
                   : highlighted
@@ -181,7 +194,7 @@ export function StudioStageNav({
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
-              <span className={compactOnMobile ? 'hidden lg:inline' : ''}>{label}</span>
+              <span>{label}</span>
               {done && !isDisabled && (
                 <Check
                   key={`${id}-done`}
