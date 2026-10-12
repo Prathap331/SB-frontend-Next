@@ -82,6 +82,9 @@ export function StudioStageNav({
   disabled?: Partial<Record<StudioTab, boolean>>;
 }) {
   const activeIndex = Math.max(0, studioStageIndex(active));
+  // On mobile, AI Video Editing needs all the width it can get for its own toolbar/preview,
+  // so the stage tabs collapse to icons there (names come back from `lg`).
+  const compactOnMobile = active === 'video-editing';
 
   const rowRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -183,9 +186,11 @@ export function StudioStageNav({
               onClick={() => {
                 if (!isDisabled) onChange(id);
               }}
-              title={isDisabled ? 'Not available for this script' : undefined}
+              title={compactOnMobile ? label : isDisabled ? 'Not available for this script' : undefined}
               style={{ transitionDelay: `${delayFor(i)}ms` }}
-              className={`relative z-[1] inline-flex flex-shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium border transition-[background-color,color,border-color,box-shadow] duration-300 ${
+              className={`relative z-[1] inline-flex flex-shrink-0 items-center gap-2 rounded-xl ${
+                compactOnMobile ? 'px-2.5 lg:px-4' : 'px-4'
+              } py-2 text-sm font-medium border transition-[background-color,color,border-color,box-shadow] duration-300 ${
                 isDisabled
                   ? 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed opacity-60'
                   : highlighted
@@ -194,7 +199,7 @@ export function StudioStageNav({
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
-              <span>{label}</span>
+              <span className={compactOnMobile ? 'hidden lg:inline' : ''}>{label}</span>
               {done && !isDisabled && (
                 <Check
                   key={`${id}-done`}

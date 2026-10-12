@@ -9,6 +9,9 @@ export type TimelineTrackType =
   | 'music'
   | 'infographic';
 
+/** Animations the /custom-text endpoint accepts. */
+export type CustomTextAnimation = 'none' | 'fade_in' | 'fade_out' | 'fade_in_out';
+
 export type TimelineClip = {
   id: string;
   trackId: string;
@@ -64,6 +67,21 @@ export type TimelineClip = {
   offsetX?: number;
   offsetY?: number;
   animationStyle?: string;
+  /** Added from the Text tab — sent to POST /edit/…/custom-text when the user leaves the scene. */
+  customText?: boolean;
+  /** Custom text styling (per clip; falls back to the Text tab defaults). */
+  fontFamily?: string;
+  /** Design px at 1920×1080. */
+  fontSize?: number;
+  fontWeight?: 'bold' | 'normal';
+  textBackground?: boolean;
+  /** 0–1. */
+  bgOpacity?: number;
+  textAnimation?: CustomTextAnimation;
+  /** `text_id` from POST /custom-text — later PUT / DELETE address it. */
+  customTextId?: string;
+  /** Beat the custom text was created on (its PUT / DELETE URLs use this beat). */
+  customTextBeatId?: string;
 
   /** Ken Burns pan/zoom applied to a b-roll clip (from timeline `type: animation`). */
   kenBurns?: {

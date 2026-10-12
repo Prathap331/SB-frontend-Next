@@ -66,6 +66,7 @@ import { downloadVideoFile } from '@/lib/download-video';
 import {
   ApiService,
   type EditVideoResponse,
+  type EditVideoCustomText,
   type EditVideoScene,
   type EditVideoInfographicAnimationType,
   type SceneInfographicUpdate,
@@ -115,7 +116,8 @@ import {
   startBrollPickSession,
   type PickedBrollItem,
 } from '@/lib/video-editor/broll-pick';
-import type { TimelineState, TimelineClip } from '@/lib/video-editor/types';
+import type { TimelineState, TimelineClip, CustomTextAnimation } from '@/lib/video-editor/types';
+import { addClipToTrack } from '@/lib/video-editor/migrate';
 import { readInfographicFromEditScene, parseRemotionInfographic, remotionInfographicLabel, remotionDurationSeconds, resolveInfographicStartSeconds, seededTextFromOverlayItem, kenBurnsFromTrack, mergeOverlayTrackOntoItem, rebaseOverlaySpec, rebaseSeededText, isOverlayGraphicTrack, collectSceneGraphicsOverlays, displayTextPayloadFromEditor, placementToPreviewOffsets, type RemotionInfographicSpec, type SeededTextOverlay } from '@/lib/video-editor/infographics';
 import { audioWindowSeconds, frameWindowSeconds, toSceneLocalSeconds } from '@/lib/video-editor/timings';
 import { TimelinePanel, TimelinePreview } from '@/components/studio/video-timeline';
@@ -212,6 +214,8 @@ type Scene = {
   }[];
   seededTextOverlays?: SeededTextOverlay[];
   seededInfographics?: RemotionInfographicSpec[];
+  /** Custom text boxes saved on this scene — added back to its timeline on load. */
+  customTexts?: EditVideoCustomText[];
 };
 
 type Suggestion = {
@@ -274,6 +278,8 @@ type PendingSceneEdits = {
   brollClipIds?: string[];
   trim?: { start: number; end: number };
   addMedia?: PendingAddMedia[];
+  /** Sent custom texts the user removed — DELETE …/custom-text/{text_id} on leaving the scene. */
+  customTextDeletes?: { textId: string; beatId: string }[];
   beatOps?: PendingBeatOp[];
 };
 
@@ -350,6 +356,131 @@ function addMediaPayloadFromSuggestion(item: Suggestion) {
   });
 }
 
+/** Design frame the /custom-text coordinates are in. */
+const CUSTOM_TEXT_FRAME = { width: 1920, height: 1080 };
+
+type CustomTextBody = ReturnType<typeof customTextPayload>;
+
+/**
+ * A saved custom text (`scenes[].custom_text[]`) as a text clip — the inverse of
+ * customTextPayload: the 1920×1080 box centre becomes the preview's offsetX / offsetY.
+ */
+function customTextClipFromSaved(item: EditVideoCustomText, sceneId: string, defaults: TextStyle): TimelineClip {
+  const fontSize = item.font_size ?? defaults.fontSize;
+  const text = item.text ?? '';
+  const lines = Math.max(1, text.split('\n').length);
+  const boxHeight = lines * fontSize * 1.3 + 16;
+  const clamp = (n: number) => Math.max(0, Math.min(100, n));
+  const opacity = item.background_opacity ?? 0;
+  const animation = (['none', 'fade_in', 'fade_out', 'fade_in_out'] as const).find((a) => a === item.animation);
+  const duration = Math.max(0.1, item.end - item.start);
+  return {
+    id: `ctext-${item.text_id}`,
+    trackId: DEFAULT_TRACK_IDS.text,
+    type: 'text',
+    name: text.slice(0, 48) || 'Text',
+    text,
+    start: item.start,
+    duration,
+    sourceStart: 0,
+    sourceDuration: duration,
+    sceneId,
+    customText: true,
+    customTextId: item.text_id,
+    customTextBeatId: item.beat_id,
+    offsetX: clamp((item.x / CUSTOM_TEXT_FRAME.width) * 100),
+    offsetY: clamp((1 - (item.y + boxHeight / 2) / CUSTOM_TEXT_FRAME.height) * 100),
+    fontFamily: item.font_family ?? defaults.fontStyle,
+    fontSize,
+    fontWeight: item.font_style === 'normal' ? 'normal' : 'bold',
+    textColor: item.text_color ?? defaults.textColor,
+    bgColor: item.background_color ?? defaults.bgColor,
+    textBackground: opacity > 0,
+    // A hidden background keeps the default strength for when the user turns it back on.
+    bgOpacity: opacity > 0 ? opacity : defaults.bgOpacity,
+    textAnimation: animation ?? 'none',
+  } as TimelineClip;
+}
+
+/** Adds a scene's saved custom texts to its timeline (skipping any already there). */
+function withSavedCustomTexts(
+  timeline: TimelineState,
+  scene: Scene,
+  defaults: TextStyle,
+): { timeline: TimelineState; clips: TimelineClip[] } {
+  const have = new Set(
+    timeline.tracks.flatMap((t) => t.clips).map((c) => c.customTextId).filter((id): id is string => Boolean(id)),
+  );
+  const clips = (scene.customTexts ?? [])
+    .filter((item) => !have.has(item.text_id))
+    .map((item) => customTextClipFromSaved(item, scene.id, defaults));
+  let next = timeline;
+  for (const clip of clips) next = addClipToTrack(next, DEFAULT_TRACK_IDS.text, clip);
+  return { timeline: next, clips };
+}
+
+/** Fields that differ from what the backend last accepted, or null when nothing changed. */
+function changedCustomTextFields(before: CustomTextBody, after: CustomTextBody): Partial<CustomTextBody> | null {
+  const changes: Record<string, unknown> = {};
+  for (const key of Object.keys(after) as (keyof CustomTextBody)[]) {
+    const a = before[key];
+    const b = after[key];
+    const same = typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) < 0.0005 : a === b;
+    if (!same) changes[key] = b;
+  }
+  return Object.keys(changes).length ? (changes as Partial<CustomTextBody>) : null;
+}
+
+/**
+ * `text_id` of the text just created: the response lists the beat's custom texts
+ * (`{ custom_text: [{ …, text_id }] }`); pick the new one matching what was sent.
+ */
+function textIdFromCustomTextResponse(res: unknown, sent: CustomTextBody, known: Set<string>): string | null {
+  const rec = res && typeof res === 'object' ? (res as Record<string, unknown>) : {};
+  const nested = rec.data && typeof rec.data === 'object' ? (rec.data as Record<string, unknown>) : {};
+  const list = (Array.isArray(rec.custom_text) ? rec.custom_text : Array.isArray(nested.custom_text) ? nested.custom_text : [])
+    .filter((e): e is Record<string, unknown> => Boolean(e) && typeof e === 'object');
+  const idOf = (e: Record<string, unknown>) => (typeof e.text_id === 'string' && e.text_id ? e.text_id : null);
+  const fresh = list.filter((e) => idOf(e) && !known.has(idOf(e) as string));
+  const match = fresh.find(
+    (e) =>
+      String(e.text ?? '').trim() === sent.text &&
+      Math.abs(Number(e.start) - sent.start) < 0.05 &&
+      Math.abs(Number(e.end) - sent.end) < 0.05,
+  );
+  const picked = match ?? fresh[fresh.length - 1];
+  if (picked) return idOf(picked);
+  return typeof rec.text_id === 'string' ? rec.text_id : null;
+}
+
+/**
+ * /custom-text body for a text clip. The preview places the box by its bottom edge
+ * (offsetY % from the bottom) and its horizontal anchor (offsetX % from the left); the
+ * backend wants the box centre in 1920×1080 px.
+ */
+function customTextPayload(clip: TimelineClip, defaults: TextStyle) {
+  const fontSize = clip.fontSize ?? defaults.fontSize;
+  const offsetX = clip.offsetX ?? defaults.offsetX;
+  const offsetY = clip.offsetY ?? defaults.offsetY;
+  const lines = Math.max(1, (clip.text ?? '').split('\n').length);
+  const boxHeight = lines * fontSize * 1.3 + 16; // line-height 1.3 + 8px padding top / bottom
+  const background = clip.textBackground ?? defaults.background;
+  return {
+    text: (clip.text ?? '').trim(),
+    start: roundSeconds(clip.start),
+    end: roundSeconds(clip.start + clip.duration),
+    x: Math.round((offsetX / 100) * CUSTOM_TEXT_FRAME.width),
+    y: Math.round(CUSTOM_TEXT_FRAME.height * (1 - offsetY / 100) - boxHeight / 2),
+    font_family: clip.fontFamily ?? defaults.fontStyle,
+    font_size: Math.round(fontSize),
+    font_style: clip.fontWeight ?? defaults.fontWeight,
+    text_color: clip.textColor ?? defaults.textColor,
+    background_color: clip.bgColor ?? defaults.bgColor,
+    background_opacity: background ? Math.round((clip.bgOpacity ?? defaults.bgOpacity) * 100) / 100 : 0,
+    animation: clip.textAnimation ?? defaults.textAnimation,
+  };
+}
+
 const OVERLAY_BOUNDS_MESSAGE =
   'This animation belongs to its B-roll — it can only be repositioned within that video';
 
@@ -404,20 +535,34 @@ type TextStyle = {
   /** CSS font-family value, e.g. "Inter". */
   fontStyle: string;
   animationStyle: EditVideoTextAnimationStyle;
+  fontWeight: 'bold' | 'normal';
+  /** Text box background opacity, 0–1. */
+  bgOpacity: number;
+  textAnimation: CustomTextAnimation;
 };
 
-const TEXT_ANIMATIONS: { id: EditVideoTextAnimationStyle; label: string }[] = [
+/** Fonts offered for custom text (what /custom-text accepts). */
+const CUSTOM_TEXT_FONTS = [
+  'Roboto',
+  'Open Sans',
+  'Montserrat',
+  'Oswald',
+  'Poppins',
+  'Lato',
+  'Playfair Display',
+  'Merriweather',
+  'Bebas Neue',
+  'Inter',
+] as const;
+
+const CUSTOM_TEXT_ANIMATIONS: { id: CustomTextAnimation; label: string }[] = [
+  { id: 'none', label: 'None' },
   { id: 'fade_in', label: 'Fade in' },
-  { id: 'slide_in_left', label: 'Slide in — left' },
-  { id: 'slide_in_right', label: 'Slide in — right' },
-  { id: 'slide_up', label: 'Slide up' },
-  { id: 'slide_down', label: 'Slide down' },
-  { id: 'zoom_in', label: 'Zoom in' },
-  { id: 'bounce', label: 'Bounce' },
-  { id: 'pop', label: 'Pop' },
-  { id: 'typewriter', label: 'Typewriter' },
-  { id: 'wipe', label: 'Wipe' },
+  { id: 'fade_out', label: 'Fade out' },
+  { id: 'fade_in_out', label: 'Fade in & out' },
 ];
+
+
 
 const CAPTION_ANIMATIONS: { id: EditVideoCaptionAnimationType; label: string }[] = [
   { id: 'static_line', label: 'Static line' },
@@ -539,9 +684,11 @@ const GOOGLE_FONTS: { label: string; family: string }[] = [
   { label: 'Caveat — handwriting', family: 'Caveat' },
 ];
 
-const GOOGLE_FONTS_HREF = `https://fonts.googleapis.com/css2?${GOOGLE_FONTS.map(
-  (f) => `family=${encodeURIComponent(f.family).replace(/%20/g, '+')}:wght@400;600;700`,
-).join('&')}&display=swap`;
+const GOOGLE_FONTS_HREF = `https://fonts.googleapis.com/css2?${[
+  ...new Set([...GOOGLE_FONTS.map((f) => f.family), ...CUSTOM_TEXT_FONTS]),
+]
+  .map((family) => `family=${encodeURIComponent(family).replace(/%20/g, '+')}:wght@400;600;700`)
+  .join('&')}&display=swap`;
 
 /** Placeholder library shown before the user generates voice + scenes. */
 const BROLL_SUGGESTIONS: Suggestion[] = [
@@ -916,6 +1063,7 @@ function mapEditVideoResponse(res: EditVideoResponse): {
       onScreenText: s.on_screen_text ?? null,
       wordSegments: wordSegments.length ? wordSegments : undefined,
       captionStyle,
+      customTexts: s.custom_text?.length ? s.custom_text : undefined,
       // Audio `start_sec`/`end_sec` are project-absolute (scene 2 begins where scene 1 ended).
       // Clips on this scene's timeline are 0-based; the ruler shows `start` as the origin.
       voiceStart: wordSegments[0]?.start ?? 0,
@@ -1487,6 +1635,9 @@ export function StudioVideoEditingPanel({
     fontSize: 72,
     fontStyle: 'Inter',
     animationStyle: 'fade_in',
+    fontWeight: 'bold',
+    bgOpacity: 0.7,
+    textAnimation: 'fade_in_out',
   });
   const textStyleRef = useRef(textStyle);
   textStyleRef.current = textStyle;
@@ -1840,6 +1991,11 @@ export function StudioVideoEditingPanel({
     [patchSceneClip, recordPendingCaption],
   );
 
+  /** Custom text clips whose POST is in flight (not sent twice). */
+  const customTextCreatingRef = useRef(new Set<string>());
+  /** What the backend last accepted per custom text clip — PUT sends only what differs. */
+  const customTextSentRef = useRef(new Map<string, CustomTextBody>());
+
   /** Placeholder beat id (`local-…`) → the id the backend gave that beat. Lives for the session. */
   const beatIdAliasRef = useRef(new Map<string, string>());
   const resolveBeatId = useCallback(
@@ -1938,12 +2094,77 @@ export function StudioVideoEditingPanel({
       const pending = pendingSceneEditsRef.current[sceneId];
       delete pendingSceneEditsRef.current[sceneId];
       const videoId = videoIdRef.current;
-      if (!videoId || !pending) return;
-      const beatOps = pending.beatOps ?? [];
+      if (!videoId) return;
+      const beatOps = pending?.beatOps ?? [];
       if (beatOps.length) {
         enqueueRequest(() => runBeatOps(videoId, sceneId, beatOps));
       }
-      for (const op of pending.addMedia ?? []) {
+      // Custom text boxes in this scene: DELETE removed ones, POST new ones, PUT changed ones.
+      const timeline =
+        sceneId === selectedIdRef.current ? timelineRef.current : sceneTimelinesRef.current[sceneId];
+      const scene = scenesRef.current.find((sc) => sc.id === sceneId);
+      const clipStillExists = (clipId: string) => {
+        const tl = sceneId === selectedIdRef.current ? timelineRef.current : sceneTimelinesRef.current[sceneId];
+        return Boolean(tl?.tracks.some((t) => t.clips.some((c) => c.id === clipId)));
+      };
+
+      for (const del of pending?.customTextDeletes ?? []) {
+        enqueueRequest(async () => {
+          await ApiService.deleteCustomText(videoId, sceneId, resolveBeatId(del.beatId), del.textId);
+        });
+      }
+
+      const sceneClips = timeline?.tracks.flatMap((t) => t.clips) ?? [];
+      for (const clip of sceneClips) {
+        if (!clip.customText || !clip.text?.trim()) continue;
+        const payload = customTextPayload(clip, textStyleRef.current);
+
+        if (clip.customTextId && clip.customTextBeatId) {
+          const textId = clip.customTextId;
+          const beatId = clip.customTextBeatId;
+          const before = customTextSentRef.current.get(clip.id);
+          const changes = before ? changedCustomTextFields(before, payload) : null;
+          if (!changes) continue;
+          enqueueRequest(async () => {
+            await ApiService.updateCustomText(videoId, sceneId, resolveBeatId(beatId), textId, changes);
+            customTextSentRef.current.set(clip.id, payload);
+          });
+          continue;
+        }
+
+        if (customTextCreatingRef.current.has(clip.id)) continue;
+        const beatId =
+          (scene && timeline ? backendBeatIdForBroll(scene, timeline, clip.start) : undefined) ??
+          scene?.beats?.find((bt) => bt.beatId && !isFabricatedBeatId(bt.beatId))?.beatId;
+        if (!beatId) {
+          console.warn('[custom-text] no beat for this scene — not sent', { sceneId, clipId: clip.id });
+          continue;
+        }
+        customTextCreatingRef.current.add(clip.id);
+        const knownIds = new Set(sceneClips.map((c) => c.customTextId).filter((id): id is string => Boolean(id)));
+        enqueueRequest(async () => {
+          try {
+            const realBeatId = resolveBeatId(beatId);
+            const res = await ApiService.addCustomText(videoId, sceneId, realBeatId, payload);
+            const textId = textIdFromCustomTextResponse(res, payload, knownIds);
+            if (!textId) {
+              console.warn('[custom-text] created, but no text_id in the response', res);
+              return;
+            }
+            if (!clipStillExists(clip.id)) {
+              // Deleted while its POST was in flight — remove it on the backend too.
+              await ApiService.deleteCustomText(videoId, sceneId, realBeatId, textId);
+              return;
+            }
+            customTextSentRef.current.set(clip.id, payload);
+            patchSceneClip(sceneId, clip.id, { customTextId: textId, customTextBeatId: realBeatId });
+          } finally {
+            customTextCreatingRef.current.delete(clip.id);
+          }
+        });
+      }
+
+      for (const op of pending?.addMedia ?? []) {
         enqueueRequest(async () => {
           const beatId = resolveBeatId(op.beatId);
           if (isLocalBeatId(beatId)) return;
@@ -1951,7 +2172,7 @@ export function StudioVideoEditingPanel({
         });
       }
     },
-    [enqueueRequest, runBeatOps, resolveBeatId],
+    [enqueueRequest, runBeatOps, resolveBeatId, patchSceneClip],
   );
   flushSceneEditsRef.current = flushSceneEdits;
 
@@ -2674,6 +2895,17 @@ export function StudioVideoEditingPanel({
             }),
           )
         : createSceneTimelinesMap(mappedScenes);
+      // Custom text boxes saved on the backend come back as editable text clips.
+      customTextSentRef.current = new Map();
+      for (const scene of mappedScenes) {
+        if (!scene.customTexts?.length || !maps[scene.id]) continue;
+        const restored = withSavedCustomTexts(maps[scene.id], scene, textStyleRef.current);
+        maps[scene.id] = restored.timeline;
+        // What the backend has — a PUT goes out only once the user changes something.
+        restored.clips.forEach((clip) =>
+          customTextSentRef.current.set(clip.id, customTextPayload(clip, textStyleRef.current)),
+        );
+      }
       setSceneTimelines(maps);
       replaceTimelineState((firstId && maps[firstId]) || maps[mappedScenes[0].id], false);
       const synced = collectSyncedIds(Object.values(maps));
@@ -3570,7 +3802,12 @@ export function StudioVideoEditingPanel({
   );
   const remotionAlreadyOnTimeline = isRemotionAlreadyOnTimeline(selected?.remotionInfographic);
 
-  const addTextClip = useCallback(() => {
+  /** Text typed in the Text tab, waiting for "Add to screen". */
+  const [newTextDraft, setNewTextDraft] = useState('');
+
+  const addTextClip = useCallback((typed: string) => {
+    const content = typed.trim();
+    if (!content) return;
     const start = timelineApi.timeline.currentTime;
     const id = `txt-${Date.now()}`;
     const sceneId = selectedId;
@@ -3580,8 +3817,8 @@ export function StudioVideoEditingPanel({
     timelineApi.addClip(DEFAULT_TRACK_IDS.text, {
       id,
       type: 'text',
-      name: 'New text',
-      text: 'New text',
+      name: content.slice(0, 48),
+      text: content,
       start,
       duration: 3,
       sourceStart: 0,
@@ -3593,11 +3830,172 @@ export function StudioVideoEditingPanel({
       textColor: ts.textColor,
       bgColor: ts.bgColor,
       animationStyle: ts.animationStyle,
+      customText: true,
+      fontFamily: ts.fontStyle,
+      fontSize: ts.fontSize,
+      fontWeight: ts.fontWeight,
+      textBackground: ts.background,
+      bgOpacity: ts.bgOpacity,
+      textAnimation: ts.textAnimation,
     });
     timelineApi.selectClips([id]);
     if (sceneId) recordPendingOverlay(sceneId, id);
-    showToast('Text clip added');
+    setNewTextDraft('');
+    showToast('Text added to the screen');
   }, [timelineApi, selectedId, selected?.num, showToast, recordPendingOverlay]);
+
+  /**
+   * Text tab styling: always the default for the next text box, and also applied to the
+   * selected text box when one is selected.
+   */
+  const styleSelectedText = (stylePatch: Partial<TextStyle>, clipPatch: Partial<TimelineClip>) => {
+    setTextStyle((t) => ({ ...t, ...stylePatch }));
+    const sel = timelineApi.selectedClip;
+    if (sel?.type === 'text') {
+      timelineApi.updateClip(sel.id, clipPatch);
+      if (selected) recordPendingOverlay(selected.id, sel.id);
+    } else if (selected) {
+      recordPendingOverlay(selected.id, undefined, ['text']);
+    }
+  };
+
+  /** The selected text box's value for a style field, else the default. */
+  const selectedTextClip = timelineApi.selectedClip?.type === 'text' ? timelineApi.selectedClip : null;
+  const currentFont = selectedTextClip?.fontFamily ?? textStyle.fontStyle;
+  const currentSize = selectedTextClip?.fontSize ?? textStyle.fontSize;
+  const currentWeight = selectedTextClip?.fontWeight ?? textStyle.fontWeight;
+  const currentBackground = selectedTextClip?.textBackground ?? textStyle.background;
+  const currentOpacity = selectedTextClip?.bgOpacity ?? textStyle.bgOpacity;
+  const currentAnimation = selectedTextClip?.textAnimation ?? textStyle.textAnimation;
+
+  /** Bold · font · size · background opacity · animation — same on desktop and mobile. */
+  const renderCustomTextControls = () => (
+    <>
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-[#6e6e73]">Bold</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={currentWeight === 'bold'}
+          onClick={() => {
+            const next = currentWeight === 'bold' ? 'normal' : 'bold';
+            styleSelectedText({ fontWeight: next }, { fontWeight: next });
+          }}
+          className={`relative h-[19px] w-[34px] rounded-full transition-colors ${
+            currentWeight === 'bold' ? 'bg-[#1d1d1f]' : 'bg-gray-300'
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-[15px] w-[15px] rounded-full bg-white transition-all ${
+              currentWeight === 'bold' ? 'left-[17px]' : 'left-0.5'
+            }`}
+          />
+        </button>
+      </div>
+
+      {currentBackground && (
+        <>
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-[#6e6e73]">Background opacity</span>
+            <span className="text-[11px] tabular-nums text-[#86868b]">{Math.round(currentOpacity * 100)}%</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={Math.round(currentOpacity * 100)}
+            onChange={(e) => {
+              const next = Math.max(0, Math.min(1, Number(e.target.value) / 100));
+              styleSelectedText({ bgOpacity: next }, { bgOpacity: next });
+            }}
+            className="mb-3 w-full accent-[#1d1d1f]"
+          />
+        </>
+      )}
+
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font</p>
+      <select
+        value={currentFont}
+        onChange={(e) => styleSelectedText({ fontStyle: e.target.value }, { fontFamily: e.target.value })}
+        style={{ fontFamily: currentFont }}
+        className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
+      >
+        {CUSTOM_TEXT_FONTS.map((family) => (
+          <option key={family} value={family} style={{ fontFamily: family }}>
+            {family}
+          </option>
+        ))}
+      </select>
+
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font size (px)</p>
+      <input
+        type="number"
+        min={8}
+        max={300}
+        step={1}
+        value={currentSize}
+        onChange={(e) => {
+          const next = Math.max(8, Math.min(300, Number(e.target.value) || currentSize));
+          styleSelectedText({ fontSize: next }, { fontSize: next });
+        }}
+        className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
+      />
+
+      <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Animation</p>
+      <select
+        value={currentAnimation}
+        onChange={(e) => {
+          const next = e.target.value as CustomTextAnimation;
+          styleSelectedText({ textAnimation: next }, { textAnimation: next });
+        }}
+        className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
+      >
+        {CUSTOM_TEXT_ANIMATIONS.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.label}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+
+  /** Text tab: type first; "Add to screen" appears once there is something to add. */
+  const renderTextComposer = (afterAdd?: () => void) => {
+    const add = () => {
+      if (!newTextDraft.trim()) return;
+      addTextClip(newTextDraft);
+      afterAdd?.();
+    };
+    return (
+      <div className="mb-3">
+        <label className="mb-1.5 block text-[11px] font-semibold text-[#6e6e73]">Your text</label>
+        <textarea
+          value={newTextDraft}
+          onChange={(e) => setNewTextDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              add();
+            }
+          }}
+          rows={2}
+          placeholder="Type the text to show on screen"
+          className="w-full resize-none rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm text-[#1d1d1f] outline-none placeholder:text-[#a1a1a6] focus:border-gray-400"
+        />
+        {newTextDraft.trim() && (
+          <button
+            type="button"
+            onClick={add}
+            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#1d1d1f] px-3 py-2 text-xs font-semibold text-white hover:bg-black"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add to screen
+          </button>
+        )}
+      </div>
+    );
+  };
 
   const persistBeatText = useCallback(
     (clip: TimelineClip, path: string, props: Record<string, unknown>) => {
@@ -3829,6 +4227,21 @@ export function StudioVideoEditingPanel({
               contentType: kind === 'image' ? 'image' : 'video',
             });
           }
+        }
+        return;
+      }
+
+      if (clip.customText) {
+        customTextSentRef.current.delete(clip.id);
+        if (clip.customTextId && clip.customTextBeatId) {
+          const current = pendingSceneEditsRef.current[sceneId] ?? {};
+          pendingSceneEditsRef.current[sceneId] = {
+            ...current,
+            customTextDeletes: [
+              ...(current.customTextDeletes ?? []),
+              { textId: clip.customTextId, beatId: clip.customTextBeatId },
+            ],
+          };
         }
         return;
       }
@@ -4723,6 +5136,13 @@ export function StudioVideoEditingPanel({
                 if (selected) recordPendingOverlay(selected.id, clipId);
               }}
               onInfographicTextCommit={commitInfographicPreviewText}
+              onTextResize={(fontSize, clipId) => {
+                setTextStyle((t) => ({ ...t, fontSize }));
+                if (clipId) {
+                  timelineApi.updateClip(clipId, { fontSize });
+                  if (selected) recordPendingOverlay(selected.id, clipId);
+                }
+              }}
               onRequestPause={pausePlayback}
             />
           ) : null}
@@ -5065,15 +5485,8 @@ export function StudioVideoEditingPanel({
               <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
                 Text
               </p>
-              <button
-                type="button"
-                onClick={addTextClip}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1 text-[11px] font-semibold text-[#1d1d1f] hover:bg-gray-200"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add text
-              </button>
             </div>
+            {renderTextComposer()}
             <p className="mb-3 text-[11px] leading-relaxed text-[#86868b]">
               Suggested text overlays are placed on the timeline automatically. Add more clips as you need — each can be moved and trimmed.
             </p>
@@ -5100,18 +5513,18 @@ export function StudioVideoEditingPanel({
               <button
                 type="button"
                 role="switch"
-                aria-checked={textStyle.background}
+                aria-checked={currentBackground}
                 onClick={() => {
-                  setTextStyle((t) => ({ ...t, background: !t.background }));
+                  styleSelectedText({ background: !currentBackground }, { textBackground: !currentBackground });
                   if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
                 }}
                 className={`relative h-[19px] w-[34px] rounded-full transition-colors ${
-                  textStyle.background ? 'bg-[#1d1d1f]' : 'bg-gray-300'
+                  currentBackground ? 'bg-[#1d1d1f]' : 'bg-gray-300'
                 }`}
               >
                 <span
                   className={`absolute top-0.5 h-[15px] w-[15px] rounded-full bg-white transition-all ${
-                    textStyle.background ? 'left-[17px]' : 'left-0.5'
+                    currentBackground ? 'left-[17px]' : 'left-0.5'
                   }`}
                 />
               </button>
@@ -5130,59 +5543,7 @@ export function StudioVideoEditingPanel({
               </button>
             )}
 
-            <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font size (px)</p>
-            <input
-              type="number"
-              min={8}
-              max={300}
-              step={1}
-              value={textStyle.fontSize}
-              onChange={(e) => {
-                const next = Math.max(8, Math.min(300, Number(e.target.value) || textStyle.fontSize));
-                setTextStyle((t) => ({ ...t, fontSize: next }));
-                if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
-              }}
-              className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
-            />
-
-            <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font style</p>
-            <select
-              value={textStyle.fontStyle}
-              onChange={(e) => {
-                const next = e.target.value;
-                setTextStyle((t) => ({ ...t, fontStyle: next }));
-              }}
-              style={{ fontFamily: textStyle.fontStyle }}
-              className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
-            >
-              {GOOGLE_FONTS.map((f) => (
-                <option key={f.family} value={f.family} style={{ fontFamily: f.family }}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
-
-            <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Animation</p>
-            <select
-              value={textStyle.animationStyle}
-              onChange={(e) => {
-                const next = e.target.value as EditVideoTextAnimationStyle;
-                setTextStyle((t) => ({ ...t, animationStyle: next }));
-                if (timelineApi.selectedClip?.type === 'text') {
-                  timelineApi.updateClip(timelineApi.selectedClip.id, { animationStyle: next });
-                  if (selected) recordPendingOverlay(selected.id, timelineApi.selectedClip.id);
-                } else if (selected) {
-                  recordPendingOverlay(selected.id, undefined, ['text']);
-                }
-              }}
-              className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
-            >
-              {TEXT_ANIMATIONS.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.label}
-                </option>
-              ))}
-            </select>
+            {renderCustomTextControls()}
 
             {timelineApi.selectedClip?.type === 'text' ? (
               <>
@@ -5335,6 +5696,13 @@ export function StudioVideoEditingPanel({
                 if (selected) recordPendingOverlay(selected.id, clipId);
               }}
               onInfographicTextCommit={commitInfographicPreviewText}
+              onTextResize={(fontSize, clipId) => {
+                setTextStyle((t) => ({ ...t, fontSize }));
+                if (clipId) {
+                  timelineApi.updateClip(clipId, { fontSize });
+                  if (selected) recordPendingOverlay(selected.id, clipId);
+                }
+              }}
               onRequestPause={pausePlayback}
             />
           ) : null}
@@ -5642,15 +6010,8 @@ export function StudioVideoEditingPanel({
                           <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#6e6e73]">
                             Text
                           </p>
-                          <button
-                            type="button"
-                            onClick={addTextClip}
-                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-[#f5f5f7] px-2 py-1 text-[11px] font-semibold text-[#1d1d1f]"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            Add text
-                          </button>
                         </div>
+                        {renderTextComposer(() => setMobileSheet(null))}
 
                         <p className="mb-3 text-[10px] leading-relaxed text-[#a1a1a6]">
                           Drag the text directly on the preview to position it.
@@ -5674,18 +6035,18 @@ export function StudioVideoEditingPanel({
                           <button
                             type="button"
                             role="switch"
-                            aria-checked={textStyle.background}
+                            aria-checked={currentBackground}
                             onClick={() => {
-                              setTextStyle((t) => ({ ...t, background: !t.background }));
+                              styleSelectedText({ background: !currentBackground }, { textBackground: !currentBackground });
                               if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
                             }}
                             className={`relative h-[19px] w-[34px] rounded-full transition-colors ${
-                              textStyle.background ? 'bg-[#1d1d1f]' : 'bg-gray-300'
+                              currentBackground ? 'bg-[#1d1d1f]' : 'bg-gray-300'
                             }`}
                           >
                             <span
                               className={`absolute top-0.5 h-[15px] w-[15px] rounded-full bg-white transition-all ${
-                                textStyle.background ? 'left-[17px]' : 'left-0.5'
+                                currentBackground ? 'left-[17px]' : 'left-0.5'
                               }`}
                             />
                           </button>
@@ -5704,20 +6065,7 @@ export function StudioVideoEditingPanel({
                           </button>
                         )}
 
-                        <p className="mb-1.5 text-[11px] font-semibold text-[#6e6e73]">Font size (px)</p>
-                        <input
-                          type="number"
-                          min={8}
-                          max={300}
-                          step={1}
-                          value={textStyle.fontSize}
-                          onChange={(e) => {
-                            const next = Math.max(8, Math.min(300, Number(e.target.value) || textStyle.fontSize));
-                            setTextStyle((t) => ({ ...t, fontSize: next }));
-                            if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
-                          }}
-                          className="mb-3 w-full rounded-lg border border-gray-200 bg-[#f5f5f7] px-2.5 py-2 text-xs text-[#1d1d1f]"
-                        />
+                        {renderCustomTextControls()}
 
                         {timelineApi.selectedClip?.type === 'text' ? (
                           <textarea
@@ -5813,8 +6161,7 @@ export function StudioVideoEditingPanel({
               return;
             }
             if (colorPickerTarget === 'background') {
-              setTextStyle((t) => ({ ...t, bgColor: hex }));
-              if (selected) recordPendingOverlay(selected.id, undefined, ['text']);
+              styleSelectedText({ bgColor: hex }, { bgColor: hex });
               return;
             }
             if (colorPickerTarget === 'caption-text') {

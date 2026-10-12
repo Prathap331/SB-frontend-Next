@@ -1,6 +1,7 @@
 import { EDITOR_FPS } from '@/lib/video-editor/fps';
 import { isStorybitAnimationType, resolveAnimationType } from '@/remotion/animationTypes';
 import type {
+  EditVideoCustomText,
   BrollVideo,
   EditVideoBeat,
   EditVideoBeatAsset,
@@ -285,6 +286,47 @@ function pickBeatAsset(
   return null;
 }
 
+/** Saved custom text boxes, each tagged with the direction (beat) its start falls in. */
+function customTextsOf(
+  raw: Record<string, unknown>,
+  directions: Record<string, unknown>[],
+): EditVideoCustomText[] | undefined {
+  if (!Array.isArray(raw.custom_text)) return undefined;
+  const beatAt = (t: number) => {
+    const hit = directions.find((d) => {
+      const start = asFiniteNumber(d.start) ?? 0;
+      const end = asFiniteNumber(d.end) ?? start;
+      return t >= start - 0.001 && t < end;
+    });
+    return asId(hit?.id) || asId(hit?.beat_id) || asId(directions[0]?.id) || undefined;
+  };
+  const out: EditVideoCustomText[] = [];
+  for (const item of raw.custom_text) {
+    const rec = asRecord(item);
+    const textId = asString(rec?.text_id);
+    const start = asFiniteNumber(rec?.start);
+    const end = asFiniteNumber(rec?.end);
+    if (!rec || !textId || start == null || end == null || end <= start) continue;
+    out.push({
+      text_id: textId,
+      text: asString(rec.text),
+      start,
+      end,
+      x: asFiniteNumber(rec.x) ?? 960,
+      y: asFiniteNumber(rec.y) ?? 800,
+      font_family: asString(rec.font_family) || undefined,
+      font_size: asFiniteNumber(rec.font_size) ?? undefined,
+      font_style: asString(rec.font_style) || undefined,
+      text_color: asString(rec.text_color) || undefined,
+      background_color: asString(rec.background_color) || undefined,
+      background_opacity: asFiniteNumber(rec.background_opacity) ?? undefined,
+      animation: asString(rec.animation) || undefined,
+      beat_id: asString(rec.beat_id) || beatAt(start),
+    });
+  }
+  return out.length ? out : undefined;
+}
+
 function convertDirectionScene(raw: Record<string, unknown>, index: number): {
   scene: EditVideoScene;
   infographics: EditVideoInfographicListItem[];
@@ -384,6 +426,7 @@ function convertDirectionScene(raw: Record<string, unknown>, index: number): {
     beats,
     infographics: infographics[0] ?? null,
     error: audioUrl ? null : 'Missing voiceover audio',
+    custom_text: customTextsOf(raw, directions),
   };
   return { scene, infographics };
 }

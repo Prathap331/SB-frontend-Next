@@ -49,7 +49,8 @@ type Props = {
   /** Fired while burned-in captions are dragged — same coordinate space as text. */
   onCaptionPositionChange?: (x: number, y: number) => void;
   /** Fired while a corner handle is dragged to resize the text. */
-  onTextResize?: (fontSize: number) => void;
+  /** Corner drag on the text box — the new font size for that text clip. */
+  onTextResize?: (fontSize: number, clipId?: string) => void;
   /** Fired when infographic text/icons are dragged or resized on the preview. */
   onOverlayTransform?: (clipId: string, geometry: OverlayGeometryPx, fontSize: number) => void;
   /** Fired when the inline-edited text is changed — receives the clip id being edited. */
@@ -68,6 +69,29 @@ type Props = {
 };
 
 type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br';
+
+/** Text box fill: per-clip colour / opacity, falling back to the Text tab defaults. */
+function textBoxBackground(clip: TimelineClip, style: TextStyle): string {
+  const on = clip.textBackground ?? style.background;
+  if (!on) return 'transparent';
+  const hex = (clip.bgColor ?? style.bgColor ?? '#000000').replace('#', '');
+  const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex.slice(0, 6);
+  const opacity = clip.bgOpacity ?? 0.8;
+  const alpha = Math.round(Math.max(0, Math.min(1, opacity)) * 255).toString(16).padStart(2, '0');
+  return `#${full}${alpha}`;
+}
+
+/** Custom text fades: 0.5 s in at the start and/or out at the end of the clip. */
+function customTextOpacity(clip: TimelineClip, time: number): number {
+  const FADE = 0.5;
+  const local = time - clip.start;
+  const fadeIn = clip.textAnimation === 'fade_in' || clip.textAnimation === 'fade_in_out';
+  const fadeOut = clip.textAnimation === 'fade_out' || clip.textAnimation === 'fade_in_out';
+  let o = 1;
+  if (fadeIn) o = Math.min(o, Math.max(0, local / FADE));
+  if (fadeOut) o = Math.min(o, Math.max(0, (clip.duration - local) / FADE));
+  return o;
+}
 
 /** m:ss for the fullscreen player. */
 function formatClock(sec: number): string {
@@ -286,15 +310,18 @@ export function TimelinePreview({
     if (!onTextResize) return;
     const startX = e.clientX;
     const startY = e.clientY;
-    const startFontSize = textStyle.fontSize;
+    const resizingId = textClip?.id;
+    const startFontSize = textClip?.fontSize ?? textStyle.fontSize;
+    // Screen px → design px, so the corner follows the pointer at any preview size.
+    const toDesign = overlayScale > 0 ? 1 / overlayScale : 1;
     // Dragging a corner away from the box centre grows the text; toward it shrinks.
     const signX = corner === 'tl' || corner === 'bl' ? -1 : 1;
     const signY = corner === 'tl' || corner === 'tr' ? -1 : 1;
     const move = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) * signX;
       const dy = (ev.clientY - startY) * signY;
-      const next = Math.max(8, Math.min(300, Math.round(startFontSize + (dx + dy) / 2)));
-      onTextResize(next);
+      const next = Math.max(8, Math.min(300, Math.round(startFontSize + ((dx + dy) / 2) * toDesign)));
+      onTextResize(next, resizingId);
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -1307,9 +1334,19 @@ export function TimelinePreview({
                 : (textClip.offsetX ?? textStyle.offsetX) > 70
                   ? 'translateX(-100%)'
                   : 'translateX(-50%)',
-            background: textStyle.background ? `${textStyle.bgColor}cc` : 'transparent',
+            background: textBoxBackground(textClip, textStyle),
             cursor: editingText ? 'text' : onTextPositionChange ? 'grab' : undefined,
-            ...(editingText
+            // Visible edges while editing (paused) — drag a corner to resize the text.
+            ...(onTextResize && !isPlaying && !editingText
+              ? { outline: '1.5px dashed rgba(255,255,255,0.85)', outlineOffset: '2px' }
+              : {}),
+            ...(textClip.textAnimation
+              ? {
+                  opacity: customTextOpacity(textClip, timeline.currentTime),
+                  transition: 'opacity 90ms linear',
+                }
+              : {}),
+            ...(editingText || textClip.textAnimation
               ? {}
               : {
                   animationName: `txtAnim-${textClip.animationStyle || textStyle.animationStyle}`,
@@ -1328,11 +1365,12 @@ export function TimelinePreview({
             contentEditable={editingText}
             suppressContentEditableWarning
             data-edit-seed={textClip.text ?? ''}
-            className="m-0 whitespace-pre-wrap leading-snug font-semibold outline-none"
+            className="m-0 whitespace-pre-wrap leading-snug outline-none"
             style={{
-              fontSize: `${scaleDesignPx(textStyle.fontSize)}px`,
+              fontSize: `${scaleDesignPx(textClip.fontSize ?? textStyle.fontSize)}px`,
               color: textClip.textColor || textStyle.textColor,
-              fontFamily: textStyle.fontStyle,
+              fontFamily: textClip.fontFamily ?? textStyle.fontStyle,
+              fontWeight: (textClip.fontWeight ?? 'bold') === 'bold' ? 700 : 400,
             }}
             onPointerDown={(e) => {
               if (editingText) e.stopPropagation();
@@ -1352,7 +1390,7 @@ export function TimelinePreview({
             {editingText ? null : textClip.text}
           </p>
 
-          {!editingText && onTextResize && (
+          {!editingText && onTextResize && !isPlaying && (
             <>
               <span
                 onPointerDown={(e) => beginResizeText(e, 'tl')}

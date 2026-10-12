@@ -146,6 +146,26 @@ export interface EditVideoDirection {
   end_word_index?: number;
 }
 
+/** A custom text box saved on a scene (`scenes[].custom_text[]`), as POST /custom-text stored it. */
+export interface EditVideoCustomText {
+  text_id: string;
+  text: string;
+  start: number;
+  end: number;
+  /** Box centre in 1920×1080 px. */
+  x: number;
+  y: number;
+  font_family?: string;
+  font_size?: number;
+  font_style?: 'bold' | 'normal' | string;
+  text_color?: string;
+  background_color?: string;
+  background_opacity?: number;
+  animation?: string;
+  /** Direction (beat) the text starts in — filled in by the normalizer; PUT / DELETE use it. */
+  beat_id?: string;
+}
+
 /** Scene as stored on `videos.timeline` and returned by POST /edit-video. */
 export interface EditVideoDirectionScene {
   id: string | number;
@@ -274,6 +294,8 @@ export interface EditVideoScene {
   background_color?: string | null;
   /** Present only after a /trim edit. */
   trim?: { start: number; end: number };
+  /** Custom text boxes the user added (POST /custom-text). */
+  custom_text?: EditVideoCustomText[];
 }
 
 /** A full-screen/callout text overlay suggested for one scene (distinct from a graphic infographic). */
@@ -2201,6 +2223,61 @@ export class ApiService {
       body: JSON.stringify(at),
     });
     return this.parseJsonOrThrow(response, 'Split beat');
+  }
+
+  /**
+   * POST /edit/{videoId}/{sceneId}/{beatId}/custom-text — a text box the user added.
+   * `start` / `end` are scene seconds; `x` / `y` are the box centre in 1920×1080 px.
+   */
+  static async addCustomText(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    payload: {
+      text: string;
+      start: number;
+      end: number;
+      x: number;
+      y: number;
+      font_family: string;
+      font_size: number;
+      font_style: 'bold' | 'normal';
+      text_color: string;
+      background_color: string;
+      background_opacity: number;
+      animation: 'none' | 'fade_in' | 'fade_out' | 'fade_in_out';
+    },
+  ): Promise<unknown> {
+    const response = await this.authorizedFetch(this.beatUrl(videoId, sceneId, beatId, '/custom-text'), {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return this.parseJsonOrThrow(response, 'Add custom text');
+  }
+
+  /** PUT /edit/{videoId}/{sceneId}/{beatId}/custom-text/{text_id} — only the changed fields. */
+  static async updateCustomText(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    textId: string,
+    changes: Record<string, unknown>,
+  ): Promise<unknown> {
+    const url = this.beatUrl(videoId, sceneId, beatId, `/custom-text/${encodeURIComponent(textId)}`);
+    const response = await this.authorizedFetch(url, { method: 'PUT', body: JSON.stringify(changes) });
+    return this.parseJsonOrThrow(response, 'Update custom text');
+  }
+
+  /** DELETE /edit/{videoId}/{sceneId}/{beatId}/custom-text/{text_id} */
+  static async deleteCustomText(
+    videoId: string,
+    sceneId: string,
+    beatId: string,
+    textId: string,
+  ): Promise<unknown> {
+    const url = this.beatUrl(videoId, sceneId, beatId, `/custom-text/${encodeURIComponent(textId)}`);
+    const response = await this.authorizedFetch(url, { method: 'DELETE' });
+    return this.parseJsonOrThrow(response, 'Delete custom text');
   }
 
   /** POST /edit/{videoId}/{sceneId}/{beatId}/duplicate — copies the beat; no body. */
