@@ -57,8 +57,8 @@ import {
 } from '@/lib/voice-clone';
 import { CREDITS_PER_EDIT_VIDEO_MINUTE, editVideoCredits, estimateSpeechDurationSeconds } from '@/lib/credits';
 import { notifyUser, requestNotificationPermission } from '@/lib/notifications';
-import { getScriptTextFromMap, type ScriptLanguageMap } from '@/lib/script-data';
-import { DEFAULT_SCRIPT_LANGUAGE, scriptLanguageLabel } from '@/lib/script-languages';
+import { getScriptTextFromMap, primaryScriptLanguage, type ScriptLanguageMap } from '@/lib/script-data';
+import { DEFAULT_SCRIPT_LANGUAGE, scriptLanguageCode, scriptLanguageLabel } from '@/lib/script-languages';
 import { normalizeRenderStatus, type RenderQueueStatus } from '@/lib/renderStatus';
 import { supabase } from '@/lib/supabaseClient';
 import { getScriptVideoUrl, saveScriptVideoUrl } from '@/lib/script-persistence';
@@ -2748,12 +2748,11 @@ export function StudioVideoEditingPanel({
   );
 
   useEffect(() => {
-    setSetupScript(scriptText || '');
-  }, [scriptText]);
-
-  useEffect(() => {
-    setSetupLanguage(scriptLanguage || DEFAULT_SCRIPT_LANGUAGE);
-  }, [scriptLanguage]);
+    const lang = primaryScriptLanguage(scriptsByLanguage, scriptLanguage);
+    setSetupLanguage(lang);
+    const fromMap = getScriptTextFromMap(scriptsByLanguage ?? {}, lang);
+    setSetupScript(fromMap.trim() ? fromMap : scriptText || '');
+  }, [scriptText, scriptLanguage, scriptsByLanguage]);
 
   // Pick a run back up after a reload / tab switch: the fetch died with the old page,
   // but the backend is still working on it.
@@ -2772,9 +2771,10 @@ export function StudioVideoEditingPanel({
     const keys = Object.entries(scriptsByLanguage ?? {})
       .filter(([, text]) => typeof text === 'string' && text.trim())
       .map(([key]) => key.toLowerCase());
-    if (!keys.includes(DEFAULT_SCRIPT_LANGUAGE)) keys.unshift(DEFAULT_SCRIPT_LANGUAGE);
+    const current = (scriptLanguage || DEFAULT_SCRIPT_LANGUAGE).toLowerCase();
+    if (!keys.length && current) keys.push(current);
     return Array.from(new Set(keys));
-  }, [scriptsByLanguage]);
+  }, [scriptsByLanguage, scriptLanguage]);
 
   /** Swap the setup script to another translation of the same script. */
   const handlePickLanguage = useCallback(
@@ -3131,7 +3131,7 @@ export function StudioVideoEditingPanel({
         userId,
         script: setupScript.trim(),
         voice,
-        langCode: 'en',
+        langCode: scriptLanguageCode(setupLanguage),
         durationMinutes,
         volume: genVolume,
         loudnessNormalization: genLoudnessNorm,

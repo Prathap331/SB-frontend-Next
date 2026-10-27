@@ -35,11 +35,12 @@ import { StudioCloningPanel } from '@/components/studio/StudioCloningPanel';
 import { fetchClonedVoiceFromProfile } from '@/components/studio/StudioAudioPanel';
 import { fetchVideosProject } from '@/lib/video-editor/videos-store';
 import { StudioChromeProvider, useStudioChrome } from '@/components/studio/StudioChromeContext';
-import { getScriptTextFromMap } from '@/lib/script-data';
+import { getScriptTextFromMap, primaryScriptLanguage } from '@/lib/script-data';
 import {
   DEFAULT_SCRIPT_LANGUAGE,
   SCRIPT_LANGUAGES,
   scriptLanguageApiName,
+  scriptLanguageKey,
 } from '@/lib/script-languages';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -554,11 +555,6 @@ const TSSCard: React.FC<TSSCardProps> = ({
   );
 };
 
-/**
- * Language picker for /generate-script.
- * Only English generates today; the rest are listed as coming soon so the roadmap is
- * visible without being selectable.
- */
 /** Shown under a minutes input when Generate script was clicked without a length. */
 function LengthPrompt({ min, max }: { min: number; max: number }) {
   return (
@@ -615,28 +611,20 @@ function ScriptLanguageSelect({
           className="absolute bottom-full left-0 z-[70] mb-1 max-h-56 w-max min-w-full overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg border border-gray-200 bg-white py-1 shadow-lg [scrollbar-width:thin]"
         >
           {SCRIPT_LANGUAGES.map((lang) => {
-            const available = lang.value === DEFAULT_SCRIPT_LANGUAGE;
             const active = lang.value === value;
             return (
-              <li key={lang.value} role="option" aria-selected={active} aria-disabled={!available}>
+              <li key={lang.value} role="option" aria-selected={active}>
                 <button
                   type="button"
-                  disabled={!available}
                   onClick={() => {
-                    if (!available) return;
                     onChange(lang.value);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between gap-3 px-2.5 py-1.5 text-left text-sm ${
-                    available
-                      ? `text-[#1d1d1f] hover:bg-[#f5f5f7] ${active ? 'font-semibold' : ''}`
-                      : 'cursor-not-allowed text-[#86868b]'
+                  className={`flex w-full items-center justify-between gap-3 px-2.5 py-1.5 text-left text-sm text-[#1d1d1f] hover:bg-[#f5f5f7] ${
+                    active ? 'font-semibold' : ''
                   }`}
                 >
                   <span className="min-w-0 truncate">{lang.label}</span>
-                  {!available && (
-                    <span className="ml-auto flex-shrink-0 text-[11px] leading-none">🔜</span>
-                  )}
                 </button>
               </li>
             );
@@ -946,7 +934,9 @@ function SearchTopicPageInner() {
         setActiveScriptRowId(row.id != null ? String(row.id) : null);
         setActiveUniversalScriptId(fromAssigned ? null : (row.id != null ? String(row.id) : null));
         setActiveScriptFromAssigned(fromAssigned);
-        setActiveScriptLanguage(DEFAULT_SCRIPT_LANGUAGE);
+        setActiveScriptLanguage(
+          primaryScriptLanguage(normalized.scriptsByLanguage, row.metrics?.language),
+        );
         setIsLoading(false);
         setScriptViewerLoading(false);
         loadedScriptIdRef.current = scriptIdParam;
@@ -1888,6 +1878,7 @@ useEffect(() => {
       setActiveScriptRowId(universalId);
       setActiveUniversalScriptId(universalId);
       setActiveScriptFromAssigned(false);
+      setActiveScriptLanguage(scriptLanguageKey(language));
       setStudioTab('script', { ideaTitle: idea.title });
       setSidebarRefresh((n) => n + 1);
       try {

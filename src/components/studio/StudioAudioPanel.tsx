@@ -21,7 +21,7 @@ import {
   getScriptTextFromMap,
   parseScriptLanguageMap,
   unwrapScriptJson,
-  wrapEnglishScript,
+  wrapScriptForLanguage,
   type ScriptLanguageMap,
 } from '@/lib/script-data';
 import {
@@ -490,7 +490,7 @@ export function StudioAudioPanel({
         map = { ...scriptsByLanguage };
       }
       if (!Object.keys(map).length && scriptText?.trim()) {
-        map = wrapEnglishScript(scriptText);
+        map = wrapScriptForLanguage(scriptText, initialLanguage);
       }
 
       applyMap(map);

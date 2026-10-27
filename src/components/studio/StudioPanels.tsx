@@ -30,9 +30,11 @@ import {
 import type { GeneratedScriptData } from '@/services/api';
 import { ApiService } from '@/services/api';
 import {
+  alignScriptMapToLanguage,
   getScriptTextFromMap,
+  primaryScriptLanguage,
   unwrapScriptJson,
-  wrapEnglishScript,
+  wrapScriptForLanguage,
   type ScriptLanguageMap,
 } from '@/lib/script-data';
 import { DEFAULT_SCRIPT_LANGUAGE } from '@/lib/script-languages';
@@ -469,10 +471,11 @@ export function StudioScriptPanel({
     }
     const map =
       data?.scriptsByLanguage && Object.keys(data.scriptsByLanguage).length
-        ? data.scriptsByLanguage
-        : wrapEnglishScript(data?.script || '');
+        ? alignScriptMapToLanguage(data.scriptsByLanguage, data?.metrics?.language)
+        : wrapScriptForLanguage(data?.script || '', data?.metrics?.language);
     setLanguageMap(map);
-    setActiveLang((prev) => (map[prev]?.trim() ? prev : DEFAULT_SCRIPT_LANGUAGE));
+    const nextLang = primaryScriptLanguage(map, data?.metrics?.language);
+    setActiveLang((prev) => (map[prev]?.trim() ? prev : nextLang));
   }, [data?.script, data?.scriptsByLanguage, isUnlocked]);
 
   useEffect(() => {
@@ -619,8 +622,12 @@ export function StudioScriptPanel({
       }
 
       const full = json.script;
-      const englishMap = wrapEnglishScript(full.script || '');
-      applyLanguageMap(englishMap, DEFAULT_SCRIPT_LANGUAGE);
+      const language = primaryScriptLanguage(full.scriptsByLanguage, full.metrics?.language);
+      const languageMap =
+        full.scriptsByLanguage && Object.keys(full.scriptsByLanguage).length
+          ? alignScriptMapToLanguage(full.scriptsByLanguage, language)
+          : wrapScriptForLanguage(full.script || '', language);
+      applyLanguageMap(languageMap, language);
 
       setIsUnlocked(true);
       setScriptSaved(true);
@@ -632,7 +639,7 @@ export function StudioScriptPanel({
 
       onUnlocked?.({
         assignedId: assignedIdResult,
-        script: { ...full, scriptsByLanguage: englishMap, locked: false },
+        script: { ...full, scriptsByLanguage: languageMap, locked: false },
       });
     } catch {
       setShowInsufficientPopup(true);

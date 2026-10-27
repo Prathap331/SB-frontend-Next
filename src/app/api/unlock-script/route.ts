@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBackendUrl } from '@/lib/backend';
-import { normalizeScriptData } from '@/lib/script-data';
-import { wrapEnglishScript } from '@/lib/script-data';
+import {
+  alignScriptMapToLanguage,
+  normalizeScriptData,
+  primaryScriptLanguage,
+  wrapScriptForLanguage,
+} from '@/lib/script-data';
 import { buildScriptTableRow, THUMBNAIL_GENERATED_COLUMN } from '@/lib/script-persistence';
 
 export const dynamic = 'force-dynamic';
@@ -91,8 +95,15 @@ export async function POST(request: NextRequest) {
     }
 
     const normalized = normalizeScriptData(uni);
-    const englishMap = wrapEnglishScript(normalized.script || '');
-    const dataForSave = { ...normalized, scriptsByLanguage: englishMap };
+    const language = primaryScriptLanguage(
+      normalized.scriptsByLanguage,
+      normalized.metrics?.language,
+    );
+    const languageMap =
+      normalized.scriptsByLanguage && Object.keys(normalized.scriptsByLanguage).length
+        ? alignScriptMapToLanguage(normalized.scriptsByLanguage, language)
+        : wrapScriptForLanguage(normalized.script || '', language);
+    const dataForSave = { ...normalized, scriptsByLanguage: languageMap };
 
     const row = buildScriptTableRow(dataForSave, {
       userId,
@@ -100,7 +111,7 @@ export async function POST(request: NextRequest) {
       topic: body.topic || uni.topic || body.title,
       description: body.description || uni.description,
       asLanguageMap: true,
-      scriptsByLanguage: englishMap,
+      scriptsByLanguage: languageMap,
     });
 
     const thumbGen = uni[THUMBNAIL_GENERATED_COLUMN] ?? uni.thumbnail_generated ?? null;
@@ -137,7 +148,7 @@ export async function POST(request: NextRequest) {
         message: 'success',
         remaining_credits: unlockJson.remaining_credits,
         assignedId,
-        script: normalized,
+        script: { ...normalized, scriptsByLanguage: languageMap, locked: false },
       },
       {
         status: 200,

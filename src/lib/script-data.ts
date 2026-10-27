@@ -7,7 +7,7 @@ import {
   readThumbnailGeneratedColumn,
   toThumbnailGeneratedJson,
 } from '@/lib/script-persistence';
-import { DEFAULT_SCRIPT_LANGUAGE } from '@/lib/script-languages';
+import { DEFAULT_SCRIPT_LANGUAGE, scriptLanguageKey } from '@/lib/script-languages';
 
 /** Multilingual script column shape (jsonb): { english: "...", telugu: "..." } */
 export type ScriptLanguageMap = Record<string, string>;
@@ -78,10 +78,57 @@ export function getScriptTextFromMap(
   return first ?? '';
 }
 
+/** Wrap a plain script under the language it was generated in. */
+export function wrapScriptForLanguage(
+  script: string,
+  language?: string | null,
+): ScriptLanguageMap {
+  const text = (script || '').trim();
+  if (!text) return {};
+  return { [scriptLanguageKey(language || DEFAULT_SCRIPT_LANGUAGE)]: text };
+}
+
 /** Wrap a plain script as the default english entry for unlock persistence */
 export function wrapEnglishScript(script: string): ScriptLanguageMap {
-  const text = (script || '').trim();
-  return text ? { [DEFAULT_SCRIPT_LANGUAGE]: text } : {};
+  return wrapScriptForLanguage(script, DEFAULT_SCRIPT_LANGUAGE);
+}
+
+/**
+ * Language to show in the editor: generation metrics first, then the only map
+ * key, then English if present.
+ */
+export function primaryScriptLanguage(
+  map?: ScriptLanguageMap | null,
+  metricsLanguage?: string | null,
+): string {
+  const keys = Object.entries(map ?? {})
+    .filter(([, text]) => typeof text === 'string' && text.trim())
+    .map(([key]) => scriptLanguageKey(key));
+  const fromMetrics = metricsLanguage ? scriptLanguageKey(metricsLanguage) : '';
+  if (fromMetrics && keys.includes(fromMetrics)) return fromMetrics;
+  if (fromMetrics && keys.length === 1 && keys[0] === DEFAULT_SCRIPT_LANGUAGE) {
+    return fromMetrics;
+  }
+  if (keys.length === 1) return keys[0];
+  if (fromMetrics) return fromMetrics;
+  if (keys.includes(DEFAULT_SCRIPT_LANGUAGE)) return DEFAULT_SCRIPT_LANGUAGE;
+  return keys[0] || DEFAULT_SCRIPT_LANGUAGE;
+}
+
+/** Move a legacy `{ english: "…" }` body onto the real generation language. */
+export function alignScriptMapToLanguage(
+  map: ScriptLanguageMap,
+  language?: string | null,
+): ScriptLanguageMap {
+  const key = language ? scriptLanguageKey(language) : '';
+  if (!key || key === DEFAULT_SCRIPT_LANGUAGE) return map;
+  if (map[key]?.trim()) return map;
+  const filled = Object.entries(map).filter(([, text]) => typeof text === 'string' && text.trim());
+  if (filled.length === 1 && scriptLanguageKey(filled[0][0]) === DEFAULT_SCRIPT_LANGUAGE) {
+    const { [DEFAULT_SCRIPT_LANGUAGE]: text, ...rest } = map;
+    return { ...rest, [key]: text };
+  }
+  return map;
 }
 
 export function mergeScriptLanguage(
@@ -159,8 +206,19 @@ export function normalizeScriptData(raw: any): GeneratedScriptData {
     }
   }
 
-  const languageMap = parseScriptLanguageMap(raw?.script);
-  const scriptText = getScriptTextFromMap(languageMap) || extractScriptText(raw);
+  const requestedLang = raw?.metrics?.language
+    ? scriptLanguageKey(String(raw.metrics.language))
+    : '';
+  let languageMap = alignScriptMapToLanguage(
+    parseScriptLanguageMap(raw?.script),
+    requestedLang,
+  );
+  const preferred = primaryScriptLanguage(languageMap, requestedLang);
+  const scriptText =
+    getScriptTextFromMap(languageMap, preferred) || extractScriptText(raw);
+  if (!Object.keys(languageMap).length && scriptText) {
+    languageMap = wrapScriptForLanguage(scriptText, preferred);
+  }
   const script_audio = normalizeScriptAudio(raw?.script_audio);
 
   return {
@@ -169,7 +227,7 @@ export function normalizeScriptData(raw: any): GeneratedScriptData {
     scriptsByLanguage: Object.keys(languageMap).length
       ? languageMap
       : scriptText
-        ? wrapEnglishScript(scriptText)
+        ? wrapScriptForLanguage(scriptText, preferred)
         : undefined,
     estimated_word_count: raw?.estimated_word_count ?? metrics?.totalWords ?? metrics?.word_count ?? 0,
     source_urls: sources,

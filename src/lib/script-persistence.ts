@@ -3,7 +3,7 @@ import type { BookReference, GeneratedScriptData, YoutubeMetadata } from '@/serv
 import {
   getScriptTextFromMap,
   parseScriptLanguageMap,
-  wrapEnglishScript,
+  wrapScriptForLanguage,
   type ScriptLanguageMap,
 } from '@/lib/script-data';
 import { DEFAULT_SCRIPT_LANGUAGE, scriptLanguageKey } from '@/lib/script-languages';
@@ -374,7 +374,7 @@ export function buildScriptTableRow(
     topic?: string;
     description?: string;
     userId: string;
-    /** When true, persist script as { english: "..." } jsonb map */
+    /** When true, persist script as a language map jsonb */
     asLanguageMap?: boolean;
     scriptsByLanguage?: ScriptLanguageMap;
   },
@@ -390,7 +390,12 @@ export function buildScriptTableRow(
     const fromData = data.scriptsByLanguage;
     if (fromOpts && Object.keys(fromOpts).length) script = fromOpts;
     else if (fromData && Object.keys(fromData).length) script = fromData;
-    else script = wrapEnglishScript(data.script || '');
+    else {
+      script = wrapScriptForLanguage(
+        data.script || '',
+        data.metrics?.language || DEFAULT_SCRIPT_LANGUAGE,
+      );
+    }
   }
 
   return {

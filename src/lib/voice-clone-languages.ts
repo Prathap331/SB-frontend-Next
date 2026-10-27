@@ -116,9 +116,10 @@ export const VOICE_CLONE_LANGUAGES: VoiceCloneLanguage[] = [
 
 export const DEFAULT_VOICE_CLONE_LANGUAGE = 'en';
 
-/** Only English clones today; other languages stay listed as coming soon. */
+/** True for any language in the clone list. */
 export function isVoiceCloneLanguageAvailable(code: string | null | undefined): boolean {
-  return (code || '').toLowerCase() === DEFAULT_VOICE_CLONE_LANGUAGE;
+  const value = (code || '').toLowerCase();
+  return VOICE_CLONE_LANGUAGES.some((lang) => lang.code === value);
 }
 
 const VOICE_CLONE_LANGUAGE_BY_CODE = new Map(

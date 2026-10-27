@@ -4,6 +4,7 @@ import {
   isGeneratedScriptEmpty,
   normalizeScriptData,
   SCRIPT_NULL_RETRY_ERROR,
+  wrapScriptForLanguage,
 } from '@/lib/script-data';
 import {
   buildScriptTableRow,
@@ -48,14 +49,17 @@ async function persistUniversal(
           : existingLength,
     language: scriptLanguageKey(body.language || DEFAULT_SCRIPT_LANGUAGE),
   };
+  const languageMap = wrapScriptForLanguage(data.script || '', metrics.language);
 
   const row = buildScriptTableRow(
-    { ...data, metrics },
+    { ...data, metrics, scriptsByLanguage: languageMap },
     {
       userId,
       title: body.title || data.title,
       topic: body.topic || body.title || data.title,
       description: body.description,
+      asLanguageMap: true,
+      scriptsByLanguage: languageMap,
     },
   );
 

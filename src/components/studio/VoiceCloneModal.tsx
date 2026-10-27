@@ -477,39 +477,23 @@ export function VoiceCloneModal({
                   </li>
                 ) : (
                   filteredLanguages.map((lang) => {
-                    const available = isVoiceCloneLanguageAvailable(lang.code);
                     const isActive = lang.code === selectedCode;
                     return (
-                      <li
-                        key={lang.code}
-                        role="option"
-                        aria-selected={isActive}
-                        aria-disabled={!available}
-                      >
+                      <li key={lang.code} role="option" aria-selected={isActive}>
                         <button
                           type="button"
-                          disabled={!available}
-                          onClick={() => {
-                            if (!available) return;
-                            selectLanguage(lang.code);
-                          }}
-                          className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm ${
-                            available
-                              ? `text-[#1d1d1f] hover:bg-[#f5f5f7] ${isActive ? 'font-semibold' : ''}`
-                              : 'cursor-not-allowed text-[#86868b]'
+                          onClick={() => selectLanguage(lang.code)}
+                          className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm text-[#1d1d1f] hover:bg-[#f5f5f7] ${
+                            isActive ? 'font-semibold' : ''
                           }`}
                         >
                           <span className="min-w-0 truncate">{lang.name}</span>
-                          {available ? (
-                            <span className="flex items-center gap-2 flex-shrink-0">
-                              <span className="text-[11px] font-mono text-[#6e6e73] bg-[#f5f5f7] border border-gray-100 rounded-md px-2 py-0.5">
-                                {lang.code}
-                              </span>
-                              {isActive && <Check className="w-4 h-4 text-[#1d1d1f]" />}
+                          <span className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-[11px] font-mono text-[#6e6e73] bg-[#f5f5f7] border border-gray-100 rounded-md px-2 py-0.5">
+                              {lang.code}
                             </span>
-                          ) : (
-                            <span className="ml-auto flex-shrink-0 text-[11px] leading-none">🔜</span>
-                          )}
+                            {isActive && <Check className="w-4 h-4 text-[#1d1d1f]" />}
+                          </span>
                         </button>
                       </li>
                     );
