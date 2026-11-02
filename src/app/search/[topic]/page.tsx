@@ -2437,7 +2437,7 @@ useEffect(() => {
                               </div>
                               <div>
                                 <label className="block text-[10px] font-semibold tracking-widest text-gray-400 uppercase mb-1">
-                                  Language
+                                 PICK Language
                                 </label>
                                 <ScriptLanguageSelect
                                   value={ideaLanguage(statement.id)}
