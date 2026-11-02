@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { GoogleTagManager } from '@next/third-parties/google';
 import { Noto_Sans } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
@@ -19,6 +20,8 @@ import {
   softwareApplicationJsonLd,
   websiteJsonLd,
 } from '@/lib/seo';
+
+const GTM_ID = 'GTM-NWN2KCNK';
 
 const notoSans = Noto_Sans({
   subsets: ['latin'],
@@ -95,6 +98,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={notoSans.variable}>
+      <GoogleTagManager gtmId={GTM_ID} />
       <body className={`${notoSans.className} antialiased`}>
         <JsonLd
           data={[organizationJsonLd, websiteJsonLd, softwareApplicationJsonLd]}
