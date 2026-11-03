@@ -548,7 +548,6 @@ function CheckoutInner() {
                   <PhoneInput
                     value={modalPhone}
                     onChange={setModalPhone}
-                    placeholder="98765 43210"
                     variant="outline"
                   />
                 </div>

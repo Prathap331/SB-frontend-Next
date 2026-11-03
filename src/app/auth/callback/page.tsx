@@ -13,7 +13,7 @@ import {
 import { getBackendUrl } from '@/lib/backend';
 import { buildStudioHomePath } from '@/lib/keyword-routes';
 import PhoneInput from '@/components/PhoneInput';
-import { isCompletePhone } from '@/lib/country-codes';
+import { isCompletePhone, nationalDigitLimit, parsePhoneWithCountry } from '@/lib/country-codes';
 
 type CBStep = 1 | 2 | 3 | 4 | 5;
 type AppStatus = 'loading' | 'form' | 'redirecting';
@@ -437,8 +437,10 @@ export default function AuthCallback() {
                       value={phone}
                       onChange={setPhone}
                       disabled={isSaving}
-                      placeholder="98765 43210"
                     />
+                    <p className="mt-1.5 text-[11px] text-[#6e6e73]">
+                      Enter {nationalDigitLimit(parsePhoneWithCountry(phone).dial)} digits for the selected country
+                    </p>
                   </div>
 
                   {/* Language picker */}
@@ -535,7 +537,9 @@ export default function AuthCallback() {
                   </button>
                   {(!isCompletePhone(phone) || !selectedLanguage) && (
                     <p className="text-center text-[11px] text-[#6e6e73]">
-                      {!isCompletePhone(phone) ? 'Please enter your phone number' : 'Please select a language to continue'}
+                      {!isCompletePhone(phone)
+                        ? `Please enter a ${nationalDigitLimit(parsePhoneWithCountry(phone).dial)}-digit phone number`
+                        : 'Please select a language to continue'}
                     </p>
                   )}
                   {isCompletePhone(phone) && selectedLanguage && selectedCategories.length === 0 && (

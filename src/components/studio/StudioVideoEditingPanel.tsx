@@ -41,7 +41,7 @@ import type { MouseEvent } from 'react';
 import {
   VoiceCard,
   clonedVoicePresets,
-  fetchPreMadeVoices,
+  // fetchPreMadeVoices,
   fetchClonedVoiceFromProfile,
   type VoicePreset,
 } from '@/components/studio/StudioAudioPanel';
@@ -1798,8 +1798,9 @@ export function StudioVideoEditingPanel({
   const [setupScript, setSetupScript] = useState(scriptText || '');
   const [setupLanguage, setSetupLanguage] = useState(scriptLanguage || DEFAULT_SCRIPT_LANGUAGE);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
-  const [voicePresets, setVoicePresets] = useState<VoicePreset[]>([]);
-  const [voicesLoading, setVoicesLoading] = useState(true);
+  const [voicePresets] = useState<VoicePreset[]>([]);
+  // Premade voices hidden for now — only cloned voices are shown in setup.
+  const [voicesLoading, setVoicesLoading] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<string>('');
   const [genVolume, setGenVolume] = useState(5);
   const [genLoudnessNorm, setGenLoudnessNorm] = useState(true);
@@ -2996,21 +2997,22 @@ export function StudioVideoEditingPanel({
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setVoicesLoading(true);
-      try {
-        const voices = await fetchPreMadeVoices();
-        if (!cancelled) setVoicePresets(voices);
-      } finally {
-        if (!cancelled) setVoicesLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Default / premade voices hidden for now — only cloned voices are shown.
+  // useEffect(() => {
+  //   let cancelled = false;
+  //   (async () => {
+  //     setVoicesLoading(true);
+  //     try {
+  //       const voices = await fetchPreMadeVoices();
+  //       if (!cancelled) setVoicePresets(voices);
+  //     } finally {
+  //       if (!cancelled) setVoicesLoading(false);
+  //     }
+  //   })();
+  //   return () => {
+  //     cancelled = true;
+  //   };
+  // }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -3031,6 +3033,7 @@ export function StudioVideoEditingPanel({
       if (cancelled) return;
       setClonedTracks(tracks);
       setClonedVoiceName(name);
+      if (tracks[0]) setSelectedVoice(clonedVoiceId(tracks[0].code));
     })();
     return () => {
       cancelled = true;
@@ -3064,7 +3067,8 @@ export function StudioVideoEditingPanel({
   }, [userId]);
 
   const setupScriptReady = Boolean(setupScript.trim());
-  const setupVoiceReady = videoKind === 'with-face' ? true : Boolean(selectedVoice);
+  const setupVoiceReady =
+    videoKind === 'with-face' ? true : Boolean(selectedVoice && isClonedVoiceId(selectedVoice));
   // Requires a chosen kind, not a specific one: each generate path guards its own kind
   // below. Pinning this to 'faceless' narrowed videoKind everywhere canSubmitSetup is
   // truthy, which made the with-face branch unreachable (and its button never enable).
@@ -4425,6 +4429,11 @@ export function StudioVideoEditingPanel({
                     </div>
                   ) : (
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {clonedVoices.length === 0 && (
+                        <p className="col-span-full text-[11px] leading-relaxed text-[#6e6e73]">
+                          Clone your voice to generate a voiceover. Default voices are unavailable for now.
+                        </p>
+                      )}
                       {clonedVoices.map((voice) => (
                         <VoiceCard
                           key={voice.id}
@@ -4435,6 +4444,7 @@ export function StudioVideoEditingPanel({
                           isPreviewing={previewVoiceId === voice.id}
                         />
                       ))}
+                      {/* Default / premade voices hidden for now — cloned voice only.
                       {voicePresets.map((v) => (
                         <VoiceCard
                           key={v.id}
@@ -4445,6 +4455,7 @@ export function StudioVideoEditingPanel({
                           isPreviewing={previewVoiceId === v.id}
                         />
                       ))}
+                      */}
                     </div>
                   )}
                 </div>
@@ -4621,11 +4632,11 @@ export function StudioVideoEditingPanel({
                   disabled={!canSubmitSetup}
                   onClick={() => {
                     if (videoKind === 'faceless') {
-                      // No cloned voice yet and a built-in one picked: offer cloning first.
-                      if (!clonedVoices.length && !isClonedVoiceId(selectedVoice)) {
-                        setClonePromptOpen(true);
-                        return;
-                      }
+                      // Default voices are hidden — generate only with a cloned voice.
+                      // if (!clonedVoices.length && !isClonedVoiceId(selectedVoice)) {
+                      //   setClonePromptOpen(true);
+                      //   return;
+                      // }
                       void runFacelessGenerate();
                     } else if (videoKind === 'with-face') runWithFaceGenerate();
                   }}

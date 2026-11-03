@@ -5,7 +5,9 @@ import { ChevronDown, Search } from 'lucide-react';
 import {
   COUNTRY_CODES,
   DEFAULT_COUNTRY_DIAL,
+  clampNationalDigits,
   formatPhoneWithCountry,
+  nationalDigitLimit,
   parsePhoneWithCountry,
 } from '@/lib/country-codes';
 
@@ -24,7 +26,7 @@ export default function PhoneInput({
   value,
   onChange,
   disabled = false,
-  placeholder = '98765 43210',
+  placeholder,
   id,
   variant = 'filled',
   className = '',
@@ -54,8 +56,10 @@ export default function PhoneInput({
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
+  const digitLimit = nationalDigitLimit(dial);
+
   const emit = (nextDial: string, nextNational: string) => {
-    onChange(formatPhoneWithCountry(nextDial, nextNational));
+    onChange(formatPhoneWithCountry(nextDial, clampNationalDigits(nextDial, nextNational)));
   };
 
   const filtered = useMemo(() => {
@@ -105,9 +109,16 @@ export default function PhoneInput({
         autoComplete="tel-national"
         value={national}
         disabled={disabled}
-        placeholder={placeholder}
+        maxLength={digitLimit}
+        placeholder={placeholder ?? '9'.repeat(digitLimit)}
         onChange={e => {
-          const next = e.target.value.replace(/[^\d\s-]/g, '');
+          const next = clampNationalDigits(dial, e.target.value);
+          setNational(next);
+          emit(dial, next);
+        }}
+        onPaste={e => {
+          e.preventDefault();
+          const next = clampNationalDigits(dial, e.clipboardData.getData('text'));
           setNational(next);
           emit(dial, next);
         }}
@@ -134,8 +145,10 @@ export default function PhoneInput({
                   key={`${c.iso}-${c.dial}-${c.name}`}
                   type="button"
                   onClick={() => {
+                    const nextNational = clampNationalDigits(c.dial, national);
                     setDial(c.dial);
-                    emit(c.dial, national);
+                    setNational(nextNational);
+                    emit(c.dial, nextNational);
                     setOpen(false);
                     setSearch('');
                   }}

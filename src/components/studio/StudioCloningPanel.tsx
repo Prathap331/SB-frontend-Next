@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ChevronRight, Loader2, Lock, Mic } from 'lucide-react';
+import { ChevronRight, Lock, Mic } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import {
   FREE_RECLONE_BLOCKED_MESSAGE,
@@ -18,8 +18,8 @@ import {
   VoiceCard,
   clonedVoicePresets,
   fetchClonedVoiceFromProfile,
-  fetchPreMadeVoices,
-  type VoicePreset,
+  // fetchPreMadeVoices,
+  // type VoicePreset,
 } from '@/components/studio/StudioAudioPanel';
 
 /**
@@ -36,8 +36,9 @@ export function StudioCloningPanel() {
   const [cloneOpen, setCloneOpen] = useState(false);
   /** Id of the voice currently playing — 'cloned' or a preset id; null when nothing plays. */
   const [previewVoiceId, setPreviewVoiceId] = useState<string | null>(null);
-  const [voicePresets, setVoicePresets] = useState<VoicePreset[]>([]);
-  const [voicesLoading, setVoicesLoading] = useState(true);
+  // Default / premade voices hidden for now — only cloned voices are shown.
+  // const [voicePresets, setVoicePresets] = useState<VoicePreset[]>([]);
+  // const [voicesLoading, setVoicesLoading] = useState(true);
   const previewAudioRef = useRef<InstanceType<typeof window.Audio> | null>(null);
 
   const clonedVoices = useMemo(
@@ -89,18 +90,18 @@ export function StudioCloningPanel() {
     };
   }, [loadClonedVoice]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const presets = await fetchPreMadeVoices();
-      if (cancelled) return;
-      setVoicePresets(presets);
-      setVoicesLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // useEffect(() => {
+  //   let cancelled = false;
+  //   (async () => {
+  //     const presets = await fetchPreMadeVoices();
+  //     if (cancelled) return;
+  //     setVoicePresets(presets);
+  //     setVoicesLoading(false);
+  //   })();
+  //   return () => {
+  //     cancelled = true;
+  //   };
+  // }, []);
 
   const openCloneModal = useCallback(() => {
     if (!cloningAllowed) {
@@ -144,7 +145,7 @@ export function StudioCloningPanel() {
       const cloned = clonedVoices.find((v) => v.id === id);
       const url =
         cloned?.audioUrl?.trim() ||
-        voicePresets.find((v) => v.id === id)?.audioUrl?.trim() ||
+        // voicePresets.find((v) => v.id === id)?.audioUrl?.trim() ||
         null;
       if (!url) {
         toast.error('No preview available for this voice');
@@ -159,7 +160,7 @@ export function StudioCloningPanel() {
       });
       setPreviewVoiceId(id);
     },
-    [clonedVoices, previewVoiceId, voicePresets],
+    [clonedVoices, previewVoiceId],
   );
 
   return (
@@ -227,7 +228,7 @@ export function StudioCloningPanel() {
         )}
       </section>
 
-      {/* Default voices — the premade library, for previewing */}
+      {/* Default voices — hidden for now; users pick a cloned voice only.
       <section className="bg-white border border-gray-200 rounded-3xl p-5 sm:p-6 shadow-sm">
         <div className="flex items-baseline gap-2 mb-1.5">
           <h3 className="text-sm font-semibold text-[#1d1d1f] tracking-tight">Default voices</h3>
@@ -262,6 +263,7 @@ export function StudioCloningPanel() {
           </div>
         )}
       </section>
+      */}
 
       <VoiceCloneModal
         open={cloneOpen}
